@@ -8,5 +8,9 @@
     "lib": ["ESNext", "DOM"]
   },
   "include": ["src"],
-  "references": [{ "path": "../client" }, { "path": "../shell" }]
+  "references": [
+    {
+      "path": "../shell"
+    }
+  ]
 }

@@ -33,7 +33,6 @@
       "version": "0.1.2",
       "dependencies": {
         "@opencode-ai/plugin": "1.18.31",
-        "@opencode-cockpit/client": "workspace:*",
         "@opencode-cockpit/shell": "workspace:*",
       },
     },
