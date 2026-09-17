@@ -81,8 +81,8 @@ describe("agent tools", () => {
     const id = idOf(started)
     const out = await run("shell_send", { id, text: "6*7", submit: true })
     expect(out).toContain("= 42")
-    const stopped = await run("shell_send", { id, keys: ["ctrl+d"] })
-    expect(stopped).toContain("exited")
+    await run("shell_send", { id, keys: ["ctrl+d"], waitSeconds: 0 })
+    expect(await run("shell_wait", { id, exit: true, timeoutSeconds: 10 })).toContain("process ended: exited")
   })
 
   test("shell_read follows with a cursor and greps", async () => {
