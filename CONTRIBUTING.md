@@ -131,6 +131,8 @@ bun run version:set 0.2.0     # every package
 git tag v0.2.0 && git push origin main v0.2.0
 ```
 
-The release workflow checks, packs, publishes all packages to npm in dependency order and creates
-the GitHub release. It needs an `NPM_TOKEN` secret with publish rights to `opencode-cockpit` and
-the `@opencode-cockpit` scope.
+The release workflow checks, packs, publishes all packages to npm with provenance in dependency
+order, and creates the GitHub release. Authentication is npm Trusted Publishing: each package on
+npmjs.com lists `Codestz/opencode-cockpit` with workflow `release.yml` as its trusted publisher,
+so no token is stored. (The `NPM_TOKEN` secret is only needed to publish a brand-new package for
+the first time.)
