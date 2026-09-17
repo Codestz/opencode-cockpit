@@ -24,12 +24,13 @@ const ctx = (sessionID = "ses_1", directory = "/tmp"): ToolContext => ({
   },
 })
 
-const run = (name: string, args: Record<string, unknown>, context = ctx()) =>
-  // biome-ignore lint/suspicious/noExplicitAny: test harness drives tools with raw args
-  (tools[name] as any).execute(
-    (tools[name] as any).args ? parse(name, args) : args,
-    context,
-  ) as Promise<string>
+type RawTool = { args?: object; execute(args: unknown, context: ToolContext): Promise<string> }
+
+/** Drives a tool the way OpenCode does: parse args with the tool's schema, then execute. */
+const run = (name: string, args: Record<string, unknown>, context = ctx()) => {
+  const tool = tools[name] as unknown as RawTool
+  return tool.execute(tool.args ? parse(name, args) : args, context)
+}
 
 function parse(name: string, args: Record<string, unknown>) {
   // biome-ignore lint/suspicious/noExplicitAny: zod shape from the tool definition
