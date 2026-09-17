@@ -38,6 +38,11 @@ export function waitFor(
       const existing = shell.log.read({ after, tail: 0, limit: Number.MAX_SAFE_INTEGER, grep: regex })
       const first = existing.lines[0]
       if (first) return finish({ reason: "pattern", match: first })
+      // A prompt already on screen has no newline yet, so it is not in the log.
+      const partial = shell.partialLine
+      if (partial && regex.test(partial)) {
+        return finish({ reason: "pattern", match: { n: shell.log.lastLine + 1, text: partial } })
+      }
     }
     if (!shell.running) return finish({ reason: "exit" })
 

@@ -75,6 +75,11 @@ export class Shell {
     return this.spec.id
   }
 
+  /** The line currently being written (e.g. a prompt awaiting input); empty when none. */
+  get partialLine(): string {
+    return this.normalizer.partial
+  }
+
   get running(): boolean {
     return this.status === "running"
   }

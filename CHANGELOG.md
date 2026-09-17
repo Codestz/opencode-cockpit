@@ -14,6 +14,8 @@ All notable changes to this project are documented here. The format follows
   so `opencode-cockpit@0.1.0` could not be installed. Use 0.1.1.
 - Releases now fail before publishing if a packed package pins an internal dependency to a
   version other than the one being released.
+- `shell_wait` / `shell.wait` with a pattern now matches a prompt that was already on screen
+  (no trailing newline) before the wait started, instead of timing out.
 
 ## [0.1.0] - 2026-09-17 [YANKED]
 

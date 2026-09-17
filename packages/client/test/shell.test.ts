@@ -61,6 +61,15 @@ describe("shell (M1 acceptance)", () => {
     expect(hit.reason).toBe("pattern")
   })
 
+  test("AC3d: wait matches a prompt that was already on screen before the wait started", async () => {
+    const c = env.client()
+    const info = await c.call("shell.start", bash("printf 'Password: '; read secret"))
+    await Bun.sleep(400) // prompt printed, then silence: nothing new will arrive during the wait
+    const hit = await c.call("shell.wait", { id: info.id, until: { pattern: "Password:" }, timeoutMs: 1500 })
+    expect(hit.reason).toBe("pattern")
+    expect(hit.match?.text).toBe("Password:")
+  })
+
   test("AC3c: wait matches a prompt that never ends in a newline", async () => {
     const c = env.client()
     const info = await c.call("shell.start", bash("printf 'Continue? [y/N] '; read answer; echo got=$answer"))
