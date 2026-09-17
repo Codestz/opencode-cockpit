@@ -1,6 +1,6 @@
 {
   "name": "@opencode-cockpit/protocol",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Wire protocol, method and event contracts for cockpitd (opencode-cockpit)",
   "type": "module",
   "license": "MIT",

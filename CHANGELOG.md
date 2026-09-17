@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-09-17
+
 ### Added
 
 - Shell tools accept a shell's name instead of its id, e.g. `shell_read name="DB Monitoring"`;
@@ -17,6 +19,13 @@ All notable changes to this project are documented here. The format follows
 
 - `opencode-cockpit` no longer lists `@opencode-cockpit/client` as a runtime dependency (it comes
   through the features that use it).
+
+### Fixed
+
+- `@opencode-cockpit/shell` declared `@opentui/core`, `@opentui/keymap`, `@opentui/solid`, and
+  `solid-js` as peer dependencies, which the opencode plugin installer does not install. A fresh
+  install of the published package silently dropped the TUI half (no docked panel, no keybinds),
+  while the server half kept working. They are now real dependencies.
 
 ## [0.1.2] - 2026-09-17
 
@@ -63,7 +72,8 @@ All notable changes to this project are documented here. The format follows
 - Daemon lifecycle: on-demand start, single instance under concurrent starts, idle shutdown,
   replacement of outdated idle daemons, orphan reaping after crashes.
 
-[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Codestz/opencode-cockpit/releases/tag/v0.1.0
