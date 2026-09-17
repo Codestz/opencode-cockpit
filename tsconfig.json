@@ -1,9 +1,20 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/protocol" },
-    { "path": "packages/daemon" },
-    { "path": "packages/client" },
-    { "path": "packages/opencode" }
+    {
+      "path": "packages/protocol"
+    },
+    {
+      "path": "packages/daemon"
+    },
+    {
+      "path": "packages/client"
+    },
+    {
+      "path": "packages/shell"
+    },
+    {
+      "path": "packages/opencode"
+    }
   ]
 }

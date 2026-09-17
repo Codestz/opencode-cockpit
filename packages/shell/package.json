@@ -1,0 +1,76 @@
+{
+  "name": "@opencode-cockpit/shell",
+  "version": "0.1.1",
+  "description": "Background shells for OpenCode: the agent starts, waits on and drives PTYs; you watch them in a docked TUI panel",
+  "type": "module",
+  "license": "MIT",
+  "author": "Codestz",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Codestz/opencode-cockpit.git",
+    "directory": "packages/shell"
+  },
+  "homepage": "https://github.com/Codestz/opencode-cockpit#readme",
+  "bugs": {
+    "url": "https://github.com/Codestz/opencode-cockpit/issues"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "pty",
+    "shell",
+    "background",
+    "tui",
+    "terminal"
+  ],
+  "exports": {
+    "./server": "./src/server.ts",
+    "./tui": "./src/tui/index.tsx",
+    "./connect": "./src/connect.ts"
+  },
+  "engines": {
+    "opencode": ">=1.18.0",
+    "bun": ">=1.3.5"
+  },
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@opencode-cockpit/client": "workspace:*",
+    "@opencode-cockpit/daemon": "workspace:*",
+    "@opencode-cockpit/protocol": "workspace:*",
+    "@opencode-ai/plugin": "1.18.31"
+  },
+  "peerDependencies": {
+    "@opentui/core": ">=0.4.5",
+    "@opentui/keymap": ">=0.4.5",
+    "@opentui/solid": ">=0.4.5",
+    "solid-js": ">=1.9"
+  },
+  "devDependencies": {
+    "@opentui/core": "0.4.5",
+    "@opentui/keymap": "0.4.5",
+    "@opentui/solid": "0.4.5",
+    "solid-js": "1.9.15",
+    "zod": "4.1.8"
+  },
+  "peerDependenciesMeta": {
+    "@opentui/core": {
+      "optional": true
+    },
+    "@opentui/keymap": {
+      "optional": true
+    },
+    "@opentui/solid": {
+      "optional": true
+    },
+    "solid-js": {
+      "optional": true
+    }
+  }
+}

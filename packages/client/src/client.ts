@@ -39,6 +39,38 @@ export interface OutdatedDaemon {
   expected: string
 }
 
+/**
+ * Orders build ids (`<semver>+<hash>`, see daemonBuildId). Higher semver wins; equal versions with
+ * different hashes are local development builds, where the client's code counts as newer. A
+ * daemon without a build id predates build ids and is always older.
+ */
+export function compareBuilds(client: string, daemon: string | undefined): number {
+  if (!daemon) return 1
+  if (client === daemon) return 0
+  const [cv = "", ch = ""] = client.split("+")
+  const [dv = "", dh = ""] = daemon.split("+")
+  const order = compareSemver(cv, dv)
+  if (order !== 0) return order
+  return ch === dh ? 0 : 1
+}
+
+function compareSemver(a: string, b: string): number {
+  const parse = (v: string) => {
+    const [core = "", pre] = v.split("-", 2)
+    return { nums: core.split(".").map((n) => Number.parseInt(n, 10) || 0), pre }
+  }
+  const x = parse(a)
+  const y = parse(b)
+  for (let i = 0; i < 3; i++) {
+    const d = (x.nums[i] ?? 0) - (y.nums[i] ?? 0)
+    if (d !== 0) return Math.sign(d)
+  }
+  if (x.pre === y.pre) return 0
+  if (x.pre === undefined) return 1 // 1.0.0 > 1.0.0-beta
+  if (y.pre === undefined) return -1
+  return x.pre < y.pre ? -1 : 1
+}
+
 const IDEMPOTENT = new Set<string>([
   "daemon.hello",
   "daemon.status",
@@ -199,7 +231,9 @@ export class CockpitClient {
     }
 
     const expected = this.options.expectedBuild
-    if (expected && this.hello.build !== expected) {
+    // Only move forward: several plugins at different versions share one daemon, and letting an
+    // older one replace a newer daemon would make them take turns replacing each other.
+    if (expected && compareBuilds(expected, this.hello.build) > 0) {
       const status = (await conn.request("daemon.status", {})) as { modules: { busy: boolean }[] }
       const busy = status.modules.some((m) => m.busy)
       if (!busy && this.options.spawn && !replaced) {

@@ -5,6 +5,7 @@ import {
   type TuiPluginApi,
   type TuiPluginModule,
 } from "@opencode-ai/plugin/tui"
+import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
 import { createSignal } from "solid-js"
 import { createClient } from "../connect.ts"
 import { Console } from "./console.tsx"
@@ -18,7 +19,7 @@ const DEFAULT_KEYS = {
   "cockpit.shells.console": "<leader>i",
 }
 
-interface Options {
+export interface ShellTuiOptions {
   dockHeight?: number
   /** Failures stay visible this long after they end (default 30). */
   historyMinutes?: number
@@ -26,8 +27,29 @@ interface Options {
   keybinds?: Record<string, string>
 }
 
-const tui: TuiPlugin = async (api, rawOptions) => {
-  const options = (rawOptions ?? {}) as Options
+const SHELL_PACKAGE = "@opencode-cockpit/shell"
+
+/** Shell's TUI half as a factory, so bundles such as `opencode-cockpit` can include it. */
+export function createShellTui({ source = SHELL_PACKAGE }: { source?: string } = {}): TuiPlugin {
+  return async (api, rawOptions, meta) => {
+    // The renderer is shared by every TUI plugin in this OpenCode window.
+    const claim = claimFeature(api.renderer, "shell", source)
+    if (!claim.active) {
+      api.ui.toast({
+        variant: "warning",
+        title: "opencode-cockpit",
+        message: duplicateFeatureMessage("Shell", claim.owner, source),
+        duration: 10_000,
+      })
+      return
+    }
+    api.lifecycle.onDispose(() => claim.release())
+    await shellTui(api, rawOptions, meta)
+  }
+}
+
+const shellTui: TuiPlugin = async (api, rawOptions) => {
+  const options = (rawOptions ?? {}) as ShellTuiOptions
   const client = createClient("opencode-cockpit/tui")
   const store = createShellStore(api, client, { historyMinutes: options.historyMinutes })
   const keys = createBindingLookup({ ...DEFAULT_KEYS, ...options.keybinds })
@@ -260,5 +282,5 @@ function pickShell(api: TuiPluginApi, store: ShellStore, open: (id?: string) => 
   ))
 }
 
-const plugin: TuiPluginModule & { id: string } = { id: "opencode-cockpit", tui }
+const plugin: TuiPluginModule & { id: string } = { id: "opencode-cockpit.shell", tui: createShellTui() }
 export default plugin

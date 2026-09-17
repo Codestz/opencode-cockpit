@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { existsSync, rmSync } from "node:fs"
 import { ErrorCode, RpcError } from "@opencode-cockpit/protocol"
-import { CockpitClient } from "../src/index.ts"
+import { CockpitClient, compareBuilds } from "../src/index.ts"
 import { bash, groupAlive, owner, startDaemon, tempHome } from "./helpers.ts"
 
 let env: Awaited<ReturnType<typeof startDaemon>>
@@ -348,6 +348,18 @@ describe("reuse, clear, summary", () => {
   })
 })
 
+describe("compareBuilds", () => {
+  test("orders by semver, treats same-version different-hash as newer, and never goes backwards", () => {
+    expect(compareBuilds("0.2.0+aaaaaaaaaaaa", "0.1.1+bbbbbbbbbbbb")).toBe(1)
+    expect(compareBuilds("0.1.1+aaaaaaaaaaaa", "0.2.0+bbbbbbbbbbbb")).toBe(-1)
+    expect(compareBuilds("0.10.0+a", "0.9.9+a")).toBe(1)
+    expect(compareBuilds("1.0.0+a", "1.0.0-beta.1+a")).toBe(1)
+    expect(compareBuilds("0.2.0+aaaaaaaaaaaa", "0.2.0+bbbbbbbbbbbb")).toBe(1)
+    expect(compareBuilds("0.2.0+aaaaaaaaaaaa", "0.2.0+aaaaaaaaaaaa")).toBe(0)
+    expect(compareBuilds("0.2.0+aaaaaaaaaaaa", undefined)).toBe(1)
+  })
+})
+
 describe("daemon build mismatch", () => {
   const entry = new URL("../../daemon/src/main.ts", import.meta.url).pathname
 
@@ -365,21 +377,28 @@ describe("daemon build mismatch", () => {
     const original = await first.connect()
     expect(original.build).toMatch(/^\d+\.\d+\.\d+\+[0-9a-f]{12}$/)
 
+    // Older client: never downgrades the daemon and has nothing to report.
+    const olderClient = spawnClient(paths, "0.0.1+aaaaaaaaaaaa")
+    const untouched = await olderClient.connect()
+    expect(untouched.pid).toBe(original.pid)
+    expect(olderClient.outdated).toBeUndefined()
+    olderClient.close()
+
     // Busy: a running shell protects the daemon.
     const shell = await first.call("shell.start", bash("sleep 30"))
-    const busyClient = spawnClient(paths, "0.0.0+ffffffffffff")
+    const busyClient = spawnClient(paths, "99.0.0+ffffffffffff")
     const reported: unknown[] = []
     busyClient.onOutdated((info) => reported.push(info))
     const kept = await busyClient.connect()
     expect(kept.pid).toBe(original.pid)
-    expect(busyClient.outdated?.expected).toBe("0.0.0+ffffffffffff")
+    expect(busyClient.outdated?.expected).toBe("99.0.0+ffffffffffff")
     expect(reported).toHaveLength(1)
     busyClient.close()
 
     // Idle: the mismatching client replaces it.
     await first.call("shell.stop", { id: shell.id, graceMs: 500 })
     first.close()
-    const idleClient = spawnClient(paths, "0.0.0+eeeeeeeeeeee")
+    const idleClient = spawnClient(paths, "99.0.0+eeeeeeeeeeee")
     const replaced = await idleClient.connect()
     expect(replaced.pid).not.toBe(original.pid)
     // Still differs after one replacement (fake expected id): reported, not looped.

@@ -1,7 +1,7 @@
 {
   "name": "opencode-cockpit",
   "version": "0.1.1",
-  "description": "OpenCode superpowers: background shells the agent can start, wait on and drive, with a docked TUI panel",
+  "description": "OpenCode superpowers, all in one: installs every opencode-cockpit feature (Shell today), each can be switched off",
   "type": "module",
   "license": "MIT",
   "author": "Codestz",
@@ -21,11 +21,12 @@
     "shell",
     "background",
     "tui",
-    "terminal"
+    "terminal",
+    "agents"
   ],
   "exports": {
     "./server": "./src/server.ts",
-    "./tui": "./src/tui/index.tsx"
+    "./tui": "./src/tui.ts"
   },
   "engines": {
     "opencode": ">=1.18.0",
@@ -41,35 +42,7 @@
   },
   "dependencies": {
     "@opencode-cockpit/client": "workspace:*",
-    "@opencode-cockpit/daemon": "workspace:*",
-    "@opencode-cockpit/protocol": "workspace:*",
+    "@opencode-cockpit/shell": "workspace:*",
     "@opencode-ai/plugin": "1.18.31"
-  },
-  "peerDependencies": {
-    "@opentui/core": ">=0.4.5",
-    "@opentui/keymap": ">=0.4.5",
-    "@opentui/solid": ">=0.4.5",
-    "solid-js": ">=1.9"
-  },
-  "devDependencies": {
-    "@opentui/core": "0.4.5",
-    "@opentui/keymap": "0.4.5",
-    "@opentui/solid": "0.4.5",
-    "solid-js": "1.9.15",
-    "zod": "4.1.8"
-  },
-  "peerDependenciesMeta": {
-    "@opentui/core": {
-      "optional": true
-    },
-    "@opentui/keymap": {
-      "optional": true
-    },
-    "@opentui/solid": {
-      "optional": true
-    },
-    "solid-js": {
-      "optional": true
-    }
   }
 }

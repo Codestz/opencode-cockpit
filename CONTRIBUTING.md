@@ -16,7 +16,8 @@ bun run pack:check   # pack every package, install the tarballs, run a shell thr
 
 ### Run your working copy inside OpenCode
 
-Point both configs at the plugin directory (use absolute paths):
+Point both configs at the bundle (all features) or at a single feature's directory, using absolute
+paths:
 
 ```jsonc
 // ~/.config/opencode/opencode.jsonc
@@ -29,8 +30,9 @@ Point both configs at the plugin directory (use absolute paths):
 ```
 
 Restart OpenCode after plugin changes. Daemon changes are picked up automatically: the client
-compares the running daemon's build id with its own code and replaces an idle daemon. If shells
-are running it keeps the old daemon and the panel tells you to run `/shells-restart-daemon`.
+compares the running daemon's build id with its own code and replaces an idle daemon when its code
+is newer (never older). If shells are running it keeps the old daemon and the panel tells you to
+run `/shells-restart-daemon`.
 
 Use `COCKPIT_HOME=/tmp/ck-dev` to keep a development daemon separate from your everyday one.
 
@@ -39,8 +41,8 @@ Use `COCKPIT_HOME=/tmp/ck-dev` to keep a development daemon separate from your e
 ```
 ┌──────────────────────── OpenCode process ─────────────────────────┐
 │  TUI thread                           Server worker               │
-│  opencode-cockpit/tui                 opencode-cockpit/server     │
-│  panel · console · sidebar · keys     agent tools · notifications │
+│  <feature>/tui                        <feature>/server            │
+│  e.g. shell: panel · console · keys   e.g. shell: agent tools     │
 └──────────────┬────────────────────────────────────┬───────────────┘
                └────────── @opencode-cockpit/client ─┘
                                   │ JSON-RPC 2.0 · NDJSON · unix socket (0600)
@@ -58,15 +60,30 @@ daemon that owns all long-lived state. Shells therefore survive OpenCode restart
 across OpenCode windows. The daemon starts on demand through the OpenCode binary itself
 (`BUN_BE_BUN=1`), so users need no separate runtime, and exits after an idle timeout.
 
-**Dependency direction:** `opencode → client → protocol ← daemon`. The daemon never imports
-OpenCode.
+**Features are plugins.** Each feature (`packages/shell`, later `packages/agents`) is a complete
+OpenCode plugin that users can install alone. `packages/opencode` (`opencode-cockpit`) is a thin
+bundle: it calls each feature's plugin factories and merges their hooks (`compose.ts`), with a
+`features` option to switch some off.
+
+**Dependency direction:** `opencode → features → client → protocol ← daemon`. The daemon never
+imports OpenCode; features never import each other.
 
 | Package | Contents |
 |---|---|
 | `protocol` | Zod contracts for every method (`contract`) and event (`events`), error codes, NDJSON framing, paths, build id |
 | `daemon` | `core/` (RPC server with backpressure, router validating params, module host, idle lifecycle, logger) and `modules/shell/` |
-| `client` | Connection, spawn lock, handshake, reconnect, idempotent retry, outdated-daemon handling |
-| `opencode` | `server.ts` + `tools/` (agent tools, formatting for models), `tui/` (store, dock, console, sidebar, badges) |
+| `client` | Connection, spawn lock, handshake, reconnect, idempotent retry, upgrade-only daemon replacement, `claimFeature` duplicate guard |
+| `shell` | `server.ts` + `tools/` (agent tools, formatting for models), `tui/` (store, dock, console, sidebar, badges) |
+| `opencode` | The bundle: `server.ts`, `tui.ts`, `compose.ts` (hook merging), `features.ts` (switches and options) |
+
+### Loading the same feature twice
+
+OpenCode does not deduplicate plugin tools, and duplicate tool names make model requests fail. A
+user who configures both `opencode-cockpit` and `@opencode-cockpit/shell` would hit that, so every
+feature factory starts with `claimFeature(scope, name, source)`: the first copy loaded in an
+OpenCode instance wins, later copies register nothing and warn (a toast in the TUI, a server log
+on the server). The scope is the plugin input on the server and the renderer in the TUI, which
+all plugins of one instance share. Claims are released on dispose so plugin reloads work.
 
 ### Shell output: three views of one byte stream
 
@@ -87,21 +104,35 @@ OpenCode.
 - Log line numbers are monotonic for a shell's lifetime, so cursors survive eviction and restarts.
 - The agent is only messaged on state changes (exit), never per line.
 
-### Adding a capability
+### Adding a daemon capability
 
 1. Contract: `packages/protocol/src/<name>.ts` (params and result schemas), spread into `contract`
    and `events` in `protocol/src/index.ts`.
 2. Module: `packages/daemon/src/modules/<name>/` implementing `Module` (namespace, method table,
    `start`/`stop`/`busy`). Register it in `modules/index.ts`.
-3. Surface it in `packages/opencode` (tools and/or TUI).
+3. Surface it in a feature package (tools and/or TUI).
 
 The router refuses methods missing from the contract, and handler params are typed from it.
+
+### Adding a feature
+
+1. `packages/<feature>` named `@opencode-cockpit/<feature>`, exporting `./server` and/or `./tui`
+   whose default export is a plugin built from factories (`create<Feature>Server`,
+   `create<Feature>Tui`) that accept a `source` label and start with `claimFeature`.
+2. Add it to `FEATURES` in `packages/opencode/src/features.ts` and call its factories in the
+   bundle's `server.ts` / `tui.ts`.
+3. Add the directory to `PACKAGES` in `scripts/pack-check.ts` and to the publish loop in
+   `.github/workflows/release.yml`, before `opencode`.
+4. A brand-new npm package cannot use Trusted Publishing until it exists: its first release needs
+   a short-lived `NPM_TOKEN` secret, then configure its trusted publisher and delete the token.
 
 ## Conventions
 
 - TypeScript strict, ESM, Bun APIs are fine. Biome formats and lints (`bun run lint:fix`).
 - Comments explain *why*, not what.
 - Protocol changes: additive changes bump `PROTOCOL_VERSION.minor`; breaking ones bump `major`.
+- A project that imports a `.tsx` entry through a project reference needs `"jsx": "preserve"` in its
+  tsconfig, even without JSX of its own, or `tsc -b` reports TS6305.
 - TUI text: every line is `wrapMode="none"` and truncated to a computed width, so layout never
   depends on terminal size. Use single-width glyphs (`•`, braille spinner), not emoji or
   ambiguous-width symbols.
@@ -113,7 +144,8 @@ rather than mocking the process layer.
 
 - `packages/daemon/test`: output pipeline and process registry
 - `packages/client/test`: protocol acceptance, lifecycle, reuse, build mismatch
-- `packages/opencode/test`: agent tools (including OpenCode's raw argument quirks) and view logic
+- `packages/shell/test`: agent tools (including OpenCode's raw argument quirks) and view logic
+- `packages/opencode/test`: hook composition, feature options, duplicate-load guard
 
 Bug fixes come with a test that fails before the fix.
 

@@ -9,7 +9,8 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 
 const root = join(import.meta.dir, "..")
-const PACKAGES = ["protocol", "daemon", "client", "opencode"]
+// Dependency order, matching the release workflow.
+const PACKAGES = ["protocol", "daemon", "client", "shell", "opencode"]
 const work = mkdtempSync(join(tmpdir(), "cockpit-pack-"))
 const tarballs = join(work, "tarballs")
 const project = join(work, "project")
@@ -71,7 +72,11 @@ try {
         name: "pack-check",
         private: true,
         type: "module",
-        dependencies: { "opencode-cockpit": tarball("opencode-cockpit") },
+        // The bundle and a standalone feature, as users can install either or both.
+        dependencies: {
+          "opencode-cockpit": tarball("opencode-cockpit"),
+          "@opencode-cockpit/shell": tarball("@opencode-cockpit/shell"),
+        },
         overrides,
       },
       null,
@@ -83,12 +88,14 @@ try {
   await Bun.write(
     join(project, "check.ts"),
     `
-import plugin from "opencode-cockpit/server"
+import bundle from "opencode-cockpit/server"
+import shell from "@opencode-cockpit/shell/server"
 import { CockpitClient } from "@opencode-cockpit/client"
 import { resolvePaths } from "@opencode-cockpit/protocol"
-import { daemonEntry } from "./node_modules/opencode-cockpit/src/connect.ts"
+import { daemonEntry } from "@opencode-cockpit/shell/connect"
 
-if (plugin.id !== "opencode-cockpit" || typeof plugin.server !== "function") throw new Error("bad server export")
+if (bundle.id !== "opencode-cockpit" || typeof bundle.server !== "function") throw new Error("bad bundle server export")
+if (shell.id !== "opencode-cockpit.shell" || typeof shell.server !== "function") throw new Error("bad shell server export")
 const entry = daemonEntry()
 if (!entry.includes("node_modules/@opencode-cockpit/daemon/src/main.ts")) throw new Error("daemon entry not resolved from node_modules: " + entry)
 
@@ -103,7 +110,7 @@ const page = await client.call("shell.read", { id: info.id, after: 0 })
 if (page.lines[0]?.text !== "packed ok") throw new Error("unexpected output: " + JSON.stringify(page.lines))
 await client.call("daemon.shutdown", { force: true })
 client.close()
-console.log("installed plugin loads, daemon spawns from node_modules, shell runs")
+console.log("installed bundle and shell load, daemon spawns from node_modules, shell runs")
 `,
   )
   console.log(run(["bun", "check.ts"], project).trim())

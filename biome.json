@@ -21,7 +21,7 @@
   },
   "overrides": [
     {
-      "includes": ["packages/opencode/src/tui/**"],
+      "includes": ["packages/shell/src/tui/**"],
       "linter": {
         "rules": {
           "a11y": "off"

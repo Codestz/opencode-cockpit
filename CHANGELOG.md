@@ -6,6 +6,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Features ship as separate plugins: install everything with `opencode-cockpit`, or only
+  `@opencode-cockpit/shell`. `opencode-cockpit` accepts `features` to switch features off and
+  per-feature options under the feature's name (top-level Shell options from 0.1.x still work).
+- A feature configured twice (bundle and standalone) loads once, with a warning naming the entry to
+  remove.
+
+### Changed
+
+- An outdated daemon is only replaced by clients running newer code, so plugins at different
+  versions sharing one daemon no longer replace each other.
+
 ## [0.1.1] - 2026-09-17
 
 ### Fixed
