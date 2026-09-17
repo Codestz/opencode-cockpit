@@ -142,6 +142,9 @@ describe("shell (M1 acceptance)", () => {
       "shell.start",
       bash("printf '\\e[2J\\e[Htop line\\n'; cat", { cols: 40, rows: 10 }),
     )
+    // Type only once the program is running: the terminal echoes input immediately, so typing
+    // earlier lets the wait below match the echo before the program has drawn anything.
+    await c.call("shell.wait", { id: info.id, until: { pattern: "top line" }, timeoutMs: 5000 })
     await c.call("shell.write", { id: info.id, data: "hello pty\r" })
     await c.call("shell.wait", { id: info.id, until: { pattern: "^hello pty$" }, timeoutMs: 3000 })
     const screen = await c.call("shell.screen", { id: info.id })
