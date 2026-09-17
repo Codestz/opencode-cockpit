@@ -1,0 +1,17 @@
+version: 2
+updates:
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      opentui:
+        patterns: ["@opentui/*", "solid-js"]
+      opencode:
+        patterns: ["@opencode-ai/*"]
+      tooling:
+        patterns: ["typescript", "@biomejs/*", "@types/*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

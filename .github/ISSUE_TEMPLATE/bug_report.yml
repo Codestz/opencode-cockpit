@@ -1,0 +1,34 @@
+name: Bug report
+description: Something does not work as expected
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead. Screenshots help for UI issues.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Ask the agent to "start the dev server and wait for port 3000"
+        2. ...
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: opencode-cockpit, OpenCode (`opencode --version`), OS
+      placeholder: opencode-cockpit 0.1.0 · OpenCode 1.18.31 · macOS 15
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Daemon log
+      description: Relevant lines from `~/.cache/opencode-cockpit/cockpitd.log`. Remove anything sensitive.
+      render: text
