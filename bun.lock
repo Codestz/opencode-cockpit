@@ -12,7 +12,7 @@
     },
     "packages/client": {
       "name": "@opencode-cockpit/client",
-      "version": "0.0.1",
+      "version": "0.1.0",
       "dependencies": {
         "@opencode-cockpit/protocol": "workspace:*",
       },
@@ -22,7 +22,7 @@
     },
     "packages/daemon": {
       "name": "@opencode-cockpit/daemon",
-      "version": "0.0.1",
+      "version": "0.1.0",
       "dependencies": {
         "@opencode-cockpit/protocol": "workspace:*",
         "@xterm/headless": "6.0.0",
@@ -50,10 +50,16 @@
         "@opentui/solid": ">=0.4.5",
         "solid-js": ">=1.9",
       },
+      "optionalPeers": [
+        "@opentui/core",
+        "@opentui/keymap",
+        "@opentui/solid",
+        "solid-js",
+      ],
     },
     "packages/protocol": {
       "name": "@opencode-cockpit/protocol",
-      "version": "0.0.1",
+      "version": "0.1.0",
       "dependencies": {
         "zod": "4.1.8",
       },

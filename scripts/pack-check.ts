@@ -47,6 +47,19 @@ try {
     if (!listing.includes("package/LICENSE") || !listing.includes("package/README.md")) {
       throw new Error(`${file} is missing LICENSE or README.md`)
     }
+    // Packing resolves workspace:* from bun.lock, which can lag behind a version bump. A stale
+    // version here publishes a package whose dependencies do not exist (the 0.1.0 incident).
+    const manifest = JSON.parse(run(["tar", "xOzf", join(tarballs, file), "package/package.json"], work))
+    for (const field of ["dependencies", "devDependencies", "peerDependencies"]) {
+      for (const [dep, range] of Object.entries((manifest[field] ?? {}) as Record<string, string>)) {
+        if (!(dep in names)) continue
+        if (range !== names[dep]) {
+          throw new Error(
+            `${manifest.name} ${field} pins ${dep}@${range} but the release version is ${names[dep]}. Run \`bun install\` to refresh bun.lock.`,
+          )
+        }
+      }
+    }
   }
 
   // Internal packages are not on the registry yet: point every reference at its tarball.

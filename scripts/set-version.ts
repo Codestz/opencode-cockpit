@@ -1,6 +1,6 @@
 /**
- * Sets one version across every package. Internal dependencies stay `workspace:*`; `bun publish`
- * rewrites them to this version.
+ * Sets one version across every package and refreshes bun.lock. Internal dependencies stay
+ * `workspace:*`; packing rewrites them to the version recorded in the lockfile.
  *
  *   bun scripts/set-version.ts 0.2.0
  */
@@ -24,3 +24,8 @@ for (const file of manifests) {
   await Bun.write(file, `${JSON.stringify(json, null, 2)}\n`)
   console.log(`${json.name} → ${version}`)
 }
+
+// bun.lock records workspace versions, and packing resolves workspace:* from it.
+const install = Bun.spawnSync(["bun", "install"], { cwd: root, stdout: "inherit", stderr: "inherit" })
+if (install.exitCode !== 0) process.exit(install.exitCode ?? 1)
+console.log("bun.lock refreshed")

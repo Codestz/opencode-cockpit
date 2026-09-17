@@ -6,7 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-09-17
+## [0.1.1] - 2026-09-17
+
+### Fixed
+
+- Packages published as 0.1.0 depended on internal package version 0.0.1, which does not exist,
+  so `opencode-cockpit@0.1.0` could not be installed. Use 0.1.1.
+- Releases now fail before publishing if a packed package pins an internal dependency to a
+  version other than the one being released.
+
+## [0.1.0] - 2026-09-17 [YANKED]
 
 ### Added
 
@@ -25,5 +34,6 @@ All notable changes to this project are documented here. The format follows
 - Daemon lifecycle: on-demand start, single instance under concurrent starts, idle shutdown,
   replacement of outdated idle daemons, orphan reaping after crashes.
 
-[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/Codestz/opencode-cockpit/releases/tag/v0.1.0
