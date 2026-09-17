@@ -44,33 +44,13 @@
     "@opencode-cockpit/client": "workspace:*",
     "@opencode-cockpit/daemon": "workspace:*",
     "@opencode-cockpit/protocol": "workspace:*",
-    "@opencode-ai/plugin": "1.18.31"
-  },
-  "peerDependencies": {
-    "@opentui/core": ">=0.4.5",
-    "@opentui/keymap": ">=0.4.5",
-    "@opentui/solid": ">=0.4.5",
-    "solid-js": ">=1.9"
-  },
-  "devDependencies": {
+    "@opencode-ai/plugin": "1.18.31",
     "@opentui/core": "0.4.5",
     "@opentui/keymap": "0.4.5",
     "@opentui/solid": "0.4.5",
-    "solid-js": "1.9.15",
-    "zod": "4.6.5"
+    "solid-js": "1.9.15"
   },
-  "peerDependenciesMeta": {
-    "@opentui/core": {
-      "optional": true
-    },
-    "@opentui/keymap": {
-      "optional": true
-    },
-    "@opentui/solid": {
-      "optional": true
-    },
-    "solid-js": {
-      "optional": true
-    }
+  "devDependencies": {
+    "zod": "4.6.5"
   }
 }

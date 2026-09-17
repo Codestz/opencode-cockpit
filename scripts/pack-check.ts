@@ -90,12 +90,18 @@ try {
     `
 import bundle from "opencode-cockpit/server"
 import shell from "@opencode-cockpit/shell/server"
+import bundleTui from "opencode-cockpit/tui"
+import shellTui from "@opencode-cockpit/shell/tui"
 import { CockpitClient } from "@opencode-cockpit/client"
 import { resolvePaths } from "@opencode-cockpit/protocol"
 import { daemonEntry } from "@opencode-cockpit/shell/connect"
 
 if (bundle.id !== "opencode-cockpit" || typeof bundle.server !== "function") throw new Error("bad bundle server export")
 if (shell.id !== "opencode-cockpit.shell" || typeof shell.server !== "function") throw new Error("bad shell server export")
+// Peer deps (@opentui/*, solid-js) are not installed by the opencode plugin installer, so this
+// import throws in a real install unless the TUI half declares them as real dependencies (#6).
+if (bundleTui.id !== "opencode-cockpit" || typeof bundleTui.tui !== "function") throw new Error("bad bundle tui export")
+if (shellTui.id !== "opencode-cockpit.shell" || typeof shellTui.tui !== "function") throw new Error("bad shell tui export")
 const entry = daemonEntry()
 if (!entry.includes("node_modules/@opencode-cockpit/daemon/src/main.ts")) throw new Error("daemon entry not resolved from node_modules: " + entry)
 
