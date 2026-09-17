@@ -6,6 +6,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Shell tools accept a shell's name instead of its id, e.g. `shell_read name="DB Monitoring"`;
+  ambiguous names return the candidates.
+- `shell_list` filters by text, status and session, and shows which session (by title) or the user
+  started each shell. The agent's system prompt marks shells from other sessions.
+
+### Changed
+
+- `opencode-cockpit` no longer lists `@opencode-cockpit/client` as a runtime dependency (it comes
+  through the features that use it).
+
 ## [0.1.2] - 2026-09-17
 
 ### Added

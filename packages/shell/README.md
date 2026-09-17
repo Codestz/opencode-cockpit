@@ -35,7 +35,17 @@ one loaded is used and OpenCode shows a warning.
 | `shell_wait` | Block on a condition instead of sleeping. |
 | `shell_read` | Clean log from a cursor, with `grep`; or `view: "screen"` for full-screen programs. |
 | `shell_send` | Type text or keys (`ctrl+c`, `up`, `enter`) and get the reply. |
-| `shell_list` · `shell_stop` · `shell_restart` | Manage shells. |
+| `shell_list` | Find shells: filter by text (`query`), `status` (running, failed, finished) and `session` (this, others). Each shows which session started it. |
+| `shell_stop` · `shell_restart` | Manage shells. |
+
+Every tool that acts on a shell takes its `id` **or its name** (the description it was started
+with), so you can ask about shells naturally, including ones started in other sessions:
+
+- *"How is DB Monitoring doing?"* → `shell_read name="DB Monitoring"`
+- *"Did any shell from my other session fail?"* → `shell_list status="failed" session="others"`
+
+Names match ignoring case, then partially on name or command. If a name fits several shells the
+agent gets the candidates instead of a guess.
 
 The agent is messaged when a shell it started exits on its own.
 

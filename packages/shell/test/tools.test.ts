@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
+import { mkdtempSync, rmSync } from "node:fs"
 import type { ToolContext } from "@opencode-ai/plugin"
 import { startDaemon } from "../../client/test/helpers.ts"
 import { formatLines } from "../src/tools/format.ts"
@@ -10,12 +11,12 @@ let tools: ReturnType<typeof createTools>
 const asked: string[] = []
 const quiet = new Set<string>()
 
-const ctx = (): ToolContext => ({
-  sessionID: "ses_1",
+const ctx = (sessionID = "ses_1", directory = "/tmp"): ToolContext => ({
+  sessionID,
   messageID: "msg_1",
   agent: "build",
-  directory: "/tmp",
-  worktree: "/tmp",
+  directory,
+  worktree: directory,
   abort: new AbortController().signal,
   metadata() {},
   async ask(input) {
@@ -23,9 +24,12 @@ const ctx = (): ToolContext => ({
   },
 })
 
-const run = (name: string, args: Record<string, unknown>) =>
+const run = (name: string, args: Record<string, unknown>, context = ctx()) =>
   // biome-ignore lint/suspicious/noExplicitAny: test harness drives tools with raw args
-  (tools[name] as any).execute((tools[name] as any).args ? parse(name, args) : args, ctx()) as Promise<string>
+  (tools[name] as any).execute(
+    (tools[name] as any).args ? parse(name, args) : args,
+    context,
+  ) as Promise<string>
 
 function parse(name: string, args: Record<string, unknown>) {
   // biome-ignore lint/suspicious/noExplicitAny: zod shape from the tool definition
@@ -42,6 +46,7 @@ beforeAll(async () => {
     instance: "inst",
     quiet,
     env: () => ({ PATH: process.env.PATH ?? "" }),
+    sessionTitle: async (id) => (id === "ses_2" ? "Refactor auth" : undefined),
     shellCommand: (command) => ({ command: "/bin/bash", args: ["--noprofile", "--norc", "-c", command] }),
   })
 })
@@ -136,6 +141,56 @@ describe("agent tools", () => {
     const id = idOf(await run("shell_start", { command: "echo v1; sleep 30", description: "restartable" }))
     const out = await run("shell_restart", { id })
     expect(out).toContain(`Restarted ${id} (run 2)`)
+  })
+})
+
+describe("finding shells across sessions", () => {
+  // A project of its own, so names from other tests cannot collide.
+  const project = mkdtempSync("/tmp/ck-names-")
+  const me = () => ctx("ses_1", project)
+  const other = () => ctx("ses_2", project)
+  afterAll(() => rmSync(project, { recursive: true, force: true }))
+
+  test("a shell started in another session is found by name and labelled with that session", async () => {
+    await run(
+      "shell_start",
+      { command: "echo polling jobs; sleep 30", description: "DB Monitoring" },
+      other(),
+    )
+    await run("shell_start", { command: "echo hi; sleep 30", description: "Web dev server" }, me())
+
+    const read = await run("shell_read", { name: "db monitoring" }, me())
+    expect(read).toContain("polling jobs")
+
+    const list = await run("shell_list", {}, me())
+    expect(list).toContain('"DB Monitoring"')
+    expect(list).toContain('session "Refactor auth"')
+    expect(list).toContain("this session")
+  })
+
+  test("shell_list filters by text, status and session", async () => {
+    const mine = await run("shell_list", { session: "this" }, me())
+    expect(mine).toContain("Web dev server")
+    expect(mine).not.toContain("DB Monitoring")
+    expect(mine).toContain("1 more shell hidden by filters")
+
+    expect(await run("shell_list", { query: "polling" }, me())).toContain("DB Monitoring")
+    expect(await run("shell_list", { status: "failed" }, me())).toContain("No shells match those filters")
+  })
+
+  test("names that match nothing, or several shells, get a helpful error instead of a guess", async () => {
+    const missing = await run("shell_read", { name: "redis" }, me()).catch((e: Error) => e.message)
+    expect(missing).toContain('no shell matches "redis"')
+    expect(missing).toContain("DB Monitoring")
+
+    await run("shell_start", { command: "echo second; sleep 30", description: "DB Monitoring replica" }, me())
+    const ambiguous = await run("shell_stop", { name: "DB" }, me()).catch((e: Error) => e.message)
+    expect(ambiguous).toContain("matches several shells")
+    expect(ambiguous).toContain("DB Monitoring replica")
+
+    expect(await run("shell_stop", { name: "DB Monitoring" }, me())).toContain("killed")
+    const needsTarget = await run("shell_read", {}, me()).catch((e: Error) => e.message)
+    expect(needsTarget).toContain("pass the shell's id or name")
   })
 })
 

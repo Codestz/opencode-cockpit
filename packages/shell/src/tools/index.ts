@@ -2,6 +2,7 @@ import { type ToolContext, type ToolDefinition, tool } from "@opencode-ai/plugin
 import type { CockpitClient } from "@opencode-cockpit/client"
 import { RpcError } from "@opencode-cockpit/protocol"
 import type { ShellInfo } from "@opencode-cockpit/protocol/shell"
+import { commandOf, filterShells, matchByName, type SessionFilter, type StatusFilter } from "./find.ts"
 import { describeStatus, formatLines, formatRead, formatWait, header } from "./format.ts"
 import { encodeKey, KEY_NAMES } from "./keys.ts"
 
@@ -13,10 +14,21 @@ export interface ToolDeps {
   quiet: Set<string>
   shellCommand(command: string): { command: string; args: string[] }
   env(): Record<string, string>
+  /** Human title of an OpenCode session, for telling agents which session started a shell. */
+  sessionTitle?(sessionID: string): Promise<string | undefined>
 }
 
 const z = tool.schema
-const ID = z.string().describe("Shell id from shell_start or shell_list, e.g. sh_ab12cd34")
+/** Every per-shell tool takes either an id or a name. */
+const TARGET = {
+  id: z.string().optional().describe("Shell id from shell_start or shell_list, e.g. sh_ab12cd34"),
+  name: z
+    .string()
+    .optional()
+    .describe(
+      'Instead of id: the shell\'s name (the description it was started with), e.g. "DB Monitoring". Partial names and command text also match.',
+    ),
+}
 
 const START = `Start a command in a background terminal (PTY) that keeps running while you continue working.
 
@@ -65,6 +77,51 @@ export function createTools(deps: ToolDeps): Record<string, ToolDefinition> {
     const current = await client.call("shell.get", { id: info.id })
     const page = await client.call("shell.read", { id: info.id, tail })
     return formatRead(current, page)
+  }
+
+  const sessionLabel = async (s: ShellInfo, ctx: ToolContext): Promise<string> => {
+    const session = s.owner.session
+    if (!session) return "started by the user"
+    if (session === ctx.sessionID) return "this session"
+    const title = await deps.sessionTitle?.(session).catch(() => undefined)
+    return title ? `session "${title}"` : `another session (${session})`
+  }
+
+  /** Turns `{ id }` or `{ name }` into a shell id, or explains why it cannot. */
+  const resolve = async (
+    args: { id?: string | null; name?: string | null },
+    ctx: ToolContext,
+  ): Promise<{ id: string; note: string }> => {
+    if (args.id) return { id: args.id, note: "" }
+    if (!args.name) throw new Error("pass the shell's id or name")
+    const shells = await client.call("shell.list", { owner: { project: ctx.directory } })
+    const match = matchByName(shells, args.name)
+    const describe = async (list: ShellInfo[]) =>
+      (
+        await Promise.all(
+          list.map(
+            async (s) =>
+              `- ${s.id} "${s.title}" · ${s.status} · ${await sessionLabel(s, ctx)} · $ ${commandOf(s).slice(0, 80)}`,
+          ),
+        )
+      ).join("\n")
+    if (match.kind === "found") {
+      const note =
+        match.alsoMatched.length > 0
+          ? `(name "${args.name}" also matched ${match.alsoMatched.length} finished shell${match.alsoMatched.length === 1 ? "" : "s"}; using the running one, ${match.shell.id})\n`
+          : ""
+      return { id: match.shell.id, note }
+    }
+    if (match.kind === "ambiguous") {
+      throw new Error(
+        `"${args.name}" matches several shells; pass one of these ids:\n${await describe(match.candidates)}`,
+      )
+    }
+    throw new Error(
+      match.available.length === 0
+        ? `no shell matches "${args.name}": there are no shells in this project`
+        : `no shell matches "${args.name}". Shells in this project:\n${await describe(match.available.slice(0, 15))}`,
+    )
   }
 
   return {
@@ -154,7 +211,7 @@ export function createTools(deps: ToolDeps): Record<string, ToolDefinition> {
     shell_read: tool({
       description: READ,
       args: {
-        id: ID,
+        ...TARGET,
         view: z.enum(["log", "screen"]).default("log"),
         after: z
           .number()
@@ -173,12 +230,13 @@ export function createTools(deps: ToolDeps): Record<string, ToolDefinition> {
         ignoreCase: z.boolean().default(false),
         limit: z.number().int().positive().max(2000).default(300),
       },
-      async execute(args) {
-        const info = await client.call("shell.get", { id: args.id })
+      async execute(args, ctx) {
+        const { id, note } = await resolve(args, ctx)
+        const info = await client.call("shell.get", { id })
         if (args.view === "screen") {
-          const screen = await client.call("shell.screen", { id: args.id })
+          const screen = await client.call("shell.screen", { id })
           return [
-            header(info),
+            `${note}${header(info)}`,
             `status: ${describeStatus(info)}`,
             `screen ${screen.cols}x${screen.rows}:`,
             screen.text || "(blank)",
@@ -186,21 +244,21 @@ export function createTools(deps: ToolDeps): Record<string, ToolDefinition> {
           ].join("\n")
         }
         const page = await client.call("shell.read", {
-          id: args.id,
+          id,
           after: args.after ?? undefined,
           tail: args.tail ?? 60,
           grep: args.grep ?? undefined,
           ignoreCase: args.ignoreCase ?? false,
           limit: args.limit ?? 300,
         })
-        return formatRead(info, page, args.after !== undefined ? "(no new output)" : "(no output yet)")
+        return note + formatRead(info, page, args.after != null ? "(no new output)" : "(no output yet)")
       },
     }),
 
     shell_send: tool({
       description: SEND,
       args: {
-        id: ID,
+        ...TARGET,
         text: z.string().optional(),
         keys: z.array(z.string()).optional(),
         submit: z.boolean().default(false).describe("Press enter after text"),
@@ -211,26 +269,30 @@ export function createTools(deps: ToolDeps): Record<string, ToolDefinition> {
         let data = args.text ?? ""
         for (const key of args.keys ?? []) data += encodeKey(key)
         if (args.submit === true) data += "\r"
-        const before = await client.call("shell.get", { id: args.id })
-        await client.call("shell.write", { id: args.id, data })
+        const { id, note } = await resolve(args, ctx)
+        const before = await client.call("shell.get", { id })
+        await client.call("shell.write", { id, data })
         const waitSeconds = args.waitSeconds ?? 1
         if (waitSeconds > 0) {
           await abortable(
             ctx,
             client.call("shell.wait", {
-              id: args.id,
+              id,
               until: { idleMs: 400, exit: true },
               timeoutMs: Math.round(waitSeconds * 1000),
               after: before.lines.last,
             }),
           )
         }
-        const info = await client.call("shell.get", { id: args.id })
-        const page = await client.call("shell.read", { id: args.id, after: before.lines.last, limit: 300 })
-        return formatRead(
-          info,
-          page,
-          "(no new output lines; if this is a full-screen program use shell_read view=screen)",
+        const info = await client.call("shell.get", { id })
+        const page = await client.call("shell.read", { id, after: before.lines.last, limit: 300 })
+        return (
+          note +
+          formatRead(
+            info,
+            page,
+            "(no new output lines; if this is a full-screen program use shell_read view=screen)",
+          )
         )
       },
     }),
@@ -238,7 +300,7 @@ export function createTools(deps: ToolDeps): Record<string, ToolDefinition> {
     shell_wait: tool({
       description: WAIT,
       args: {
-        id: ID,
+        ...TARGET,
         pattern: z.string().optional(),
         ignoreCase: z.boolean().optional(),
         port: z.number().int().min(1).max(65535).optional(),
@@ -248,11 +310,12 @@ export function createTools(deps: ToolDeps): Record<string, ToolDefinition> {
         timeoutSeconds: z.number().positive().max(3600).default(300),
       },
       async execute(args, ctx) {
-        const start = await client.call("shell.get", { id: args.id })
+        const { id, note } = await resolve(args, ctx)
+        const start = await client.call("shell.get", { id })
         const result = await abortable(
           ctx,
           client.call("shell.wait", {
-            id: args.id,
+            id,
             until: {
               pattern: args.pattern ?? undefined,
               ignoreCase: args.ignoreCase ?? undefined,
@@ -268,8 +331,8 @@ export function createTools(deps: ToolDeps): Record<string, ToolDefinition> {
         const newLines = result.info.lines.last - start.lines.last
         const page =
           newLines > 80
-            ? await client.call("shell.read", { id: args.id, tail: 80 })
-            : await client.call("shell.read", { id: args.id, after: start.lines.last, limit: 80 })
+            ? await client.call("shell.read", { id, tail: 80 })
+            : await client.call("shell.read", { id, after: start.lines.last, limit: 80 })
         const recent = page.lines
         if (newLines > 80)
           recent.unshift({
@@ -277,7 +340,7 @@ export function createTools(deps: ToolDeps): Record<string, ToolDefinition> {
             text: `… ${newLines - 80} earlier lines omitted (shell_read after=${start.lines.last})`,
           })
         return [
-          formatWait(result, args.timeoutSeconds ?? 300),
+          note + formatWait(result, args.timeoutSeconds ?? 300),
           header(result.info),
           recent.length > 0 ? formatLines(recent) : "(no new output during the wait)",
           "</shell>",
@@ -287,30 +350,50 @@ export function createTools(deps: ToolDeps): Record<string, ToolDefinition> {
     }),
 
     shell_list: tool({
-      description: "List background shells for this project with status, uptime and last output line.",
+      description: `List background shells in this project: name, status, which session started it, and the last output line.
+
+Filter to find the one you need instead of reading them all:
+- query: text in the name or command, e.g. "db" or "vitest"
+- status: running, failed, finished
+- session: this (started by you in this session), others (other sessions or the user)`,
       args: {
+        query: z.string().optional().describe("Case-insensitive text in the shell name or command"),
+        status: z.enum(["running", "failed", "finished", "any"]).default("any"),
+        session: z.enum(["this", "others", "any"]).default("any"),
         all: z.boolean().default(false).describe("Include shells from other projects"),
       },
       async execute(args, ctx) {
-        const shells = await client.call(
+        const everything = await client.call(
           "shell.list",
           args.all === true ? {} : { owner: { project: ctx.directory } },
         )
-        if (shells.length === 0) return "No background shells."
+        const shells = filterShells(everything, {
+          query: args.query ?? undefined,
+          status: (args.status ?? "any") as StatusFilter,
+          session: (args.session ?? "any") as SessionFilter,
+          currentSession: ctx.sessionID,
+        })
+        if (everything.length === 0) return "No background shells."
+        if (shells.length === 0)
+          return `No shells match those filters (${everything.length} shell${everything.length === 1 ? "" : "s"} in total).`
         const rows = await Promise.all(
           shells.map(async (s) => {
             const last = await client.call("shell.read", { id: s.id, tail: 1 }).catch(() => undefined)
             const tail = last?.lines[0]?.text ?? ""
-            const command =
-              s.args[0] === "-c" && s.args.length === 2
-                ? (s.args[1] as string)
-                : [s.command, ...s.args].join(" ")
             const failure =
               s.summary && s.status !== "running" ? `\n    summary: ${s.summary.slice(0, 200)}` : ""
-            return `${s.id}  ${s.status.padEnd(7)}  ${s.title}${s.run > 1 ? ` (run ${s.run})` : ""}\n    $ ${command.slice(0, 200)}${failure}\n    ${describeStatus(s)}${tail ? `\n    last: ${tail.slice(0, 200)}` : ""}`
+            return [
+              `${s.id}  ${s.status.padEnd(7)}  "${s.title}"${s.run > 1 ? ` (run ${s.run})` : ""} · ${await sessionLabel(s, ctx)}`,
+              `    $ ${commandOf(s).slice(0, 200)}${failure}`,
+              `    ${describeStatus(s)}${tail ? `\n    last: ${tail.slice(0, 200)}` : ""}`,
+            ].join("\n")
           }),
         )
-        return rows.join("\n")
+        const hidden = everything.length - shells.length
+        return (
+          rows.join("\n") +
+          (hidden > 0 ? `\n(${hidden} more shell${hidden === 1 ? "" : "s"} hidden by filters)` : "")
+        )
       },
     }),
 
@@ -318,34 +401,36 @@ export function createTools(deps: ToolDeps): Record<string, ToolDefinition> {
       description:
         "Stop a background shell (SIGTERM to its whole process group, then SIGKILL after a grace period). Set remove=true to also forget it.",
       args: {
-        id: ID,
+        ...TARGET,
         remove: z.boolean().default(false),
         force: z.boolean().default(false).describe("Send SIGKILL immediately"),
       },
-      async execute(args) {
-        deps.quiet.add(args.id)
+      async execute(args, ctx) {
+        const { id, note } = await resolve(args, ctx)
+        deps.quiet.add(id)
         const info = await client.call("shell.stop", {
-          id: args.id,
+          id,
           signal: args.force === true ? "SIGKILL" : "SIGTERM",
           graceMs: 3000,
         })
-        if (args.remove === true) await client.call("shell.remove", { id: args.id })
-        return `${info.id} ${describeStatus(info)}${args.remove === true ? " and removed" : ""}`
+        if (args.remove === true) await client.call("shell.remove", { id })
+        return `${note}${info.id} ${describeStatus(info)}${args.remove === true ? " and removed" : ""}`
       },
     }),
 
     shell_restart: tool({
       description:
         "Restart a background shell with the same command. Keeps the id; output continues after a restart marker.",
-      args: { id: ID },
+      args: { ...TARGET },
       async execute(args, ctx) {
-        const info = await client.call("shell.restart", { id: args.id })
-        deps.quiet.delete(args.id)
+        const { id, note } = await resolve(args, ctx)
+        const info = await client.call("shell.restart", { id })
+        deps.quiet.delete(id)
         await abortable(
           ctx,
           client.call("shell.wait", { id: info.id, until: { idleMs: 700, exit: true }, timeoutMs: 2500 }),
         )
-        return `Restarted ${info.id} (run ${info.run})\n${await peek(info)}`
+        return `${note}Restarted ${info.id} (run ${info.run})\n${await peek(info)}`
       },
     }),
   }

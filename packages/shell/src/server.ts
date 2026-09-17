@@ -62,6 +62,17 @@ async function shellHooks({ client: opencode, directory }: PluginInput): Promise
     return out
   }
 
+  // Session titles rarely change; cache them so listing shells stays one round trip.
+  const titles = new Map<string, { title: string | undefined; at: number }>()
+  const sessionTitle = async (sessionID: string): Promise<string | undefined> => {
+    const hit = titles.get(sessionID)
+    if (hit && Date.now() - hit.at < 60_000) return hit.title
+    const result = await opencode.session.get({ path: { id: sessionID } }).catch(() => undefined)
+    const title = (result?.data as { title?: string } | undefined)?.title
+    titles.set(sessionID, { title, at: Date.now() })
+    return title
+  }
+
   // Wake the agent when a shell it owns ends on its own.
   cockpit.on("shell.exited", (info) => {
     if (info.owner.instance !== instance || !info.owner.session) return
@@ -97,10 +108,11 @@ async function shellHooks({ client: opencode, directory }: PluginInput): Promise
       instance,
       quiet,
       env,
+      sessionTitle,
       shellCommand: (command) => ({ command: userShell, args: ["-c", command] }),
     }),
 
-    "experimental.chat.system.transform": async (_input, output) => {
+    "experimental.chat.system.transform": async (input, output) => {
       output.system.push(GUIDANCE)
       const running = await cockpit
         .call("shell.list", { owner: { project: directory }, includeExited: false })
@@ -109,7 +121,14 @@ async function shellHooks({ client: opencode, directory }: PluginInput): Promise
         output.system.push(
           `Background shells currently running in this project:\n${running
             .slice(0, 15)
-            .map((s) => `- ${s.id} ${s.title} (${describeStatus(s)})`)
+            .map((s) => {
+              const from = !s.owner.session
+                ? ", started by the user"
+                : s.owner.session === input.sessionID
+                  ? ""
+                  : ", another session"
+              return `- ${s.id} "${s.title}" (${describeStatus(s)}${from})`
+            })
             .join("\n")}`,
         )
       }
