@@ -73,7 +73,7 @@ export function Console(props: ConsoleProps) {
   })
   const failure = createMemo(() => {
     const s = shell()
-    if (!s || !s.summary) return undefined
+    if (!s?.summary) return undefined
     const kind = kindOf(s)
     return kind === "fail" || kind === "stop" ? s.summary : undefined
   })

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.3.13/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.5.13/schema.json",
   "files": {
     "includes": ["**", "!**/node_modules", "!**/dist", "!**/*.tsbuildinfo"]
   },
@@ -16,7 +16,7 @@
   },
   "linter": {
     "rules": {
-      "recommended": true
+      "preset": "recommended"
     }
   },
   "overrides": [
