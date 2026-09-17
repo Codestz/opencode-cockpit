@@ -1,6 +1,6 @@
 {
   "name": "@opencode-cockpit/shell",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Background shells for OpenCode: the agent starts, waits on and drives PTYs; you watch them in a docked TUI panel",
   "type": "module",
   "license": "MIT",
@@ -48,7 +48,7 @@
     "@opentui/core": "0.4.5",
     "@opentui/keymap": "0.4.5",
     "@opentui/solid": "0.4.5",
-    "solid-js": "1.9.15"
+    "solid-js": "1.9.12"
   },
   "devDependencies": {
     "zod": "4.6.5"

@@ -1,6 +1,6 @@
 {
   "name": "opencode-cockpit",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "OpenCode superpowers, all in one: installs every opencode-cockpit feature (Shell today), each can be switched off",
   "type": "module",
   "license": "MIT",

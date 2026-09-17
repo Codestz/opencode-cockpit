@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-09-17
+
+### Fixed
+
+- `@opencode-cockpit/shell` pinned `solid-js` to `1.9.15`, one patch version above the `1.9.12`
+  that `@opentui/solid` and `@opentui/keymap` require as a peer. A published install (plain `npm
+  install`, as the opencode plugin installer runs) can't satisfy both from one copy, so it nested a
+  second private `solid-js` under `@opencode-cockpit/shell`. Solid's reactivity is instance-local:
+  the docked panel and console read signals from the nested copy while `@opentui/solid`'s render
+  bridge tracked the hoisted one, so the panel painted once on open and then never updated again —
+  keybinds and shell output all reached the daemon fine, nothing ever reappeared on screen. Pinning
+  `solid-js` to the exact version the peer requires (`1.9.12`) collapses both back to one instance.
+  Bun workspaces (`bun install` from source, `bun run pack:check`) tolerate the mismatch by
+  deduping anyway, which is why this didn't reproduce there — only a real `npm install` split it.
+
 ## [0.1.3] - 2026-09-17
 
 ### Added
