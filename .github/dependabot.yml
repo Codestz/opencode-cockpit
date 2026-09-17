@@ -4,9 +4,14 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # At runtime TUI code uses the OpenTUI and Solid copies bundled inside OpenCode. Our
+      # versions only provide types and must match what @opencode-ai/plugin declares; newer types
+      # would let code use APIs that users' OpenCode does not have. Bump them together with
+      # @opencode-ai/plugin instead.
+      - dependency-name: "@opentui/*"
+      - dependency-name: "solid-js"
     groups:
-      opentui:
-        patterns: ["@opentui/*", "solid-js"]
       opencode:
         patterns: ["@opencode-ai/*"]
       tooling:
