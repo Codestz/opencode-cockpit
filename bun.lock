@@ -35,6 +35,9 @@
         "@opencode-ai/plugin": "1.18.31",
         "@opencode-cockpit/shell": "workspace:*",
       },
+      "devDependencies": {
+        "@opencode-cockpit/client": "workspace:*",
+      },
     },
     "packages/protocol": {
       "name": "@opencode-cockpit/protocol",
