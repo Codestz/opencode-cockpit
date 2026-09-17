@@ -54,26 +54,14 @@
         "@opencode-cockpit/client": "workspace:*",
         "@opencode-cockpit/daemon": "workspace:*",
         "@opencode-cockpit/protocol": "workspace:*",
-      },
-      "devDependencies": {
         "@opentui/core": "0.4.5",
         "@opentui/keymap": "0.4.5",
         "@opentui/solid": "0.4.5",
         "solid-js": "1.9.15",
+      },
+      "devDependencies": {
         "zod": "4.6.5",
       },
-      "peerDependencies": {
-        "@opentui/core": ">=0.4.5",
-        "@opentui/keymap": ">=0.4.5",
-        "@opentui/solid": ">=0.4.5",
-        "solid-js": ">=1.9",
-      },
-      "optionalPeers": [
-        "@opentui/core",
-        "@opentui/keymap",
-        "@opentui/solid",
-        "solid-js",
-      ],
     },
   },
   "packages": {
