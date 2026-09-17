@@ -25,7 +25,24 @@ for (const file of manifests) {
   console.log(`${json.name} → ${version}`)
 }
 
-// bun.lock records workspace versions, and packing resolves workspace:* from it.
-const install = Bun.spawnSync(["bun", "install"], { cwd: root, stdout: "inherit", stderr: "inherit" })
-if (install.exitCode !== 0) process.exit(install.exitCode ?? 1)
-console.log("bun.lock refreshed")
+// Packing resolves workspace:* from the versions recorded in bun.lock, and `bun install` does not
+// update them for an existing lockfile. Rewrite just those fields so nothing else moves.
+const lockPath = join(root, "bun.lock")
+let lock = await Bun.file(lockPath).text()
+for (const dir of readdirSync(join(root, "packages"))) {
+  const pattern = new RegExp(`("packages/${dir}": \\{\\s*"name": "[^"]+",\\s*"version": ")[^"]+(")`)
+  if (!pattern.test(lock)) {
+    console.error(`bun.lock has no workspace entry for packages/${dir}`)
+    process.exit(1)
+  }
+  lock = lock.replace(pattern, `$1${version}$2`)
+}
+await Bun.write(lockPath, lock)
+
+const verify = Bun.spawnSync(["bun", "install", "--frozen-lockfile"], {
+  cwd: root,
+  stdout: "inherit",
+  stderr: "inherit",
+})
+if (verify.exitCode !== 0) process.exit(verify.exitCode ?? 1)
+console.log("bun.lock workspace versions updated")

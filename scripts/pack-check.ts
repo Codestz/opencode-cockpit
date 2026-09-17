@@ -55,7 +55,7 @@ try {
         if (!(dep in names)) continue
         if (range !== names[dep]) {
           throw new Error(
-            `${manifest.name} ${field} pins ${dep}@${range} but the release version is ${names[dep]}. Run \`bun install\` to refresh bun.lock.`,
+            `${manifest.name} ${field} pins ${dep}@${range} but the release version is ${names[dep]}. Run \`bun run version:set ${names[dep]}\` to update bun.lock.`,
           )
         }
       }

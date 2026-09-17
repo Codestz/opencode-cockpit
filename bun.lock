@@ -12,7 +12,7 @@
     },
     "packages/client": {
       "name": "@opencode-cockpit/client",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@opencode-cockpit/protocol": "workspace:*",
       },
@@ -22,7 +22,7 @@
     },
     "packages/daemon": {
       "name": "@opencode-cockpit/daemon",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@opencode-cockpit/protocol": "workspace:*",
         "@xterm/headless": "6.0.0",
@@ -30,7 +30,7 @@
     },
     "packages/opencode": {
       "name": "opencode-cockpit",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@opencode-ai/plugin": "1.18.31",
         "@opencode-cockpit/client": "workspace:*",
@@ -59,7 +59,7 @@
     },
     "packages/protocol": {
       "name": "@opencode-cockpit/protocol",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "zod": "4.1.8",
       },
