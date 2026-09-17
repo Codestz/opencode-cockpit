@@ -22,7 +22,7 @@ jobs:
         with:
           bun-version: 1.3.13
       # npm ≥ 11.5.1 publishes with provenance and supports Trusted Publishing.
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
