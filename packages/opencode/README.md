@@ -7,20 +7,18 @@
 
 **Superpowers for [OpenCode](https://opencode.ai) — take all of them, or just the one you need.**
 
+**[Documentation →](https://codestz.github.io/opencode-cockpit/)**  ·  [Install](https://codestz.github.io/opencode-cockpit/start/install/)  ·  [Shell](https://codestz.github.io/opencode-cockpit/shell/overview/)  ·  [Configuration](https://codestz.github.io/opencode-cockpit/configuration/)  ·  [Changelog](https://github.com/Codestz/opencode-cockpit/blob/main/CHANGELOG.md)
+
 Coding agents are stuck in a one-command-at-a-time world: they run something, wait for it to
 finish, and paste the whole log back into their context. Cockpit gives your agent the things a
 developer actually has — long-running terminals, a way to wait for "ready", and output it can read
 without drowning in it — and gives *you* a live view of all of it, inside OpenCode.
 
-```
-────────────────────────────────────────────────────────────────────────────────────────
- Shells   ⠹ RUN  dev server    FAIL  unit tests   ▸ 3 more      ctrl+x i console · ctrl+x o hide
-  VITE v7.3.1  ready in 431 ms
-  ➜  Local:   http://localhost:5173/
-  ✓ 142 modules transformed
- 2m14s  sh_k4tq8b2p · $ npm run dev
-────────────────────────────────────────────────────────────────────────────────────────
-```
+![The shells panel: a dev server running under the conversation](https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/dock.gif)
+
+*A real recording — every demo here is generated from a live OpenCode session by
+[`bun run record`](https://github.com/Codestz/opencode-cockpit/blob/main/CONTRIBUTING.md), and re-run on release, so none of them can drift from what
+ships.*
 
 ## Features
 

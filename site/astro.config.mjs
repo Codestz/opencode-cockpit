@@ -17,6 +17,11 @@ export default defineConfig({
       social: [{ icon: "github", label: "GitHub", href: "https://github.com/Codestz/opencode-cockpit" }],
       editLink: { baseUrl: "https://github.com/Codestz/opencode-cockpit/edit/main/site/" },
       lastUpdated: true,
+      favicon: "/favicon.svg",
+      head: [
+        { tag: "meta", attrs: { property: "og:image", content: "https://codestz.github.io/opencode-cockpit/og.png" } },
+        { tag: "meta", attrs: { name: "twitter:card", content: "summary_large_image" } },
+      ],
       customCss: ["./src/styles/tokens.css", "./src/styles/starlight.css"],
       components: {
         // The landing page is ours; Starlight owns everything under /docs.
