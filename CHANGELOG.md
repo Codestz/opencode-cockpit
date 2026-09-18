@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-18
+
 ### Added
 
 - **Configuration.** One file, read by both halves of the plugin:
@@ -162,7 +164,8 @@ All notable changes to this project are documented here. The format follows
 - Daemon lifecycle: on-demand start, single instance under concurrent starts, idle shutdown,
   replacement of outdated idle daemons, orphan reaping after crashes.
 
-[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.5...v0.2.0
 [0.1.5]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.2...v0.1.3
