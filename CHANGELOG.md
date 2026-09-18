@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-18
+
 ### Added
 
 - `watch` on `shell_start` takes a rule object (`{ done, fail, ok, idleSeconds }`), not only a preset
@@ -183,7 +185,8 @@ All notable changes to this project are documented here. The format follows
 - Daemon lifecycle: on-demand start, single instance under concurrent starts, idle shutdown,
   replacement of outdated idle daemons, orphan reaping after crashes.
 
-[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/Codestz/opencode-cockpit/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.5...v0.2.0
 [0.1.5]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.3...v0.1.4

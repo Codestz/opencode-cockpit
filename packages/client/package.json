@@ -1,6 +1,6 @@
 {
   "name": "@opencode-cockpit/client",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Auto-spawning, reconnecting, typed client for cockpitd",
   "type": "module",
   "license": "MIT",
