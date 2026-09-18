@@ -8,7 +8,7 @@ import {
   relativeCwd,
   statusDetail,
   wrapText,
-} from "../src/tui/view.ts"
+} from "../src/tui/lib/view.ts"
 
 let seq = 0
 const shell = (over: Partial<ShellInfo>): ShellInfo => ({

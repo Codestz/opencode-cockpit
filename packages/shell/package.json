@@ -57,7 +57,6 @@
     "@opencode-ai/plugin": "1.18.31"
   },
   "devDependencies": {
-    "zod": "4.6.5",
     "@opentui/core": "0.4.5",
     "@opentui/keymap": "0.4.5",
     "@opentui/solid": "0.4.5",

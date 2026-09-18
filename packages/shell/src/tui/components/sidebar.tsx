@@ -1,9 +1,9 @@
 /** @jsxImportSource @opentui/solid */
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import { createMemo, For, Show } from "solid-js"
+import { kindOf, shortDetail, truncate, watchColor, watchLabel } from "../lib/view.ts"
+import type { ShellStore } from "../state/store.ts"
 import { Badge } from "./badge.tsx"
-import type { ShellStore } from "./store.ts"
-import { kindOf, shortDetail, truncate, watchColor, watchLabel } from "./view.ts"
 
 export interface SidebarProps {
   api: TuiPluginApi

@@ -4,7 +4,7 @@ import type { CockpitClient } from "@opencode-cockpit/client"
 import type { ScreenResult, ShellInfo } from "@opencode-cockpit/protocol/shell"
 import { type Accessor, createEffect, createMemo, createRoot, createSignal, on, onCleanup } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
-import { order, partition } from "./view.ts"
+import { order, partition } from "../lib/view.ts"
 
 export interface ShellStore {
   client: CockpitClient

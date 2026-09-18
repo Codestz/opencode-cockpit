@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { splitMatches } from "../src/tui/console.tsx"
-import { cacheDirFor, isNewer, shouldCheck } from "../src/tui/update.ts"
+import { splitMatches } from "../src/tui/lib/search.ts"
+import { cacheDirFor, isNewer, shouldCheck } from "../src/tui/lib/update.ts"
 
 describe("update notice", () => {
   test("checks at most once a day", () => {

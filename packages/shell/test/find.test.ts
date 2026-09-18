@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { ShellInfo } from "@opencode-cockpit/protocol/shell"
-import { commandOf, filterShells, matchByName } from "../src/tools/find.ts"
+import { commandOf, filterShells, matchByName } from "../src/core/find.ts"
 
 let seq = 0
 const shell = (title: string, command: string, over: Partial<ShellInfo> = {}): ShellInfo => ({

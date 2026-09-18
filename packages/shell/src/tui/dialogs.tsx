@@ -1,0 +1,163 @@
+/** @jsxImportSource @opentui/solid */
+
+import { rmSync } from "node:fs"
+import type { TuiPluginApi, TuiPluginMeta } from "@opencode-ai/plugin/tui"
+import pkg from "../../package.json" with { type: "json" }
+import { cacheDirFor, fetchLatestVersion, isNewer, shouldCheck } from "./lib/update.ts"
+import { BADGE_LABEL, displayCommand, kindOf, order } from "./lib/view.ts"
+import type { ShellStore } from "./state/store.ts"
+
+const PACKAGE_NAME = pkg.name
+
+/** One quiet registry check a day; a newer release is announced once per version. */
+export async function announceUpdate(api: TuiPluginApi, meta: TuiPluginMeta, current: string): Promise<void> {
+  if (meta.source !== "npm") return
+  const now = Date.now()
+  if (!shouldCheck(api.kv.get<number | undefined>("cockpit.update.checkedAt", undefined), now)) return
+  api.kv.set("cockpit.update.checkedAt", now)
+  const latest = await fetchLatestVersion(PACKAGE_NAME)
+  if (!latest || !isNewer(latest, current)) return
+  if (api.kv.get<string>("cockpit.update.announced", "") === latest) return
+  api.kv.set("cockpit.update.announced", latest)
+  api.ui.toast({
+    variant: "info",
+    title: "opencode-cockpit",
+    message: `${latest} is available (you have ${current}). Run /cockpit-update.`,
+    duration: 10_000,
+  })
+}
+
+/** Clears this plugin's cache entry so the next OpenCode start installs the newer release. */
+export function offerUpdate(api: TuiPluginApi, meta: TuiPluginMeta, current: string): void {
+  const dir = cacheDirFor(meta.target, meta.source)
+  if (!dir) {
+    api.ui.toast({
+      variant: "info",
+      title: "opencode-cockpit",
+      message:
+        meta.source === "file"
+          ? `Running from ${meta.target} — update it with git, not npm.`
+          : "This install is not managed by OpenCode's plugin installer.",
+    })
+    return
+  }
+  void fetchLatestVersion(PACKAGE_NAME).then((latest) => {
+    if (latest && !isNewer(latest, current)) {
+      api.ui.toast({
+        variant: "success",
+        title: "opencode-cockpit",
+        message: `${current} is the latest release.`,
+      })
+      return
+    }
+    const DialogConfirm = api.ui.DialogConfirm
+    api.ui.dialog.replace(() => (
+      <DialogConfirm
+        title={latest ? `Update to ${latest}?` : "Reinstall this plugin?"}
+        message={`Removes the cached copy in ${dir}. OpenCode installs the new version the next time it starts, so restart it afterwards.`}
+        onConfirm={() => {
+          api.ui.dialog.clear()
+          try {
+            rmSync(dir, { recursive: true, force: true })
+            api.ui.toast({
+              variant: "success",
+              title: "opencode-cockpit",
+              message: `Cached ${current} removed — restart OpenCode to install ${latest ?? "the latest release"}.`,
+              duration: 10_000,
+            })
+          } catch (err) {
+            api.ui.toast({ variant: "error", title: "opencode-cockpit", message: String(err) })
+          }
+        }}
+        onCancel={() => api.ui.dialog.clear()}
+      />
+    ))
+  })
+}
+
+export function newShell(api: TuiPluginApi, store: ShellStore, open: (id?: string) => void) {
+  const DialogPrompt = api.ui.DialogPrompt
+  api.ui.dialog.replace(() => (
+    <DialogPrompt
+      title="New background shell"
+      placeholder="npm run dev"
+      onConfirm={(value) => {
+        const command = value.trim()
+        if (!command) return api.ui.dialog.clear()
+        const shell =
+          process.env.SHELL && /(bash|zsh|fish|sh)$/.test(process.env.SHELL) ? process.env.SHELL : "/bin/bash"
+        store.client
+          .call("shell.start", {
+            command: shell,
+            args: ["-c", command],
+            cwd: store.project(),
+            title: command.slice(0, 60),
+            owner: { project: store.project() },
+            reuse: true,
+          })
+          .then((info) => {
+            void store.refresh()
+            open(info.id)
+          })
+          .catch((err) => {
+            api.ui.dialog.clear()
+            api.ui.toast({
+              variant: "error",
+              title: "Shell",
+              message: err instanceof Error ? err.message : String(err),
+            })
+          })
+      }}
+      onCancel={() => api.ui.dialog.clear()}
+    />
+  ))
+}
+
+export function restartDaemon(api: TuiPluginApi, store: ShellStore) {
+  const running = store.shells().filter((s) => s.status === "running").length
+  const restart = (force: boolean) => {
+    api.ui.dialog.clear()
+    store.client
+      .restartDaemon({ force })
+      .then((ok) => {
+        void store.refresh()
+        api.ui.toast({
+          variant: ok ? "success" : "warning",
+          title: "Shells",
+          message: ok ? "Shell daemon restarted" : "Shells are running; restart was not forced",
+        })
+      })
+      .catch((err) => api.ui.toast({ variant: "error", title: "Shells", message: String(err) }))
+  }
+  if (running === 0) return restart(false)
+  const DialogConfirm = api.ui.DialogConfirm
+  api.ui.dialog.replace(() => (
+    <DialogConfirm
+      title="Restart shell daemon?"
+      message={`${running} running shell${running === 1 ? "" : "s"} will be stopped.`}
+      onConfirm={() => restart(true)}
+      onCancel={() => api.ui.dialog.clear()}
+    />
+  ))
+}
+
+export function pickShell(api: TuiPluginApi, store: ShellStore, open: (id?: string) => void) {
+  const DialogSelect = api.ui.DialogSelect
+  const shells = order(store.shells())
+  if (shells.length === 0) {
+    api.ui.toast({ variant: "info", title: "Shells", message: "No shells in this project yet" })
+    return
+  }
+  api.ui.dialog.replace(() => (
+    <DialogSelect
+      title="Shells"
+      current={store.selected()?.id}
+      options={shells.map((s) => ({
+        title: s.title,
+        value: s.id,
+        description: `${BADGE_LABEL[kindOf(s)]} · ${displayCommand(s).slice(0, 60)}`,
+      }))}
+      onSelect={(option) => open(option.value as string)}
+    />
+  ))
+}

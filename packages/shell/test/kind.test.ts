@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { classify } from "../src/tools/kind.ts"
+import { classify } from "../src/core/kind.ts"
 
 describe("classify", () => {
   test("servers", () => {

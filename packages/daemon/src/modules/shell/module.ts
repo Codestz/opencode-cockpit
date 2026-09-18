@@ -5,6 +5,7 @@ import type { Logger } from "../../core/logger.ts"
 import { silentLogger } from "../../core/logger.ts"
 import type { MethodTable, Module, ModuleContext, Peer } from "../../core/module.ts"
 import { newShellId } from "./ids.ts"
+import { shellMethods } from "./methods.ts"
 import { bunPtyBackend, type PtyBackend } from "./pty.ts"
 import { ProcessRegistry } from "./registry.ts"
 import { Shell, type ShellLimits } from "./shell.ts"
@@ -31,14 +32,17 @@ const DEFAULT_LIMITS: ShellLimits = { logChars: 4_000_000, rawBytes: 1_000_000, 
 
 export class ShellModule implements Module<"shell"> {
   readonly name = "shell" as const
-  private readonly shells = new Map<string, Shell>()
-  private readonly attachments = new Map<string, () => void>() // `${peer.id}:${shellId}` → detach
+  /** @internal */
+  readonly shells = new Map<string, Shell>()
+  /** @internal */
+  readonly attachments = new Map<string, () => void>() // `${peer.id}:${shellId}` → detach
   private readonly backend: PtyBackend
   private readonly limits: ShellLimits
   private log: Logger = silentLogger
   private registry: ProcessRegistry | undefined
   private readonly idleTimers = new Map<string, ReturnType<typeof setInterval>>()
-  private emit: ModuleContext["emit"] = () => {}
+  /** @internal */
+  emit: ModuleContext["emit"] = () => {}
 
   constructor(private readonly options: ShellModuleOptions = {}) {
     this.backend = options.backend ?? bunPtyBackend
@@ -69,145 +73,10 @@ export class ShellModule implements Module<"shell"> {
     return false
   }
 
-  readonly methods: MethodTable<"shell"> = {
-    start: (params) => this.startShell(params),
+  readonly methods: MethodTable<"shell"> = shellMethods(this)
 
-    list: (params) => {
-      const owner = params.owner
-      return [...this.shells.values()]
-        .filter((s) => params.includeExited || s.running)
-        .filter((s) => !owner?.project || s.spec.owner.project === owner.project)
-        .filter((s) => !owner?.session || s.spec.owner.session === owner.session)
-        .map((s) => s.info())
-    },
-
-    get: ({ id }) => this.require(id).info(),
-
-    read: ({ id, after, tail, limit, grep, ignoreCase }) => {
-      const shell = this.require(id)
-      const page = shell.log.read({
-        after,
-        tail,
-        limit,
-        grep: grep === undefined ? undefined : compilePattern(grep, ignoreCase),
-      })
-      return { ...page, status: shell.status }
-    },
-
-    screen: ({ id }) => this.require(id).snapshot(),
-
-    write: ({ id, data }) => {
-      const shell = this.require(id)
-      if (!shell.running) throw invalidState(`shell ${id} is ${shell.status}`)
-      return { bytes: shell.write(data) }
-    },
-
-    resize: ({ id, cols, rows }) => {
-      this.require(id).resize(cols, rows)
-      return {}
-    },
-
-    wait: async (params) => {
-      const shell = this.require(params.id)
-      const outcome = await waitFor(shell, params, compilePattern)
-      return { ...outcome, info: shell.info() }
-    },
-
-    stop: async ({ id, signal, graceMs }) => {
-      const shell = this.require(id)
-      await shell.stop(signal, graceMs)
-      await shell.exited
-      return shell.info()
-    },
-
-    restart: async ({ id }) => {
-      const shell = this.require(id)
-      if (shell.running) {
-        await shell.stop("SIGTERM", 3000)
-        await shell.exited
-      }
-      this.spawn(shell)
-      return shell.info()
-    },
-
-    remove: async ({ id }) => {
-      const shell = this.require(id)
-      if (shell.running) {
-        await shell.stop("SIGTERM", 3000)
-        await shell.exited
-      }
-      this.forget(shell)
-      return {}
-    },
-
-    attach: ({ id, fromOffset }, { peer }) => {
-      const shell = this.require(id)
-      this.detach(peer, id)
-      const replay = shell.raw.since(fromOffset ?? 0)
-      this.attachStream(peer, shell)
-      return { offset: replay.offset, replay: Buffer.from(replay.bytes).toString("base64") }
-    },
-
-    clear: ({ owner, finishedBeforeMs }) => {
-      const cutoff = Date.now() - (finishedBeforeMs ?? 0)
-      const removed: string[] = []
-      for (const shell of [...this.shells.values()]) {
-        if (shell.running) continue
-        const info = shell.info()
-        if (owner?.project && info.owner.project !== owner.project) continue
-        if (owner?.session && info.owner.session !== owner.session) continue
-        if ((info.endedAt ?? 0) > cutoff) continue
-        this.forget(shell)
-        removed.push(info.id)
-      }
-      return { removed }
-    },
-
-    watch: ({ id, preset, rule }) => {
-      const shell = this.require(id)
-      const command = [shell.spec.command, ...shell.spec.args].join(" ")
-      const chosen = rule
-        ? undefined
-        : preset && preset !== "auto"
-          ? (presetByName(preset) ??
-            invalidParams(`unknown preset "${preset}"; call shell.presets for the list`))
-          : presetForCommand(command)
-      if (chosen instanceof Error) throw chosen
-      const watchRule = rule ?? chosen?.rule
-      if (!watchRule) {
-        throw invalidParams(
-          `no watch preset matches "${command.slice(0, 80)}"; pass a rule (done/fail/ok patterns) or a preset name`,
-        )
-      }
-      try {
-        shell.watcher = new Watcher(compileRule(watchRule), chosen?.name)
-      } catch (err) {
-        throw invalidParams(`invalid watch pattern: ${err instanceof Error ? err.message : String(err)}`)
-      }
-      shell.onWatchChange = (change) => {
-        this.emit("shell.watch", { info: shell.info(), ...change })
-      }
-      this.armIdle(shell)
-      return shell.info()
-    },
-
-    unwatch: ({ id }) => {
-      const shell = this.require(id)
-      shell.watcher = undefined
-      shell.onWatchChange = undefined
-      this.clearIdle(id)
-      return shell.info()
-    },
-
-    presets: () => PRESETS.map((preset) => ({ name: preset.name, match: preset.match, rule: preset.rule })),
-
-    detach: ({ id }, { peer }) => {
-      this.detach(peer, id)
-      return {}
-    },
-  }
-
-  private startShell(params: StartParams): ShellInfo {
+  /** @internal used by methods.ts */
+  startShell(params: StartParams): ShellInfo {
     if (params.reuse) {
       const previous = this.findReusable(params)
       if (previous) {
@@ -247,7 +116,8 @@ export class ShellModule implements Module<"shell"> {
     return shell.info()
   }
 
-  private findReusable(params: StartParams): Shell | undefined {
+  /** @internal used by methods.ts */
+  findReusable(params: StartParams): Shell | undefined {
     const args = JSON.stringify(params.args)
     let match: Shell | undefined
     for (const shell of this.shells.values()) {
@@ -267,7 +137,8 @@ export class ShellModule implements Module<"shell"> {
     return match
   }
 
-  private spawn(shell: Shell): void {
+  /** @internal used by methods.ts */
+  spawn(shell: Shell): void {
     try {
       shell.start()
     } catch (err) {
@@ -293,7 +164,8 @@ export class ShellModule implements Module<"shell"> {
     this.emit("shell.exited", info)
   }
 
-  private attachStream(peer: Peer, shell: Shell): void {
+  /** @internal used by methods.ts */
+  attachStream(peer: Peer, shell: Shell): void {
     const key = `${peer.id}:${shell.id}`
     const flushMs = this.options.outputFlushMs ?? 16
     let pending: Uint8Array[] = []
@@ -323,7 +195,8 @@ export class ShellModule implements Module<"shell"> {
     peer.onClose(detach)
   }
 
-  private detach(peer: Peer, id: string): void {
+  /** @internal used by methods.ts */
+  detach(peer: Peer, id: string): void {
     this.attachments.get(`${peer.id}:${id}`)?.()
   }
 
@@ -331,7 +204,8 @@ export class ShellModule implements Module<"shell"> {
    * Rules without a `done` pattern end a run on silence, so poll those watchers; the check is a
    * timestamp comparison, and only shells that need it are polled.
    */
-  private armIdle(shell: Shell): void {
+  /** @internal used by methods.ts */
+  armIdle(shell: Shell): void {
     this.clearIdle(shell.id)
     const idleMs = shell.watcher?.idleMs
     if (!idleMs) return
@@ -346,13 +220,15 @@ export class ShellModule implements Module<"shell"> {
     this.idleTimers.set(shell.id, timer)
   }
 
-  private clearIdle(id: string): void {
+  /** @internal used by methods.ts */
+  clearIdle(id: string): void {
     const timer = this.idleTimers.get(id)
     if (timer) clearInterval(timer)
     this.idleTimers.delete(id)
   }
 
-  private forget(shell: Shell): void {
+  /** @internal used by methods.ts */
+  forget(shell: Shell): void {
     this.clearIdle(shell.id)
     for (const [key, detach] of this.attachments) if (key.endsWith(`:${shell.id}`)) detach()
     shell.dispose()
@@ -360,25 +236,29 @@ export class ShellModule implements Module<"shell"> {
     this.emit("shell.removed", { id: shell.id })
   }
 
-  private pruneFinished(): void {
+  /** @internal used by methods.ts */
+  pruneFinished(): void {
     const max = this.options.maxFinished ?? 50
     const finished = [...this.shells.values()].filter((s) => !s.running)
     for (const shell of finished.slice(0, Math.max(0, finished.length - max))) this.forget(shell)
   }
 
-  private require(id: string): Shell {
+  /** @internal used by methods.ts */
+  require(id: string): Shell {
     const shell = this.shells.get(id)
     if (!shell) throw notFound(`shell ${id}`)
     return shell
   }
 
-  private uniqueId(): string {
+  /** @internal used by methods.ts */
+  uniqueId(): string {
     let id = newShellId()
     while (this.shells.has(id)) id = newShellId()
     return id
   }
 
-  private environment(extra: Record<string, string> | undefined): Record<string, string> {
+  /** @internal used by methods.ts */
+  environment(extra: Record<string, string> | undefined): Record<string, string> {
     const env: Record<string, string> = {}
     for (const [k, v] of Object.entries(this.options.baseEnv ?? process.env)) if (v !== undefined) env[k] = v
     env.TERM ??= "xterm-256color"

@@ -5,10 +5,9 @@ import type { ScrollBoxRenderable } from "@opentui/core"
 import { useBindings } from "@opentui/keymap/solid"
 import { useTerminalDimensions } from "@opentui/solid"
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js"
-import { kindOfShell } from "../tools/kind.ts"
-import { Badge } from "./badge.tsx"
-import { isReleaseKey, keyToBytes } from "./keys.ts"
-import { type ShellStore, useScreen } from "./store.ts"
+import { detailRows } from "../lib/details.ts"
+import { isReleaseKey, keyToBytes } from "../lib/keys.ts"
+import { friendlyError, splitMatches } from "../lib/search.ts"
 import {
   displayCommand,
   kindColor,
@@ -21,7 +20,9 @@ import {
   watchColor,
   watchLabel,
   wrapText,
-} from "./view.ts"
+} from "../lib/view.ts"
+import { type ShellStore, useScreen } from "../state/store.ts"
+import { Badge } from "./badge.tsx"
 
 export interface ConsoleProps {
   api: TuiPluginApi
@@ -36,30 +37,9 @@ type View = "screen" | "log" | "details"
 type Notice = { text: string; tone: "info" | "success" | "error" }
 
 /** Daemon errors name ids and internal states; say what happened instead. */
-function friendlyError(err: unknown): string {
-  const message = err instanceof Error ? err.message : String(err)
-  if (/is (exited|killed|failed)$/.test(message)) return "the shell is no longer running"
-  if (/not found$/.test(message)) return "that shell was already removed"
-  if (/connection|not running|did not start/.test(message)) return "lost connection to cockpitd, retrying"
-  return message
-}
 const COMMAND_LINES = 3
 
 /** Splits a line into plain and matching parts so a filtered log can highlight what matched. */
-export function splitMatches(text: string, query: string): { text: string; match: boolean }[] {
-  if (!query) return [{ text, match: false }]
-  const parts: { text: string; match: boolean }[] = []
-  const haystack = text.toLowerCase()
-  const needle = query.toLowerCase()
-  let from = 0
-  for (let at = haystack.indexOf(needle, from); at !== -1; at = haystack.indexOf(needle, from)) {
-    if (at > from) parts.push({ text: text.slice(from, at), match: false })
-    parts.push({ text: text.slice(at, at + needle.length), match: true })
-    from = at + needle.length
-  }
-  if (from < text.length) parts.push({ text: text.slice(from), match: false })
-  return parts.length > 0 ? parts : [{ text, match: false }]
-}
 
 /**
  * Keyboard-first shell console in an overlay. Normal mode: single-key actions. Typing mode:
@@ -528,29 +508,3 @@ export function Console(props: ConsoleProps) {
 }
 
 /** Everything about a shell, with the full command wrapped rather than cut. */
-function detailRows(s: ShellInfo, now: number, cols: number): [string, string][] {
-  const width = Math.max(10, cols - 11)
-  const rows: [string, string][] = []
-  for (const [i, line] of wrapText(displayCommand(s), width, 12).entries())
-    rows.push([i === 0 ? "command" : "", line])
-  rows.push(["kind", kindOfShell(s)])
-  rows.push(["folder", s.cwd])
-  rows.push([
-    "status",
-    `${s.status}${s.exitCode !== undefined ? ` (exit ${s.exitCode})` : ""}${s.signal ? ` (${s.signal})` : ""}`,
-  ])
-  rows.push(["timing", statusDetail(s, now)])
-  rows.push(["started", new Date(s.startedAt).toLocaleString()])
-  if (s.summary) rows.push(["summary", truncate(s.summary, width)])
-  rows.push(["id", `${s.id} · run ${s.run}${s.pid ? ` · pid ${s.pid}` : ""}`])
-  rows.push(["owner", s.owner.session ? `agent session ${s.owner.session}` : "you"])
-  if (s.watch) {
-    rows.push([
-      "watch",
-      `${s.watch.preset ?? "custom rule"} · ${s.watch.status} · ${s.watch.runs} run${s.watch.runs === 1 ? "" : "s"}${s.watch.summary ? ` · ${truncate(s.watch.summary, width - 30)}` : ""}`,
-    ])
-  }
-  rows.push(["output", `${s.lines.last} lines · ${Math.round(s.bytes / 1024)} KiB`])
-  if (s.logFile) rows.push(["log file", s.logFile])
-  return rows
-}

@@ -2,9 +2,6 @@
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import { useTerminalDimensions } from "@opentui/solid"
 import { createMemo, For, Show } from "solid-js"
-import { Badge } from "./badge.tsx"
-import type { ShellStore } from "./store.ts"
-import { useScreen } from "./store.ts"
 import {
   displayCommand,
   kindColor,
@@ -15,7 +12,10 @@ import {
   truncate,
   watchColor,
   watchLabel,
-} from "./view.ts"
+} from "../lib/view.ts"
+import type { ShellStore } from "../state/store.ts"
+import { useScreen } from "../state/store.ts"
+import { Badge } from "./badge.tsx"
 
 export interface DockProps {
   api: TuiPluginApi

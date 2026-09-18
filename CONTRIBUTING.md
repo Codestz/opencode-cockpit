@@ -76,7 +76,7 @@ imports OpenCode; features never import each other.
 | `protocol` | Zod contracts for every method (`contract`) and event (`events`), error codes, NDJSON framing, paths, build id |
 | `daemon` | `core/` (RPC server with backpressure, router validating params, module host, idle lifecycle, logger) and `modules/shell/` |
 | `client` | Connection, spawn lock, handshake, reconnect, idempotent retry, upgrade-only daemon replacement, `claimFeature` duplicate guard |
-| `shell` | `server.ts` + `tools/` (agent tools, formatting for models), `tui/` (store, dock, console, sidebar, badges) |
+| `shell` | `core/` (pure logic both halves use), `agent/` (plugin + one file per tool), `tui/` (`components/`, `state/`, `lib/`), and thin entry files |
 | `opencode` | The bundle: `server.ts`, `tui.ts`, `compose.ts` (hook merging), `features.ts` (switches and options) |
 
 ### Loading the same feature twice
@@ -116,6 +116,22 @@ all plugins of one instance share. Claims are released on dispose so plugin relo
 3. Surface it in a feature package (tools and/or TUI).
 
 The router refuses methods missing from the contract, and handler params are typed from it.
+
+### File layout
+
+Files are grouped by role, not by type, and entry points stay thin:
+
+- `core/` — pure logic with no I/O and no JSX, imported by both halves (finding, classifying,
+  formatting).
+- `agent/` — the server plugin: `plugin.ts`, and `tools/` with one file per tool plus `shared.ts`
+  for what they have in common.
+- `tui/` — `components/` (JSX), `state/` (stores), `lib/` (pure helpers), `dialogs.tsx`.
+- `packages/protocol/src/shell/` splits the wire schemas by concern (`common`, `info`, `params`,
+  `watch`, `contract`).
+
+Keep a module to one job; when a file passes ~300 lines it usually holds two. Exported zod schemas
+must carry explicit types or stay module-private, or `tsc` cannot name them in declarations
+(TS2883).
 
 ### Adding a feature
 

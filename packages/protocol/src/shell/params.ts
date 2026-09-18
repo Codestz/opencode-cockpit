@@ -1,84 +1,8 @@
 import { z } from "zod"
-import { method } from "./contract.ts"
 
-export const ShellId = z.string().regex(/^sh_[a-z2-7]{8}$/, "expected sh_ followed by 8 base32 chars")
-
-export const Owner = z.object({
-  /** Absolute project directory the shell belongs to. */
-  project: z.string().min(1),
-  /** OpenCode session that started it, when started by an agent. */
-  session: z.string().min(1).optional(),
-  /** Opaque id of the client instance that started it; used to route notifications to one place. */
-  instance: z.string().min(1).optional(),
-})
-
-export const ShellStatus = z.enum(["running", "exited", "killed", "failed"])
-
-/**
- * A watch rule is three regexes over a shell's log, not a parser: `done` marks the end of a run
- * (a compile, a test pass), `fail` and `ok` say how it went. Presets are just named rules, so a
- * new tool is a table entry or a rule in the caller's config — never new code.
- */
-export const WatchRule = z.object({
-  /** A run finished, e.g. "Found 3 errors." Without it, `idleSeconds` ends the run. */
-  done: z.string().min(1).max(500).optional(),
-  /** Something in this run failed. */
-  fail: z.string().min(1).max(500).optional(),
-  /** This run was clean; beats `fail` only when `fail` never matched. */
-  ok: z.string().min(1).max(500).optional(),
-  ignoreCase: z.boolean().optional(),
-  /** Treat this much silence as the end of a run when `done` is absent. */
-  idleSeconds: z.number().positive().max(3600).optional(),
-})
-
-export const WatchStatus = z.enum(["ok", "fail", "pending", "unknown"])
-
-export const WatchState = z.object({
-  /** Preset that produced the rule, when one was used. */
-  preset: z.string().optional(),
-  status: WatchStatus,
-  /** Line that decided the current status. */
-  summary: z.string().optional(),
-  /** Completed runs seen since watching started. */
-  runs: z.number().int(),
-  /** When the status last changed. */
-  since: z.number(),
-})
-
-export const WatchParams = z.object({
-  id: ShellId,
-  /** Named rule, or "auto" to pick one from the command. Ignored when `rule` is given. */
-  preset: z.string().min(1).optional(),
-  rule: WatchRule.optional(),
-})
-
-export const ShellInfo = z.object({
-  id: ShellId,
-  title: z.string(),
-  command: z.string(),
-  args: z.array(z.string()),
-  cwd: z.string(),
-  owner: Owner,
-  status: ShellStatus,
-  run: z.number().int().positive(),
-  pid: z.number().int().optional(),
-  exitCode: z.number().int().optional(),
-  signal: z.string().optional(),
-  error: z.string().optional(),
-  /** Set when a run ends: the last error-looking line of the run, else its last line. */
-  summary: z.string().optional(),
-  startedAt: z.number(),
-  endedAt: z.number().optional(),
-  cols: z.number().int(),
-  rows: z.number().int(),
-  lines: z.object({ first: z.number().int(), last: z.number().int() }),
-  /** Absolute raw byte offset written so far (for UI attach/replay). */
-  bytes: z.number().int(),
-  /** Health reported by this shell's watcher, when one is attached. */
-  watch: WatchState.optional(),
-  /** File this shell's clean log is written to, when logging was requested. */
-  logFile: z.string().optional(),
-})
+import { Owner, ShellId, ShellStatus } from "./common.ts"
+import { ShellInfo } from "./info.ts"
+import { WatchRule } from "./watch.ts"
 
 const Dimension = z.number().int().min(2).max(1000)
 
@@ -212,46 +136,6 @@ export const StopParams = z.object({
 
 export const AttachParams = z.object({ id: ShellId, fromOffset: z.number().int().min(0).optional() })
 
-export const shellContract = {
-  "shell.start": method(StartParams, ShellInfo),
-  "shell.list": method(ListParams, z.array(ShellInfo)),
-  "shell.get": method(IdParams, ShellInfo),
-  "shell.read": method(ReadParams, ReadResult),
-  "shell.screen": method(IdParams, ScreenResult),
-  "shell.write": method(WriteParams, z.object({ bytes: z.number().int() })),
-  "shell.resize": method(ResizeParams, z.object({})),
-  "shell.wait": method(WaitParams, WaitResult),
-  "shell.stop": method(StopParams, ShellInfo),
-  "shell.restart": method(IdParams, ShellInfo),
-  "shell.remove": method(IdParams, z.object({})),
-  "shell.clear": method(ClearParams, z.object({ removed: z.array(ShellId) })),
-  "shell.watch": method(WatchParams, ShellInfo),
-  "shell.unwatch": method(IdParams, ShellInfo),
-  "shell.presets": method(
-    z.object({}).optional(),
-    z.array(z.object({ name: z.string(), match: z.string().optional(), rule: WatchRule })),
-  ),
-  "shell.attach": method(AttachParams, z.object({ offset: z.number().int(), replay: z.string() })),
-  "shell.detach": method(IdParams, z.object({})),
-}
-
-export const shellEvents = {
-  "shell.started": ShellInfo,
-  "shell.exited": ShellInfo,
-  "shell.removed": z.object({ id: ShellId }),
-  "shell.output": z.object({ id: ShellId, offset: z.number().int(), data: z.string() }),
-  /** Emitted only when a watcher's status changes, never per line. */
-  "shell.watch": z.object({
-    info: ShellInfo,
-    previous: WatchStatus,
-    current: WatchStatus,
-    summary: z.string().optional(),
-  }),
-}
-
-export type Owner = z.output<typeof Owner>
-export type ShellStatus = z.output<typeof ShellStatus>
-export type ShellInfo = z.output<typeof ShellInfo>
 export type StartParams = z.output<typeof StartParams>
 export type ReadParams = z.output<typeof ReadParams>
 export type ReadResult = z.output<typeof ReadResult>
@@ -262,7 +146,3 @@ export type WaitResult = z.output<typeof WaitResult>
 export type WaitReason = z.output<typeof WaitReason>
 export type StopParams = z.output<typeof StopParams>
 export type LogLine = z.output<typeof LogLine>
-export type WatchRule = z.output<typeof WatchRule>
-export type WatchState = z.output<typeof WatchState>
-export type WatchStatus = z.output<typeof WatchStatus>
-export type WatchParams = z.output<typeof WatchParams>

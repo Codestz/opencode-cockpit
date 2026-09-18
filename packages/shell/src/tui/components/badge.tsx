@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import type { ShellInfo } from "@opencode-cockpit/protocol/shell"
-import { badgeText, kindColor, kindOf } from "./view.ts"
+import { badgeText, kindColor, kindOf } from "../lib/view.ts"
 
 /** Status pill: label on a coloured background, readable in any font and colour scheme. */
 export function Badge(props: { api: TuiPluginApi; shell: ShellInfo; frame: number }) {

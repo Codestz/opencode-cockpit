@@ -2,9 +2,9 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
 import type { ToolContext } from "@opencode-ai/plugin"
 import { startDaemon } from "../../client/test/helpers.ts"
-import { formatLines } from "../src/tools/format.ts"
-import { createTools } from "../src/tools/index.ts"
-import { encodeKey } from "../src/tools/keys.ts"
+import { createTools } from "../src/agent/tools/index.ts"
+import { encodeKey } from "../src/agent/tools/keys.ts"
+import { formatLines } from "../src/core/format.ts"
 
 let env: Awaited<ReturnType<typeof startDaemon>>
 let tools: ReturnType<typeof createTools>

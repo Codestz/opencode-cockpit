@@ -1,6 +1,6 @@
 import type { TuiThemeCurrent } from "@opencode-ai/plugin/tui"
 import type { ScreenRun, ShellInfo } from "@opencode-cockpit/protocol/shell"
-import { duration } from "../tools/format.ts"
+import { duration } from "../../core/format.ts"
 
 /** What a human cares about, derived from status + exit code so every surface agrees. */
 export type Kind = "run" | "fail" | "stop" | "done"
