@@ -156,7 +156,7 @@ working. (`XDG_CONFIG_HOME` is honoured for the global path.)
 | `notify` | What may interrupt the agent — `exit`, `watch`, and `tailLines` (output lines included in an exit message). |
 | `guidance` | The system-prompt paragraph that teaches the agent when to use shells. `false` saves ~120 tokens per request, at the cost of a model that uses shells less well. |
 | `listRunningShells` | How many running shells are listed in the system prompt each turn (~20 tokens each). `0` disables it; the agent can still call `shell_list`. |
-| `ui` | Interface only: `dockHeight`, `dockOpen`, `sidebarRows`, `historyMinutes`, `colors`, `defaultView` (`"screen"` or `"log"`), `keybinds`, `updateCheck`. |
+| `ui` | Interface only: `dockHeight`, `dockOpen` (set it and the panel always starts that way; leave it out and it starts as you last left it), `sidebarRows`, `historyMinutes`, `colors`, `defaultView` (`"screen"` or `"log"`), `keybinds`, `updateCheck`. |
 
 The same settings can go on the plugin entry instead, which is handy for one-offs and for machines
 where you'd rather keep everything in `tui.json`/`opencode.json`:

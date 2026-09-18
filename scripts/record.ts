@@ -9,7 +9,7 @@
  * output. A tape is a small module that lists the keystrokes; nothing about the session is faked.
  */
 
-import { mkdirSync, rmSync, writeFileSync } from "node:fs"
+import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
 import { SerializeAddon } from "@xterm/addon-serialize"
 import { Terminal } from "@xterm/headless"
@@ -46,6 +46,9 @@ export const KEYS = {
   tab: "\t",
   ctrlP: "\x10",
   ctrlC: "\x03",
+  /** OpenCode's leader is ctrl+x; cockpit binds <leader>o and <leader>i. */
+  dock: "\x18o",
+  console: "\x18i",
   up: "\x1b[A",
   down: "\x1b[B",
   slash: "/",
@@ -63,8 +66,16 @@ async function record(tape: Tape): Promise<string> {
   rmSync(work, { recursive: true, force: true })
   const project = join(work, "project")
   const config = join(work, "config", "opencode")
+  const data = join(work, "data", "opencode")
   mkdirSync(project, { recursive: true })
   mkdirSync(config, { recursive: true })
+  mkdirSync(data, { recursive: true })
+
+  // A fresh data directory, so remembered interface state (an open panel, a selected shell) cannot
+  // leak in from the machine doing the recording — but carry the credentials over, or the model
+  // half of a session cannot run at all.
+  const realAuth = join(process.env.HOME ?? "", ".local/share/opencode/auth.json")
+  if (existsSync(realAuth)) copyFileSync(realAuth, join(data, "auth.json"))
 
   const plugin = join(root, "packages", "opencode")
   writeFileSync(join(config, "opencode.json"), JSON.stringify({ plugin: [plugin] }))
@@ -93,6 +104,7 @@ async function record(tape: Tape): Promise<string> {
     env: {
       ...process.env,
       XDG_CONFIG_HOME: join(work, "config"),
+      XDG_DATA_HOME: join(work, "data"),
       COCKPIT_HOME: join(work, "home"),
       TERM: "xterm-256color",
       COLORTERM: "truecolor",

@@ -50,8 +50,10 @@ const shellTui: TuiPlugin = async (api, rawOptions, meta) => {
   const store = createShellStore(api, client, { historyMinutes: options.historyMinutes })
   const keys = createBindingLookup({ ...DEFAULT_KEYS, ...options.keybinds })
 
+  // An explicit `ui.dockOpen` says how the panel should start; without one, whatever you last left
+  // it as. Remembered state that overrides a written setting is a setting that appears to do nothing.
   const [dockOpen, setDockOpen] = createSignal<boolean>(
-    api.kv.get("cockpit.dock.open", options.dockOpen ?? false),
+    options.dockOpen ?? api.kv.get("cockpit.dock.open", false),
   )
   const toggleDock = () => {
     const next = !dockOpen()

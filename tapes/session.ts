@@ -23,9 +23,16 @@ export default {
   cols: 124,
   rows: 34,
   files: { "dev-server.sh": DEV },
+  // the panel is open from the start: the point is seeing it fill while the answer arrives
+  config: { ui: { dockOpen: true } },
   steps: [
-    { send: "start ./dev-server.sh in the background, wait until it is listening, then tell me the url", wait: 1800 },
-    { send: KEYS.enter, wait: 60_000 }, // the model works: tool call, wait, answer
-    { send: "", wait: 8000 },
+    { send: "start ./dev-server.sh in the background, wait until it's listening, then tell me the url", wait: 1600 },
+    { send: KEYS.enter, wait: 34_000 },     // the model works; the player compresses the thinking
+    // and now the half nobody else shows: the interface. Through the palette, because a slash
+    // typed into the composer is a message, not a command.
+    { send: "", wait: 4200 },               // the panel has been filling underneath all along
+    { send: KEYS.console, wait: 4200 },     // the console: full output, keys, details
+    { send: KEYS.tab, wait: 3400 },         // the agent's view — numbered lines
+    { send: KEYS.esc, wait: 3400 },         // back to the conversation, panel still there
   ],
 } satisfies Tape
