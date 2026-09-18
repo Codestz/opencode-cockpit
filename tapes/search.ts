@@ -20,19 +20,22 @@ sleep 600
 export default {
   name: "search",
   title: "Finding five lines in a 240-line build log",
-  cols: 96,
-  rows: 20,
+  cols: 124,
+  rows: 34,
   files: { "build.sh": NOISY },
-  steps: [
+  warmup: [
     { send: KEYS.ctrlP, wait: 900 },
     { send: "New background shell", wait: 1100 },
     { send: KEYS.enter, wait: 900 },
     { send: "./build.sh", wait: 800 },
-    { send: KEYS.enter, wait: 6000 },
-    { send: KEYS.tab, wait: 1800 }, // log view: numbered lines, the agent's view
-    { send: KEYS.slash, wait: 1200 },
-    { send: "ERROR", wait: 1400 },
-    { send: KEYS.enter, wait: 4000 }, // applied: 240 lines down to the four that matter
-    { send: KEYS.esc, wait: 1800 },
+    { send: KEYS.enter, wait: 6500 },
+    { send: KEYS.tab, wait: 1600 }, // the agent's view: numbered lines
+  ],
+  steps: [
+    { send: "", wait: 2600 }, // opens on a log nobody could read by eye
+    { send: KEYS.slash, wait: 1400 },
+    { send: "ERROR", wait: 1600 },
+    { send: KEYS.enter, wait: 4200 }, // 240 lines down to the four that matter
+    { send: KEYS.esc, wait: 2200 },
   ],
 } satisfies Tape

@@ -11,6 +11,8 @@
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs"
 import { dirname, join, resolve } from "node:path"
+import { SerializeAddon } from "@xterm/addon-serialize"
+import { Terminal } from "@xterm/headless"
 
 export interface Step {
   /** Keys to send, exactly as the terminal would receive them (see KEYS). */
@@ -32,6 +34,8 @@ export interface Tape {
   config?: unknown
   /** Seconds to wait for OpenCode to start and load plugins before recording begins. */
   startupMs?: number
+  /** Driven before recording starts: setup nobody needs to watch (starting the shells, say). */
+  warmup?: Step[]
   steps: Step[]
 }
 
@@ -77,6 +81,13 @@ async function record(tape: Tape): Promise<string> {
   let started = 0
   let recording = false
 
+  // A cast holds only what changed after it started, and a TUI redraws deltas — so a recording that
+  // begins mid-session opens on a half-drawn screen. Mirror the session in a headless terminal and
+  // use its serialized state as frame zero.
+  const mirror = new Terminal({ cols, rows, allowProposedApi: true })
+  const serializer = new SerializeAddon()
+  mirror.loadAddon(serializer)
+
   const proc = Bun.spawn([opencode], {
     cwd: project,
     env: {
@@ -90,9 +101,11 @@ async function record(tape: Tape): Promise<string> {
       cols,
       rows,
       data(_t: unknown, chunk: Uint8Array) {
+        const text = Buffer.from(chunk).toString("utf8")
+        mirror.write(text)
         if (!recording) return
         const at = ((Date.now() - started) / 1000).toFixed(3)
-        events.push(`[${at}, "o", ${JSON.stringify(Buffer.from(chunk).toString("utf8"))}]`)
+        events.push(`[${at}, "o", ${JSON.stringify(text)}]`)
       },
     },
   } as Parameters<typeof Bun.spawn>[1]) as ReturnType<typeof Bun.spawn> & {
@@ -100,11 +113,16 @@ async function record(tape: Tape): Promise<string> {
   }
 
   await Bun.sleep(tape.startupMs ?? 14_000) // start-up and plugin load are not part of the demo
+  for (const step of tape.warmup ?? []) {
+    if (step.send) proc.terminal.write(step.send)
+    await Bun.sleep(step.wait ?? 600)
+  }
+  await new Promise<void>((done) => mirror.write("", done)) // let the mirror catch up
+  const opening = `\x1b[2J\x1b[H${serializer.serialize()}`
   started = Date.now()
   recording = true
-  // A resize makes the TUI repaint everything, so the recording opens on a complete screen.
-  proc.terminal.write("\x1b[8;;t")
-  await Bun.sleep(400)
+  events.push(`[0.000, "o", ${JSON.stringify(opening)}]`)
+  await Bun.sleep(150)
 
   for (const step of tape.steps) {
     if (step.send) proc.terminal.write(step.send)
@@ -113,6 +131,7 @@ async function record(tape: Tape): Promise<string> {
 
   recording = false
   proc.kill("SIGKILL")
+  mirror.dispose()
 
   const header = JSON.stringify({
     version: 2,

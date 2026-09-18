@@ -32,32 +32,26 @@ sleep 600
 export default {
   name: "tour",
   title: "Background shells, in the interface",
-  cols: 100,
-  rows: 22,
+  cols: 124,
+  rows: 34,
   files: { "dev-server.sh": DEV, "tests.sh": TESTS },
-  steps: [
-    // A prompt in the composer: this is what the agent is being asked to work on.
-    { send: "keep the dev server up while we refactor checkout", wait: 2200 },
-
+  warmup: [
+    { send: "keep the dev server up while we refactor checkout", wait: 1400 },
     { send: KEYS.ctrlP, wait: 800 },
     { send: "New background shell", wait: 1000 },
     { send: KEYS.enter, wait: 800 },
     { send: "./dev-server.sh", wait: 600 },
-    { send: KEYS.enter, wait: 4500 },
-    { send: KEYS.esc, wait: 2200 }, // the dock: a live panel under the conversation
-
+    { send: KEYS.enter, wait: 4200 },
+    { send: KEYS.esc, wait: 1400 },
+  ],
+  steps: [
     { send: KEYS.ctrlP, wait: 800 },
     { send: "New background shell", wait: 1000 },
     { send: KEYS.enter, wait: 800 },
     { send: "./tests.sh", wait: 600 },
-    { send: KEYS.enter, wait: 6000 }, // a failing suite, in colour
-    { send: "[", wait: 2500 }, // cycle to the dev server without touching the mouse
-    { send: "]", wait: 2000 },
-    { send: KEYS.tab, wait: 2200 }, // the agent's view: numbered lines
-    { send: KEYS.slash, wait: 900 },
-    { send: "failed", wait: 1200 },
-    { send: KEYS.enter, wait: 3500 },
-    { send: KEYS.esc, wait: 1200 },
-    { send: KEYS.esc, wait: 3000 }, // back to the conversation, both shells still running
+    { send: KEYS.enter, wait: 6500 }, // a suite fails, in the program's own colours
+    { send: "[", wait: 2600 },        // switch to the dev server, no mouse
+    { send: "]", wait: 2400 },
+    { send: KEYS.esc, wait: 2600 },   // back to the conversation, both still running
   ],
 } satisfies Tape
