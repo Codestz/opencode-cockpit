@@ -169,7 +169,10 @@ export function stopShells(api: TuiPluginApi, store: ShellStore, reach: "view" |
   // Shells from other conversations are the ones you are not looking at; say so before killing them.
   const elsewhere =
     reach === "project" ? list.length - store.shells().filter((s) => s.status === "running").length : 0
-  if (elsewhere <= 0) return stop()
+  if (elsewhere <= 0) {
+    stop()
+    return
+  }
 
   const DialogConfirm = api.ui.DialogConfirm
   api.ui.dialog.replace(() => (
