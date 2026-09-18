@@ -1,0 +1,38 @@
+---
+title: Your first session
+description: Ask for something long-running and watch where it goes.
+---
+
+import Cast from "../../../components/Cast.astro"
+
+Ask the agent for something that cannot finish inside a tool call:
+
+> start the dev server, wait until it's listening, then tell me the url
+
+<Cast name="session" caption="Unedited: the agent picks shell_start, the panel fills, the answer comes back." />
+
+Three things happened there, and none of them needed you.
+
+**It chose the tool.** `shell_start` is described to the model as the thing to use for anything
+long-running or interactive, so a dev server goes there instead of into `bash`.
+
+**It waited on the real signal.** `waitFor: { port: 5173 }` returns the moment the port answers —
+not after a sleep, not after a guess.
+
+**It kept the shell.** The process is owned by the daemon, so it is still running after the turn
+ends, and it shows up in the panel and the sidebar.
+
+## Seeing it yourself
+
+| Key | What it does |
+| --- | --- |
+| <kbd>ctrl+x</kbd> <kbd>o</kbd> | Toggle the panel under the conversation |
+| <kbd>ctrl+x</kbd> <kbd>i</kbd> | Open the full console |
+| <kbd>/</kbd> | Filter the log, in the console |
+| <kbd>?</kbd> | Details for the selected shell |
+
+## What to try next
+
+- *"Run the test suite in the background and tell me if it fails."*
+- *"Watch tsc and let me know when it breaks."*
+- *"Open a node REPL and check what `new URL('..', import.meta.url)` returns."*

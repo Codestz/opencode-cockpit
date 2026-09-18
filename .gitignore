@@ -8,7 +8,8 @@ types/
 *.tgz
 
 # local design notes (kept out of the repository)
-docs/
+# anchored: site/src/content/docs is the published documentation and must be tracked
+/docs/
 
 # tooling
 .cockpit-test/

@@ -1,0 +1,81 @@
+---
+title: Architecture
+description: How the two halves of a plugin, the daemon and your processes fit together.
+---
+
+import Diagram from "../../../components/Diagram.astro"
+
+## The shape of it
+
+<Diagram caption="Both halves of a plugin talk to one daemon; the daemon owns the processes.">
+{`flowchart LR
+  subgraph OC["OpenCode"]
+    TUI["Interface thread<br/>panel · console · keys"]
+    SRV["Server thread<br/>agent tools"]
+  end
+  subgraph CK["cockpitd — one per machine"]
+    RPC["JSON-RPC over a unix socket"]
+    SH["shell module"]
+    NEXT["agents module<br/>(next)"]
+  end
+  PROC["PTY process groups<br/>dev servers · watchers · REPLs"]
+
+  TUI --> RPC
+  SRV --> RPC
+  RPC --> SH
+  RPC --> NEXT
+  SH --> PROC
+`}
+</Diagram>
+
+## Why a daemon at all
+
+OpenCode runs the interface and the server in separate threads, so the two halves of a plugin cannot
+share memory — and neither survives a restart. Anything that must outlive a turn needs a third place
+to live, and that is `cockpitd`.
+
+It is one process per machine, not per window. It starts on demand, accepts connections on a unix
+socket in a `0700` directory with `0600` permissions, and exits after ten idle minutes.
+
+## Upgrades without killing your work
+
+Each build has an id derived from the daemon's own code. A plugin carrying newer code asks for the
+daemon to step aside — but only when nothing would be lost.
+
+<Diagram caption="Only forwards, and never over running work.">
+{`flowchart TD
+  A["A plugin connects"] --> B{"Newer build<br/>than the daemon?"}
+  B -->|no| K["Use the running daemon"]
+  B -->|yes| C{"Anything running<br/>inside it?"}
+  C -->|no| D["Daemon shuts down<br/>and the newer one starts"]
+  C -->|yes| E["Keep it, and say so<br/>/shells-restart-daemon when ready"]
+`}
+</Diagram>
+
+## What a shell's output becomes
+
+One byte stream, three readers, each for a different audience.
+
+<Diagram caption="The agent reads lines; you watch a screen; a late panel replays the bytes.">
+{`flowchart LR
+  PTY["PTY output"] --> N["Normalizer<br/>collapses redraws"]
+  PTY --> S["Headless terminal"]
+  PTY --> R["Raw ring buffer"]
+  N --> L["Numbered log<br/>agent reads, greps, follows a cursor"]
+  N --> W["Watcher<br/>ok → fail transitions"]
+  S --> V["Screen<br/>what the panel shows"]
+  R --> C["Replay<br/>for a panel that opened late"]
+`}
+</Diagram>
+
+## The protocol
+
+JSON-RPC 2.0 over NDJSON, with request and response schemas shared by client and daemon and a
+`major.minor` version. A bay contributes its own methods and events; other bays never see them. A
+major mismatch is refused with a clear message instead of failing halfway through a call.
+
+## Crash recovery
+
+Every spawned process group is written to a registry file with its start time. A daemon that starts
+after a crash reads it, checks which of those processes are still alive, and kills what it owned — so
+a crash never leaves a dev server running forever.

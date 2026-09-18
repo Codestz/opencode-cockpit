@@ -1,0 +1,59 @@
+---
+title: Watching health
+description: Turn an endless log into two messages — it broke, and it is fixed.
+---
+
+import Cast from "../../../components/Cast.astro"
+
+`tsc --watch` never exits, so the only way to know how it is doing is to read its log — and that
+costs tokens every single turn. A watcher reads it instead and reports **transitions**.
+
+```
+shell_start command="tsc --watch --noEmit" description="type checker" watch=true
+→ watching health (tsc)
+
+… later, on its own:
+<shell_health id="sh_9wq2f1ab" title="type checker" status="fail">
+tsc: ok → fail
+src/auth.ts(42,3): error TS2339: Property 'id' does not exist on type 'User'.
+</shell_health>
+```
+
+Nothing is sent while a run keeps producing the same result. A watched process that **dies** is
+reported as a failure, so a crashed dev server no longer goes unnoticed.
+
+## A rule is three regexes
+
+Not a parser: `done` (a run ended), `fail`, `ok`, plus `idleSeconds` for tools that never announce
+the end of a run.
+
+```json
+{ "done": "\\d+ (passed|failed)", "fail": "\\d+ failed", "ignoreCase": true }
+```
+
+Rules can be passed to `shell_start` as `watch`, or to `shell_watch` as `rule`.
+
+## Presets
+
+About 35 ship and are picked automatically from the command: tsc, eslint, biome, prettier, mypy,
+ruff, vitest, jest, mocha, bun test, deno test, pytest, rspec, phpunit, playwright, cypress, vite,
+next, nuxt, astro, angular, webpack, esbuild, tsup, turbo, metro, storybook, cargo, go, dotnet,
+gradle, maven, docker compose and terraform.
+
+Add your own in config and they are sent to the daemon as explicit rules, so your presets work
+without waiting for a release:
+
+```json title="~/.config/opencode-cockpit/config.json"
+{
+  "watch": {
+    "presets": {
+      "e2e": { "done": "\\d+ (passed|failed)", "fail": "\\d+ failed" }
+    }
+  }
+}
+```
+
+:::note[watch.auto is off by default]
+`watch: { "auto": true }` attaches a matching preset to every new shell. It stays off unless you ask
+for it — attaching rules to commands nobody opted into is a surprise, not a feature.
+:::

@@ -1,7 +1,15 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.13/schema.json",
   "files": {
-    "includes": ["**", "!**/node_modules", "!**/dist", "!**/types", "!**/*.tsbuildinfo"]
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/types",
+      "!**/*.tsbuildinfo",
+      "!site/**",
+      "!media/**"
+    ]
   },
   "formatter": {
     "indentStyle": "space",
@@ -21,7 +29,9 @@
   },
   "overrides": [
     {
-      "includes": ["packages/shell/src/tui/**"],
+      "includes": [
+        "packages/shell/src/tui/**"
+      ],
       "linter": {
         "rules": {
           "a11y": "off"
