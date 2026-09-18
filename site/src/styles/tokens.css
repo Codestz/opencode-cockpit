@@ -1,0 +1,90 @@
+/**
+ * Every colour, radius and type decision on the site. Change a value and both the landing page and
+ * the docs follow — nothing else hard-codes a colour.
+ *
+ * Light and dark are one palette seen on two grounds, not two palettes: the same blue hue for the
+ * accent (deepened on paper so it still carries on white), and neutrals tinted toward that same
+ * blue in both. That shared bias is what stops the light mode feeling borrowed from another site.
+ *
+ * Light is the base; dark is applied by the OS preference and by an explicit choice, so both the
+ * landing page and Starlight's theme picker end up in the same place.
+ */
+:root {
+  /* surfaces — cool paper, never warm bone */
+  --ck-bg: #f7f8fb;
+  --ck-bg-2: #eef1f7;
+  --ck-card: #ffffff;
+  --ck-card-2: #f2f5fa;
+  --ck-line: #dfe4ee;
+  --ck-line-2: #c5cedd;
+
+  /* text */
+  --ck-fg: #0e131b;
+  --ck-fg-2: #4a5567;
+  --ck-fg-3: #6f7b8d;
+
+  /* one accent, plus the two states the product itself uses */
+  --ck-accent: #2563c9;
+  --ck-accent-ink: #ffffff;
+  --ck-accent-soft: rgba(37, 99, 201, 0.1);
+  --ck-warn: #9a6512;
+  --ck-info: #1d6fb8;
+
+  /* terminal recordings keep their own ground in both modes: output is output */
+  --ck-terminal: #0a0c10;
+
+  /* shape and type */
+  --ck-radius: 14px;
+  --ck-radius-sm: 10px;
+  --ck-font: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ck-font-display: "Sora", var(--ck-font);
+  --ck-font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* rhythm */
+  --ck-page: 1180px;
+  --ck-gutter: 26px;
+  --ck-section: 80px;
+
+  color-scheme: light dark;
+}
+
+/* The same palette on a dark ground: identical hues, inverted roles. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ck-bg: #0a0c10;
+    --ck-bg-2: #0e1117;
+    --ck-card: #12161d;
+    --ck-card-2: #171c24;
+    --ck-line: #1e2530;
+    --ck-line-2: #2b3440;
+
+    --ck-fg: #e9edf3;
+    --ck-fg-2: #98a3b3;
+    --ck-fg-3: #667283;
+
+    --ck-accent: #6aa6ff;
+    --ck-accent-ink: #04152e;
+    --ck-accent-soft: rgba(106, 166, 255, 0.14);
+    --ck-warn: #f0b45e;
+    --ck-info: #67e8f9;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ck-bg: #0a0c10;
+  --ck-bg-2: #0e1117;
+  --ck-card: #12161d;
+  --ck-card-2: #171c24;
+  --ck-line: #1e2530;
+  --ck-line-2: #2b3440;
+
+  --ck-fg: #e9edf3;
+  --ck-fg-2: #98a3b3;
+  --ck-fg-3: #667283;
+
+  --ck-accent: #6aa6ff;
+  --ck-accent-ink: #04152e;
+  --ck-accent-soft: rgba(106, 166, 255, 0.14);
+  --ck-warn: #f0b45e;
+  --ck-info: #67e8f9;
+}

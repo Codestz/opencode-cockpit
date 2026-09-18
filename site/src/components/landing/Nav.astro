@@ -1,0 +1,63 @@
+---
+import Logo from "../Logo.astro"
+import { nav } from "../../data/landing"
+const base = import.meta.env.BASE_URL
+---
+<nav>
+  <div class="page">
+    <a class="brand" href={base}><Logo /> Cockpit</a>
+    <div class="links">
+      {nav.links.map((l) => <a href={l.href}>{l.label}</a>)}
+    </div>
+    <div class="right">
+      <span class="version mono">{nav.version}</span>
+      <a href={`${base}start/what-cockpit-is/`}>Docs</a>
+      <a href={nav.github}>GitHub</a>
+      <button class="theme" type="button" data-theme-toggle aria-label="Switch between light and dark">
+        <svg viewBox="0 0 24 24" aria-hidden="true" class="sun"><circle cx="12" cy="12" r="4.2" /><path d="M12 2.6v2.2M12 19.2v2.2M4.2 12H2M22 12h-2.2M5.6 5.6 4 4M20 20l-1.6-1.6M18.4 5.6 20 4M4 20l1.6-1.6" /></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true" class="moon"><path d="M20 14.5A8 8 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5Z" /></svg>
+      </button>
+      <a class="btn btn-solid" href="#install">Install</a>
+    </div>
+  </div>
+</nav>
+
+<style>
+  nav {
+    position: sticky; top: 0; z-index: 40; border-bottom: 1px solid var(--ck-line);
+    background: color-mix(in srgb, var(--ck-bg) 85%, transparent); backdrop-filter: blur(14px);
+  }
+  nav .page { display: flex; align-items: center; gap: 30px; height: 66px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--ck-font-display); font-weight: 600; font-size: 16.5px; letter-spacing: -0.02em; }
+  .links { display: flex; gap: 24px; font-size: 14.5px; color: var(--ck-fg-2); }
+  .links a:hover { color: var(--ck-fg); }
+  .right { margin-left: auto; display: flex; align-items: center; gap: 18px; font-size: 14.5px; color: var(--ck-fg-2); }
+  .right a:hover { color: var(--ck-fg); }
+  .theme {
+    display: grid; place-items: center; width: 32px; height: 32px; cursor: pointer;
+    background: none; border: 1px solid var(--ck-line); border-radius: 9px; color: var(--ck-fg-2);
+  }
+  .theme:hover { color: var(--ck-fg); border-color: var(--ck-line-2); }
+  .theme svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
+  .theme .moon { display: none; }
+  :global(:root[data-theme="dark"]) .theme .sun { display: none; }
+  :global(:root[data-theme="dark"]) .theme .moon { display: block; }
+  @media (prefers-color-scheme: dark) {
+    :global(:root:not([data-theme="light"])) .theme .sun { display: none; }
+    :global(:root:not([data-theme="light"])) .theme .moon { display: block; }
+  }
+  .version { font-size: 12px; color: var(--ck-fg-3); border: 1px solid var(--ck-line); border-radius: 7px; padding: 4px 9px; }
+  @media (max-width: 940px) { .links { display: none; } }
+</style>
+
+<script>
+  // Same storage key Starlight uses, so the choice carries between the landing page and the docs.
+  const toggle = document.querySelector<HTMLButtonElement>("[data-theme-toggle]")
+  toggle?.addEventListener("click", () => {
+    const dark = matchMedia("(prefers-color-scheme: dark)").matches
+    const current = document.documentElement.dataset.theme ?? (dark ? "dark" : "light")
+    const next = current === "dark" ? "light" : "dark"
+    document.documentElement.dataset.theme = next
+    localStorage.setItem("starlight-theme", next)
+  })
+</script>

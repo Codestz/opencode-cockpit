@@ -1,0 +1,33 @@
+/**
+ * Layout and type for the landing page. Colours come from tokens.css; nothing here invents one.
+ */
+.page { max-width: var(--ck-page); margin: 0 auto; padding-inline: var(--ck-gutter); }
+
+/* section chrome: numbered, left aligned, rule running off to the right */
+.section { padding-block: var(--ck-section); }
+.section-head { display: flex; align-items: center; gap: 18px; }
+.section-head .no { font-family: var(--ck-font-mono); font-size: 12.5px; color: var(--ck-accent); letter-spacing: 0.08em; }
+.section-head .kicker { font-family: var(--ck-font-mono); font-size: 12.5px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ck-fg-3); }
+.section-head .rule { flex: 1; height: 1px; background: var(--ck-line); }
+.section h2 { font-size: clamp(27px, 3.2vw, 36px); margin: 20px 0 0; max-width: 22ch; }
+.section .intro { margin-top: 16px; color: var(--ck-fg-2); font-size: 16.5px; max-width: 64ch; }
+.section .intro code, .piece code, .install-note code { font-family: var(--ck-font-mono); font-size: 0.92em; color: var(--ck-fg); }
+
+/* buttons */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; border-radius: var(--ck-radius-sm);
+  font-family: inherit; font-size: 14.5px; font-weight: 500; padding: 9px 17px;
+  border: 1px solid transparent; cursor: pointer; text-decoration: none; transition: 0.15s ease;
+}
+.btn-solid { background: var(--ck-accent); color: var(--ck-accent-ink); }
+.btn-solid:hover { filter: brightness(1.08); }
+.btn-line { border-color: var(--ck-line-2); color: var(--ck-fg); }
+.btn-line:hover { background: var(--ck-card-2); }
+.btn-lg { padding: 13px 22px; font-size: 15.5px; }
+
+/* cards shared by bays and install */
+.surface { background: var(--ck-card); border: 1px solid var(--ck-line); border-radius: var(--ck-radius); }
+
+@media (max-width: 940px) {
+  .section { padding-block: 56px; }
+}

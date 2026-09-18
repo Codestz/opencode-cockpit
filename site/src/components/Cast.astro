@@ -1,0 +1,87 @@
+---
+/**
+ * Plays a recorded session. Text, not video: sharp at any size, selectable, and a few tens of
+ * kilobytes. Used on the landing page and inside docs pages.
+ *
+ *   <Cast name="session" caption="a real model turn" />
+ */
+interface Props {
+  /** File in public/casts, without the extension. */
+  name: string
+  caption?: string
+  speed?: number
+  idle?: number
+  autoplay?: boolean
+  loop?: boolean
+}
+const { name, caption, speed = 1.4, idle = 0.9, autoplay = true, loop = true } = Astro.props
+const src = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/casts/${name}.cast`
+const id = `cast-${name}-${Math.random().toString(36).slice(2, 8)}`
+---
+
+<figure class="cast">
+  <div class="frame" id={id} data-src={src} data-speed={speed} data-idle={idle} data-autoplay={autoplay} data-loop={loop}></div>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+  .cast { margin: 0; }
+  .frame {
+    background: var(--ck-terminal);
+    border: 1px solid var(--ck-line);
+    border-radius: var(--ck-radius);
+    padding: 12px;
+  }
+  figcaption {
+    margin-top: 12px;
+    font-family: var(--ck-font-mono);
+    font-size: 12px;
+    color: var(--ck-fg-3);
+  }
+</style>
+
+<script>
+  import * as AsciinemaPlayer from "asciinema-player"
+  import "asciinema-player/dist/bundle/asciinema-player.css"
+
+  // Players mount lazily: a docs page can hold several, and none of them should fetch until seen.
+  const mount = (el: HTMLElement) => {
+    if (el.dataset.mounted) return
+    el.dataset.mounted = "true"
+    AsciinemaPlayer.create(el.dataset.src!, el, {
+      autoPlay: el.dataset.autoplay === "true",
+      loop: el.dataset.loop === "true",
+      controls: true,
+      speed: Number(el.dataset.speed),
+      idleTimeLimit: Number(el.dataset.idle),
+      theme: "cockpit",
+      fit: "width",
+      terminalFontFamily: 'var(--ck-font-mono)',
+    })
+  }
+
+  const seen = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) {
+        mount(entry.target as HTMLElement)
+        seen.unobserve(entry.target)
+      }
+    }
+  }, { rootMargin: "200px" })
+
+  document.querySelectorAll<HTMLElement>(".cast .frame").forEach((el) => seen.observe(el))
+</script>
+
+<style is:global>
+  /* The player wears the site's palette. Names are asciinema's; values are ours. */
+  .asciinema-player-theme-cockpit {
+    --term-color-foreground: #c7d2dc;
+    /* recordings keep a terminal ground in both themes: the colours were made for it */
+    --term-color-background: var(--ck-terminal);
+    --term-color-0: #0b0d10; --term-color-1: #f0797a; --term-color-2: #5fe3c0; --term-color-3: #f0b45e;
+    --term-color-4: #6ea8fe; --term-color-5: #c79bf0; --term-color-6: #5fd8e3; --term-color-7: #c7d2dc;
+    --term-color-8: #5f6e7b; --term-color-9: #ff9b9c; --term-color-10: #7ff0d1; --term-color-11: #ffc97d;
+    --term-color-12: #8dbcff; --term-color-13: #dcb4ff; --term-color-14: #8ae8f0; --term-color-15: #e8edf2;
+  }
+  .ap-player { font-family: var(--ck-font-mono) !important; }
+</style>

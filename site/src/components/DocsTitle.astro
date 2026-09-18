@@ -1,0 +1,19 @@
+---
+/** Starlight's site title, replaced so the docs carry the same mark as the landing page. */
+import Logo from "./Logo.astro"
+const base = import.meta.env.BASE_URL
+---
+<a href={base} class="docs-title">
+  <Logo size={20} />
+  <span>Cockpit</span>
+  <em>docs</em>
+</a>
+
+<style>
+  .docs-title { display: flex; align-items: center; gap: 9px; text-decoration: none; color: var(--ck-fg); }
+  .docs-title span { font-family: var(--ck-font-display); font-weight: 600; letter-spacing: -0.02em; font-size: 16px; }
+  .docs-title em {
+    font-style: normal; font-family: var(--ck-font-mono); font-size: 11px; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--ck-fg-3); border: 1px solid var(--ck-line); border-radius: 6px; padding: 2px 6px;
+  }
+</style>

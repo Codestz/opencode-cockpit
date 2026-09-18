@@ -1,5 +1,12 @@
 # @opencode-cockpit/shell
 
+**Bay 01 of [Cockpit](https://github.com/Codestz/opencode-cockpit).**
+[Docs →](https://codestz.github.io/opencode-cockpit/shell/overview/) ·
+[Agent tools](https://codestz.github.io/opencode-cockpit/shell/tools/) ·
+[Watching health](https://codestz.github.io/opencode-cockpit/shell/watching/) ·
+[Panel and keys](https://codestz.github.io/opencode-cockpit/shell/interface/) ·
+[Configuration](https://codestz.github.io/opencode-cockpit/configuration/)
+
 [![npm](https://img.shields.io/npm/v/@opencode-cockpit/shell)](https://www.npmjs.com/package/@opencode-cockpit/shell)
 
 Background terminals for [OpenCode](https://opencode.ai) that the agent starts, waits on and
@@ -14,6 +21,10 @@ drives, and that you watch and control without leaving the chat. Part of
   console with a real typing mode.
 - **Shells outlive OpenCode.** They run in a small daemon, `cockpitd`, shared by every OpenCode
   window and upgraded automatically when the plugin updates.
+
+![A dev server running in the shells panel](https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/dock.gif)
+
+*Recorded from a real session, re-recorded on every release.*
 
 ## Install
 
