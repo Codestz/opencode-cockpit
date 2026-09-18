@@ -43,6 +43,7 @@ jobs:
 
       - name: Check
         run: |
+          bun run build
           bun run lint
           bun run typecheck
           bun test
