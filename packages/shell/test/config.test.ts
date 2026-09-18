@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { dirname, join } from "node:path"
+import { watchArgs } from "../src/agent/tools/watch-args.ts"
 import { globalConfigPath, loadConfig, mergeConfig, readConfigFile } from "../src/core/config.ts"
 
 const dirs: string[] = []
@@ -54,5 +55,22 @@ describe("config", () => {
     expect(readConfigFile(join(dir, ".cockpit.json"))).toEqual({})
     expect(readConfigFile(join(dir, "nope.json"))).toEqual({})
     expect(loadConfig(dir, undefined, {})).toBeDefined()
+  })
+})
+
+describe("watch arguments", () => {
+  test("rules survive however the model wrote them", () => {
+    const rule = { done: "\\d+ passed", fail: "\\d+ failed" }
+    expect(watchArgs(rule, {})).toEqual({ rule })
+    expect(watchArgs(JSON.stringify(rule), {})).toEqual({ rule })
+    // Under-escaped JSON: a regex written straight into a string literal.
+    expect(watchArgs('{"done": "\\d+ passed"}', {})).toEqual({ rule: { done: "\\d+ passed" } })
+    expect(watchArgs(true, {})).toEqual({ preset: "auto" })
+    expect(watchArgs("tsc", {})).toEqual({ preset: "tsc" })
+    expect(watchArgs("{not json", {})).toEqual({ preset: "{not json" })
+    // A config preset is resolved locally, so the daemon never sees a name it lacks.
+    expect(watchArgs("e2e", { watch: { presets: { e2e: { fail: "boom" } } } })).toEqual({
+      rule: { fail: "boom" },
+    })
   })
 })

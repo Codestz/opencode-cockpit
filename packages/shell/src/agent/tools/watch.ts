@@ -1,6 +1,6 @@
 import { type ToolDefinition, tool } from "@opencode-ai/plugin"
 import type { ToolKit } from "./shared.ts"
-import { watchArgs } from "./watch-args.ts"
+import { asWatchRule, watchArgs } from "./watch-args.ts"
 
 const WATCH = `Keep an eye on a long-running shell and be told only when its health changes.
 
@@ -65,19 +65,13 @@ export function shellWatch(kit: ToolKit): ToolDefinition {
         return `${note}stopped watching ${stopped.id}`
       }
       // A preset defined in config travels as an explicit rule; the daemon knows only the built-ins.
+      // Both arguments absorb a rule written as JSON, rather than failing on a preset name nobody has.
       const chosen = args.preset ? watchArgs(args.preset, config) : {}
+      const rule = asWatchRule(args.rule) ?? chosen.rule
       const info = await client.call("shell.watch", {
         id,
-        preset: chosen.preset,
-        rule: args.rule
-          ? {
-              done: args.rule.done ?? undefined,
-              fail: args.rule.fail ?? undefined,
-              ok: args.rule.ok ?? undefined,
-              ignoreCase: args.rule.ignoreCase ?? undefined,
-              idleSeconds: args.rule.idleSeconds ?? undefined,
-            }
-          : chosen.rule,
+        preset: rule ? undefined : chosen.preset,
+        rule,
       })
       return `${note}watching ${info.id} (${info.watch?.preset ?? "custom rule"}). You will be messaged when its health changes; no need to poll.`
     },

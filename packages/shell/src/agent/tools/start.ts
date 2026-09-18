@@ -122,10 +122,8 @@ export function shellStart(kit: ToolKit): ToolDefinition {
       ]
 
       if (watch) {
-        const how =
-          typeof watch === "object" ? { rule: watch } : watchArgs(watch === true ? "auto" : watch, config)
         await client
-          .call("shell.watch", { id: info.id, ...how })
+          .call("shell.watch", { id: info.id, ...watchArgs(watch, config) })
           .then((watched) => lines.push(describeWatch(watched)))
           .catch((err) => lines.push(`could not watch: ${err instanceof Error ? err.message : String(err)}`))
       }

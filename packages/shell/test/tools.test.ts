@@ -164,6 +164,10 @@ describe("an ended shell says why", () => {
 })
 
 describe("watching shell health", () => {
+  /** Executes without the zod pass, the way OpenCode hands args over. */
+  const raw = (name: string, args: Record<string, unknown>) =>
+    (tools[name] as unknown as RawTool).execute(args, ctx())
+
   test("shell_start can watch, and changes are visible to shell_list", async () => {
     const out = await run("shell_start", {
       command:
@@ -192,6 +196,20 @@ describe("watching shell health", () => {
     await Bun.sleep(900)
     expect(await run("shell_list", { query: "own rule" })).toContain("watch: custom · fail")
     await run("shell_stop", { id })
+  })
+
+  test("a rule written as JSON text is still a rule, not a preset name", async () => {
+    // Models write watch={"done": "..."} and it reaches the tool as a string; that used to be sent
+    // on as a preset name, which no daemon has.
+    const out = await raw("shell_start", {
+      command: "echo '2 passed'; sleep 0.4; echo '1 failed'; sleep 30",
+      description: "json rule text",
+      watch: '{"done": "\\d+ (passed|failed)", "fail": "\\d+ failed"}',
+    })
+    expect(out).toContain("custom rule")
+    await Bun.sleep(900)
+    expect(await run("shell_list", { query: "json rule" })).toContain("watch: custom · fail")
+    await run("shell_stop", { id: idOf(out) })
   })
 
   test("a command no preset matches is watched for dying, which is crash detection", async () => {

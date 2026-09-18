@@ -9,7 +9,9 @@ All notable changes to this project are documented here. The format follows
 ### Added
 
 - `watch` on `shell_start` takes a rule object (`{ done, fail, ok, idleSeconds }`), not only a preset
-  name. It read as documented before and was not.
+  name. It read as documented before and was not. A rule that arrives as JSON *text* is parsed as a
+  rule too — including the under-escaped JSON a model writes when the patterns are regexes
+  (`{"done": "\d+ passed"}`) — instead of being passed on as a preset name nobody has.
 - Watching a command no preset matches no longer fails: the shell is watched for dying (preset
   `exit`), so `sleep 300`, a deploy script or any quiet process gets crash detection without
   patterns.
