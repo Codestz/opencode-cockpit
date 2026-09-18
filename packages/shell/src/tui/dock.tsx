@@ -5,7 +5,16 @@ import { createMemo, For, Show } from "solid-js"
 import { Badge } from "./badge.tsx"
 import type { ShellStore } from "./store.ts"
 import { useScreen } from "./store.ts"
-import { displayCommand, kindColor, kindOf, statusDetail, tailLines, truncate } from "./view.ts"
+import {
+  displayCommand,
+  kindColor,
+  kindOf,
+  statusDetail,
+  tailLines,
+  truncate,
+  watchColor,
+  watchLabel,
+} from "./view.ts"
 
 export interface DockProps {
   api: TuiPluginApi
@@ -113,6 +122,11 @@ export function Dock(props: DockProps) {
               <text fg={kindColor(theme(), kindOf(shell()))} wrapMode="none" flexShrink={0}>
                 {statusDetail(shell(), props.store.now())}
               </text>
+              <Show when={watchLabel(shell())}>
+                <text fg={watchColor(theme(), shell())} wrapMode="none" flexShrink={0}>
+                  {watchLabel(shell())}
+                </text>
+              </Show>
               <Show
                 when={kindOf(shell()) === "fail" && shell().summary}
                 fallback={

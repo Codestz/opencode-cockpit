@@ -3,7 +3,7 @@ import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import { createMemo, For, Show } from "solid-js"
 import { Badge } from "./badge.tsx"
 import type { ShellStore } from "./store.ts"
-import { kindOf, shortDetail, truncate } from "./view.ts"
+import { kindOf, shortDetail, truncate, watchColor, watchLabel } from "./view.ts"
 
 export interface SidebarProps {
   api: TuiPluginApi
@@ -55,6 +55,9 @@ export function SidebarShells(props: SidebarProps) {
                 {" "}
                 {truncate(shell.title, 20)}{" "}
                 <span style={{ fg: theme().textMuted }}>{shortDetail(shell, props.store.now())}</span>
+                <Show when={watchLabel(shell)}>
+                  <span style={{ fg: watchColor(theme(), shell) }}> {watchLabel(shell)}</span>
+                </Show>
               </text>
             </box>
           )}

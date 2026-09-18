@@ -4,6 +4,7 @@ import { OutputNormalizer } from "./output/normalizer.ts"
 import { RawRing } from "./output/raw-ring.ts"
 import { Screen } from "./output/screen.ts"
 import type { PtyBackend, PtyExit, PtyProcess } from "./pty.ts"
+import type { WatchChange, Watcher } from "./watch/watcher.ts"
 
 const ERROR_LINE = /\b(error|err!|failed|failure|fatal|panic|exception|traceback)\b|✗|✖/i
 
@@ -47,6 +48,10 @@ export class Shell {
   /** First log line number belonging to the current run. */
   runStartLine = 1
   lastOutputAt = Date.now()
+  /** Health rule attached to this shell, if any (see watch/watcher.ts). */
+  watcher: Watcher | undefined
+  /** Called when the watcher's reported status changes; never per line. */
+  onWatchChange: ((change: WatchChange) => void) | undefined
 
   private pty: PtyProcess | undefined
   private normalizer: OutputNormalizer
@@ -192,6 +197,7 @@ export class Shell {
     if (this.exit?.signal) info.signal = this.exit.signal
     if (this.error) info.error = this.error
     if (this.summary) info.summary = this.summary
+    if (this.watcher) info.watch = this.watcher.state()
     if (this.endedAt) info.endedAt = this.endedAt
     return info
   }
@@ -219,6 +225,8 @@ export class Shell {
   private createNormalizer(): OutputNormalizer {
     return new OutputNormalizer((text) => {
       const line = this.log.append(text)
+      const change = this.watcher?.line(text)
+      if (change) this.onWatchChange?.(change)
       for (const l of this.listeners) l.line?.(line)
     })
   }
@@ -243,6 +251,8 @@ export class Shell {
     this.endedAt = Date.now()
     this.status = this.stopRequested || exit.signal ? "killed" : "exited"
     this.summary = this.summarize()
+    const ended = this.watcher?.exited(exit.exitCode ?? undefined, exit.signal ?? undefined)
+    if (ended) this.onWatchChange?.(ended)
     // Session leader is gone; make sure nothing it left behind keeps running.
     if (pty.groupAlive()) pty.signal("SIGHUP")
     pty.close()

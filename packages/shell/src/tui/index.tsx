@@ -1,17 +1,22 @@
 /** @jsxImportSource @opentui/solid */
+
+import { rmSync } from "node:fs"
 import {
   createBindingLookup,
   type TuiPlugin,
   type TuiPluginApi,
+  type TuiPluginMeta,
   type TuiPluginModule,
 } from "@opencode-ai/plugin/tui"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
 import { createSignal } from "solid-js"
+import pkg from "../../package.json" with { type: "json" }
 import { createClient } from "../connect.ts"
 import { Console } from "./console.tsx"
 import { Dock } from "./dock.tsx"
 import { SidebarShells } from "./sidebar.tsx"
 import { createShellStore, type ShellStore } from "./store.ts"
+import { cacheDirFor, fetchLatestVersion, isNewer, shouldCheck } from "./update.ts"
 import { BADGE_LABEL, displayCommand, kindOf, order } from "./view.ts"
 
 const DEFAULT_KEYS = {
@@ -21,6 +26,8 @@ const DEFAULT_KEYS = {
 
 export interface ShellTuiOptions {
   dockHeight?: number
+  /** Set false to never check the registry for a newer release. */
+  updateCheck?: boolean
   /** Shell rows the sidebar shows before folding the rest away (default 5). */
   sidebarRows?: number
   /** Failures stay visible this long after they end (default 30). */
@@ -30,6 +37,7 @@ export interface ShellTuiOptions {
 }
 
 const SHELL_PACKAGE = "@opencode-cockpit/shell"
+const PACKAGE_NAME = pkg.name
 
 /** Shell's TUI half as a factory, so bundles such as `opencode-cockpit` can include it. */
 export function createShellTui({ source = SHELL_PACKAGE }: { source?: string } = {}): TuiPlugin {
@@ -50,7 +58,7 @@ export function createShellTui({ source = SHELL_PACKAGE }: { source?: string } =
   }
 }
 
-const shellTui: TuiPlugin = async (api, rawOptions) => {
+const shellTui: TuiPlugin = async (api, rawOptions, meta) => {
   const options = (rawOptions ?? {}) as ShellTuiOptions
   const client = createClient("opencode-cockpit/tui")
   const store = createShellStore(api, client, { historyMinutes: options.historyMinutes })
@@ -132,6 +140,14 @@ const shellTui: TuiPlugin = async (api, rawOptions) => {
         },
       },
       {
+        name: "cockpit.shells.update",
+        title: "Update opencode-cockpit",
+        category: "Shells",
+        namespace: "palette",
+        slashName: "cockpit-update",
+        run: () => offerUpdate(api, meta, pkg.version),
+      },
+      {
         name: "cockpit.shells.restartDaemon",
         title: "Restart shell daemon",
         category: "Shells",
@@ -186,6 +202,9 @@ const shellTui: TuiPlugin = async (api, rawOptions) => {
     },
   })
 
+  // OpenCode never re-resolves an installed plugin spec, so check for a newer release ourselves.
+  if (options.updateCheck !== false) void announceUpdate(api, meta, pkg.version)
+
   // A daemon from older plugin code is kept only while it runs shells; say so once.
   const offOutdated = client.onOutdated((info) => {
     if (!info) return
@@ -202,6 +221,72 @@ const shellTui: TuiPlugin = async (api, rawOptions) => {
     offOutdated()
     store.dispose()
     client.close()
+  })
+}
+
+/** One quiet registry check a day; a newer release is announced once per version. */
+async function announceUpdate(api: TuiPluginApi, meta: TuiPluginMeta, current: string): Promise<void> {
+  if (meta.source !== "npm") return
+  const now = Date.now()
+  if (!shouldCheck(api.kv.get<number | undefined>("cockpit.update.checkedAt", undefined), now)) return
+  api.kv.set("cockpit.update.checkedAt", now)
+  const latest = await fetchLatestVersion(PACKAGE_NAME)
+  if (!latest || !isNewer(latest, current)) return
+  if (api.kv.get<string>("cockpit.update.announced", "") === latest) return
+  api.kv.set("cockpit.update.announced", latest)
+  api.ui.toast({
+    variant: "info",
+    title: "opencode-cockpit",
+    message: `${latest} is available (you have ${current}). Run /cockpit-update.`,
+    duration: 10_000,
+  })
+}
+
+/** Clears this plugin's cache entry so the next OpenCode start installs the newer release. */
+function offerUpdate(api: TuiPluginApi, meta: TuiPluginMeta, current: string): void {
+  const dir = cacheDirFor(meta.target, meta.source)
+  if (!dir) {
+    api.ui.toast({
+      variant: "info",
+      title: "opencode-cockpit",
+      message:
+        meta.source === "file"
+          ? `Running from ${meta.target} — update it with git, not npm.`
+          : "This install is not managed by OpenCode's plugin installer.",
+    })
+    return
+  }
+  void fetchLatestVersion(PACKAGE_NAME).then((latest) => {
+    if (latest && !isNewer(latest, current)) {
+      api.ui.toast({
+        variant: "success",
+        title: "opencode-cockpit",
+        message: `${current} is the latest release.`,
+      })
+      return
+    }
+    const DialogConfirm = api.ui.DialogConfirm
+    api.ui.dialog.replace(() => (
+      <DialogConfirm
+        title={latest ? `Update to ${latest}?` : "Reinstall this plugin?"}
+        message={`Removes the cached copy in ${dir}. OpenCode installs the new version the next time it starts, so restart it afterwards.`}
+        onConfirm={() => {
+          api.ui.dialog.clear()
+          try {
+            rmSync(dir, { recursive: true, force: true })
+            api.ui.toast({
+              variant: "success",
+              title: "opencode-cockpit",
+              message: `Cached ${current} removed — restart OpenCode to install ${latest ?? "the latest release"}.`,
+              duration: 10_000,
+            })
+          } catch (err) {
+            api.ui.toast({ variant: "error", title: "opencode-cockpit", message: String(err) })
+          }
+        }}
+        onCancel={() => api.ui.dialog.clear()}
+      />
+    ))
   })
 }
 

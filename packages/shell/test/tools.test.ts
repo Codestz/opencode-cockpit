@@ -145,6 +145,43 @@ describe("agent tools", () => {
   })
 })
 
+describe("watching shell health", () => {
+  test("shell_start can watch, and changes are visible to shell_list", async () => {
+    const out = await run("shell_start", {
+      command:
+        "echo 'Found 0 errors. Watching for file changes.'; sleep 0.4; echo \"src/a.ts(1,1): error TS2339: nope\"; echo 'Found 1 error. Watching for file changes.'; sleep 30",
+      description: "type checker",
+      watch: "tsc",
+    })
+    expect(out).toContain("watching health (tsc)")
+    const id = idOf(out)
+    await Bun.sleep(900)
+    const list = await run("shell_list", { query: "type checker" })
+    expect(list).toContain("watch: tsc · fail")
+    expect(list).toContain("TS2339")
+    expect(await run("shell_watch", { id, off: true })).toContain("stopped watching")
+    await run("shell_stop", { id })
+  })
+
+  test("shell_watch takes a custom rule and explains an unmatched command", async () => {
+    const id = idOf(
+      await run("shell_start", { command: "echo booting; sleep 30", description: "custom watch" }),
+    )
+    expect(await run("shell_watch", { id, rule: { fail: "PANIC", ok: "READY", idleSeconds: 1 } })).toContain(
+      "watching",
+    )
+    const noPreset = idOf(
+      await run("shell_start", {
+        command: "echo nothing-recognisable; sleep 30",
+        description: "no preset here",
+      }),
+    )
+    const error = await run("shell_watch", { id: noPreset }).catch((e: Error) => e.message)
+    expect(error).toContain("no watch preset matches")
+    for (const shell of [id, noPreset]) await run("shell_stop", { id: shell })
+  })
+})
+
 describe("finding shells across sessions", () => {
   // A project of its own, so names from other tests cannot collide.
   const project = mkdtempSync("/tmp/ck-names-")

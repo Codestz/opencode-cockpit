@@ -90,6 +90,25 @@ export function statusDetail(s: ShellInfo, now: number): string {
   }
 }
 
+/** Short health label for a watched shell, e.g. "tsc ✗" — empty when nothing is watching it. */
+export function watchLabel(s: ShellInfo): string {
+  const watch = s.watch
+  if (!watch || watch.status === "pending") return ""
+  const mark = watch.status === "ok" ? "✓" : watch.status === "fail" ? "✗" : "?"
+  return `${watch.preset ?? "watch"} ${mark}`
+}
+
+export function watchColor(theme: TuiThemeCurrent, s: ShellInfo) {
+  switch (s.watch?.status) {
+    case "ok":
+      return theme.success
+    case "fail":
+      return theme.error
+    default:
+      return theme.textMuted
+  }
+}
+
 /** Compact detail for narrow lists. */
 export function shortDetail(s: ShellInfo, now: number): string {
   switch (kindOf(s)) {

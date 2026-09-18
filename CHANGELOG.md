@@ -6,6 +6,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Watchers.** `shell_watch`, or `watch` on `shell_start`, follows a never-ending process and
+  messages the agent only when its health changes ("tsc: ok → fail" with the offending line), never
+  while a run repeats the same result. A watched process that dies is reported as a failure, so a
+  crashed dev server no longer goes unnoticed. The panel, sidebar and console show the health
+  (`tsc ✓`, `vitest ✗`), and `shell_list` includes it.
+- A watch rule is three regexes — `done`, `fail`, `ok` (plus `idleSeconds`) — not a parser. About 35
+  presets ship for common tools (tsc, eslint, biome, prettier, mypy, ruff, vitest, jest, mocha, bun
+  test, deno test, pytest, rspec, phpunit, playwright, cypress, vite, next, nuxt, astro, angular,
+  webpack, esbuild, tsup, turbo, metro, storybook, cargo, go, dotnet, gradle, maven, docker compose,
+  terraform), picked automatically from the command; anything else takes its own patterns.
+- An update notice: the plugin checks the registry at most once a day and offers `/cockpit-update`,
+  which clears its cache entry so the next start installs the new version. OpenCode resolves an
+  unpinned plugin spec only once, so installs never moved forward on their own.
+- `bun run release <patch|minor|major|x.y.z> [--push]` bumps every package, promotes the changelog
+  and tags, so releases stop being a manual edit.
+
 ## [0.1.5] - 2026-09-18
 
 ### Fixed

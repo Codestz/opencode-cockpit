@@ -58,6 +58,20 @@ const SEND = `Send input to a running background shell, then return the output i
 - text: literal characters. Set submit=true to press enter afterwards.
 - keys: named keys pressed in order, e.g. ["ctrl+c"], ["down", "enter"]. Supported: ${KEY_NAMES.join(", ")}.`
 
+const WATCH = `Keep an eye on a long-running shell and be told only when its health changes.
+
+For processes that never exit (tsc --watch, vitest --watch, dev servers) this replaces re-reading
+the log: you get one message when it breaks, and one when it is fixed, and nothing while it repeats
+the same result.
+
+- preset: a named rule ("auto" picks one from the command). Presets exist for tsc, vitest, jest,
+  eslint, biome, cargo, go, gradle, pytest, vite, next, docker-compose and more.
+- rule: your own patterns when no preset fits: done (a run ended), fail, ok, idleSeconds.
+- off: stop watching.
+
+A watched process that dies is reported as a failure, so a crashed dev server no longer goes
+unnoticed.`
+
 const WAIT = `Block until a condition holds in a background shell. This is the only correct way to wait:
 never sleep and poll.
 
@@ -146,6 +160,12 @@ export function createTools(deps: ToolDeps): Record<string, ToolDefinition> {
           .optional()
           .describe("Block until ready. Same conditions as shell_wait."),
         notifyOnExit: z.boolean().default(true).describe("Message you when the process exits"),
+        watch: z
+          .union([z.boolean(), z.string()])
+          .optional()
+          .describe(
+            'Watch this shell\'s health and message you only when it changes: true or "auto" picks a preset from the command, or name one (tsc, vitest, cargo…). For processes that never exit.',
+          ),
         timeoutSeconds: z
           .number()
           .int()
@@ -176,6 +196,20 @@ export function createTools(deps: ToolDeps): Record<string, ToolDefinition> {
             ? `Restarted ${info.id} (run ${info.run}): same command as an earlier finished shell in this session. Earlier output is above line ${info.lines.last}.`
             : `Started ${info.id}: ${args.command}`,
         ]
+
+        if (args.watch) {
+          const preset = typeof args.watch === "string" ? args.watch : "auto"
+          await client
+            .call("shell.watch", { id: info.id, preset })
+            .then((watched) =>
+              lines.push(
+                `watching health (${watched.watch?.preset ?? "custom rule"}); changes will be messaged to you`,
+              ),
+            )
+            .catch((err) =>
+              lines.push(`could not watch: ${err instanceof Error ? err.message : String(err)}`),
+            )
+        }
         if (args.waitFor) {
           const { timeoutSeconds, idleSeconds, ...rest } = args.waitFor
           const result = await abortable(
@@ -349,6 +383,50 @@ export function createTools(deps: ToolDeps): Record<string, ToolDefinition> {
       },
     }),
 
+    shell_watch: tool({
+      description: WATCH,
+      args: {
+        ...TARGET,
+        preset: z.string().optional().describe('Preset name, or "auto" to pick one from the command'),
+        rule: z
+          .object({
+            done: z.string().optional().describe("A run finished, e.g. 'Found \\d+ errors'"),
+            fail: z.string().optional(),
+            ok: z.string().optional(),
+            ignoreCase: z.boolean().optional(),
+            idleSeconds: z
+              .number()
+              .positive()
+              .optional()
+              .describe("Without `done`: treat this much silence as the end of a run"),
+          })
+          .optional()
+          .describe("Custom patterns; use when no preset fits"),
+        off: z.boolean().default(false).describe("Stop watching this shell"),
+      },
+      async execute(args, ctx) {
+        const { id, note } = await resolve(args, ctx)
+        if (args.off === true) {
+          const stopped = await client.call("shell.unwatch", { id })
+          return `${note}stopped watching ${stopped.id}`
+        }
+        const info = await client.call("shell.watch", {
+          id,
+          preset: args.preset ?? undefined,
+          rule: args.rule
+            ? {
+                done: args.rule.done ?? undefined,
+                fail: args.rule.fail ?? undefined,
+                ok: args.rule.ok ?? undefined,
+                ignoreCase: args.rule.ignoreCase ?? undefined,
+                idleSeconds: args.rule.idleSeconds ?? undefined,
+              }
+            : undefined,
+        })
+        return `${note}watching ${info.id} (${info.watch?.preset ?? "custom rule"}). You will be messaged when its health changes; no need to poll.`
+      },
+    }),
+
     shell_list: tool({
       description: `List background shells in this project: name, status, which session started it, and the last output line.
 
@@ -382,10 +460,13 @@ Filter to find the one you need instead of reading them all:
             const tail = last?.lines[0]?.text ?? ""
             const failure =
               s.summary && s.status !== "running" ? `\n    summary: ${s.summary.slice(0, 200)}` : ""
+            const watch = s.watch
+              ? `\n    watch: ${s.watch.preset ?? "custom"} · ${s.watch.status}${s.watch.summary ? ` · ${s.watch.summary.slice(0, 120)}` : ""}`
+              : ""
             return [
               `${s.id}  ${s.status.padEnd(7)}  "${s.title}"${s.run > 1 ? ` (run ${s.run})` : ""} · ${await sessionLabel(s, ctx)}`,
               `    $ ${commandOf(s).slice(0, 200)}${failure}`,
-              `    ${describeStatus(s)}${tail ? `\n    last: ${tail.slice(0, 200)}` : ""}`,
+              `    ${describeStatus(s)}${watch}${tail ? `\n    last: ${tail.slice(0, 200)}` : ""}`,
             ].join("\n")
           }),
         )

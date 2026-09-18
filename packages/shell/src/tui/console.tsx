@@ -16,6 +16,8 @@ import {
   statusDetail,
   tailLines,
   truncate,
+  watchColor,
+  watchLabel,
   wrapText,
 } from "./view.ts"
 
@@ -309,6 +311,12 @@ export function Console(props: ConsoleProps) {
                 <b>{truncate(s().title, Math.max(10, bodyCols() - 50))}</b>
               </text>
               <box flexGrow={1} />
+              <Show when={watchLabel(s())}>
+                <text fg={watchColor(theme(), s())} wrapMode="none" flexShrink={0}>
+                  {" "}
+                  {watchLabel(s())}{" "}
+                </text>
+              </Show>
               <text fg={theme().textMuted} wrapMode="none" flexShrink={0}>
                 {[statusDetail(s(), props.store.now()), s().run > 1 ? `run ${s().run}` : "", position()]
                   .filter(Boolean)
@@ -433,6 +441,12 @@ function detailRows(s: ShellInfo, now: number, cols: number): [string, string][]
   if (s.summary) rows.push(["summary", truncate(s.summary, width)])
   rows.push(["id", `${s.id} · run ${s.run}${s.pid ? ` · pid ${s.pid}` : ""}`])
   rows.push(["owner", s.owner.session ? `agent session ${s.owner.session}` : "you"])
+  if (s.watch) {
+    rows.push([
+      "watch",
+      `${s.watch.preset ?? "custom rule"} · ${s.watch.status} · ${s.watch.runs} run${s.watch.runs === 1 ? "" : "s"}${s.watch.summary ? ` · ${truncate(s.watch.summary, width - 30)}` : ""}`,
+    ])
+  }
   rows.push(["output", `${s.lines.last} lines · ${Math.round(s.bytes / 1024)} KiB`])
   return rows
 }

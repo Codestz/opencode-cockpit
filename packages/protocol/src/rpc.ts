@@ -1,7 +1,7 @@
 /** Wire envelope: JSON-RPC 2.0, one JSON object per line (ADR 0002). */
 
 /** Bump MAJOR on breaking changes to methods, events or framing. */
-export const PROTOCOL_VERSION = { major: 1, minor: 1 } as const
+export const PROTOCOL_VERSION = { major: 1, minor: 2 } as const
 
 export type RequestId = number | string
 

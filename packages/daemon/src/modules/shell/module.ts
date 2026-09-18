@@ -8,6 +8,8 @@ import { bunPtyBackend, type PtyBackend } from "./pty.ts"
 import { ProcessRegistry } from "./registry.ts"
 import { Shell, type ShellLimits } from "./shell.ts"
 import { waitFor } from "./wait.ts"
+import { PRESETS, presetByName, presetForCommand } from "./watch/presets.ts"
+import { compileRule, Watcher } from "./watch/watcher.ts"
 
 export interface ShellModuleOptions {
   backend?: PtyBackend
@@ -32,6 +34,7 @@ export class ShellModule implements Module<"shell"> {
   private readonly limits: ShellLimits
   private log: Logger = silentLogger
   private registry: ProcessRegistry | undefined
+  private readonly idleTimers = new Map<string, ReturnType<typeof setInterval>>()
   private emit: ModuleContext["emit"] = () => {}
 
   constructor(private readonly options: ShellModuleOptions = {}) {
@@ -50,6 +53,7 @@ export class ShellModule implements Module<"shell"> {
   }
 
   async stop(): Promise<void> {
+    for (const id of [...this.idleTimers.keys()]) this.clearIdle(id)
     await Promise.all([...this.shells.values()].map((s) => s.stop("SIGTERM", 2000).catch(() => {})))
     for (const detach of this.attachments.values()) detach()
     for (const shell of this.shells.values()) shell.dispose()
@@ -155,6 +159,44 @@ export class ShellModule implements Module<"shell"> {
       }
       return { removed }
     },
+
+    watch: ({ id, preset, rule }) => {
+      const shell = this.require(id)
+      const command = [shell.spec.command, ...shell.spec.args].join(" ")
+      const chosen = rule
+        ? undefined
+        : preset && preset !== "auto"
+          ? (presetByName(preset) ??
+            invalidParams(`unknown preset "${preset}"; call shell.presets for the list`))
+          : presetForCommand(command)
+      if (chosen instanceof Error) throw chosen
+      const watchRule = rule ?? chosen?.rule
+      if (!watchRule) {
+        throw invalidParams(
+          `no watch preset matches "${command.slice(0, 80)}"; pass a rule (done/fail/ok patterns) or a preset name`,
+        )
+      }
+      try {
+        shell.watcher = new Watcher(compileRule(watchRule), chosen?.name)
+      } catch (err) {
+        throw invalidParams(`invalid watch pattern: ${err instanceof Error ? err.message : String(err)}`)
+      }
+      shell.onWatchChange = (change) => {
+        this.emit("shell.watch", { info: shell.info(), ...change })
+      }
+      this.armIdle(shell)
+      return shell.info()
+    },
+
+    unwatch: ({ id }) => {
+      const shell = this.require(id)
+      shell.watcher = undefined
+      shell.onWatchChange = undefined
+      this.clearIdle(id)
+      return shell.info()
+    },
+
+    presets: () => PRESETS.map((preset) => ({ name: preset.name, match: preset.match, rule: preset.rule })),
 
     detach: ({ id }, { peer }) => {
       this.detach(peer, id)
@@ -279,7 +321,33 @@ export class ShellModule implements Module<"shell"> {
     this.attachments.get(`${peer.id}:${id}`)?.()
   }
 
+  /**
+   * Rules without a `done` pattern end a run on silence, so poll those watchers; the check is a
+   * timestamp comparison, and only shells that need it are polled.
+   */
+  private armIdle(shell: Shell): void {
+    this.clearIdle(shell.id)
+    const idleMs = shell.watcher?.idleMs
+    if (!idleMs) return
+    const timer = setInterval(
+      () => {
+        if (!shell.watcher || Date.now() - shell.lastOutputAt < idleMs) return
+        const change = shell.watcher.idle()
+        if (change) this.emit("shell.watch", { info: shell.info(), ...change })
+      },
+      Math.max(500, Math.floor(idleMs / 2)),
+    )
+    this.idleTimers.set(shell.id, timer)
+  }
+
+  private clearIdle(id: string): void {
+    const timer = this.idleTimers.get(id)
+    if (timer) clearInterval(timer)
+    this.idleTimers.delete(id)
+  }
+
   private forget(shell: Shell): void {
+    this.clearIdle(shell.id)
     for (const [key, detach] of this.attachments) if (key.endsWith(`:${shell.id}`)) detach()
     shell.dispose()
     this.shells.delete(shell.id)

@@ -36,6 +36,7 @@ one loaded is used and OpenCode shows a warning.
 | `shell_read` | Clean log from a cursor, with `grep`; or `view: "screen"` for full-screen programs. |
 | `shell_send` | Type text or keys (`ctrl+c`, `up`, `enter`) and get the reply. |
 | `shell_list` | Find shells: filter by text (`query`), `status` (running, failed, finished) and `session` (this, others). Each shows which session started it. |
+| `shell_watch` | Watch a never-ending process and be told **only when its health changes**: "tsc: ok → 3 errors". |
 | `shell_stop` · `shell_restart` | Manage shells. |
 
 Every tool that acts on a shell takes its `id` **or its name** (the description it was started
@@ -48,6 +49,35 @@ Names match ignoring case, then partially on name or command. If a name fits sev
 agent gets the candidates instead of a guess.
 
 The agent is messaged when a shell it started exits on its own.
+
+### Watching health
+
+`tsc --watch` and friends never exit, so re-reading their logs is the only way to know how they are
+doing — and it costs tokens every time. A watcher reads the log instead and reports transitions:
+
+```
+shell_start command="tsc --watch --noEmit" description="type checker" watch=true
+→ watching health (tsc)
+
+… later, on its own:
+<shell_health id="sh_9wq2f1ab" title="type checker" status="fail">
+tsc: ok → fail
+src/auth.ts(42,3): error TS2339: Property 'id' does not exist on type 'User'.
+</shell_health>
+```
+
+Nothing is sent while a run keeps producing the same result, and a **watched process that dies is
+reported as a failure**, so a crashed dev server no longer goes unnoticed.
+
+A watch rule is three regexes, not a parser: `done` (a run ended), `fail` and `ok`. Presets ship for
+tsc, eslint, biome, prettier, mypy, ruff, vitest, jest, mocha, bun test, deno test, pytest, rspec,
+phpunit, playwright, cypress, vite, next, nuxt, astro, angular, webpack/rspack, esbuild, tsup,
+turbo, metro, storybook, cargo, go, dotnet, gradle, maven, docker compose and terraform. Anything
+else takes its own patterns:
+
+```
+shell_watch name="deploy" rule={ fail: "FAILED", ok: "SUCCEEDED", idleSeconds: 5 }
+```
 
 Things to ask:
 
@@ -64,6 +94,8 @@ Things to ask:
 | `/shell-new` | Start a shell yourself |
 | `/shells-clear` | Remove finished shells |
 | `/shells-restart-daemon` | Restart `cockpitd` (asks first when shells are running) |
+
+Watched shells also show their health (`tsc ✓`, `vitest ✗`) in the panel, sidebar and console.
 
 Status reads the same everywhere: `RUN` (with a spinner), `FAIL`, `STOP`, `DONE`. Running shells
 and recent failures stay visible; everything else folds into `▸ N more`.

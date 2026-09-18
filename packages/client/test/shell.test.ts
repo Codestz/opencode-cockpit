@@ -415,3 +415,84 @@ describe("daemon build mismatch", () => {
     rmSync(paths.home, { recursive: true, force: true })
   }, 30_000)
 })
+
+describe("watchers", () => {
+  /** A fake `tsc --watch`: prints a clean run, then a broken one, then waits. */
+  const tscLike = (extra = "") =>
+    bash(
+      `echo 'Starting compilation in watch mode...'; sleep 0.2; echo 'Found 0 errors. Watching for file changes.'; sleep 0.4; echo "src/auth.ts(42,3): error TS2339: Property 'id' does not exist."; echo 'Found 1 error. Watching for file changes.'; sleep 30`,
+      extra ? { title: extra } : {},
+    )
+
+  test("reports only status changes, and picks a preset from the command", async () => {
+    const c = env.client()
+    const changes: string[] = []
+    c.on("shell.watch", (e) => changes.push(`${e.previous}→${e.current}`))
+    await c.connect()
+
+    const info = await c.call("shell.start", tscLike())
+    // The command is a bash script, so name the preset instead of relying on auto-detection.
+    const watched = await c.call("shell.watch", { id: info.id, preset: "tsc" })
+    expect(watched.watch).toMatchObject({ preset: "tsc", status: "pending" })
+
+    await c.call("shell.wait", { id: info.id, until: { pattern: "Found 1 error" }, timeoutMs: 5000 })
+    await Bun.sleep(150)
+    expect(changes).toEqual(["pending→ok", "ok→fail"])
+
+    const current = await c.call("shell.get", { id: info.id })
+    expect(current.watch).toMatchObject({ status: "fail", runs: 2 })
+    expect(current.watch?.summary).toContain("TS2339")
+
+    await c.call("shell.unwatch", { id: info.id })
+    expect((await c.call("shell.get", { id: info.id })).watch).toBeUndefined()
+    await c.call("shell.stop", { id: info.id, graceMs: 500 })
+  })
+
+  test("auto-detects from a real command line and exposes the preset table", async () => {
+    const c = env.client()
+    const info = await c.call("shell.start", {
+      command: "/bin/bash",
+      args: ["--noprofile", "--norc", "-c", "echo 'Found 0 errors.'; sleep 5"],
+      cwd: "/tmp",
+      owner,
+    })
+    // auto uses the full command line, which contains "tsc" only if the user ran tsc.
+    const auto = await c.call("shell.start", bash("tsc --watch --noEmit; sleep 5"))
+    const watched = await c.call("shell.watch", { id: auto.id })
+    expect(watched.watch?.preset).toBe("tsc")
+
+    const unmatched = await c.call("shell.watch", { id: info.id }).catch((e) => e)
+    expect(unmatched.message).toContain("no watch preset matches")
+
+    const presets = await c.call("shell.presets")
+    expect(presets.length).toBeGreaterThan(25)
+    expect(presets.map((p) => p.name)).toContain("vitest")
+
+    for (const id of [info.id, auto.id]) await c.call("shell.stop", { id, graceMs: 500 })
+  })
+
+  test("a custom rule works without any preset, and silence can end a run", async () => {
+    const c = env.client()
+    const changes: string[] = []
+    c.on("shell.watch", (e) => changes.push(`${e.previous}→${e.current}`))
+    await c.connect()
+    const info = await c.call("shell.start", bash("echo 'DEPLOY FAILED: bad config'; sleep 30"))
+    await c.call("shell.watch", { id: info.id, rule: { fail: "FAILED", ok: "SUCCEEDED", idleSeconds: 1 } })
+    await Bun.sleep(2500)
+    expect(changes).toContain("pending→fail")
+    await c.call("shell.stop", { id: info.id, graceMs: 500 })
+  })
+
+  test("a watched process that dies reports a failure", async () => {
+    const c = env.client()
+    const changes: { current: string; summary?: string }[] = []
+    c.on("shell.watch", (e) => changes.push({ current: e.current, summary: e.summary }))
+    await c.connect()
+    const info = await c.call("shell.start", bash("echo 'ready in 300 ms'; sleep 0.3; exit 7"))
+    await c.call("shell.watch", { id: info.id, preset: "vite" })
+    await c.call("shell.wait", { id: info.id, until: { exit: true }, timeoutMs: 5000 })
+    await Bun.sleep(150)
+    expect(changes.at(-1)).toMatchObject({ current: "fail" })
+    expect(changes.at(-1)?.summary).toContain("exit code 7")
+  })
+})

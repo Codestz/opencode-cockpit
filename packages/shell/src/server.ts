@@ -8,7 +8,8 @@ import { createTools } from "./tools/index.ts"
 const GUIDANCE = `## Background shells (opencode-cockpit)
 Long-running or interactive commands (dev servers, watchers, slow builds/tests, REPLs) go in shell_start, not bash with "&".
 Block with shell_wait (pattern, port, idle, exit) instead of sleeping; follow output with shell_read(after=cursor).
-You are messaged when a shell you started exits.`
+You are messaged when a shell you started exits.
+For processes that never exit (tsc --watch, vitest --watch, dev servers), shell_watch reports only when their health changes — use it instead of re-reading their logs.`
 
 export const SHELL_PACKAGE = "@opencode-cockpit/shell"
 
@@ -80,6 +81,30 @@ async function shellHooks({ client: opencode, directory }: PluginInput): Promise
     void notifyExit(info).catch(() => {})
   })
 
+  // A watcher's health changed. This is the whole point of watching: one message per change, never
+  // per line, so a thousand identical recompiles cost nothing.
+  cockpit.on("shell.watch", (event) => {
+    const info = event.info
+    if (info.owner.instance !== instance || !info.owner.session || event.current === "pending") return
+    const text = [
+      `<shell_health id="${info.id}" title="${info.title}" status="${event.current}">`,
+      `${info.watch?.preset ?? "watch"}: ${event.previous} → ${event.current}`,
+      event.summary ?? "",
+      "</shell_health>",
+      event.current === "ok"
+        ? "Previously reported problems in this shell are resolved."
+        : `Investigate with shell_read id=${info.id} if this affects your current task.`,
+    ]
+      .filter(Boolean)
+      .join("\n")
+    void opencode.session
+      .promptAsync({
+        path: { id: info.owner.session },
+        body: { parts: [{ type: "text", text, synthetic: true } as never] },
+      })
+      .catch(() => {})
+  })
+
   async function notifyExit(info: ShellInfo): Promise<void> {
     const session = info.owner.session as string
     const page = await cockpit.call("shell.read", { id: info.id, tail: 15 })
@@ -127,7 +152,8 @@ async function shellHooks({ client: opencode, directory }: PluginInput): Promise
                 : s.owner.session === input.sessionID
                   ? ""
                   : ", another session"
-              return `- ${s.id} "${s.title}" (${describeStatus(s)}${from})`
+              const health = s.watch ? `, ${s.watch.preset ?? "watch"}: ${s.watch.status}` : ""
+              return `- ${s.id} "${s.title}" (${describeStatus(s)}${from}${health})`
             })
             .join("\n")}`,
         )

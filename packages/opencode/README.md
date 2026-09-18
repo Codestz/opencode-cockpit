@@ -59,6 +59,16 @@ their final frame, repeated lines folded to `(×12)`, and every read returns a c
 one only brings what's new. For full-screen programs (`vitest --ui`, `htop`, prompts) the agent can
 ask for the *screen* instead of the log.
 
+**It notices breakage on its own.** Watch a process that never exits and the agent hears only about
+changes, never about a thousand identical recompiles:
+```
+shell_start command="tsc --watch --noEmit" description="type checker" watch=true
+→ tsc: ok → fail · src/auth.ts(42,3): error TS2339: Property 'id' does not exist
+```
+Presets cover about 35 tools (tsc, vitest, jest, eslint, cargo, go, gradle, pytest, vite, next,
+docker compose…), and anything else takes three regexes of its own. A watched process that dies
+counts as a failure, so a crashed dev server is reported too.
+
 **It can type.** Prompts, REPLs, migration wizards: `shell_send` sends text or named keys
 (`ctrl+c`, `up`, `enter`) and returns whatever the program printed back.
 
@@ -70,6 +80,7 @@ ask for the *screen* instead of the log.
 | Knowing something is ready | Guess, or sleep and poll | Blocks on a port, a pattern, silence or exit |
 | Interactive programs | Not possible (no TTY) | Real PTY: prompts, REPLs, ctrl+c |
 | Reading output | Whole log, every time | Clean lines from a cursor, with grep |
+| Noticing a break later | Never | Watchers report health changes |
 | Your visibility | None until it finishes | Live panel, console and sidebar |
 | After OpenCode restarts | Gone | Still running |
 
@@ -147,8 +158,6 @@ Each shell's output feeds three views at once: a normalized **log** for the agen
 
 ## Roadmap
 
-- **Watchers** — `tsc`, `eslint` and `vitest` that report only *state changes*: "ok → 3 errors in
-  auth.ts", never a wall of repeated output.
 - **Agents** — live subagent tree with a peek overlay.
 - **Doctor** — one command that checks your setup and tells you how to fix it.
 - Coloured output in the panel and console.
