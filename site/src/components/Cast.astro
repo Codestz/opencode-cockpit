@@ -27,7 +27,7 @@ const id = `cast-${name}-${Math.random().toString(36).slice(2, 8)}`
 <style>
   .cast { margin: 0; }
   .frame {
-    background: var(--ck-card);
+    background: var(--ck-terminal);
     border: 1px solid var(--ck-line);
     border-radius: var(--ck-radius);
     padding: 12px;
@@ -76,7 +76,8 @@ const id = `cast-${name}-${Math.random().toString(36).slice(2, 8)}`
   /* The player wears the site's palette. Names are asciinema's; values are ours. */
   .asciinema-player-theme-cockpit {
     --term-color-foreground: #c7d2dc;
-    --term-color-background: var(--ck-bg);
+    /* recordings keep a terminal ground in both themes: the colours were made for it */
+    --term-color-background: var(--ck-terminal);
     --term-color-0: #0b0d10; --term-color-1: #f0797a; --term-color-2: #5fe3c0; --term-color-3: #f0b45e;
     --term-color-4: #6ea8fe; --term-color-5: #c79bf0; --term-color-6: #5fd8e3; --term-color-7: #c7d2dc;
     --term-color-8: #5f6e7b; --term-color-9: #ff9b9c; --term-color-10: #7ff0d1; --term-color-11: #ffc97d;
