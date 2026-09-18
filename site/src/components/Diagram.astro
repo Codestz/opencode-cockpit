@@ -1,0 +1,104 @@
+---
+/**
+ * A diagram whose source is text. Mermaid renders it client-side using the site's own tokens, so a
+ * diagram follows the theme instead of sitting in it as a foreign picture.
+ *
+ *   <Diagram caption="How a call reaches a process">{`flowchart LR …`}</Diagram>
+ *
+ * Why not an exported image: a picture cannot be reviewed in a pull request, cannot be searched, and
+ * goes stale silently. Why not ASCII everywhere: it is perfect for a shape like a pipeline and
+ * hopeless for a state machine.
+ */
+interface Props {
+  caption?: string
+}
+const { caption } = Astro.props
+const source = await Astro.slots.render("default")
+---
+
+<figure class="diagram">
+  <pre class="mermaid" data-source={source.replace(/<[^>]+>/g, "").trim()}></pre>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style>
+  .diagram { margin: 24px 0; }
+  .mermaid {
+    margin: 0;
+    padding: 20px 16px;
+    background: var(--ck-card);
+    border: 1px solid var(--ck-line);
+    border-radius: var(--ck-radius);
+    overflow-x: auto;
+    text-align: center;
+  }
+  .mermaid:not([data-rendered]) { min-height: 120px; opacity: 0; }
+  figcaption {
+    margin-top: 10px;
+    font-family: var(--ck-font-mono);
+    font-size: 12px;
+    color: var(--ck-fg-3);
+    text-align: center;
+  }
+</style>
+
+<script>
+  import mermaid from "mermaid"
+
+  /** Slot content arrives HTML-escaped; mermaid wants the characters back. */
+  const decode = (text: string) => {
+    const area = document.createElement("textarea")
+    area.innerHTML = text
+    return area.value
+  }
+
+  const read = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+
+  const render = async () => {
+    const nodes = [...document.querySelectorAll<HTMLElement>(".mermaid")]
+    if (nodes.length === 0) return
+
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: "strict",
+      fontFamily: read("--ck-font-mono") || "monospace",
+      theme: "base",
+      themeVariables: {
+        background: read("--ck-card"),
+        primaryColor: read("--ck-card-2"),
+        primaryTextColor: read("--ck-fg"),
+        primaryBorderColor: read("--ck-line-2"),
+        secondaryColor: read("--ck-bg-2"),
+        tertiaryColor: read("--ck-bg-2"),
+        lineColor: read("--ck-fg-3"),
+        textColor: read("--ck-fg-2"),
+        noteBkgColor: read("--ck-accent-soft"),
+        noteTextColor: read("--ck-fg"),
+        noteBorderColor: read("--ck-accent"),
+        clusterBkg: read("--ck-bg-2"),
+        clusterBorder: read("--ck-line"),
+        fontSize: "14px",
+      },
+    })
+
+    for (const [i, node] of nodes.entries()) {
+      const source = decode(node.dataset.source ?? "")
+      try {
+        const { svg } = await mermaid.render(`d-${i}-${Date.now()}`, source)
+        node.innerHTML = svg
+      } catch (err) {
+        // A diagram that will not parse should say so, not leave a hole in the page.
+        node.textContent = source
+        console.error("diagram failed to render", err)
+      }
+      node.dataset.rendered = "true"
+      node.style.opacity = "1"
+    }
+  }
+
+  render()
+
+  // Re-render on a theme change: the colours are baked into the SVG at render time.
+  new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] })
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render)
+</script>
