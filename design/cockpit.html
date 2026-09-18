@@ -111,7 +111,20 @@ p{margin:0;max-width:66ch}
 @media (prefers-reduced-motion:no-preference){.cursor{animation:blink 1.05s steps(1) infinite}}
 @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
 
-/* ---------- bays: the platform ---------- */
+/* ---------- airframe: what Cockpit is, before any bay ---------- */
+.frame-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.cell{background:linear-gradient(180deg,var(--plate-2),var(--plate));border:1px solid var(--rule);padding:20px 22px;display:flex;flex-direction:column;gap:9px;position:relative}
+.cell .n{font-size:10.5px;letter-spacing:.18em;color:var(--amber)}
+.cell h3{font-family:Oxanium,monospace;font-size:19px;text-transform:uppercase;letter-spacing:.01em}
+.cell p{font-size:13px;color:#a49e93;line-height:1.66}
+.cell b{color:var(--ivory);font-weight:500}
+.mono{color:var(--cyan)}
+.diagram{margin-top:14px;border:1px solid var(--rule);background:var(--screen);padding:18px;overflow-x:auto}
+.diagram pre{margin:0;font-size:12.5px;line-height:1.8;color:#8b8578;white-space:pre}
+.diagram pre b{color:var(--amber);font-weight:500}
+.diagram pre .d{color:#5d5a53}
+
+/* ---------- bays: the instruments ---------- */
 .rule-head{display:flex;align-items:center;gap:14px;margin-bottom:18px}
 .rule-head h2{font-family:Oxanium,monospace;font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);font-weight:600}
 .rule-head .line{flex:1;height:1px;background:var(--rule)}
@@ -181,6 +194,7 @@ footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--rule);display
 
 @media (max-width:960px){
   .hero{grid-template-columns:1fr;gap:30px;padding-block:44px 34px}
+  .frame-grid{grid-template-columns:1fr}
   .bays{grid-template-columns:1fr}
   .detail{grid-template-columns:1fr}
   .bar .stat.hide-sm{display:none}
@@ -205,25 +219,70 @@ footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--rule);display
 
   <section class="hero">
     <div>
-      <div class="tagline">Instruments for OpenCode</div>
-      <h1>Commands that<br><em>keep running</em><br>after the turn.</h1>
-      <p class="lede">Cockpit fits OpenCode with the instruments it is missing. Shell is the first:
-        background terminals the agent starts, waits on properly and reads forward — and that you
-        watch in a docked panel without leaving the conversation.</p>
-      <p class="who">One daemon behind them all. Install the suite, or just the bay you want.</p>
+      <div class="tagline">A platform for OpenCode</div>
+      <h1>OpenCode,<br>with <em>instruments</em><br>fitted.</h1>
+      <p class="lede">Cockpit is the airframe: a daemon that owns long-lived state across OpenCode's
+        two threads, one config file for both halves of a plugin, a place in the interface for
+        capabilities to render, and a typed protocol between them.</p>
+      <p class="who">Capabilities bolt into it as bays. <b style="color:var(--ivory);font-weight:500">Shell</b>
+        is fitted today — background terminals, running on the right.</p>
     </div>
 
     <div class="screen" aria-label="Recorded output from a background shell">
       <div class="head">
         <span class="rec"><i></i> REC</span>
-        <span>sh_9wq2f1ab · npm run dev</span>
+        <span>bay 01 · sh_9wq2f1ab · npm run dev</span>
         <span style="margin-left:auto" id="clock">00:00</span>
       </div>
       <div class="body" id="stream"></div>
     </div>
   </section>
 
-  <section id="bays">
+
+  <section id="airframe" style="margin-top:26px">
+    <div class="rule-head"><h2>The airframe</h2><span class="line"></span><span style="font-size:10.5px;letter-spacing:.16em;color:var(--dim)">SHARED BY EVERY BAY</span></div>
+
+    <div class="frame-grid">
+      <div class="cell">
+        <span class="n">01</span>
+        <h3>A daemon that outlives you</h3>
+        <p>OpenCode runs its interface and its server in separate threads, so a plugin's two halves
+          cannot share memory — and neither can survive a restart. <b>cockpitd</b> owns the state
+          instead: it starts on demand, is shared by every window, upgrades itself when newer plugin
+          code connects, reaps what a crash left behind, and exits when idle.</p>
+      </div>
+      <div class="cell">
+        <span class="n">02</span>
+        <h3>One config for both halves</h3>
+        <p>Agent plugins live in <span class="mono">opencode.json</span>, interface plugins in
+          <span class="mono">tui.json</span>. Cockpit reads one file — global, then per project, then
+          the plugin entry — so a setting is written once and a broken file is ignored rather than
+          fatal.</p>
+      </div>
+      <div class="cell">
+        <span class="n">03</span>
+        <h3>A place to render</h3>
+        <p>A docked panel under the conversation, a full-screen console, a sidebar section and a
+          keymap namespace. A capability asks for the slot it needs; the chrome, the theme and the
+          keybind conventions are the same in every bay.</p>
+      </div>
+      <div class="cell">
+        <span class="n">04</span>
+        <h3>A typed wire between them</h3>
+        <p>JSON-RPC over a private socket, schemas shared by client and daemon, versioned
+          (<span class="mono">protocol 1.3</span>). A bay adds methods and events without the other
+          bays knowing, and a version mismatch is reported instead of guessed at.</p>
+      </div>
+    </div>
+
+    <div class="diagram" aria-label="How the pieces fit">
+<pre>  OpenCode TUI thread ─── bay (tui half) ───┐
+                                            ├── unix socket · JSON-RPC ── <b>cockpitd</b> ─── processes, state
+  OpenCode server ─────── bay (agent half) ─┘                              <span class="d">shell · agents · yours</span></pre>
+    </div>
+  </section>
+
+  <section id="bays" style="margin-top:56px">
     <div class="rule-head"><h2>Capability bays</h2><span class="line"></span><span style="font-size:10.5px;letter-spacing:.16em;color:var(--dim)">1 FITTED · 1 ON THE STAND</span></div>
 
     <div class="bays" role="tablist" aria-label="Capability bays">
@@ -271,13 +330,15 @@ footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--rule);display
   </section>
 
   <section class="install">
-    <h2>Fit it in one line</h2>
+    <h2>Fit the airframe, then the bays</h2>
     <div class="line">
       <span class="sig">$</span><code id="cmd">opencode plugin opencode-cockpit --global</code>
       <button data-copy="#cmd">copy</button>
     </div>
-    <p class="after">Restart OpenCode and ask it to start something. Settings are optional and live in one
-      file for both halves of the plugin — <a href="#">~/.config/opencode-cockpit/config.json</a>.</p>
+    <p class="after">Everything fitted, with a switch per bay:
+      <span class="mono">{ "features": { "shell": true } }</span>. Or fit one bay on its own —
+      <span class="mono">opencode plugin @opencode-cockpit/shell</span> — and add the rest later without
+      changing anything: the daemon, the config file and the interface slots are the same either way.</p>
   </section>
 
   <footer>
