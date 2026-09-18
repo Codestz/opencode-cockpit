@@ -92,7 +92,7 @@ export function newShell(api: TuiPluginApi, store: ShellStore, open: (id?: strin
             args: ["-c", command],
             cwd: store.project(),
             title: command.slice(0, 60),
-            owner: { project: store.project() },
+            owner: { project: store.project(), session: store.session() },
             reuse: true,
           })
           .then((info) => {

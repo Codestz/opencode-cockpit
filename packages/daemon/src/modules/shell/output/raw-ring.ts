@@ -26,9 +26,12 @@ export class RawRing {
     return offset
   }
 
-  /** Bytes from `offset` (clamped to what is retained) to the end. */
+  /**
+   * Bytes from `offset` to the end, clamped to what is retained. An offset past the end asks for
+   * nothing but future output — a UI that only wants what comes next — and must not be an error.
+   */
   since(offset = 0): { offset: number; bytes: Uint8Array } {
-    const from = Math.max(offset, this.start)
+    const from = Math.min(Math.max(offset, this.start), this.end)
     const out = new Uint8Array(this.end - from)
     let cursor = this.start
     let written = 0

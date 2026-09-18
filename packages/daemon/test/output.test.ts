@@ -173,3 +173,19 @@ describe("Screen colours", () => {
     screen.dispose()
   })
 })
+
+describe("RawRing offsets a UI might ask for", () => {
+  test("an offset past the end returns nothing instead of crashing", () => {
+    const ring = new RawRing(1000)
+    ring.append(new TextEncoder().encode("hello"))
+
+    // What a panel sends when it wants future output only.
+    const future = ring.since(Number.MAX_SAFE_INTEGER)
+    expect(future.bytes.byteLength).toBe(0)
+    expect(future.offset).toBe(ring.end)
+
+    // And what a panel sends when it still remembers a previous, longer run.
+    expect(ring.since(42).bytes.byteLength).toBe(0)
+    expect(ring.since(0).bytes.byteLength).toBe(5)
+  })
+})

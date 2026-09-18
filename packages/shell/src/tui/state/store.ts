@@ -9,8 +9,10 @@ import { order, partition } from "../lib/view.ts"
 export interface ShellStore {
   client: CockpitClient
   project: () => string
-  /** Every shell in the project, unordered. */
+  /** Shells the panel is about: the current conversation, or the project. */
   shells: Accessor<ShellInfo[]>
+  /** Every shell in the project, whatever the panel is showing. */
+  all: Accessor<ShellInfo[]>
   /** Ordered and folded for display: running, recent failures, plus the selection. */
   visible: Accessor<ShellInfo[]>
   hidden: Accessor<ShellInfo[]>
@@ -127,6 +129,7 @@ export function createShellStore(
         api.kv.set("cockpit.shells.scope", next)
       },
       shells: () => inScope(),
+      all: () => state.list,
       visible: () => folded().visible,
       hidden: () => folded().hidden,
       showAll,
@@ -198,7 +201,9 @@ export function useScreen(store: ShellStore, id: Accessor<string | undefined>) {
     current = next
     setScreen(undefined)
     if (!next) return
-    const info = store.shells().find((s) => s.id === next)
+    // Not store.shells(): that is narrowed to the current conversation, and the selected shell may
+    // sit outside it. A missing offset here is what used to ask the daemon for bytes past the end.
+    const info = store.all().find((s) => s.id === next)
     void store.client
       .call("shell.attach", { id: next, fromOffset: info?.bytes ?? Number.MAX_SAFE_INTEGER })
       .catch(() => {})
