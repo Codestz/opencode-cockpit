@@ -20,8 +20,8 @@ sleep 600
 export default {
   name: "search",
   title: "Finding five lines in a 240-line build log",
-  cols: 120,
-  rows: 24,
+  cols: 96,
+  rows: 20,
   files: { "build.sh": NOISY },
   steps: [
     { send: KEYS.ctrlP, wait: 900 },

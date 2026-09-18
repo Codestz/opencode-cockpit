@@ -18,7 +18,8 @@ while true; do sleep 2; printf "%s10:14:2%s%s [vite] %shmr update%s src/componen
 export default {
   name: "dock",
   title: "A dev server running in the shells panel",
-  rows: 24,
+  cols: 96,
+  rows: 18,
   files: { "dev-server.sh": DEV_SERVER },
   steps: [
     { send: KEYS.ctrlP, wait: 900 },

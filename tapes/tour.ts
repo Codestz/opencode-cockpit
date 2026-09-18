@@ -32,8 +32,8 @@ sleep 600
 export default {
   name: "tour",
   title: "Background shells, in the interface",
-  cols: 124,
-  rows: 32,
+  cols: 100,
+  rows: 22,
   files: { "dev-server.sh": DEV, "tests.sh": TESTS },
   steps: [
     // A prompt in the composer: this is what the agent is being asked to work on.
