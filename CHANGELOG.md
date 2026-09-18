@@ -6,8 +6,6 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-## [Unreleased]
-
 ### Changed
 
 - **The panel shows the conversation you are in.** A project's shells listed together stopped making
@@ -26,6 +24,14 @@ All notable changes to this project are documented here. The format follows
 - `/shells-stop` stops the shells in view; `/shells-stop-all` stops every shell in the project and
   confirms first when that reaches conversations you are not looking at. "Everything I can see" and
   "everything, including what I cannot" are different intentions.
+
+### Fixed
+
+- A shell started by hand had no session recorded, so the session-scoped panel did not list it — and
+  attaching then asked the daemon for output from an offset past the end, which crashed the handler
+  and left the console empty. Manual shells now belong to the conversation they were started from,
+  attaching looks in every shell rather than only the listed ones, and an offset past the end is
+  read as "only what comes next" instead of an error.
 
 ## [0.2.1] - 2026-09-18
 

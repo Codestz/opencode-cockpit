@@ -107,9 +107,12 @@ Things to ask:
 | Key / command | Does |
 |---|---|
 | `ctrl+x o` · `/shells` | Toggle the shells panel under the chat |
+| `s` (in the console) | This conversation only, or the whole project |
 | `ctrl+x i` · `/shell` | Open the shell console |
 | `/shell-new` | Start a shell yourself |
 | `/shells-clear` | Remove finished shells |
+| `/shells-stop` | Stop the shells in view — this conversation, or the project |
+| `/shells-stop-all` | Stop every shell in the project, asking first about the ones you cannot see |
 | `/cockpit-update` | Update the plugin when a newer release exists |
 | `/shells-restart-daemon` | Restart `cockpitd` (asks first when shells are running) |
 
