@@ -9,7 +9,7 @@ import { type CockpitConfig, loadConfig } from "../core/config.ts"
 import { Console } from "./components/console.tsx"
 import { Dock } from "./components/dock.tsx"
 import { SidebarShells } from "./components/sidebar.tsx"
-import { announceUpdate, newShell, offerUpdate, pickShell, restartDaemon } from "./dialogs.tsx"
+import { announceUpdate, newShell, offerUpdate, pickShell, restartDaemon, stopShells } from "./dialogs.tsx"
 import { createShellStore } from "./state/store.ts"
 
 const DEFAULT_KEYS = {
@@ -111,26 +111,20 @@ const shellTui: TuiPlugin = async (api, rawOptions, meta) => {
         run: () => newShell(api, store, openConsole),
       },
       {
+        name: "cockpit.shells.stop",
+        title: "Stop the shells in view",
+        category: "Shells",
+        namespace: "palette",
+        slashName: "shells-stop",
+        run: () => stopShells(api, store, "view"),
+      },
+      {
         name: "cockpit.shells.stopAll",
-        title: "Stop all running shells",
+        title: "Stop every shell in this project",
         category: "Shells",
         namespace: "palette",
         slashName: "shells-stop-all",
-        run: () => {
-          const running = store.shells().filter((s) => s.status === "running")
-          if (running.length === 0) {
-            return api.ui.toast({ title: "Shells", message: "Nothing is running.", duration: 3000 })
-          }
-          void Promise.all(
-            running.map((s) => client.call("shell.stop", { id: s.id, graceMs: 2000 }).catch(() => {})),
-          ).then(() =>
-            api.ui.toast({
-              title: "Shells",
-              message: `Stopped ${running.length} shell${running.length === 1 ? "" : "s"}.`,
-              duration: 4000,
-            }),
-          )
-        },
+        run: () => stopShells(api, store, "project"),
       },
       {
         name: "cockpit.shells.clear",

@@ -23,7 +23,9 @@ All notable changes to this project are documented here. The format follows
 
 - `lifecycle.orphanAfterMinutes` (60 by default): a shell no window has been connected to for that
   long is stopped, so nothing runs for a week because everyone who knew about it has gone.
-- `/shells-stop-all`, for when you want them all gone now.
+- `/shells-stop` stops the shells in view; `/shells-stop-all` stops every shell in the project and
+  confirms first when that reaches conversations you are not looking at. "Everything I can see" and
+  "everything, including what I cannot" are different intentions.
 
 ## [0.2.1] - 2026-09-18
 
