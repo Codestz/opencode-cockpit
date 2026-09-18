@@ -5,7 +5,8 @@ import type { PluginInput } from "@opencode-ai/plugin"
 // Isolate any daemon these plugins start from the developer's real one.
 const home = mkdtempSync("/tmp/ck-dup-")
 process.env.COCKPIT_HOME = home
-process.env.COCKPIT_IDLE_TIMEOUT_MS = "0"
+// Short, not disabled: a daemon left behind by a crashed run must not outlive the test.
+process.env.COCKPIT_IDLE_TIMEOUT_MS = "5000"
 
 const { default: bundle } = await import("../src/server.ts")
 const { default: shell } = await import("@opencode-cockpit/shell/server")

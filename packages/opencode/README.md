@@ -1,15 +1,91 @@
 # opencode-cockpit
 
 [![CI](https://github.com/Codestz/opencode-cockpit/actions/workflows/ci.yml/badge.svg)](https://github.com/Codestz/opencode-cockpit/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/opencode-cockpit)](https://www.npmjs.com/package/opencode-cockpit)
+[![npm](https://img.shields.io/npm/v/opencode-cockpit?color=%23cb3837&label=opencode-cockpit)](https://www.npmjs.com/package/opencode-cockpit)
+[![npm](https://img.shields.io/npm/v/@opencode-cockpit/shell?color=%23cb3837&label=%40opencode-cockpit%2Fshell)](https://www.npmjs.com/package/@opencode-cockpit/shell)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/Codestz/opencode-cockpit/blob/main/LICENSE)
 
-Superpowers for [OpenCode](https://opencode.ai). Take all of them, or only the ones you want.
+**Superpowers for [OpenCode](https://opencode.ai) — take all of them, or just the one you need.**
 
-| Feature | What it gives you | Package |
+Coding agents are stuck in a one-command-at-a-time world: they run something, wait for it to
+finish, and paste the whole log back into their context. Cockpit gives your agent the things a
+developer actually has — long-running terminals, a way to wait for "ready", and output it can read
+without drowning in it — and gives *you* a live view of all of it, inside OpenCode.
+
+```
+────────────────────────────────────────────────────────────────────────────────────────
+ Shells   ⠹ RUN  dev server    FAIL  unit tests   ▸ 3 more      ctrl+x i console · ctrl+x o hide
+  VITE v7.3.1  ready in 431 ms
+  ➜  Local:   http://localhost:5173/
+  ✓ 142 modules transformed
+ 2m14s  sh_k4tq8b2p · $ npm run dev
+────────────────────────────────────────────────────────────────────────────────────────
+```
+
+## Features
+
+| Feature | What your agent gains | Package |
 |---|---|---|
-| **Shell** | Background terminals the agent starts, waits on and drives, with a docked panel and console for you | [`@opencode-cockpit/shell`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/shell) |
-| **Agents** *(coming)* | A live, keyboard-first view of every subagent, without leaving your chat | `@opencode-cockpit/agents` |
+| **Shell** | Background terminals it starts, waits on, reads and types into — dev servers, watchers, test suites, REPLs | [`@opencode-cockpit/shell`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/shell) |
+| **Agents** *(next)* | A live, keyboard-first view of every subagent, without leaving your chat | `@opencode-cockpit/agents` |
+
+## Shell, by example
+
+**"Start the dev server and wait until it's actually ready."**
+The agent starts it in a real terminal and blocks on the port opening — not a guess, not a sleep:
+```
+shell_start  command="npm run dev"  waitFor={ port: 5173 }
+→ condition met: port is accepting connections
+  1| VITE v7.3.1  ready in 431 ms
+```
+
+**"Run the tests, keep working, tell me if they fail."**
+The suite runs in the background. When it exits, the agent is messaged once, with the error line
+already picked out:
+```
+<shell_exited id="sh_9wq2f1ab" title="unit tests">
+exited with code 1 after 48s
+last output: 37| FAIL src/auth.test.ts > refresh token expiry
+```
+
+**"How is DB Monitoring doing?"**
+Shells are shared across sessions and can be addressed by name:
+```
+shell_read name="DB Monitoring"
+```
+
+**Logs that don't eat your context.** Colour codes stripped, progress-bar redraws collapsed to
+their final frame, repeated lines folded to `(×12)`, and every read returns a cursor so the next
+one only brings what's new. For full-screen programs (`vitest --ui`, `htop`, prompts) the agent can
+ask for the *screen* instead of the log.
+
+**It can type.** Prompts, REPLs, migration wizards: `shell_send` sends text or named keys
+(`ctrl+c`, `up`, `enter`) and returns whatever the program printed back.
+
+### Why not just `bash`?
+
+| | Built-in `bash` tool | Cockpit Shell |
+|---|---|---|
+| Long-running processes | Blocks until exit | Runs in the background, survives the turn |
+| Knowing something is ready | Guess, or sleep and poll | Blocks on a port, a pattern, silence or exit |
+| Interactive programs | Not possible (no TTY) | Real PTY: prompts, REPLs, ctrl+c |
+| Reading output | Whole log, every time | Clean lines from a cursor, with grep |
+| Your visibility | None until it finishes | Live panel, console and sidebar |
+| After OpenCode restarts | Gone | Still running |
+
+## For you, not just the agent
+
+| Key / command | Does |
+|---|---|
+| `ctrl+x o` · `/shells` | Toggle the shells panel under the chat |
+| `ctrl+x i` · `/shell` | Open the shell console |
+| `/shell-new` | Start a shell yourself |
+| `/shells-clear` | Remove finished shells |
+
+Status reads the same everywhere — `RUN` (with a spinner), `FAIL`, `STOP`, `DONE` — running shells
+and recent failures stay in view, the rest folds behind `▸ N more`. In the console: `i` types
+straight into the program (`ctrl+]` to stop), `c` sends ctrl+c, `r` restarts, `x` stops, `tab`
+switches between the live screen and the scrollback, `?` shows details.
 
 ## Install
 
@@ -25,34 +101,24 @@ opencode plugin opencode-cockpit --global
 opencode plugin @opencode-cockpit/shell --global
 ```
 
-**Everything except some features**: switch them off on the plugin entry, in both `opencode.json`
-and `tui.json`:
+Restart OpenCode. Requires OpenCode 1.18+ on macOS or Linux. Install a feature either through
+`opencode-cockpit` or on its own — if both are configured, the first one loaded is used and
+OpenCode warns you which entry to remove.
 
-```json
-{ "plugin": [["opencode-cockpit", { "features": { "shell": false } }]] }
-```
-
-Restart OpenCode after installing. Requires OpenCode 1.18 or newer on macOS or Linux.
-
-> Install a feature **either** through `opencode-cockpit` **or** on its own, not both. If both are
-> configured, the first one loaded is used and OpenCode shows a warning telling you which entry to
-> remove.
-
-## Configuring features
-
-Each feature's README lists its options. With `opencode-cockpit`, nest them under the feature's
-name:
+**Turn features off, or pass them options** (in both `opencode.json` and `tui.json`):
 
 ```json
 {
   "plugin": [
-    ["opencode-cockpit", { "shell": { "dockHeight": 16, "historyMinutes": 60 } }]
+    ["opencode-cockpit", {
+      "features": { "shell": true },
+      "shell": { "dockHeight": 16, "historyMinutes": 60 }
+    }]
   ]
 }
 ```
 
-With a standalone package, put them directly on its entry:
-`["@opencode-cockpit/shell", { "dockHeight": 16 }]`.
+Each feature's README documents its own options: [Shell](https://github.com/Codestz/opencode-cockpit/tree/main/packages/shell#configuration).
 
 ## How it works
 
@@ -62,25 +128,43 @@ OpenCode TUI thread ── feature plugins (tui) ──┐
 OpenCode server worker ─ feature plugins (server) ┘
 ```
 
-Each feature is a complete OpenCode plugin. Features that need long-lived processes share one
-small daemon, `cockpitd`, which starts on demand, is shared by every OpenCode window, upgrades
-itself when a newer plugin connects and exits when idle. See [CONTRIBUTING.md](https://github.com/Codestz/opencode-cockpit/blob/main/CONTRIBUTING.md).
+OpenCode runs its interface and its server in separate threads, so a plugin's two halves can't
+share memory. Both talk to **`cockpitd`**, a small daemon that owns every long-lived process: it
+starts on demand, is shared by every OpenCode window, upgrades itself when a newer plugin connects,
+cleans up processes left by a crash, and exits when idle. That's why shells outlive OpenCode
+restarts, and why one session can look at a shell another session started.
+
+Each shell's output feeds three views at once: a normalized **log** for the agent, an emulated
+**screen** for you, and a raw ring buffer so a panel opened late can catch up.
 
 | Package | Role |
 |---|---|
-| [`opencode-cockpit`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/opencode) | All features in one plugin, each can be switched off |
+| [`opencode-cockpit`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/opencode) | All features in one plugin |
 | [`@opencode-cockpit/shell`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/shell) | Shell feature |
 | [`@opencode-cockpit/daemon`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/daemon) | `cockpitd`, the shared process host |
-| [`@opencode-cockpit/client`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/client) | Typed, auto-spawning client and shared plugin helpers |
+| [`@opencode-cockpit/client`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/client) | Typed, auto-spawning client and plugin helpers |
 | [`@opencode-cockpit/protocol`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/protocol) | Wire contracts |
 
 ## Roadmap
 
-- **Watchers** (Shell): `tsc`, `eslint` and `vitest` shells that report only state changes.
-- **Agents**: live subagent tree with a peek overlay.
-- **Doctor**: one command that checks your setup (duplicate features, daemon health, config) and
-  tells you how to fix it.
-- Coloured output in the Shell panel and console.
+- **Watchers** — `tsc`, `eslint` and `vitest` that report only *state changes*: "ok → 3 errors in
+  auth.ts", never a wall of repeated output.
+- **Agents** — live subagent tree with a peek overlay.
+- **Doctor** — one command that checks your setup and tells you how to fix it.
+- Coloured output in the panel and console.
+
+## Contributing
+
+Issues and pull requests are welcome. [CONTRIBUTING.md](https://github.com/Codestz/opencode-cockpit/blob/main/CONTRIBUTING.md) covers the architecture,
+the invariants worth knowing before changing anything, and how to run your working copy inside
+OpenCode.
+
+```sh
+bun install
+bun run check        # lint, typecheck, tests (real PTYs, real daemon)
+bun run pack:check   # pack, install the tarballs, run a shell through them
+bun run smoke:tui    # drive a real OpenCode against the packed plugin
+```
 
 ## License
 

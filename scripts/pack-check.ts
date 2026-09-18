@@ -4,7 +4,7 @@
  *
  *   bun scripts/pack-check.ts
  */
-import { mkdtempSync, readdirSync, rmSync } from "node:fs"
+import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -27,6 +27,9 @@ const run = (cmd: string[], cwd: string) => {
 }
 
 try {
+  // Publishing packs whatever is on disk; build first so dist/ is current.
+  run(["bun", "run", "build"], root)
+
   const names: Record<string, string> = {}
   for (const dir of PACKAGES) {
     const pkg = await Bun.file(join(root, "packages", dir, "package.json")).json()
@@ -43,7 +46,7 @@ try {
 
   for (const file of files) {
     const listing = run(["tar", "tzf", join(tarballs, file)], work)
-    const bad = listing.split("\n").filter((l) => /\/(test|dist|node_modules)\/|tsbuildinfo|tsconfig/.test(l))
+    const bad = listing.split("\n").filter((l) => /\/(test|node_modules)\/|tsbuildinfo|tsconfig/.test(l))
     if (bad.length > 0) throw new Error(`${file} ships files it should not:\n${bad.join("\n")}`)
     if (!listing.includes("package/LICENSE") || !listing.includes("package/README.md")) {
       throw new Error(`${file} is missing LICENSE or README.md`)
@@ -85,25 +88,51 @@ try {
   )
   run(["bun", "install"], project)
 
+  // OpenCode compiles plugin JSX with OpenTUI's Solid transform, whose Bun plugin skips every file
+  // under node_modules, where published plugins always live. Raw JSX there renders once and never
+  // updates (the 0.1.3/0.1.4 frozen-panel bug), so the published entry must already be compiled.
+  // Bare solid-js / @opentui imports stay: the host rewrites those to its own instances.
+  for (const pkg of ["@opencode-cockpit/shell", "opencode-cockpit"]) {
+    const entry = Bun.resolveSync(`${pkg}/tui`, project)
+    if (!entry.endsWith(".js")) throw new Error(`${pkg}/tui must publish compiled JS, got ${entry}`)
+  }
+  // Solid's transform turns JSX into createComponent/insert calls; their absence means the panel
+  // would render once and freeze.
+  const shellTui = Bun.resolveSync("@opencode-cockpit/shell/tui", project)
+  const compiled = await Bun.file(shellTui).text()
+  const bundleTui = await Bun.file(Bun.resolveSync("opencode-cockpit/tui", project)).text()
+  if (!bundleTui.includes("@opencode-cockpit/shell/tui")) {
+    throw new Error("the bundle's tui entry should load the shell feature's compiled entry")
+  }
+  for (const marker of ['from "@opentui/solid"', "createComponent"]) {
+    if (!compiled.includes(marker)) {
+      throw new Error(`${shellTui} is not Solid-compiled output (missing ${marker})`)
+    }
+  }
+  if (!compiled.includes('from "solid-js"')) {
+    throw new Error("shell/tui should import solid-js by name so OpenCode can rewrite it to its own instance")
+  }
+  for (const bundled of ["solid-js", "@opentui/core", "@opentui/solid"]) {
+    if (existsSync(join(project, "node_modules", bundled))) {
+      throw new Error(`${bundled} was installed with the plugin; the host's instance must be used instead`)
+    }
+  }
+
   await Bun.write(
     join(project, "check.ts"),
     `
 import bundle from "opencode-cockpit/server"
 import shell from "@opencode-cockpit/shell/server"
-import bundleTui from "opencode-cockpit/tui"
-import shellTui from "@opencode-cockpit/shell/tui"
 import { CockpitClient } from "@opencode-cockpit/client"
 import { resolvePaths } from "@opencode-cockpit/protocol"
 import { daemonEntry } from "@opencode-cockpit/shell/connect"
 
 if (bundle.id !== "opencode-cockpit" || typeof bundle.server !== "function") throw new Error("bad bundle server export")
 if (shell.id !== "opencode-cockpit.shell" || typeof shell.server !== "function") throw new Error("bad shell server export")
-// Peer deps (@opentui/*, solid-js) are not installed by the opencode plugin installer, so this
-// import throws in a real install unless the TUI half declares them as real dependencies (#6).
-if (bundleTui.id !== "opencode-cockpit" || typeof bundleTui.tui !== "function") throw new Error("bad bundle tui export")
-if (shellTui.id !== "opencode-cockpit.shell" || typeof shellTui.tui !== "function") throw new Error("bad shell tui export")
+// The TUI entries are checked statically instead: their solid-js / @opentui imports only resolve
+// inside OpenCode, which rewrites them to its own instances (#6, #8).
 const entry = daemonEntry()
-if (!entry.includes("node_modules/@opencode-cockpit/daemon/src/main.ts")) throw new Error("daemon entry not resolved from node_modules: " + entry)
+if (!entry.includes("node_modules/@opencode-cockpit/daemon/dist/main.js")) throw new Error("daemon entry not resolved from node_modules: " + entry)
 
 const client = new CockpitClient({
   client: { name: "pack-check", version: "0" },

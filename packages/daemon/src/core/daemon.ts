@@ -25,8 +25,9 @@ export interface DaemonOptions {
 export const DAEMON_VERSION: string = pkg.version
 
 /** Build id of this daemon's own code; computed once, matches what clients compute for the entry. */
+// The directory this module was loaded from: `src/` in a checkout, `dist/` once published.
 export const DAEMON_BUILD: string = daemonBuildId(
-  Bun.fileURLToPath(new URL("../main.ts", import.meta.url)),
+  Bun.fileURLToPath(new URL("..", import.meta.url)),
   DAEMON_VERSION,
 )
 

@@ -6,6 +6,36 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-09-18
+
+### Fixed
+
+- The TUI half rendered one frozen frame when installed from npm: the panel, console and sidebar
+  appeared but never updated, while keybinds, RPC calls and shells all worked. OpenCode compiles
+  plugin JSX with OpenTUI's Solid transform, whose Bun plugin skips every file under
+  `node_modules` — where an installed plugin always lives — so published `.tsx` produced
+  components with no reactive tracking. Every package now publishes JavaScript compiled with that
+  same transform. A local checkout was never affected, which is why 0.1.3 and 0.1.4, which guessed
+  at dependency layout, did not fix it.
+- Clicking a shell in the sidebar or panel needed the mouse button held down: the console opened on
+  press, and the release landed on the dialog backdrop, which closes it. They open on release now.
+
+### Changed
+
+- `solid-js` and `@opentui/*` are no longer shipped with the plugin. The compiled code imports them
+  by name and OpenCode rewrites those imports to its own instances, which is what keeps reactivity
+  and the keymap shared with the host.
+- The sidebar shows at most 5 shells (`sidebarRows`), then `▸ N more`; expanding caps at 12 and
+  points to the console. The panel keeps its tabs to what fits the window. A hundred shells can no
+  longer push the sidebar off screen.
+- Every package builds through one script (`bun run build`) and publishes `dist/`.
+
+### Added
+
+- `bun run smoke:tui` drives a real OpenCode against the packed plugin and fails if the panel stops
+  updating; `bun run pack:check` fails if a published TUI entry is not Solid-compiled or if
+  `solid-js`/`@opentui/*` are installed with the plugin.
+
 ## [0.1.4] - 2026-09-17
 
 ### Fixed
@@ -87,7 +117,9 @@ All notable changes to this project are documented here. The format follows
 - Daemon lifecycle: on-demand start, single instance under concurrent starts, idle shutdown,
   replacement of outdated idle daemons, orphan reaping after crashes.
 
-[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.4...v0.1.5
+[0.1.4]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.0...v0.1.1

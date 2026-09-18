@@ -55,6 +55,8 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           npm --version
+          # Packing publishes whatever is on disk; compile first (see scripts/build.ts).
+          bun run build
           mkdir -p "$RUNNER_TEMP/tarballs"
           # Dependency order; already-published versions are skipped so reruns are safe.
           for dir in protocol daemon client shell opencode; do

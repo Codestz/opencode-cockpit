@@ -21,6 +21,12 @@ export function Dock(props: DockProps) {
   const dims = useTerminalDimensions()
   const { screen } = useScreen(props.store, () => props.store.selected()?.id)
   const bodyRows = () => Math.max(2, props.height - 3)
+  // Tabs share one row: keep them to what fits, the rest lives behind the "N more" chip.
+  const tabLimit = () => Math.max(1, Math.floor((dims().width - 26) / 30))
+  const tabs = createMemo(() =>
+    (props.store.showAll() ? props.store.shells() : props.store.visible()).slice(0, tabLimit()),
+  )
+  const overflow = createMemo(() => props.store.shells().length - tabs().length)
   const body = createMemo(() => tailLines(screen()?.text, bodyRows(), Math.max(10, dims().width - 4)))
 
   return (
@@ -52,7 +58,7 @@ export function Dock(props: DockProps) {
             </text>
           }
         >
-          <For each={props.store.visible()}>
+          <For each={tabs()}>
             {(shell) => {
               const active = () => props.store.selected()?.id === shell.id
               return (
@@ -61,9 +67,7 @@ export function Dock(props: DockProps) {
                   flexShrink={0}
                   paddingRight={1}
                   backgroundColor={active() ? theme().backgroundElement : theme().backgroundPanel}
-                  onMouseDown={() =>
-                    active() ? props.onOpenConsole(shell.id) : props.store.select(shell.id)
-                  }
+                  onMouseUp={() => (active() ? props.onOpenConsole(shell.id) : props.store.select(shell.id))}
                 >
                   <Badge api={props.api} shell={shell} frame={props.store.frame()} />
                   <text fg={active() ? theme().text : theme().textMuted} wrapMode="none">
@@ -74,14 +78,14 @@ export function Dock(props: DockProps) {
               )
             }}
           </For>
-          <Show when={props.store.hidden().length > 0 || props.store.showAll()}>
+          <Show when={overflow() > 0 || props.store.showAll()}>
             <text
               fg={theme().textMuted}
               wrapMode="none"
               flexShrink={0}
-              onMouseDown={() => props.store.toggleAll()}
+              onMouseUp={() => props.store.toggleAll()}
             >
-              {props.store.showAll() ? "▾ fewer" : `▸ ${props.store.hidden().length} more`}
+              {props.store.showAll() ? "▾ fewer" : `▸ ${overflow()} more`}
             </text>
           </Show>
         </Show>
@@ -99,7 +103,7 @@ export function Dock(props: DockProps) {
               paddingRight={1}
               minHeight={0}
               overflow="hidden"
-              onMouseDown={() => props.onOpenConsole(shell().id)}
+              onMouseUp={() => props.onOpenConsole(shell().id)}
             >
               <text fg={theme().text} wrapMode="none">
                 {body() || " "}

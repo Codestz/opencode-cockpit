@@ -1,6 +1,6 @@
 {
   "name": "@opencode-cockpit/client",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Auto-spawning, reconnecting, typed client for cockpitd",
   "type": "module",
   "license": "MIT",
@@ -20,10 +20,14 @@
     "json-rpc"
   ],
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "files": [
-    "src",
+    "dist",
+    "types",
     "README.md",
     "LICENSE"
   ],

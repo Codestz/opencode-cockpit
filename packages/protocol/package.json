@@ -1,6 +1,6 @@
 {
   "name": "@opencode-cockpit/protocol",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Wire protocol, method and event contracts for cockpitd (opencode-cockpit)",
   "type": "module",
   "license": "MIT",
@@ -20,11 +20,18 @@
     "protocol"
   ],
   "exports": {
-    ".": "./src/index.ts",
-    "./shell": "./src/shell.ts"
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./shell": {
+      "types": "./types/shell.d.ts",
+      "default": "./dist/shell.js"
+    }
   },
   "files": [
-    "src",
+    "dist",
+    "types",
     "README.md",
     "LICENSE"
   ],

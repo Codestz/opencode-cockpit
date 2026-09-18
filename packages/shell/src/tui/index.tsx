@@ -21,6 +21,8 @@ const DEFAULT_KEYS = {
 
 export interface ShellTuiOptions {
   dockHeight?: number
+  /** Shell rows the sidebar shows before folding the rest away (default 5). */
+  sidebarRows?: number
   /** Failures stay visible this long after they end (default 30). */
   historyMinutes?: number
   dockOpen?: boolean
@@ -171,7 +173,15 @@ const shellTui: TuiPlugin = async (api, rawOptions) => {
         )
       },
       sidebar_content() {
-        return <SidebarShells api={api} store={store} onOpen={(id) => openConsole(id)} />
+        return (
+          <SidebarShells
+            api={api}
+            store={store}
+            rows={options.sidebarRows}
+            onOpen={(id) => openConsole(id)}
+            consoleShortcut={() => shortcut("cockpit.shells.console")}
+          />
+        )
       },
     },
   })

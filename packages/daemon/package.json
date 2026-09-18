@@ -1,6 +1,6 @@
 {
   "name": "@opencode-cockpit/daemon",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "cockpitd: the process host behind opencode-cockpit (PTY shells, clean logs, wait conditions)",
   "type": "module",
   "license": "MIT",
@@ -21,12 +21,19 @@
     "terminal"
   ],
   "exports": {
-    ".": "./src/index.ts",
-    "./main": "./src/main.ts",
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./main": {
+      "types": "./types/main.d.ts",
+      "default": "./dist/main.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
-    "src",
+    "dist",
+    "types",
     "README.md",
     "LICENSE"
   ],

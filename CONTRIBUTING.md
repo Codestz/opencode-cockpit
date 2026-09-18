@@ -10,8 +10,10 @@ changes for real.
 
 ```sh
 bun install
-bun run check        # lint + typecheck + tests
+bun run build        # compile every package's src/ to dist/ (what gets published)
+bun run check        # build + lint + typecheck + tests
 bun run pack:check   # pack every package, install the tarballs, run a shell through them
+bun run smoke:tui    # drive a real OpenCode against the packed plugin (needs the opencode binary)
 ```
 
 ### Run your working copy inside OpenCode
@@ -29,7 +31,8 @@ paths:
 { "plugin": ["/path/to/opencode-cockpit/packages/opencode"] }
 ```
 
-Restart OpenCode after plugin changes. Daemon changes are picked up automatically: the client
+Plugin entries point at `dist/`, so run `bun run build` after changing plugin code, then restart
+OpenCode. Daemon changes are picked up automatically: the client
 compares the running daemon's build id with its own code and replaces an idle daemon when its code
 is newer (never older). If shells are running it keeps the old daemon and the panel tells you to
 run `/shells-restart-daemon`.
@@ -126,6 +129,23 @@ The router refuses methods missing from the contract, and handler params are typ
 4. A brand-new npm package cannot use Trusted Publishing until it exists: its first release needs
    a short-lived `NPM_TOKEN` secret, then configure its trusted publisher and delete the token.
 
+### Publishing rule: compile, never ship JSX
+
+OpenCode compiles plugin JSX with OpenTUI's Solid transform, and that Bun plugin skips every file
+under `node_modules` — where an installed plugin always lives. Published `.tsx` therefore loads,
+logs and talks to the daemon while rendering exactly one frozen frame (0.1.3 and 0.1.4 shipped that
+way). `scripts/build.ts` compiles every package the same way, with the same transform, and packages
+export `dist/`.
+
+For the same reason `solid-js` and `@opentui/*` are devDependencies, never dependencies: the
+compiled code imports them by name and OpenCode rewrites those imports to its own instances, which
+is what keeps reactivity and the keymap shared with the host. Shipping copies gives a second Solid
+instance and the panel freezes again.
+
+Guards: `bun run pack:check` fails if a published TUI entry is not Solid-compiled or if those
+packages get installed alongside; `bun run smoke:tui` drives a real OpenCode and fails if the panel
+stops updating.
+
 ## Conventions
 
 - TypeScript strict, ESM, Bun APIs are fine. Biome formats and lints (`bun run lint:fix`).
@@ -133,6 +153,8 @@ The router refuses methods missing from the contract, and handler params are typ
 - Protocol changes: additive changes bump `PROTOCOL_VERSION.minor`; breaking ones bump `major`.
 - A project that imports a `.tsx` entry through a project reference needs `"jsx": "preserve"` in its
   tsconfig, even without JSX of its own, or `tsc -b` reports TS6305.
+- Mouse handlers that open a dialog must use `onMouseUp`: the host dialog closes on the mouse-up
+  that follows, so opening on press requires holding the button down.
 - TUI text: every line is `wrapMode="none"` and truncated to a computed width, so layout never
   depends on terminal size. Use single-width glyphs (`•`, braille spinner), not emoji or
   ambiguous-width symbols.
