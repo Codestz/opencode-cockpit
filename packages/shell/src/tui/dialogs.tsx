@@ -148,7 +148,8 @@ export function restartDaemon(api: TuiPluginApi, store: ShellStore) {
 export function stopShells(api: TuiPluginApi, store: ShellStore, reach: "view" | "project"): void {
   const list = (reach === "view" ? store.shells() : store.all()).filter((s) => s.status === "running")
   if (list.length === 0) {
-    return api.ui.toast({ title: "Shells", message: "Nothing is running.", duration: 3000 })
+    api.ui.toast({ title: "Shells", message: "Nothing is running.", duration: 3000 })
+    return
   }
 
   const stop = () => {
