@@ -50,8 +50,8 @@ export default {
     { send: KEYS.enter, wait: 800 },
     { send: "./tests.sh", wait: 600 },
     { send: KEYS.enter, wait: 6500 }, // a suite fails, in the program's own colours
-    { send: "[", wait: 2600 },        // switch to the dev server, no mouse
+    { send: "[", wait: 2600 }, // switch to the dev server, no mouse
     { send: "]", wait: 2400 },
-    { send: KEYS.esc, wait: 2600 },   // back to the conversation, both still running
+    { send: KEYS.esc, wait: 2600 }, // back to the conversation, both still running
   ],
 } satisfies Tape
