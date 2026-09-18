@@ -40,6 +40,26 @@ group your own stack instead of the built-ins (`server`, `tests`, `build`, `watc
 preset you invent works immediately. `auto` attaches a matching preset to every new shell; **off by
 default**.
 
+## lifecycle
+
+When shells end without being asked to.
+
+```json
+{ "lifecycle": { "onExit": "stopMine", "orphanAfterMinutes": 60 } }
+```
+
+`onExit` decides what happens to the shells an OpenCode window started when that window closes:
+`stopMine` (the default) stops them, `keep` leaves them running for the next window — which is how
+a shell survives an OpenCode restart.
+
+`orphanAfterMinutes` stops a shell that no window of its own has been connected to for that long,
+so nothing can quietly run for a week. `0` turns it off.
+
+:::note[Two windows]
+A window closing only counts once **both halves** of the plugin have disconnected, so quitting one
+of two open OpenCodes never stops the other's shells.
+:::
+
 ## defaults
 
 Applied to every shell the agent starts unless the call says otherwise: `watch`, `logFile`,

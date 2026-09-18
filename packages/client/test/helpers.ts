@@ -8,18 +8,22 @@ export function tempHome(): CockpitPaths {
   return resolvePaths({ COCKPIT_HOME: mkdtempSync("/tmp/ck-") })
 }
 
-export async function startDaemon(paths = tempHome(), idleTimeoutMs = 0) {
+export async function startDaemon(
+  paths = tempHome(),
+  idleTimeoutMs = 0,
+  shell: Partial<Parameters<typeof createModules>[0]["shell"]> = {},
+) {
   const daemon = new Daemon({
     paths,
-    modules: createModules({ shell: { logDir: `${paths.home}/logs` } }),
+    modules: createModules({ shell: { logDir: `${paths.home}/logs`, ...shell } }),
     idleTimeoutMs,
     logToFile: false,
     logLevel: "error",
   })
   await daemon.start()
   const clients: CockpitClient[] = []
-  const client = (name = "test") => {
-    const c = new CockpitClient({ client: { name, version: "0.0.0" }, paths })
+  const client = (name = "test", instance?: string) => {
+    const c = new CockpitClient({ client: { name, version: "0.0.0", instance }, paths })
     clients.push(c)
     return c
   }

@@ -6,6 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [Unreleased]
+
+### Changed
+
+- **The panel shows the conversation you are in.** A project's shells listed together stopped making
+  sense as soon as two sessions were open. Switching conversations now changes what the panel lists,
+  without stopping anything; `s` in the console widens it to the whole project and back, and
+  `shell_list` already took `session`.
+- **Shells end with the window that started them.** `lifecycle.onExit` defaults to `stopMine`, so
+  closing OpenCode stops its own shells — a window closing counts only once both halves of the
+  plugin have gone, so quitting one of two open windows never touches the other's. `keep` restores
+  the old behaviour of leaving them for the next window.
+
+### Added
+
+- `lifecycle.orphanAfterMinutes` (60 by default): a shell no window has been connected to for that
+  long is stopped, so nothing runs for a week because everyone who knew about it has gone.
+- `/shells-stop-all`, for when you want them all gone now.
+
 ## [0.2.1] - 2026-09-18
 
 ### Added

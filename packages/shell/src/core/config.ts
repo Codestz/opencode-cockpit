@@ -31,6 +31,16 @@ export interface CockpitConfig {
     timeoutSeconds?: number
     notifyOnExit?: boolean
   }
+  /** When shells end by themselves. */
+  lifecycle?: {
+    /**
+     * What happens to this window's shells when it closes. `stopMine` stops them, `keep` leaves
+     * them running for the next window — which is how shells survive an OpenCode restart.
+     */
+    onExit?: "stopMine" | "keep"
+    /** Stop a shell after this long with no window of its own connected. `0` never does. */
+    orphanAfterMinutes?: number
+  }
   /** What is allowed to interrupt the agent. */
   notify?: {
     exit?: boolean
@@ -92,6 +102,7 @@ export function mergeConfig(base: CockpitConfig, over: CockpitConfig): CockpitCo
     watch: { ...base.watch, ...over.watch, presets: { ...base.watch?.presets, ...over.watch?.presets } },
     kinds: { ...base.kinds, ...over.kinds },
     defaults: { ...base.defaults, ...over.defaults },
+    lifecycle: { ...base.lifecycle, ...over.lifecycle },
     notify: { ...base.notify, ...over.notify },
     ui: { ...base.ui, ...over.ui, keybinds: { ...base.ui?.keybinds, ...over.ui?.keybinds } },
   }
@@ -105,7 +116,7 @@ function asConfig(input: unknown): CockpitConfig {
   if (!input || typeof input !== "object") return {}
   const raw = input as Record<string, unknown>
   const config: CockpitConfig = {}
-  for (const key of ["watch", "kinds", "defaults", "notify", "ui"] as const) {
+  for (const key of ["watch", "kinds", "defaults", "lifecycle", "notify", "ui"] as const) {
     const value = raw[key]
     if (value && typeof value === "object") Object.assign(config, { [key]: value })
   }

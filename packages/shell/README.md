@@ -123,6 +123,10 @@ the program, `ctrl+]` to stop typing), `c` ctrl+c, `r` restart, `x` stop. Finish
 again, `d` remove. Always: `tab` screen or log, `/` search the log (`backspace` clears the filter),
 `?` details, `[` `]` switch shells, `D` clear finished, `esc` close.
 
+**One conversation at a time.** The panel lists the shells of the session you are in, because a
+project's shells mixed together is how it stops making sense. `s` in the console widens it to the
+whole project and back, and `shell_list` takes `session: "this" | "others" | "any"`.
+
 **Searching a long log.** In the console, `/` filters the scrollback to matching lines — keeping
 their original line numbers and highlighting the match — so a 40k-line dev server is one query away
 from the five lines you want. Filtering happens in the daemon, not the terminal.
@@ -163,6 +167,7 @@ working. (`XDG_CONFIG_HOME` is honoured for the global path.)
 | `kinds` | Extra shell categories, or overrides, as name → regex matched against the command. Drives the badges in the sidebar, panel and `shell_list`, so you can group your own stack (`e2e`, `infra`, `worker`) instead of the built-ins. |
 | `watch.presets` | Your own watch rules, or replacements for built-ins, keyed by name. A rule is `{ done?, fail?, ok?, idleSeconds?, ignoreCase? }` — patterns are regular expressions matched against each output line. The agent can then ask for `watch: "e2e"`. |
 | `watch.auto` | Attach a matching preset to every new shell without being asked. **Off by default**: watching is useful, but silently attaching rules to commands you didn't opt in surprises people. Turn it on once you trust your presets. |
+| `lifecycle` | When shells end by themselves. `onExit` (`stopMine` by default) stops this window's shells when it closes; `keep` leaves them for the next window. `orphanAfterMinutes` (60) stops a shell that no window has claimed for that long — the answer to shells running for a week. |
 | `defaults` | Applied to every shell the agent starts unless the call says otherwise: `watch` (`true` for a matching preset, or a preset name), `logFile`, `idleTimeoutSeconds`, `timeoutSeconds`, `notifyOnExit`. |
 | `notify` | What may interrupt the agent — `exit`, `watch`, and `tailLines` (output lines included in an exit message). |
 | `guidance` | The system-prompt paragraph that teaches the agent when to use shells. `false` saves ~120 tokens per request, at the cost of a model that uses shells less well. |

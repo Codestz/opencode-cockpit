@@ -14,10 +14,10 @@ export function daemonEntry(): string {
  * BUN_BE_BUN=1 so it runs on OpenCode's embedded Bun (ADR 0001). The expected build lets the
  * client replace a daemon left running from older plugin code.
  */
-export function createClient(name: string): CockpitClient {
+export function createClient(name: string, instance?: string): CockpitClient {
   const entry = daemonEntry()
   return new CockpitClient({
-    client: { name, version: pkg.version, pid: process.pid },
+    client: { name, version: pkg.version, pid: process.pid, instance },
     spawn: { entry, execPath: process.execPath },
     expectedBuild: daemonBuildId(entry, daemonPkg.version),
   })

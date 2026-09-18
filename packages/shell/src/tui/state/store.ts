@@ -16,6 +16,11 @@ export interface ShellStore {
   hidden: Accessor<ShellInfo[]>
   showAll: Accessor<boolean>
   toggleAll(): void
+  /** Which shells the panel is about: the conversation you are in, or the whole project. */
+  scope: Accessor<Scope>
+  toggleScope(): void
+  /** The session the interface is currently showing, when it is showing one. */
+  session: Accessor<string | undefined>
   connected: Accessor<boolean>
   now: Accessor<number>
   /** Spinner frame index; advances only while something is running. */
@@ -28,9 +33,14 @@ export interface ShellStore {
   dispose(): void
 }
 
+/** A project's shells outnumber a conversation's, and mixing them is how the panel gets confusing. */
+export type Scope = "session" | "project"
+
 export interface StoreOptions {
   /** Failures stay in the default view this long after they end. */
   historyMinutes?: number
+  /** What the panel lists by default. */
+  scope?: Scope
 }
 
 export function createShellStore(
@@ -45,7 +55,14 @@ export function createShellStore(
     const [frame, setFrame] = createSignal(0)
     const [selectedId, setSelectedId] = createSignal<string>()
     const [showAll, setShowAll] = createSignal<boolean>(api.kv.get("cockpit.shells.showAll", false))
+    const [scope, setScope] = createSignal<Scope>(
+      api.kv.get("cockpit.shells.scope", options.scope ?? "session"),
+    )
     const project = () => api.state.path.directory
+    const session = () => {
+      const route = api.route.current
+      return route.name === "session" ? (route.params as { sessionID?: string }).sessionID : undefined
+    }
     const historyMs = (options.historyMinutes ?? 30) * 60_000
 
     const refresh = async () => {
@@ -88,14 +105,28 @@ export function createShellStore(
       const ordered = order(state.list)
       return ordered.find((s) => s.id === selectedId()) ?? ordered[0]
     })
+    /** Everything the daemon knows about this project, narrowed to what the panel is about. */
+    const inScope = createMemo(() => {
+      const current = session()
+      if (scope() === "project" || !current) return state.list
+      return state.list.filter((shell) => shell.owner.session === current)
+    })
+
     const folded = createMemo(() =>
-      partition(state.list, { showAll: showAll(), historyMs, now: now(), keep: pick()?.id }),
+      partition(inScope(), { showAll: showAll(), historyMs, now: now(), keep: pick()?.id }),
     )
 
     return {
       client,
       project,
-      shells: () => state.list,
+      session,
+      scope,
+      toggleScope() {
+        const next: Scope = scope() === "session" ? "project" : "session"
+        setScope(next)
+        api.kv.set("cockpit.shells.scope", next)
+      },
+      shells: () => inScope(),
       visible: () => folded().visible,
       hidden: () => folded().hidden,
       showAll,
@@ -112,7 +143,7 @@ export function createShellStore(
       // Cycles every shell in the project: folding only exists to keep the sidebar short, and a
       // shell you cannot reach from the console would be a trap.
       step(delta) {
-        const list = order(state.list)
+        const list = order(inScope())
         if (list.length === 0) return
         const index = Math.max(
           0,

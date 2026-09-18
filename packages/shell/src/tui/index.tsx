@@ -111,6 +111,28 @@ const shellTui: TuiPlugin = async (api, rawOptions, meta) => {
         run: () => newShell(api, store, openConsole),
       },
       {
+        name: "cockpit.shells.stopAll",
+        title: "Stop all running shells",
+        category: "Shells",
+        namespace: "palette",
+        slashName: "shells-stop-all",
+        run: () => {
+          const running = store.shells().filter((s) => s.status === "running")
+          if (running.length === 0) {
+            return api.ui.toast({ title: "Shells", message: "Nothing is running.", duration: 3000 })
+          }
+          void Promise.all(
+            running.map((s) => client.call("shell.stop", { id: s.id, graceMs: 2000 }).catch(() => {})),
+          ).then(() =>
+            api.ui.toast({
+              title: "Shells",
+              message: `Stopped ${running.length} shell${running.length === 1 ? "" : "s"}.`,
+              duration: 4000,
+            }),
+          )
+        },
+      },
+      {
         name: "cockpit.shells.clear",
         title: "Clear finished shells",
         category: "Shells",
