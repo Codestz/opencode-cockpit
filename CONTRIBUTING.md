@@ -198,6 +198,11 @@ Bug fixes come with a test that fails before the fix.
 
 ## Releasing (maintainers)
 
+`bun run release <patch|minor|major|x.y.z> [--push]` checks the tree **before** it edits anything,
+then bumps, promotes the changelog, re-verifies and tags. If a step fails after it has started
+writing, it puts the version bump and the changelog back — a half-prepared release makes the next
+attempt fail for reasons that have nothing to do with the original problem.
+
 ```sh
 bun run version:set 0.2.0     # every package
 # move Unreleased notes under a 0.2.0 heading in CHANGELOG.md, commit

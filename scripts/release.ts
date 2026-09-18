@@ -22,6 +22,28 @@ if (!target) {
   process.exit(1)
 }
 
+/** Set once the release has started editing files, so a later failure can put them back. */
+let mutated = false
+
+/**
+ * A half-prepared release is worse than none: the next run sees bumped versions and a promoted
+ * changelog, then refuses for reasons that have nothing to do with the real failure. So anything
+ * this script wrote is restored before it gives up.
+ */
+function revert(): void {
+  if (!mutated || dryRun) return
+  mutated = false
+  const restore = Bun.spawnSync(
+    ["git", "checkout", "--", "package.json", "packages", "bun.lock", "CHANGELOG.md"],
+    { cwd: root, stdout: "pipe", stderr: "pipe" },
+  )
+  console.error(
+    restore.exitCode === 0
+      ? "✗ release aborted; the version bump and changelog were rolled back"
+      : "✗ release aborted, and the rollback failed — check `git status`",
+  )
+}
+
 const run = (cmd: string[], allowFail = false) => {
   if (dryRun) {
     console.log(`(dry run) $ ${cmd.join(" ")}`)
@@ -30,12 +52,14 @@ const run = (cmd: string[], allowFail = false) => {
   const result = Bun.spawnSync(cmd, { cwd: root, stdout: "pipe", stderr: "pipe" })
   if (result.exitCode !== 0 && !allowFail) {
     console.error(`$ ${cmd.join(" ")}\n${result.stdout}\n${result.stderr}`)
+    revert()
     process.exit(1)
   }
   return result.stdout.toString().trim()
 }
 
 const fail = (message: string) => {
+  revert()
   console.error(`✗ ${message}`)
   process.exit(1)
 }
@@ -52,8 +76,15 @@ const next = resolveVersion(current, target)
 if (run(["git", "tag", "-l", `v${next}`]).length > 0) fail(`v${next} already exists`)
 console.log(`${current} → ${next}`)
 
+// Everything that can fail for reasons unrelated to the release runs first, on an untouched tree.
+run(["bun", "run", "build"])
+run(["bun", "run", "check"])
+
+mutated = true
 run(["bun", "scripts/set-version.ts", next])
 await promoteChangelog(next)
+
+// Then again on the tree that will ship: pack:check is the guard that catches a bad bump.
 run(["bun", "run", "build"])
 run(["bun", "run", "check"])
 run(["bun", "run", "pack:check"])
