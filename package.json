@@ -16,7 +16,8 @@
     "version:set": "bun scripts/set-version.ts",
     "build": "bun scripts/build.ts",
     "smoke:tui": "bun scripts/tui-smoke.ts",
-    "release": "bun scripts/release.ts"
+    "release": "bun scripts/release.ts",
+    "record": "bun scripts/record.ts"
   },
   "devDependencies": {
     "@babel/core": "7.28.0",
