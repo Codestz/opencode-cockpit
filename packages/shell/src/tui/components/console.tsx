@@ -29,6 +29,10 @@ export interface ConsoleProps {
   store: ShellStore
   /** Start in typing mode. */
   typing?: boolean
+  /** Paint the colours programs print (config: ui.colors). */
+  colors?: boolean
+  /** Which view a freshly opened console shows (config: ui.defaultView). */
+  defaultView?: "screen" | "log"
   onClose: () => void
   onNewShell: () => void
 }
@@ -49,7 +53,7 @@ export function Console(props: ConsoleProps) {
   const theme = () => props.api.theme.current
   const dims = useTerminalDimensions()
   const shell = () => props.store.selected()
-  const [view, setView] = createSignal<View>("screen")
+  const [view, setView] = createSignal<View>(props.defaultView ?? "screen")
   const [typing, setTyping] = createSignal(props.typing ?? false)
   const [log, setLog] = createSignal<LogLine[]>([])
   const [notice, setNotice] = createSignal<Notice>()
@@ -293,7 +297,9 @@ export function Console(props: ConsoleProps) {
 
   const screenText = createMemo(() => tailLines(screen()?.text, bodyRows(), bodyCols()))
   // Colour when the daemon sent styled rows; the plain text stays the fallback.
-  const screenRuns = createMemo(() => tailRuns(screen()?.styled, bodyRows(), bodyCols()))
+  const screenRuns = createMemo(() =>
+    props.colors === false ? [] : tailRuns(screen()?.styled, bodyRows(), bodyCols()),
+  )
   const details = createMemo(() =>
     shell() ? detailRows(shell() as ShellInfo, props.store.now(), bodyCols()) : [],
   )

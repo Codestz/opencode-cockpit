@@ -21,6 +21,8 @@ export interface DockProps {
   api: TuiPluginApi
   store: ShellStore
   height: number
+  /** Paint the colours programs print (config: ui.colors). */
+  colors?: boolean
   hint: () => string
   onOpenConsole: (id: string) => void
 }
@@ -39,7 +41,9 @@ export function Dock(props: DockProps) {
   const overflow = createMemo(() => props.store.shells().length - tabs().length)
   const bodyCols = () => Math.max(10, dims().width - 4)
   const body = createMemo(() => tailLines(screen()?.text, bodyRows(), bodyCols()))
-  const bodyRuns = createMemo(() => tailRuns(screen()?.styled, bodyRows(), bodyCols()))
+  const bodyRuns = createMemo(() =>
+    props.colors === false ? [] : tailRuns(screen()?.styled, bodyRows(), bodyCols()),
+  )
 
   return (
     <box

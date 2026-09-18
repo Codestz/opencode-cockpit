@@ -8,6 +8,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Configuration.** One file, read by both halves of the plugin:
+  `~/.config/opencode-cockpit/config.json`, then `<project>/.cockpit.json`, then plugin-entry
+  options, merged key by key. Define your own shell `kinds` (regex → name, also filterable in
+  `shell_list`), your own `watch.presets`, `defaults` applied to every shell the agent starts
+  (`watch`, `logFile`, `timeoutSeconds`, `idleTimeoutSeconds`, `notifyOnExit`), what may interrupt
+  the agent (`notify`), how much context the plugin spends (`guidance`, `listRunningShells`), and
+  the interface (`ui`). `watch.auto` attaches a matching preset to every new shell; it is off by
+  default. An invalid config file is ignored rather than fatal.
 - **Watchers.** `shell_watch`, or `watch` on `shell_start`, follows a never-ending process and
   messages the agent only when its health changes ("tsc: ok → fail" with the offending line), never
   while a run repeats the same result. A watched process that dies is reported as a failure, so a
@@ -37,6 +45,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Package internals are grouped by role: `core/` (pure logic shared by both halves), `agent/` (the
+  server plugin and one file per tool), `tui/` (`components/`, `state/`, `lib/`), and the wire
+  schemas split by concern. No behaviour change, but features now land in one obvious place.
 - Console keys now show only what applies: no sidebar-only "show all", no "clear finished" without
   finished shells, and `[` `]` cycles every shell rather than just the unfolded ones.
 

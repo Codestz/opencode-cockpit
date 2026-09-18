@@ -5,6 +5,7 @@ import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
 import { createSignal } from "solid-js"
 import pkg from "../../package.json" with { type: "json" }
 import { createClient } from "../connect.ts"
+import { type CockpitConfig, loadConfig } from "../core/config.ts"
 import { Console } from "./components/console.tsx"
 import { Dock } from "./components/dock.tsx"
 import { SidebarShells } from "./components/sidebar.tsx"
@@ -16,17 +17,8 @@ const DEFAULT_KEYS = {
   "cockpit.shells.console": "<leader>i",
 }
 
-export interface ShellTuiOptions {
-  dockHeight?: number
-  /** Set false to never check the registry for a newer release. */
-  updateCheck?: boolean
-  /** Shell rows the sidebar shows before folding the rest away (default 5). */
-  sidebarRows?: number
-  /** Failures stay visible this long after they end (default 30). */
-  historyMinutes?: number
-  dockOpen?: boolean
-  keybinds?: Record<string, string>
-}
+/** Interface settings; the `ui` section of the config file (see core/config.ts). */
+export type ShellTuiOptions = NonNullable<CockpitConfig["ui"]>
 
 const SHELL_PACKAGE = "@opencode-cockpit/shell"
 const _PACKAGE_NAME = pkg.name
@@ -51,7 +43,9 @@ export function createShellTui({ source = SHELL_PACKAGE }: { source?: string } =
 }
 
 const shellTui: TuiPlugin = async (api, rawOptions, meta) => {
-  const options = (rawOptions ?? {}) as ShellTuiOptions
+  // Settings come from the shared config file; plugin-entry options still win, flat or under "ui".
+  const config = loadConfig(api.state.path.directory, rawOptions)
+  const options: ShellTuiOptions = config.ui ?? {}
   const client = createClient("opencode-cockpit/tui")
   const store = createShellStore(api, client, { historyMinutes: options.historyMinutes })
   const keys = createBindingLookup({ ...DEFAULT_KEYS, ...options.keybinds })
@@ -77,6 +71,8 @@ const shellTui: TuiPlugin = async (api, rawOptions, meta) => {
           api={api}
           store={store}
           typing={typing}
+          colors={options.colors}
+          defaultView={options.defaultView}
           onClose={() => api.ui.dialog.clear()}
           onNewShell={() => newShell(api, store, openConsole)}
         />
@@ -171,6 +167,7 @@ const shellTui: TuiPlugin = async (api, rawOptions, meta) => {
                 api={api}
                 store={store}
                 height={height()}
+                colors={options.colors}
                 hint={() =>
                   `${shortcut("cockpit.shells.console")} console · ${shortcut("cockpit.shells.dock")} hide`
                 }

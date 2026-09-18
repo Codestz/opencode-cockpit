@@ -18,6 +18,8 @@ export interface ShellFilter {
   session?: SessionFilter
   /** The asking agent's session, for `session` filtering. */
   currentSession?: string
+  /** Extra kind patterns from config, so a kind it defines is also filterable. */
+  kinds?: Record<string, string>
 }
 
 export function isFailed(s: ShellInfo): boolean {
@@ -27,7 +29,7 @@ export function isFailed(s: ShellInfo): boolean {
 export function filterShells(list: readonly ShellInfo[], filter: ShellFilter): ShellInfo[] {
   const query = filter.query?.trim().toLowerCase()
   return list.filter((s) => {
-    if (filter.kind && filter.kind !== "any" && kindOfShell(s) !== filter.kind) return false
+    if (filter.kind && filter.kind !== "any" && kindOfShell(s, filter.kinds) !== filter.kind) return false
     if (query && !s.title.toLowerCase().includes(query) && !commandOf(s).toLowerCase().includes(query)) {
       return false
     }

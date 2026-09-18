@@ -20,7 +20,10 @@ const _TARGET = {
 }
 
 export function shellList(kit: ToolKit): ToolDefinition {
-  const { client, sessionLabel } = kit
+  const { client, config, sessionLabel } = kit
+  // Kinds from config are filterable too, or classifying a command as "e2e" would be a dead end.
+  const kinds = ["server", "tests", "build", "watcher", "task", ...Object.keys(config.kinds ?? {})]
+  const kindValues: [string, ...string[]] = ["any", ...kinds]
   return tool({
     description: `List background shells in this project: name, status, which session started it, and the last output line.
 
@@ -28,16 +31,12 @@ export function shellList(kit: ToolKit): ToolDefinition {
   - query: text in the name or command, e.g. "db" or "vitest"
   - status: running, failed, finished
   - session: this (started by you in this session), others (other sessions or the user)
-  - kind: server, tests, build, watcher, task — derived from the command, so "which servers are up?"
-    is one call`,
+  - kind: ${kinds.join(", ")} — derived from the command, so "which servers are up?" is one call`,
     args: {
       query: z.string().optional().describe("Case-insensitive text in the shell name or command"),
       status: z.enum(["running", "failed", "finished", "any"]).default("any"),
       session: z.enum(["this", "others", "any"]).default("any"),
-      kind: z
-        .enum(["server", "tests", "build", "watcher", "task", "any"])
-        .default("any")
-        .describe("What the shell is, derived from its command"),
+      kind: z.enum(kindValues).default("any").describe("What the shell is, derived from its command"),
       all: z.boolean().default(false).describe("Include shells from other projects"),
     },
     async execute(args, ctx) {
@@ -47,6 +46,7 @@ export function shellList(kit: ToolKit): ToolDefinition {
       )
       const shells = filterShells(everything, {
         kind: (args.kind ?? "any") as ShellKind | "any",
+        kinds: config.kinds,
         query: args.query ?? undefined,
         status: (args.status ?? "any") as StatusFilter,
         session: (args.session ?? "any") as SessionFilter,
@@ -65,7 +65,7 @@ export function shellList(kit: ToolKit): ToolDefinition {
             ? `\n    watch: ${s.watch.preset ?? "custom"} · ${s.watch.status}${s.watch.summary ? ` · ${s.watch.summary.slice(0, 120)}` : ""}`
             : ""
           return [
-            `${s.id}  ${s.status.padEnd(7)}  "${s.title}"${s.run > 1 ? ` (run ${s.run})` : ""} · ${kindOfShell(s)} · ${await sessionLabel(s, ctx)}`,
+            `${s.id}  ${s.status.padEnd(7)}  "${s.title}"${s.run > 1 ? ` (run ${s.run})` : ""} · ${kindOfShell(s, config.kinds)} · ${await sessionLabel(s, ctx)}`,
             `    $ ${commandOf(s).slice(0, 200)}${failure}`,
             `    ${describeStatus(s)}${watch}${tail ? `\n    last: ${tail.slice(0, 200)}` : ""}`,
           ].join("\n")

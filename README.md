@@ -120,20 +120,32 @@ Restart OpenCode. Requires OpenCode 1.18+ on macOS or Linux. Install a feature e
 `opencode-cockpit` or on its own — if both are configured, the first one loaded is used and
 OpenCode warns you which entry to remove.
 
-**Turn features off, or pass them options** (in both `opencode.json` and `tui.json`):
+**Turn features off** (in both `opencode.json` and `tui.json`):
 
 ```json
 {
-  "plugin": [
-    ["opencode-cockpit", {
-      "features": { "shell": true },
-      "shell": { "dockHeight": 16, "historyMinutes": 60 }
-    }]
-  ]
+  "plugin": [["opencode-cockpit", { "features": { "shell": true } }]]
 }
 ```
 
-Each feature's README documents its own options: [Shell](packages/shell#configuration).
+**Configure them** in one file, read by both halves of the plugin and by every project:
+
+```
+~/.config/opencode-cockpit/config.json   →   <project>/.cockpit.json   →   plugin-entry options
+```
+
+```json
+{
+  "kinds": { "e2e": "playwright|cypress" },
+  "defaults": { "logFile": true, "timeoutSeconds": 900 },
+  "ui": { "dockHeight": 16, "historyMinutes": 60 }
+}
+```
+
+Later sources win key by key, and an invalid file is ignored rather than fatal. You can categorize
+your own commands, define watch rules, cap how long shells live, choose what may interrupt the
+agent, and trade context tokens for accuracy. Each feature's README documents its own settings:
+[Shell](packages/shell#configuration).
 
 ## How it works
 

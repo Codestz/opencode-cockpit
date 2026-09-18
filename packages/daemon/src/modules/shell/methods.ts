@@ -1,6 +1,5 @@
-import type { ShellInfo } from "@opencode-cockpit/protocol/shell"
 import { invalidParams, invalidState } from "../../core/errors.ts"
-import type { MethodTable, Peer } from "../../core/module.ts"
+import type { MethodTable } from "../../core/module.ts"
 import type { ShellModule } from "./module.ts"
 import { compilePattern } from "./module.ts"
 import { waitFor } from "./wait.ts"

@@ -1,6 +1,7 @@
 import { type ToolDefinition, tool } from "@opencode-ai/plugin"
 import { describeStatus, formatWait, header } from "../../core/format.ts"
 import { abortable, askPermission, type ToolKit } from "./shared.ts"
+import { watchArgs } from "./watch-args.ts"
 
 const START = `Start a command in a background terminal (PTY) that keeps running while you continue working.
 
@@ -34,7 +35,7 @@ const _TARGET = {
 }
 
 export function shellStart(kit: ToolKit): ToolDefinition {
-  const { client, deps, peek } = kit
+  const { client, config, deps, peek } = kit
   return tool({
     description: START,
     args: {
@@ -80,6 +81,11 @@ export function shellStart(kit: ToolKit): ToolDefinition {
     },
     async execute(args, ctx) {
       await askPermission(ctx, args.command)
+      // Config supplies what the call left out; an explicit argument always wins.
+      const defaults = config.defaults ?? {}
+      const logFile = args.logFile ?? defaults.logFile ?? false
+      const notifyOnExit = args.notifyOnExit ?? defaults.notifyOnExit ?? true
+      const watch = args.watch ?? defaults.watch ?? (config.watch?.auto ? "auto" : undefined)
       const shell = deps.shellCommand(args.command)
       const info = await client.call("shell.start", {
         command: shell.command,
@@ -88,12 +94,12 @@ export function shellStart(kit: ToolKit): ToolDefinition {
         env: { ...deps.env(), ...args.env },
         title: args.description,
         owner: { project: ctx.directory, session: ctx.sessionID, instance: deps.instance },
-        timeoutMs: args.timeoutSeconds ? Math.round(args.timeoutSeconds * 1000) : undefined,
-        idleTimeoutMs: args.idleTimeoutSeconds ? Math.round(args.idleTimeoutSeconds * 1000) : undefined,
-        logFile: args.logFile === true,
+        timeoutMs: seconds(args.timeoutSeconds ?? defaults.timeoutSeconds),
+        idleTimeoutMs: seconds(args.idleTimeoutSeconds ?? defaults.idleTimeoutSeconds),
+        logFile: logFile === true,
         reuse: true,
       })
-      if (args.notifyOnExit === false) deps.quiet.add(info.id)
+      if (notifyOnExit === false) deps.quiet.add(info.id)
       else deps.quiet.delete(info.id)
       ctx.metadata({ title: args.description, metadata: { shellId: info.id, command: args.command } })
       if (info.status === "failed") return `${header(info)}\n${describeStatus(info)}\n</shell>`
@@ -104,10 +110,10 @@ export function shellStart(kit: ToolKit): ToolDefinition {
           : `Started ${info.id}: ${args.command}`,
       ]
 
-      if (args.watch) {
-        const preset = typeof args.watch === "string" ? args.watch : "auto"
+      if (watch) {
+        const preset = typeof watch === "string" ? watch : "auto"
         await client
-          .call("shell.watch", { id: info.id, preset })
+          .call("shell.watch", { id: info.id, ...watchArgs(preset, config) })
           .then((watched) =>
             lines.push(
               `watching health (${watched.watch?.preset ?? "custom rule"}); changes will be messaged to you`,
@@ -147,4 +153,9 @@ export function shellStart(kit: ToolKit): ToolDefinition {
       return lines.join("\n")
     },
   })
+}
+
+/** Milliseconds from an option in seconds, or undefined when unset. */
+function seconds(value: number | null | undefined): number | undefined {
+  return value ? Math.round(value * 1000) : undefined
 }

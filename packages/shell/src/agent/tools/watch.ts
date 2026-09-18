@@ -1,5 +1,6 @@
 import { type ToolDefinition, tool } from "@opencode-ai/plugin"
 import type { ToolKit } from "./shared.ts"
+import { watchArgs } from "./watch-args.ts"
 
 const WATCH = `Keep an eye on a long-running shell and be told only when its health changes.
 
@@ -31,9 +32,11 @@ const TARGET = {
 }
 
 export function shellWatch(kit: ToolKit): ToolDefinition {
-  const { client, resolve } = kit
+  const { client, config, resolve } = kit
+  // Presets from config are worth advertising: the agent cannot guess a name it has never seen.
+  const named = Object.keys(config.watch?.presets ?? {})
   return tool({
-    description: WATCH,
+    description: named.length > 0 ? `${WATCH}\n\nPresets from this project: ${named.join(", ")}.` : WATCH,
     args: {
       ...TARGET,
       preset: z.string().optional().describe('Preset name, or "auto" to pick one from the command'),
@@ -59,9 +62,11 @@ export function shellWatch(kit: ToolKit): ToolDefinition {
         const stopped = await client.call("shell.unwatch", { id })
         return `${note}stopped watching ${stopped.id}`
       }
+      // A preset defined in config travels as an explicit rule; the daemon knows only the built-ins.
+      const chosen = args.preset ? watchArgs(args.preset, config) : {}
       const info = await client.call("shell.watch", {
         id,
-        preset: args.preset ?? undefined,
+        preset: chosen.preset,
         rule: args.rule
           ? {
               done: args.rule.done ?? undefined,
@@ -70,7 +75,7 @@ export function shellWatch(kit: ToolKit): ToolDefinition {
               ignoreCase: args.rule.ignoreCase ?? undefined,
               idleSeconds: args.rule.idleSeconds ?? undefined,
             }
-          : undefined,
+          : chosen.rule,
       })
       return `${note}watching ${info.id} (${info.watch?.preset ?? "custom rule"}). You will be messaged when its health changes; no need to poll.`
     },

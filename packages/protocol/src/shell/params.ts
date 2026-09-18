@@ -2,7 +2,6 @@ import { z } from "zod"
 
 import { Owner, ShellId, ShellStatus } from "./common.ts"
 import { ShellInfo } from "./info.ts"
-import { WatchRule } from "./watch.ts"
 
 const Dimension = z.number().int().min(2).max(1000)
 

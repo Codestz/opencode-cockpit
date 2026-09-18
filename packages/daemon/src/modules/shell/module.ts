@@ -1,6 +1,6 @@
 import { join } from "node:path"
 import type { ShellInfo, StartParams } from "@opencode-cockpit/protocol/shell"
-import { invalidParams, invalidState, notFound } from "../../core/errors.ts"
+import { invalidParams, notFound } from "../../core/errors.ts"
 import type { Logger } from "../../core/logger.ts"
 import { silentLogger } from "../../core/logger.ts"
 import type { MethodTable, Module, ModuleContext, Peer } from "../../core/module.ts"
@@ -9,9 +9,6 @@ import { shellMethods } from "./methods.ts"
 import { bunPtyBackend, type PtyBackend } from "./pty.ts"
 import { ProcessRegistry } from "./registry.ts"
 import { Shell, type ShellLimits } from "./shell.ts"
-import { waitFor } from "./wait.ts"
-import { PRESETS, presetByName, presetForCommand } from "./watch/presets.ts"
-import { compileRule, Watcher } from "./watch/watcher.ts"
 
 export interface ShellModuleOptions {
   backend?: PtyBackend

@@ -2,6 +2,7 @@ import type { ToolContext } from "@opencode-ai/plugin"
 import type { CockpitClient } from "@opencode-cockpit/client"
 import { RpcError } from "@opencode-cockpit/protocol"
 import type { ShellInfo } from "@opencode-cockpit/protocol/shell"
+import type { CockpitConfig } from "../../core/config.ts"
 import { commandOf, matchByName } from "../../core/find.ts"
 import { formatRead } from "../../core/format.ts"
 
@@ -13,6 +14,8 @@ export interface ToolDeps {
   quiet: Set<string>
   shellCommand(command: string): { command: string; args: string[] }
   env(): Record<string, string>
+  /** Settings that shape defaults, kinds and watch presets. */
+  config?: CockpitConfig
   /** Human title of an OpenCode session, for telling agents which session started a shell. */
   sessionTitle?(sessionID: string): Promise<string | undefined>
 }
@@ -20,6 +23,8 @@ export interface ToolDeps {
 /** What every tool shares: the client, name resolution, permission prompts and abort handling. */
 export interface ToolKit {
   deps: ToolDeps
+  /** Settings from ~/.config/opencode-cockpit/config.json, .cockpit.json and plugin options. */
+  config: CockpitConfig
   client: CockpitClient
   peek(info: ShellInfo, tail?: number): Promise<string>
   sessionLabel(shell: ShellInfo, ctx: ToolContext): Promise<string>
@@ -83,7 +88,7 @@ export function createToolKit(deps: ToolDeps): ToolKit {
     )
   }
 
-  return { deps, client, peek, sessionLabel, resolve }
+  return { deps, config: deps.config ?? {}, client, peek, sessionLabel, resolve }
 }
 
 export async function askPermission(ctx: ToolContext, command: string): Promise<void> {

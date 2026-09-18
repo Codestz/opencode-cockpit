@@ -123,6 +123,9 @@ Files are grouped by role, not by type, and entry points stay thin:
 
 - `core/` — pure logic with no I/O and no JSX, imported by both halves (finding, classifying,
   formatting).
+- `core/config.ts` — one loader for every setting: global file → project `.cockpit.json` → plugin
+  options, merged section-wise. Both halves call `loadConfig()` at startup and read from the result;
+  nothing else parses config, and a broken file resolves to `{}` instead of throwing.
 - `agent/` — the server plugin: `plugin.ts`, and `tools/` with one file per tool plus `shared.ts`
   for what they have in common.
 - `tui/` — `components/` (JSX), `state/` (stores), `lib/` (pure helpers), `dialogs.tsx`.

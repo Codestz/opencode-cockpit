@@ -2,6 +2,7 @@ import type { Hooks, Plugin, PluginInput, PluginModule } from "@opencode-ai/plug
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
 import type { ShellInfo } from "@opencode-cockpit/protocol/shell"
 import { createClient } from "../connect.ts"
+import { loadConfig } from "../core/config.ts"
 import { describeStatus, formatLines } from "../core/format.ts"
 import { createTools } from "./tools/index.ts"
 
@@ -20,7 +21,7 @@ export interface ShellServerOptions {
 
 /** Shell's server half as a factory, so bundles such as `opencode-cockpit` can include it. */
 export function createShellServer({ source = SHELL_PACKAGE }: ShellServerOptions = {}): Plugin {
-  return async (input) => {
+  return async (input, options) => {
     const claim = claimFeature(input, "shell", source)
     if (!claim.active) {
       // Logging through the server during plugin initialisation could wait on ourselves; defer it.
@@ -37,7 +38,7 @@ export function createShellServer({ source = SHELL_PACKAGE }: ShellServerOptions
       }, 0)
       return {}
     }
-    const hooks = await shellHooks(input)
+    const hooks = await shellHooks(input, options)
     const dispose = hooks.dispose
     return {
       ...hooks,
@@ -49,7 +50,8 @@ export function createShellServer({ source = SHELL_PACKAGE }: ShellServerOptions
   }
 }
 
-async function shellHooks({ client: opencode, directory }: PluginInput): Promise<Hooks> {
+async function shellHooks({ client: opencode, directory }: PluginInput, options?: unknown): Promise<Hooks> {
+  const config = loadConfig(directory, options)
   const cockpit = createClient("opencode-cockpit/server")
   const instance = crypto.randomUUID()
   const quiet = new Set<string>()
@@ -77,7 +79,7 @@ async function shellHooks({ client: opencode, directory }: PluginInput): Promise
   // Wake the agent when a shell it owns ends on its own.
   cockpit.on("shell.exited", (info) => {
     if (info.owner.instance !== instance || !info.owner.session) return
-    if (quiet.delete(info.id)) return
+    if (quiet.delete(info.id) || config.notify?.exit === false) return
     void notifyExit(info).catch(() => {})
   })
 
@@ -85,6 +87,7 @@ async function shellHooks({ client: opencode, directory }: PluginInput): Promise
   // per line, so a thousand identical recompiles cost nothing.
   cockpit.on("shell.watch", (event) => {
     const info = event.info
+    if (config.notify?.watch === false) return
     if (info.owner.instance !== instance || !info.owner.session || event.current === "pending") return
     const text = [
       `<shell_health id="${info.id}" title="${info.title}" status="${event.current}">`,
@@ -107,7 +110,7 @@ async function shellHooks({ client: opencode, directory }: PluginInput): Promise
 
   async function notifyExit(info: ShellInfo): Promise<void> {
     const session = info.owner.session as string
-    const page = await cockpit.call("shell.read", { id: info.id, tail: 15 })
+    const page = await cockpit.call("shell.read", { id: info.id, tail: config.notify?.tailLines ?? 15 })
     const failed =
       info.status === "failed" ||
       (info.status === "exited" && info.exitCode !== 0) ||
@@ -133,19 +136,22 @@ async function shellHooks({ client: opencode, directory }: PluginInput): Promise
       instance,
       quiet,
       env,
+      config,
       sessionTitle,
       shellCommand: (command) => ({ command: userShell, args: ["-c", command] }),
     }),
 
     "experimental.chat.system.transform": async (input, output) => {
-      output.system.push(GUIDANCE)
+      if (config.guidance !== false) output.system.push(GUIDANCE)
+      const listLimit = config.listRunningShells ?? 15
+      if (listLimit <= 0) return
       const running = await cockpit
         .call("shell.list", { owner: { project: directory }, includeExited: false })
         .catch(() => [] as ShellInfo[])
       if (running.length > 0) {
         output.system.push(
           `Background shells currently running in this project:\n${running
-            .slice(0, 15)
+            .slice(0, listLimit)
             .map((s) => {
               const from = !s.owner.session
                 ? ", started by the user"

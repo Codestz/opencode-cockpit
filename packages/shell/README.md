@@ -116,23 +116,62 @@ from the five lines you want. Filtering happens in the daemon, not the terminal.
 
 ## Configuration
 
-Options go on the plugin entry in `tui.json`:
+Everything is optional. Settings can live in a **config file**, which is read once and applies to
+both halves of the plugin — the agent's tools and the interface:
+
+```
+~/.config/opencode-cockpit/config.json   →   <project>/.cockpit.json   →   plugin-entry options
+```
+
+Later sources win key by key, so a project can override one setting without restating the rest. An
+unreadable or invalid file is ignored rather than fatal: a typo should never stop shells from
+working. (`XDG_CONFIG_HOME` is honoured for the global path.)
+
+```json
+{
+  "kinds": { "e2e": "playwright|cypress", "infra": "^(terraform|pulumi)\\b" },
+  "watch": {
+    "auto": false,
+    "presets": { "e2e": { "done": "\\d+ passed", "fail": "\\d+ failed", "ignoreCase": true } }
+  },
+  "defaults": { "logFile": true, "timeoutSeconds": 900 },
+  "notify": { "exit": true, "watch": true, "tailLines": 15 },
+  "guidance": true,
+  "listRunningShells": 15,
+  "ui": { "dockHeight": 16, "dockOpen": true, "historyMinutes": 60, "colors": true }
+}
+```
+
+| Section | Meaning |
+|---|---|
+| `kinds` | Extra shell categories, or overrides, as name → regex matched against the command. Drives the badges in the sidebar, panel and `shell_list`, so you can group your own stack (`e2e`, `infra`, `worker`) instead of the built-ins. |
+| `watch.presets` | Your own watch rules, or replacements for built-ins, keyed by name. A rule is `{ done?, fail?, ok?, idleSeconds?, ignoreCase? }` — patterns are regular expressions matched against each output line. The agent can then ask for `watch: "e2e"`. |
+| `watch.auto` | Attach a matching preset to every new shell without being asked. **Off by default**: watching is useful, but silently attaching rules to commands you didn't opt in surprises people. Turn it on once you trust your presets. |
+| `defaults` | Applied to every shell the agent starts unless the call says otherwise: `watch` (`true` for a matching preset, or a preset name), `logFile`, `idleTimeoutSeconds`, `timeoutSeconds`, `notifyOnExit`. |
+| `notify` | What may interrupt the agent — `exit`, `watch`, and `tailLines` (output lines included in an exit message). |
+| `guidance` | The system-prompt paragraph that teaches the agent when to use shells. `false` saves ~120 tokens per request, at the cost of a model that uses shells less well. |
+| `listRunningShells` | How many running shells are listed in the system prompt each turn (~20 tokens each). `0` disables it; the agent can still call `shell_list`. |
+| `ui` | Interface only: `dockHeight`, `dockOpen`, `sidebarRows`, `historyMinutes`, `colors`, `defaultView` (`"screen"` or `"log"`), `keybinds`, `updateCheck`. |
+
+The same settings can go on the plugin entry instead, which is handy for one-offs and for machines
+where you'd rather keep everything in `tui.json`/`opencode.json`:
 
 ```json
 {
   "plugin": [
     ["@opencode-cockpit/shell", {
-      "dockHeight": 16,
-      "dockOpen": true,
-      "historyMinutes": 60,
+      "ui": { "dockHeight": 16 },
       "keybinds": { "cockpit.shells.dock": "<leader>j", "cockpit.shells.console": "<leader>k" }
     }]
   ]
 }
 ```
 
-Using `opencode-cockpit` instead? Put the same options under `"shell"`:
-`["opencode-cockpit", { "shell": { "dockHeight": 16 } }]`.
+`ui` keys also work spelled flat at the top level (`{ "dockHeight": 16 }`), as they did before the
+config file existed. Using `opencode-cockpit` instead of the standalone package? Put the same
+object under `"shell"`: `["opencode-cockpit", { "shell": { "ui": { "dockHeight": 16 } } }]`.
+Interface settings must be reachable from `tui.json`, agent settings from `opencode.json` — which
+is exactly why the config file exists.
 
 | Environment variable | Default | Purpose |
 |---|---|---|
@@ -140,7 +179,7 @@ Using `opencode-cockpit` instead? Put the same options under `"shell"`:
 | `COCKPIT_IDLE_TIMEOUT_MS` | `600000` | Daemon exits after this long with no clients and no running shells |
 | `COCKPIT_LOG_LEVEL` | `info` | `debug` for verbose daemon logs |
 
-**Limits and log files** (per shell, set by the agent):
+**Limits and log files** (per shell, set by the agent, or by `defaults` above):
 
 - `timeoutSeconds` — stop it after this long, busy or not. Good for probes: *"watch the DB for two
   minutes"*.
