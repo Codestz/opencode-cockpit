@@ -5,540 +5,433 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cockpit — instruments for OpenCode</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Oxanium:wght@600;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 /* ===========================================================================
-   COCKPIT — amber phosphor console
-   The product is a terminal interface, so the site is one: mono everywhere,
-   box-drawing rules, a status bar top and bottom, keyboard navigation, and a
-   screen that types real recorded output instead of showing a picture of it.
-   Amber (VT220) rather than the usual matrix green; one cold cyan for standby.
+   Cockpit — landing page
+   Calm dark product page: air, soft cards, one accent. The terminal is the
+   hero image, the platform is the story, Shell is the bay that ships today.
    =========================================================================== */
 :root{
-  --plate:#0a0b0d;
-  --plate-2:#101215;
-  --plate-3:#161a1e;
-  --rule:#252b31;
-  --rule-hot:#39424a;
-  --ivory:#e9e4d9;
-  --dim:#8b8578;
-  --amber:#ffb000;
-  --amber-2:#ff8a00;
-  --amber-ghost:rgba(255,176,0,.12);
-  --cyan:#57c9dd;
-  --red:#ff6a5e;
-  --screen:#07080a;
+  --bg:#0a0a0b;
+  --bg-2:#101012;
+  --card:#121214;
+  --card-2:#161618;
+  --line:#232326;
+  --line-2:#2e2e33;
+  --fg:#ededee;
+  --fg-2:#a1a1a8;
+  --fg-3:#6e6e76;
+  --accent:#ff8a3d;
+  --accent-soft:rgba(255,138,61,.12);
+  --ok:#5ec98a;
+  --info:#5aa9f0;
+  --radius:12px;
 }
 *{box-sizing:border-box}
-html{color-scheme:dark}
+html{color-scheme:dark;scroll-behavior:smooth}
 body{
-  margin:0;background:var(--plate);color:var(--ivory);
-  font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
-  font-size:14px;line-height:1.65;
-  -webkit-font-smoothing:antialiased;
-  padding-block:34px 30px; /* room for the fixed bars */
+  margin:0;background:var(--bg);color:var(--fg);
+  font-family:Geist,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;
 }
-/* grain + vignette: the plate is a surface, not a colour */
-body::before{
-  content:"";position:fixed;inset:0;pointer-events:none;z-index:1;
-  background:
-    radial-gradient(120% 90% at 50% 0%,transparent 40%,rgba(0,0,0,.55) 100%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
-}
-a{color:var(--amber);text-decoration:none}
-a:hover{text-decoration:underline}
-h1,h2,h3{margin:0;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
-p{margin:0;max-width:66ch}
-.wrap{max-width:1240px;margin:0 auto;padding-inline:20px;position:relative;z-index:2}
+.mono{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+a{color:inherit;text-decoration:none}
+h1,h2,h3{margin:0;letter-spacing:-.025em;text-wrap:balance;font-weight:600}
+p{margin:0}
+.w{max-width:1140px;margin:0 auto;padding-inline:24px}
 
-/* ---------- fixed status bars, exactly like the TUI ---------- */
-.bar{
-  position:fixed;left:0;right:0;z-index:5;height:34px;display:flex;align-items:center;
-  background:rgba(10,11,13,.94);backdrop-filter:blur(8px);font-size:11.5px;letter-spacing:.08em;
+/* ---------------- nav ---------------- */
+nav{position:sticky;top:0;z-index:40;background:rgba(10,10,11,.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+nav .w{display:flex;align-items:center;gap:14px;height:64px}
+.brand{display:flex;align-items:center;gap:9px;font-weight:600;letter-spacing:-.02em}
+.brand .mark{width:22px;height:22px;border:1.5px solid var(--accent);border-radius:6px;position:relative;flex:none}
+.brand .mark::after{content:"";position:absolute;inset:5px;border-radius:2px;background:var(--accent)}
+.links{display:flex;gap:26px;margin-left:26px;font-size:14.5px;color:var(--fg-2)}
+.links a:hover{color:var(--fg)}
+nav .right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.ver{font-size:13px;color:var(--fg-3);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:9px;
+  font-size:14.5px;font-weight:500;padding:9px 16px;border:1px solid transparent;cursor:pointer;
+  font-family:inherit;transition:background .15s ease,border-color .15s ease,color .15s ease;
 }
-.bar.top{top:0;border-bottom:1px solid var(--rule)}
-.bar.bottom{bottom:0;height:30px;border-top:1px solid var(--rule);color:var(--dim)}
-.bar .wrap{display:flex;align-items:center;gap:18px;width:100%}
-.wordmark{font-family:Oxanium,"JetBrains Mono",monospace;font-weight:800;letter-spacing:.16em;font-size:13px;color:var(--ivory)}
-.wordmark i{font-style:normal;color:var(--amber)}
-.bar .sep{flex:1}
-.bar .stat{display:inline-flex;align-items:center;gap:7px;color:var(--dim);text-transform:uppercase}
-.bar .stat b{color:var(--ivory);font-weight:500}
-.led{width:7px;height:7px;background:var(--amber);box-shadow:0 0 9px var(--amber)}
-.led.standby{background:var(--cyan);box-shadow:0 0 9px var(--cyan)}
-.led.off{background:#3a3f45;box-shadow:none}
-@media (prefers-reduced-motion:no-preference){.led{animation:breathe 3.2s ease-in-out infinite}}
-@keyframes breathe{0%,100%{opacity:1}50%{opacity:.45}}
-.key{display:inline-block;border:1px solid var(--rule-hot);padding:1px 6px;color:var(--ivory);font-size:10.5px;margin-right:6px}
+.btn.primary{background:var(--fg);color:#0a0a0b}
+.btn.primary:hover{background:#fff}
+.btn.ghost{border-color:var(--line-2);color:var(--fg)}
+.btn.ghost:hover{background:var(--card-2)}
+.btn.lg{padding:12px 20px;font-size:15.5px;border-radius:10px}
+.btn:focus-visible,.demo .tabs button:focus-visible,[data-copy]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
-/* ---------- hero: headline left, live screen right ---------- */
-.hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.08fr);gap:44px;align-items:center;padding-block:76px 56px}
-.tagline{font-size:11.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--amber);margin-bottom:22px}
-.hero h1{
-  font-family:Oxanium,monospace;font-weight:800;font-size:clamp(40px,5.6vw,72px);line-height:.98;
-  letter-spacing:-.02em;text-transform:uppercase;
-}
-.hero h1 em{font-style:normal;color:var(--amber);text-shadow:0 0 28px rgba(255,176,0,.35)}
-.hero p.lede{margin-top:22px;color:#b8b2a5;font-size:15px;line-height:1.75}
-.hero .who{margin-top:18px;color:var(--dim);font-size:13px}
+/* ---------------- hero ---------------- */
+.hero{padding-block:84px 60px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.02fr);gap:56px;align-items:center}
+.pill{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--line-2);border-radius:999px;padding:6px 14px;font-size:13px;color:var(--fg-2)}
+.pill i{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
+h1{font-size:clamp(40px,5.2vw,58px);line-height:1.06;margin-top:22px;font-weight:600}
+h1 span{color:var(--accent)}
+.sub{margin-top:20px;color:var(--fg-2);font-size:17.5px;line-height:1.62;max-width:46ch}
+.actions{margin-top:30px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.chip{margin-top:18px;display:inline-flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--bg-2);border-radius:8px;padding:9px 13px;font-size:13.5px;color:var(--fg-2)}
+.chip .d{color:var(--fg-3)}
+.chip button{background:none;border:0;color:var(--fg-3);cursor:pointer;font:inherit;font-size:12.5px;padding:0 0 0 6px}
+.chip button:hover{color:var(--fg)}
 
-/* the screen: a real bezel around real output */
-.screen{
-  background:var(--screen);border:1px solid var(--rule-hot);
-  box-shadow:inset 0 0 60px rgba(255,176,0,.05), 0 24px 60px -40px #000;
-  position:relative;overflow:hidden;
-}
-.screen::after{ /* scanlines */
-  content:"";position:absolute;inset:0;pointer-events:none;
-  background:repeating-linear-gradient(180deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px);
-}
-.screen .head{
-  display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--rule);
-  font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);background:#0a0c0e;
-}
-.screen .head .rec{display:inline-flex;align-items:center;gap:6px;color:var(--amber)}
-.screen .head .rec i{width:6px;height:6px;border-radius:50%;background:var(--amber)}
-.screen .body{
-  padding:16px 18px;min-height:360px;font-size:13px;line-height:1.62;
-  white-space:pre-wrap;word-break:break-word;color:#cfc9bc;
-}
-.screen .body .g{color:#8fd49b}
-.screen .body .a{color:var(--amber)}
-.screen .body .c{color:var(--cyan)}
-.screen .body .r{color:var(--red)}
-.screen .body .d{color:#6f6a60}
-.cursor{display:inline-block;width:8px;height:15px;background:var(--amber);vertical-align:-3px;box-shadow:0 0 10px var(--amber)}
-@media (prefers-reduced-motion:no-preference){.cursor{animation:blink 1.05s steps(1) infinite}}
+/* terminal card — the hero image */
+.term{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 30px 70px -50px #000}
+.term header{display:flex;align-items:center;gap:8px;padding:12px 15px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--fg-3)}
+.dots{display:flex;gap:6px;margin-right:8px}
+.dots i{width:10px;height:10px;border-radius:50%;background:#2a2a2e}
+.term .body{padding:18px 20px;font-family:"Geist Mono",monospace;font-size:13px;line-height:1.8;min-height:318px;white-space:pre-wrap}
+.term .body .p{color:var(--accent)}
+.term .body .g{color:var(--ok)}
+.term .body .b{color:var(--info)}
+.term .body .d{color:var(--fg-3)}
+.term .body .warn{color:#e5b567}
+.caret{display:inline-block;width:7px;height:15px;background:var(--fg-2);vertical-align:-2px}
+@media (prefers-reduced-motion:no-preference){.caret{animation:blink 1.1s steps(1) infinite}}
 @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
 
-/* ---------- airframe: what Cockpit is, before any bay ---------- */
-.frame-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
-.cell{background:linear-gradient(180deg,var(--plate-2),var(--plate));border:1px solid var(--rule);padding:20px 22px;display:flex;flex-direction:column;gap:9px;position:relative}
-.cell .n{font-size:10.5px;letter-spacing:.18em;color:var(--amber)}
-.cell h3{font-family:Oxanium,monospace;font-size:19px;text-transform:uppercase;letter-spacing:.01em}
-.cell p{font-size:13px;color:#a49e93;line-height:1.66}
-.cell b{color:var(--ivory);font-weight:500}
-.mono{color:var(--cyan)}
-.diagram{margin-top:14px;border:1px solid var(--rule);background:var(--screen);padding:18px;overflow-x:auto}
-.diagram pre{margin:0;font-size:12.5px;line-height:1.8;color:#8b8578;white-space:pre}
-.diagram pre b{color:var(--amber);font-weight:500}
-.diagram pre .d{color:#5d5a53}
+/* ---------------- stat band ---------------- */
+.band{border-block:1px solid var(--line);background:var(--bg-2)}
+.band .w{display:grid;grid-template-columns:repeat(4,1fr);padding-block:34px}
+.stat{text-align:center;padding-inline:16px;border-right:1px solid var(--line)}
+.stat:last-child{border-right:0}
+.stat b{display:block;font-size:34px;font-weight:600;letter-spacing:-.04em;line-height:1.1}
+.stat span{display:block;margin-top:7px;font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3)}
 
-/* ---------- bays: the instruments ---------- */
-.rule-head{display:flex;align-items:center;gap:14px;margin-bottom:18px}
-.rule-head h2{font-family:Oxanium,monospace;font-size:13px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);font-weight:600}
-.rule-head .line{flex:1;height:1px;background:var(--rule)}
-.bays{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-.bay{
-  background:linear-gradient(180deg,var(--plate-2),var(--plate));border:1px solid var(--rule);
-  padding:20px;display:flex;flex-direction:column;gap:12px;text-align:left;cursor:pointer;
-  font:inherit;color:inherit;position:relative;transition:border-color .16s ease,transform .16s ease;
-}
-.bay:hover{border-color:var(--rule-hot)}
-.bay[aria-selected=true]{border-color:var(--amber);box-shadow:0 0 0 1px rgba(255,176,0,.25),0 0 40px -22px var(--amber)}
-.bay[aria-selected=true]::before{content:"";position:absolute;left:-1px;top:-1px;bottom:-1px;width:2px;background:var(--amber)}
-.bay .top{display:flex;align-items:center;justify-content:space-between;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
-.bay .top .st{display:inline-flex;align-items:center;gap:7px}
-.bay.live .top .st{color:var(--amber)}
-.bay.next .top .st{color:var(--cyan)}
-.bay h3{font-family:Oxanium,monospace;font-size:26px;text-transform:uppercase;letter-spacing:.02em}
-.bay p{font-size:13px;color:#a49e93;line-height:1.6}
-.bay .num{font-size:10.5px;color:var(--dim)}
-.bay.open{background:
-  repeating-linear-gradient(135deg,var(--plate-2) 0 6px,var(--plate) 6px 12px);}
+/* ---------------- sections ---------------- */
+section{padding-block:88px}
+.kicker{font-size:12.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fg-3);text-align:center}
+.h2{font-size:clamp(28px,3.4vw,38px);text-align:center;margin-top:14px}
+.lede{text-align:center;color:var(--fg-2);margin:16px auto 0;max-width:60ch;font-size:16.5px}
 
-/* ---------- detail: what the selected bay gives you ---------- */
-.detail{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:14px;margin-top:14px}
-.pane{background:var(--plate-2);border:1px solid var(--rule);display:flex;flex-direction:column}
-.pane > .cap{padding:9px 14px;border-bottom:1px solid var(--rule);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);display:flex;justify-content:space-between;gap:10px}
-.pane > .in{padding:16px;display:flex;flex-direction:column;gap:14px}
-.viewport{background:#05070a;border:1px solid var(--rule);padding:7px}
-.viewport img{display:block;width:100%;max-width:100%}
-.tabs{display:flex;gap:1px;background:var(--rule)}
-.tabs button{
-  flex:1;font:inherit;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);
-  background:var(--plate-2);border:0;padding:9px 4px;cursor:pointer;
-}
-.tabs button[aria-pressed=true]{background:var(--amber);color:#120d00;font-weight:700}
-.tabs button:focus-visible,.bay:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
-.facts{display:flex;flex-direction:column}
-.fact{display:grid;grid-template-columns:1fr auto;gap:10px;padding:11px 0;border-bottom:1px solid var(--rule);font-size:13px}
-.fact:last-child{border-bottom:0}
-.fact span{color:var(--dim)}
-.fact b{font-family:Oxanium,monospace;font-size:17px;font-variant-numeric:tabular-nums}
-.snippet{background:var(--screen);border:1px solid var(--rule);padding:14px;font-size:12px;line-height:1.7;overflow-x:auto;color:#bdb7ab;margin:0;flex:1}
-.snippet .k{color:var(--cyan)}
-.snippet .s{color:var(--amber)}
-.snippet .d{color:#6f6a60}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:44px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:26px}
+.card h3{font-size:17px;margin-bottom:14px}
+.card.bad h3{color:var(--fg-2)}
+.card ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px}
+.card li{display:grid;grid-template-columns:18px 1fr;gap:10px;font-size:14.5px;color:var(--fg-2);line-height:1.55}
+.card li i{font-style:normal;color:var(--fg-3)}
+.card.good li i{color:var(--accent)}
+.card.good li{color:var(--fg)}
 
-/* ---------- install ---------- */
-.install{margin-top:52px;border:1px solid var(--rule);background:linear-gradient(180deg,var(--plate-2),var(--plate));padding:26px}
-.install h2{font-family:Oxanium,monospace;font-size:clamp(22px,3vw,32px);text-transform:uppercase;letter-spacing:-.01em}
-.install .line{display:flex;align-items:center;gap:12px;margin-top:18px;background:var(--screen);border:1px solid var(--rule-hot);padding:13px 15px;flex-wrap:wrap}
-.install .line .sig{color:var(--amber)}
-.install .line code{font-size:13.5px;color:var(--ivory)}
-.install .line button{margin-left:auto;font:inherit;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;background:var(--plate-3);border:1px solid var(--rule-hot);color:var(--ivory);padding:8px 13px;cursor:pointer}
-.install .line button:hover{background:var(--amber);color:#120d00;border-color:var(--amber)}
-.install .after{margin-top:14px;color:var(--dim);font-size:13px}
+/* bays */
+.bays{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:44px}
+.bay{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:26px;display:flex;flex-direction:column;gap:13px;transition:border-color .16s ease}
+.bay:hover{border-color:var(--line-2)}
+.bay .status{display:inline-flex;align-items:center;gap:7px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line-2);border-radius:999px;padding:4px 11px;align-self:flex-start;color:var(--fg-2)}
+.bay .status i{width:6px;height:6px;border-radius:50%;background:var(--fg-3)}
+.bay.live .status{color:var(--accent);border-color:rgba(255,138,61,.35);background:var(--accent-soft)}
+.bay.live .status i{background:var(--accent)}
+.bay.next .status i{background:var(--info)}
+.bay h3{font-size:21px}
+.bay p{color:var(--fg-2);font-size:14.5px;line-height:1.6;flex:1}
+.bay .tags{display:flex;flex-wrap:wrap;gap:7px}
+.bay .tags span{font-family:"Geist Mono",monospace;font-size:11.5px;color:var(--fg-3);border:1px solid var(--line);border-radius:6px;padding:3px 8px}
 
-/* ---------- help overlay (press ?) ---------- */
-.help{position:fixed;inset:0;z-index:10;display:none;align-items:center;justify-content:center;background:rgba(5,6,8,.82);backdrop-filter:blur(3px)}
-.help[open]{display:flex}
-.help .card{background:var(--plate-2);border:1px solid var(--amber);max-width:440px;width:calc(100% - 40px)}
-.help .card h3{font-family:Oxanium,monospace;font-size:13px;letter-spacing:.2em;text-transform:uppercase;padding:12px 16px;border-bottom:1px solid var(--rule);color:var(--amber)}
-.help dl{margin:0;padding:14px 16px;display:grid;grid-template-columns:auto 1fr;gap:9px 16px;font-size:13px}
-.help dt{color:var(--ivory)}
-.help dd{margin:0;color:var(--dim)}
+/* platform grid */
+.four{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;margin-top:44px}
+.feat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:26px}
+.feat .ico{width:34px;height:34px;border-radius:9px;background:var(--card-2);border:1px solid var(--line-2);display:grid;place-items:center;margin-bottom:15px}
+.feat .ico svg{width:17px;height:17px;stroke:var(--accent);fill:none;stroke-width:1.6;stroke-linecap:round}
+.feat h3{font-size:17px;margin-bottom:9px}
+.feat p{color:var(--fg-2);font-size:14.5px;line-height:1.62}
+.feat code{font-family:"Geist Mono",monospace;font-size:13px;color:var(--fg)}
 
-footer{margin-top:44px;padding-top:18px;border-top:1px solid var(--rule);display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;color:var(--dim);font-size:12px}
+/* demo */
+.demo{margin-top:44px;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.demo .tabs{display:flex;gap:4px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.demo .tabs button{font:inherit;font-size:13.5px;color:var(--fg-2);background:none;border:1px solid transparent;border-radius:8px;padding:7px 13px;cursor:pointer}
+.demo .tabs button[aria-pressed=true]{background:var(--card-2);border-color:var(--line-2);color:var(--fg)}
+.demo .shot{padding:14px;background:#08080a}
+.demo img{display:block;width:100%;max-width:100%;border-radius:8px}
+.demo .note{padding:13px 16px;border-top:1px solid var(--line);font-size:13px;color:var(--fg-3);display:flex;gap:18px;flex-wrap:wrap}
+.demo .note b{color:var(--fg-2);font-weight:500}
 
-@media (max-width:960px){
-  .hero{grid-template-columns:1fr;gap:30px;padding-block:44px 34px}
-  .frame-grid{grid-template-columns:1fr}
-  .bays{grid-template-columns:1fr}
-  .detail{grid-template-columns:1fr}
-  .bar .stat.hide-sm{display:none}
+/* install */
+.install{margin-top:44px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.install .card h3{font-size:16px;margin-bottom:0}
+.install .cmd{margin-top:14px;display:flex;align-items:center;gap:10px;background:var(--bg-2);border:1px solid var(--line);border-radius:9px;padding:12px 14px;font-family:"Geist Mono",monospace;font-size:13.5px;overflow-x:auto}
+.install .cmd .p{color:var(--accent)}
+.install .cmd button{margin-left:auto;background:none;border:0;color:var(--fg-3);cursor:pointer;font:inherit;font-size:12.5px;white-space:nowrap}
+.install .cmd button:hover{color:var(--fg)}
+.install p.small{margin-top:12px;font-size:13.5px;color:var(--fg-3);line-height:1.6}
+
+/* closing */
+.cta{text-align:center;padding-block:92px;border-top:1px solid var(--line)}
+.cta h2{font-size:clamp(28px,3.6vw,40px)}
+.cta p{color:var(--fg-2);margin-top:14px}
+.cta .actions{justify-content:center}
+
+footer{border-top:1px solid var(--line);padding-block:30px;color:var(--fg-3);font-size:13.5px}
+footer .w{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+footer a:hover{color:var(--fg)}
+
+@media (max-width:920px){
+  .hero{grid-template-columns:1fr;gap:38px;padding-block:52px 40px}
+  .two,.four,.bays,.install{grid-template-columns:1fr}
+  .band .w{grid-template-columns:1fr 1fr;gap:26px 0}
+  .stat:nth-child(2){border-right:0}
+  .links{display:none}
+  section{padding-block:60px}
 }
 </style>
 </head>
 <body>
 
-<div class="bar top">
-  <div class="wrap">
-    <span class="wordmark">COCK<i>PIT</i></span>
-    <span class="stat"><i class="led"></i> shell <b>online</b></span>
-    <span class="stat hide-sm"><i class="led standby"></i> agents <b>standby</b></span>
-    <span class="sep"></span>
-    <span class="stat hide-sm">daemon <b>0.2.1</b></span>
-    <span class="stat"><a href="#">docs</a></span>
-    <span class="stat"><a href="#">github</a></span>
+<nav>
+  <div class="w">
+    <a class="brand" href="#"><span class="mark"></span> Cockpit</a>
+    <div class="links">
+      <a href="#problem">Why</a>
+      <a href="#platform">Platform</a>
+      <a href="#bays">Bays</a>
+      <a href="#demo">Demo</a>
+      <a href="#">Docs</a>
+    </div>
+    <div class="right">
+      <span class="ver">v0.2.1</span>
+      <a href="#" style="color:var(--fg-2);font-size:14.5px">GitHub</a>
+      <a class="btn primary" href="#install">Install</a>
+    </div>
+  </div>
+</nav>
+
+<header class="w hero">
+  <div>
+    <span class="pill"><i></i> Instruments for OpenCode</span>
+    <h1>Everything OpenCode<br><span>doesn't do yet</span>.</h1>
+    <p class="sub">A shared daemon, one config file, and a place in the interface — so capabilities plug
+      in as bays. Shell ships today: background terminals your agent starts, waits on, and never babysits.</p>
+    <div class="actions">
+      <a class="btn primary lg" href="#install">Install Cockpit</a>
+      <a class="btn ghost lg" href="#demo">See it running</a>
+    </div>
+    <div class="chip mono"><span class="d">$</span> opencode plugin opencode-cockpit --global <button data-copy>copy</button></div>
+  </div>
+
+  <div class="term">
+    <header><span class="dots"><i></i><i></i><i></i></span> opencode — cockpit</header>
+    <div class="body mono" id="stream"></div>
+  </div>
+</header>
+
+<div class="band">
+  <div class="w">
+    <div class="stat"><b>1</b><span>daemon, every window</span></div>
+    <div class="stat"><b>9</b><span>agent tools</span></div>
+    <div class="stat"><b>35</b><span>watch presets</span></div>
+    <div class="stat"><b>0</b><span>babysitting</span></div>
   </div>
 </div>
 
-<main class="wrap">
+<section class="w" id="problem">
+  <p class="kicker">The problem</p>
+  <h2 class="h2">Long-running work doesn't fit in a tool call.</h2>
+  <p class="lede">A dev server blocks the turn. Backgrounded with <span class="mono">&amp;</span> it
+    disappears. Either way the agent ends up re-reading whole logs, in tokens, to find out what happened.</p>
 
-  <section class="hero">
-    <div>
-      <div class="tagline">A platform for OpenCode</div>
-      <h1>OpenCode,<br>with <em>instruments</em><br>fitted.</h1>
-      <p class="lede">Cockpit is the airframe: a daemon that owns long-lived state across OpenCode's
-        two threads, one config file for both halves of a plugin, a place in the interface for
-        capabilities to render, and a typed protocol between them.</p>
-      <p class="who">Capabilities bolt into it as bays. <b style="color:var(--ivory);font-weight:500">Shell</b>
-        is fitted today — background terminals, running on the right.</p>
+  <div class="two">
+    <div class="card bad">
+      <h3>Without Cockpit</h3>
+      <ul>
+        <li><i>—</i><span>The turn blocks until the server is killed</span></li>
+        <li><i>—</i><span>Backgrounded processes vanish with the session</span></li>
+        <li><i>—</i><span>"Is it up yet?" answered by sleeping and guessing</span></li>
+        <li><i>—</i><span>A crash at 3am is noticed by nobody</span></li>
+        <li><i>—</i><span>Whole logs re-read every turn, in tokens</span></li>
+      </ul>
     </div>
-
-    <div class="screen" aria-label="Recorded output from a background shell">
-      <div class="head">
-        <span class="rec"><i></i> REC</span>
-        <span>bay 01 · sh_9wq2f1ab · npm run dev</span>
-        <span style="margin-left:auto" id="clock">00:00</span>
-      </div>
-      <div class="body" id="stream"></div>
+    <div class="card good">
+      <h3>With Cockpit</h3>
+      <ul>
+        <li><i>✓</i><span>Returns when the port actually answers</span></li>
+        <li><i>✓</i><span>Shells outlive the turn, the session and the window</span></li>
+        <li><i>✓</i><span>Waits on a pattern, a port, silence or exit</span></li>
+        <li><i>✓</i><span>A process that dies is reported as a failure</span></li>
+        <li><i>✓</i><span>Reads forward with a cursor, greps before it costs</span></li>
+      </ul>
     </div>
-  </section>
-
-
-  <section id="airframe" style="margin-top:26px">
-    <div class="rule-head"><h2>The airframe</h2><span class="line"></span><span style="font-size:10.5px;letter-spacing:.16em;color:var(--dim)">SHARED BY EVERY BAY</span></div>
-
-    <div class="frame-grid">
-      <div class="cell">
-        <span class="n">01</span>
-        <h3>A daemon that outlives you</h3>
-        <p>OpenCode runs its interface and its server in separate threads, so a plugin's two halves
-          cannot share memory — and neither can survive a restart. <b>cockpitd</b> owns the state
-          instead: it starts on demand, is shared by every window, upgrades itself when newer plugin
-          code connects, reaps what a crash left behind, and exits when idle.</p>
-      </div>
-      <div class="cell">
-        <span class="n">02</span>
-        <h3>One config for both halves</h3>
-        <p>Agent plugins live in <span class="mono">opencode.json</span>, interface plugins in
-          <span class="mono">tui.json</span>. Cockpit reads one file — global, then per project, then
-          the plugin entry — so a setting is written once and a broken file is ignored rather than
-          fatal.</p>
-      </div>
-      <div class="cell">
-        <span class="n">03</span>
-        <h3>A place to render</h3>
-        <p>A docked panel under the conversation, a full-screen console, a sidebar section and a
-          keymap namespace. A capability asks for the slot it needs; the chrome, the theme and the
-          keybind conventions are the same in every bay.</p>
-      </div>
-      <div class="cell">
-        <span class="n">04</span>
-        <h3>A typed wire between them</h3>
-        <p>JSON-RPC over a private socket, schemas shared by client and daemon, versioned
-          (<span class="mono">protocol 1.3</span>). A bay adds methods and events without the other
-          bays knowing, and a version mismatch is reported instead of guessed at.</p>
-      </div>
-    </div>
-
-    <div class="diagram" aria-label="How the pieces fit">
-<pre>  OpenCode TUI thread ─── bay (tui half) ───┐
-                                            ├── unix socket · JSON-RPC ── <b>cockpitd</b> ─── processes, state
-  OpenCode server ─────── bay (agent half) ─┘                              <span class="d">shell · agents · yours</span></pre>
-    </div>
-  </section>
-
-  <section id="bays" style="margin-top:56px">
-    <div class="rule-head"><h2>Capability bays</h2><span class="line"></span><span style="font-size:10.5px;letter-spacing:.16em;color:var(--dim)">1 FITTED · 1 ON THE STAND</span></div>
-
-    <div class="bays" role="tablist" aria-label="Capability bays">
-      <button class="bay live" role="tab" aria-selected="true" data-bay="shell">
-        <span class="top"><span class="st"><i class="led"></i> Online</span><span class="num">BAY 01</span></span>
-        <h3>Shell</h3>
-        <p>Background terminals with a real PTY. Waits on ports and patterns, watches health, searches
-          its own log, and says who stopped it.</p>
-      </button>
-      <button class="bay next" role="tab" aria-selected="false" data-bay="agents">
-        <span class="top"><span class="st"><i class="led standby"></i> On the stand</span><span class="num">BAY 02</span></span>
-        <h3>Agents</h3>
-        <p>Subagents you can watch: a live tree, a peek overlay that does not swallow the conversation,
-          and keys instead of a mouse.</p>
-      </button>
-      <button class="bay open" role="tab" aria-selected="false" data-bay="open">
-        <span class="top"><span class="st"><i class="led off"></i> Bay open</span><span class="num">BAY 03</span></span>
-        <h3>Next in</h3>
-        <p>Checkpoints, a context and cost meter, ports and services, scheduled prompts. Each ships as
-          its own package.</p>
-      </button>
-    </div>
-
-    <div class="detail">
-      <div class="pane">
-        <div class="cap"><span id="viewcap">Viewport · bay 01 shell</span><span>real recording</span></div>
-        <div class="in">
-          <div class="viewport"><img id="shot" src="../media/dock.gif" alt="A dev server running in the OpenCode shells panel"></div>
-          <div class="tabs" id="tabs">
-            <button aria-pressed="true" data-src="../media/dock.gif">Panel</button>
-            <button aria-pressed="false" data-src="../media/search.gif">Log search</button>
-            <button aria-pressed="false" data-src="../media/tour.gif">Two shells</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="pane">
-        <div class="cap"><span id="factcap">Bay 01 · specification</span></div>
-        <div class="in">
-          <div class="facts" id="facts"></div>
-          <pre class="snippet" id="snippet"></pre>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <section class="install">
-    <h2>Fit the airframe, then the bays</h2>
-    <div class="line">
-      <span class="sig">$</span><code id="cmd">opencode plugin opencode-cockpit --global</code>
-      <button data-copy="#cmd">copy</button>
-    </div>
-    <p class="after">Everything fitted, with a switch per bay:
-      <span class="mono">{ "features": { "shell": true } }</span>. Or fit one bay on its own —
-      <span class="mono">opencode plugin @opencode-cockpit/shell</span> — and add the rest later without
-      changing anything: the daemon, the config file and the interface slots are the same either way.</p>
-  </section>
-
-  <footer>
-    <span>MIT · OpenCode 1.18+ · macOS and Linux</span>
-    <span>Shell online · Agents on the stand</span>
-  </footer>
-</main>
-
-<div class="bar bottom">
-  <div class="wrap">
-    <span><span class="key">1</span><span class="key">2</span><span class="key">3</span> select bay</span>
-    <span><span class="key">j</span><span class="key">k</span> move</span>
-    <span><span class="key">y</span> copy install</span>
-    <span class="sep"></span>
-    <span><span class="key">?</span> keys</span>
   </div>
-</div>
+</section>
 
-<div class="help" id="help" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts">
-  <div class="card">
-    <h3>Keys</h3>
-    <dl>
-      <dt>1 · 2 · 3</dt><dd>select a capability bay</dd>
-      <dt>j · k</dt><dd>move between bays</dd>
-      <dt>tab</dt><dd>cycle the recordings</dd>
-      <dt>y</dt><dd>copy the install command</dd>
-      <dt>?</dt><dd>this panel</dd>
-      <dt>esc</dt><dd>close</dd>
-    </dl>
+<section class="w" id="platform" style="padding-top:0">
+  <p class="kicker">The platform</p>
+  <h2 class="h2">Cockpit is the part every capability shares.</h2>
+  <p class="lede">Bays don't re-solve process ownership, configuration or interface plumbing. They plug
+    into one airframe and inherit all of it.</p>
+
+  <div class="four">
+    <div class="feat">
+      <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 14h6"/></svg></div>
+      <h3>A daemon that outlives the session</h3>
+      <p>OpenCode's interface and server run in separate threads that can't share memory, and neither
+        survives a restart. <code>cockpitd</code> owns the state instead — shared by every window,
+        self-upgrading, cleaning up after crashes, exiting when idle.</p>
+    </div>
+    <div class="feat">
+      <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 8h18M3 16h18"/></svg></div>
+      <h3>One config for both halves</h3>
+      <p>Agent plugins are configured in <code>opencode.json</code>, interface plugins in
+        <code>tui.json</code>. Cockpit reads one file — global, then project, then plugin entry — and
+        ignores a broken one instead of failing.</p>
+    </div>
+    <div class="feat">
+      <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 15h18M9 20v-5"/></svg></div>
+      <h3>A place in the interface</h3>
+      <p>A docked panel, a full console, a sidebar section and a keymap namespace. A bay asks for the
+        slot it needs and inherits the chrome, the theme and the keybind conventions.</p>
+    </div>
+    <div class="feat">
+      <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 12h6l2-5 3 10 2-5h3"/></svg></div>
+      <h3>A typed wire between them</h3>
+      <p>JSON-RPC over a private socket, with schemas shared by client and daemon and versioned at
+        <code>protocol 1.3</code>. A bay adds methods and events without the others knowing.</p>
+    </div>
   </div>
-</div>
+</section>
+
+<section class="w" id="bays" style="padding-top:0">
+  <p class="kicker">Capability bays</p>
+  <h2 class="h2">Install the suite, or just the instrument you want.</h2>
+  <p class="lede">Every bay is its own npm package and can be switched off in config. They share the
+    daemon, so fitting a second one costs nothing.</p>
+
+  <div class="bays">
+    <article class="bay live">
+      <span class="status"><i></i> Available</span>
+      <h3>Shell</h3>
+      <p>Background terminals with a real PTY. Waits on ports and patterns, watches health and reports
+        only changes, searches its own log, and says who stopped it.</p>
+      <div class="tags"><span>9 tools</span><span>35 presets</span><span>v0.2.1</span></div>
+    </article>
+    <article class="bay next">
+      <span class="status"><i></i> Next</span>
+      <h3>Agents</h3>
+      <p>Subagents you can actually watch: a live tree in the sidebar and a peek overlay that doesn't
+        replace your conversation — driven by the keyboard, not a mouse.</p>
+      <div class="tags"><span>live tree</span><span>peek</span><span>keyboard</span></div>
+    </article>
+    <article class="bay">
+      <span class="status"><i></i> Open</span>
+      <h3>Proposed</h3>
+      <p>Checkpoints, a context and cost meter, ports and services, scheduled prompts. The bay is open —
+        open an issue and make the case.</p>
+      <div class="tags"><span>your idea here</span></div>
+    </article>
+  </div>
+</section>
+
+<section class="w" id="demo" style="padding-top:0">
+  <p class="kicker">Bay 01 — Shell</p>
+  <h2 class="h2">Recorded, not mocked up.</h2>
+  <p class="lede">Every frame below comes from a real OpenCode session, generated by a script in the
+    repository and re-run on every release.</p>
+
+  <div class="demo">
+    <div class="tabs" id="tabs">
+      <button aria-pressed="true" data-src="../media/dock.gif">Panel under the chat</button>
+      <button aria-pressed="false" data-src="../media/search.gif">Search a long log</button>
+      <button aria-pressed="false" data-src="../media/tour.gif">Two shells at once</button>
+    </div>
+    <div class="shot"><img id="shot" src="../media/dock.gif" alt="A dev server running in the OpenCode shells panel"></div>
+    <div class="note">
+      <span><b>Source</b> bun run record tapes/dock.ts</span>
+      <span><b>Ships as</b> asciicast — 18 KB, selectable text</span>
+      <span><b>Never stale</b> re-recorded on every release</span>
+    </div>
+  </div>
+</section>
+
+<section class="w" id="install" style="padding-top:0">
+  <p class="kicker">Install</p>
+  <h2 class="h2">Two minutes, then ask it to start something.</h2>
+
+  <div class="install">
+    <div class="card">
+      <h3>Everything</h3>
+      <div class="cmd"><span class="p">$</span><span>opencode plugin opencode-cockpit --global</span><button data-copy>copy</button></div>
+      <p class="small">All bays, with a switch for each: <span class="mono">{ "features": { "shell": true } }</span>.
+        New bays arrive with an update and stay off until you turn them on.</p>
+    </div>
+    <div class="card">
+      <h3>One bay</h3>
+      <div class="cmd"><span class="p">$</span><span>opencode plugin @opencode-cockpit/shell --global</span><button data-copy>copy</button></div>
+      <p class="small">Same daemon, same config file, same interface slots. Add the rest later without
+        changing anything you already set up.</p>
+    </div>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="w">
+    <h2>Stop babysitting your terminal.</h2>
+    <p>Requires OpenCode 1.18+ on macOS or Linux. MIT licensed.</p>
+    <div class="actions">
+      <a class="btn primary lg" href="#install">Install Cockpit</a>
+      <a class="btn ghost lg" href="#">Read the docs</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="w">
+    <span>opencode-cockpit · MIT</span>
+    <span><a href="#">GitHub</a> · <a href="#">npm</a> · <a href="#">Changelog</a></span>
+  </div>
+</footer>
 
 <script>
-/* ---------------------------------------------------------------------------
-   1. The hero screen types real recorded output, line by line, with the
-      program's own colours. It is the same session the GIFs come from.
-   ------------------------------------------------------------------------- */
+/* The hero terminal types a real session: the agent starts a shell, waits for
+   the port, keeps working, and is told when the watcher flips to fail. */
 const LINES = [
-  {t:'', c:'d'},
-  {t:'  VITE v5.4.8  ready in 412 ms', c:'g'},
-  {t:'', c:'d'},
-  {t:'  ➜  Local:   http://localhost:5173/', c:'c'},
-  {t:'  ➜  Network: use --host to expose', c:'d'},
-  {t:'', c:'d'},
-  {t:'10:14:02 [vite] page reload src/app.tsx', c:'d'},
-  {t:'10:14:09 [vite] hmr update src/routes/checkout.tsx', c:'g'},
-  {t:'10:14:15 [vite] warning: chunk larger than 500 kB', c:'a'},
-  {t:'', c:'d'},
-  {t:'— agent —  shell_wait until port 5173 answered · 0.9s', c:'a'},
-  {t:'— agent —  continuing while it runs', c:'a'},
-  {t:'', c:'d'},
-  {t:'10:14:41 [vite] hmr update src/checkout/total.ts', c:'g'},
-  {t:'10:14:58 [vite] ERROR  TS2339 in src/checkout/total.ts', c:'r'},
-  {t:'', c:'d'},
-  {t:'— watch —  tsc: ok → fail, messaged to the agent', c:'r'},
+  '<span class="d">// the agent, not you</span>',
+  '<span class="p">›</span> shell_start <span class="b">command</span>="npm run dev"',
+  '             <span class="b">waitFor</span>={ port: 5173 } <span class="b">watch</span>=true',
+  '',
+  '  <span class="g">VITE v5.4.8</span>  ready in 412 ms',
+  '  <span class="b">➜ Local:</span>  http://localhost:5173/',
+  '',
+  '<span class="d">  started sh_9wq2f1ab · port answered in 0.9s · watching (vite)</span>',
+  '',
+  '<span class="p">›</span> <span class="d">…the agent keeps working. four minutes later, unprompted:</span>',
+  '',
+  '<span class="warn">⚠ vite: ok → fail</span>',
+  '  src/checkout/total.ts:42 — TS2339 Property \'id\' does not exist',
+  '',
+  '<span class="d">  one message on the way down, one on the way back. no polling.</span>',
 ];
 const stream = document.getElementById('stream');
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const cursor = () => { const s = document.createElement('span'); s.className = 'cursor'; return s; };
-
-function paint(i){
-  stream.textContent = '';
-  LINES.slice(0, i).forEach(l => {
-    const row = document.createElement('div');
-    row.className = l.c;
-    row.textContent = l.t || ' ';
-    stream.appendChild(row);
-  });
-  const last = document.createElement('div');
-  last.appendChild(cursor());
-  stream.appendChild(last);
-}
-if (reduced) {
-  paint(LINES.length);
-} else {
+const render = n => {
+  stream.innerHTML = LINES.slice(0, n).map(l => `<div>${l || '&nbsp;'}</div>`).join('')
+    + '<div><span class="caret"></span></div>';
+};
+if (reduced) render(LINES.length);
+else {
   let i = 0;
-  const tick = () => {
-    paint(++i);
-    if (i < LINES.length) setTimeout(tick, LINES[i - 1].t ? 420 : 140);
-  };
-  setTimeout(tick, 400);
+  const next = () => { render(++i); if (i < LINES.length) setTimeout(next, LINES[i - 1] ? 440 : 150); };
+  setTimeout(next, 320);
 }
 
-/* a running clock in the screen header, because a shell that runs has an uptime */
-const started = Date.now();
-setInterval(() => {
-  const s = Math.floor((Date.now() - started) / 1000);
-  document.getElementById('clock').textContent =
-    String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
-}, 1000);
-
-/* ---------------------------------------------------------------------------
-   2. Bays drive the detail panes: the platform structure IS the navigation.
-   ------------------------------------------------------------------------- */
-const BAYS = {
-  shell: {
-    cap: 'Viewport · bay 01 shell',
-    factcap: 'Bay 01 · specification',
-    shots: [['Panel','../media/dock.gif'],['Log search','../media/search.gif'],['Two shells','../media/tour.gif']],
-    facts: [['Agent tools','9'],['Watch presets','35'],['Views per shell','3'],['Shipped','v0.2.1']],
-    snippet:
-`<span class="d">// the agent, not you</span>
-shell_start
-  command: <span class="s">"npm run dev"</span>
-  waitFor: { port: <span class="s">5173</span> }
-  watch:   <span class="s">true</span>
-<span class="d">→ started sh_9wq2f1ab · port answered in 0.9s</span>`
-  },
-  agents: {
-    cap: 'Viewport · bay 02 agents',
-    factcap: 'Bay 02 · planned',
-    shots: [['Concept','../media/tour.gif']],
-    facts: [['Status','next'],['Live tree','planned'],['Peek overlay','planned'],['Keyboard','planned']],
-    snippet:
-`<span class="d">// today, in OpenCode</span>
-subagent → <span class="d">click, and the panel</span>
-           <span class="d">replaces your conversation</span>
-
-<span class="d">// bay 02</span>
-subagent → <span class="s">live tree in the sidebar</span>
-           <span class="s">peek without losing the thread</span>`
-  },
-  open: {
-    cap: 'Viewport · bay 03 open',
-    factcap: 'Bay 03 · open for proposals',
-    shots: [['What exists','../media/search.gif']],
-    facts: [['Checkpoints','idea'],['Context meter','idea'],['Ports & services','idea'],['Scheduled prompts','idea']],
-    snippet:
-`<span class="d">// every bay is its own package</span>
-@opencode-cockpit/shell    <span class="s">0.2.1</span>
-@opencode-cockpit/agents   <span class="d">—</span>
-@opencode-cockpit/&lt;yours&gt;  <span class="d">open an issue</span>`
-  }
-};
-
-const bays = [...document.querySelectorAll('.bay')];
-const tabs = document.getElementById('tabs');
+/* demo tabs */
 const shot = document.getElementById('shot');
-let current = 'shell';
-
-function selectBay(name){
-  current = name;
-  const bay = BAYS[name];
-  bays.forEach(b => b.setAttribute('aria-selected', String(b.dataset.bay === name)));
-  document.getElementById('viewcap').textContent = bay.cap;
-  document.getElementById('factcap').textContent = bay.factcap;
-
-  document.getElementById('facts').innerHTML = bay.facts
-    .map(([k, v]) => `<div class="fact"><span>${k}</span><b>${v}</b></div>`).join('');
-  document.getElementById('snippet').innerHTML = bay.snippet;
-
-  tabs.innerHTML = bay.shots
-    .map(([label, src], i) => `<button aria-pressed="${i === 0}" data-src="${src}">${label}</button>`).join('');
-  shot.src = bay.shots[0][1];
-  shot.alt = bay.shots[0][0] + ' recording';
-}
-
-bays.forEach(b => b.addEventListener('click', () => selectBay(b.dataset.bay)));
-tabs.addEventListener('click', e => {
-  const btn = e.target.closest('button');
-  if (!btn) return;
-  [...tabs.children].forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
-  shot.src = btn.dataset.src;
-  shot.alt = btn.textContent.trim() + ' recording';
+document.getElementById('tabs').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  [...b.parentNode.children].forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  shot.src = b.dataset.src;
+  shot.alt = b.textContent.trim();
 });
-selectBay('shell');
 
-/* ---------------------------------------------------------------------------
-   3. Keys, because a site for a keyboard-driven tool should answer to one.
-   ------------------------------------------------------------------------- */
-const order = ['shell', 'agents', 'open'];
-const help = document.getElementById('help');
-const copyInstall = async () => {
-  const btn = document.querySelector('[data-copy]');
-  try { await navigator.clipboard.writeText(document.getElementById('cmd').textContent.trim()); btn.textContent = 'copied'; }
-  catch { btn.textContent = 'press ⌘C'; }
-  setTimeout(() => { btn.textContent = 'copy'; }, 1500);
-};
-document.querySelector('[data-copy]').addEventListener('click', copyInstall);
-
-addEventListener('keydown', e => {
-  if (e.metaKey || e.ctrlKey || e.altKey) return;
-  const i = order.indexOf(current);
-  switch (e.key) {
-    case '1': case '2': case '3': selectBay(order[Number(e.key) - 1]); break;
-    case 'j': selectBay(order[Math.min(i + 1, order.length - 1)]); break;
-    case 'k': selectBay(order[Math.max(i - 1, 0)]); break;
-    case 'y': copyInstall(); break;
-    case '?': help.setAttribute('open', ''); break;
-    case 'Escape': help.removeAttribute('open'); break;
-    case 'Tab': {
-      if (tabs.children.length < 2) return;
-      e.preventDefault();
-      const cur = [...tabs.children].findIndex(b => b.getAttribute('aria-pressed') === 'true');
-      tabs.children[(cur + 1) % tabs.children.length].click();
-      break;
-    }
-  }
+/* copy buttons take the command sitting beside them */
+document.querySelectorAll('[data-copy]').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const text = btn.parentNode.textContent.replace(/\s*copy\s*$/, '').replace(/^\s*\$\s*/, '').trim();
+    try { await navigator.clipboard.writeText(text); btn.textContent = 'copied'; }
+    catch { btn.textContent = '⌘C'; }
+    setTimeout(() => { btn.textContent = 'copy'; }, 1500);
+  });
 });
-help.addEventListener('click', () => help.removeAttribute('open'));
 </script>
 </body>
 </html>
