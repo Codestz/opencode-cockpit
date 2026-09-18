@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en" data-direction="signal">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>opencode-cockpit — Direction C: Signal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chivo:wght@700;900&family=Public+Sans:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ============================================================================
+   DIRECTION C — "Signal"
+   The loudest of the three, and the most conventional as a product page: big
+   type, flat colour blocks, a hero that states the problem in one line. The
+   distinguishing move is the *status colour system* — the same three states the
+   product uses (running / failed / done) drive the whole page's colour.
+   Palette: chalk, deep indigo ground, signal lime, alarm coral.
+   ========================================================================== */
+:root{
+  --bg:#fbfaf8;
+  --surface:#ffffff;
+  --ink:#131320;
+  --ink-2:#5b5b70;
+  --line:#e2e0dd;
+  --indigo:#191932;   /* the block colour */
+  --lime:#c6f24e;     /* running / primary action */
+  --coral:#ff6a4d;    /* failed */
+  --mist:#9aa0c4;     /* on-indigo secondary text */
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme=light]){
+    --bg:#0f0f1a;--surface:#17172a;--ink:#f2f1ee;--ink-2:#a2a2bb;--line:#282840;--indigo:#0a0a14;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Public Sans",system-ui,sans-serif;font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
+.w{max-width:1160px;margin:0 auto;padding-inline:22px}
+h1,h2,h3{margin:0;font-family:Chivo,system-ui,sans-serif;font-weight:900;letter-spacing:-.035em;text-wrap:balance;line-height:1.02}
+p{margin:0;max-width:60ch}
+a{color:inherit}
+.mono{font-family:"Roboto Mono",ui-monospace,monospace}
+
+/* nav */
+nav.top{position:sticky;top:0;z-index:30;background:var(--bg);border-bottom:1px solid var(--line)}
+nav.top .w{display:flex;align-items:center;gap:26px;height:62px}
+.logo{font-family:Chivo,sans-serif;font-weight:900;font-size:18px;letter-spacing:-.04em}
+.logo i{font-style:normal;background:var(--lime);padding:2px 6px;border-radius:3px;color:#131320}
+nav.top .links{margin-left:auto;display:flex;gap:22px;font-size:15px;color:var(--ink-2)}
+nav.top .links a{text-decoration:none}
+nav.top .links a:hover{color:var(--ink)}
+.btn{
+  display:inline-flex;align-items:center;gap:9px;background:var(--ink);color:var(--bg);
+  font-weight:600;font-size:15px;padding:10px 18px;border-radius:999px;text-decoration:none;border:0;cursor:pointer;font-family:inherit;
+}
+.btn.lime{background:var(--lime);color:#131320}
+.btn:hover{transform:translateY(-1px)}
+@media (prefers-reduced-motion:reduce){.btn:hover{transform:none}}
+
+/* hero */
+.hero{padding-block:70px 46px;display:flex;flex-direction:column;gap:26px}
+.hero h1{font-size:clamp(46px,8vw,104px)}
+.hero h1 mark{background:var(--lime);color:#131320;padding-inline:8px;border-radius:4px}
+.hero .row{display:flex;gap:34px;align-items:flex-end;flex-wrap:wrap;justify-content:space-between}
+.hero p.big{font-size:20px;color:var(--ink-2)}
+.hero .actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:9px 15px;font-size:14px;color:var(--ink-2)}
+.pill b{color:var(--ink);font-weight:600}
+.pill .live{width:8px;height:8px;border-radius:50%;background:var(--lime);box-shadow:0 0 0 3px rgba(198,242,78,.25)}
+
+/* the big demo block: indigo slab, image bleeding wide */
+.slab{background:var(--indigo);color:#fff;padding-block:52px;margin-top:10px}
+.slab h2{font-size:clamp(28px,4vw,46px);color:#fff}
+.slab p{color:var(--mist);margin-top:14px;font-size:17px}
+.shot{margin-top:30px;border-radius:10px;overflow:hidden;background:#05050c;padding:12px;box-shadow:0 30px 60px -40px rgba(0,0,0,.9)}
+.shot img{display:block;width:100%;max-width:100%;border-radius:5px}
+.switch{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap}
+.switch button{
+  font:inherit;font-size:14px;font-weight:500;color:var(--mist);background:transparent;
+  border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:8px 15px;cursor:pointer;
+}
+.switch button[aria-pressed=true]{background:var(--lime);color:#131320;border-color:var(--lime)}
+.switch button:focus-visible{outline:2px solid var(--lime);outline-offset:3px}
+
+/* status-coloured feature cards: the product's own three states */
+.states{padding-block:66px;display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.state{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:26px 24px;display:flex;flex-direction:column;gap:12px}
+.state .badge{align-self:flex-start;font-family:"Roboto Mono",monospace;font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;padding:5px 10px;border-radius:5px;font-weight:500}
+.state.run .badge{background:var(--lime);color:#131320}
+.state.fail .badge{background:var(--coral);color:#fff}
+.state.done .badge{background:var(--ink);color:var(--bg)}
+.state h3{font-size:22px;letter-spacing:-.02em}
+.state p{font-size:15.5px;color:var(--ink-2)}
+.state .ex{font-family:"Roboto Mono",monospace;font-size:12.5px;color:var(--ink-2);border-top:1px solid var(--line);padding-top:12px;margin-top:auto}
+
+/* quote / positioning strip */
+.claim{padding-block:56px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.claim h2{font-size:clamp(26px,3.6vw,40px);max-width:20ch}
+.claim .cols{display:grid;grid-template-columns:1fr 1fr;gap:30px;margin-top:26px}
+.claim .col{display:flex;flex-direction:column;gap:10px}
+.claim .col h4{margin:0;font-size:15px;font-family:"Roboto Mono",monospace;font-weight:500;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.claim .col p{font-size:16px;color:var(--ink-2)}
+.claim .col b{color:var(--ink);font-weight:600}
+
+/* install */
+.install{padding-block:64px;display:flex;flex-direction:column;gap:20px;align-items:flex-start}
+.install h2{font-size:clamp(26px,3.6vw,40px)}
+.term{width:100%;background:var(--indigo);border-radius:10px;padding:20px 22px;color:#fff;font-family:"Roboto Mono",monospace;font-size:15px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.term .p{color:var(--lime)}
+.term button{margin-left:auto;font:inherit;font-size:12.5px;background:rgba(255,255,255,.12);color:#fff;border:0;border-radius:6px;padding:8px 13px;cursor:pointer}
+.term button:hover{background:var(--lime);color:#131320}
+
+footer{padding-block:34px;border-top:1px solid var(--line);color:var(--ink-2);font-size:14px;display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+
+@media (max-width:880px){
+  .states{grid-template-columns:1fr}
+  .claim .cols{grid-template-columns:1fr}
+  nav.top .links{display:none}
+}
+</style>
+</head>
+<body>
+
+<nav class="top">
+  <div class="w">
+    <div class="logo">cockpit<i>/shell</i></div>
+    <div class="links">
+      <a href="#demo">Demo</a><a href="#states">Features</a><a href="#why">Why</a><a href="#install">Install</a><a href="#">Docs</a>
+    </div>
+    <a class="btn" href="#install">Install</a>
+  </div>
+</nav>
+
+<header class="w hero">
+  <h1>Long-running commands,<br><mark>without the babysitting</mark>.</h1>
+  <div class="row">
+    <p class="big">Background terminals for OpenCode. The agent starts a dev server, waits for the port, and carries on — and tells you when something breaks, instead of re-reading logs for tokens.</p>
+    <div class="actions">
+      <span class="pill"><i class="live"></i> <b>v0.2.1</b> on npm</span>
+      <span class="pill"><b>MIT</b> · macOS + Linux</span>
+    </div>
+  </div>
+</header>
+
+<section class="slab" id="demo">
+  <div class="w">
+    <h2>This is a recording, not a mockup.</h2>
+    <p>Generated from a real OpenCode session by a script in the repository, re-run on every release. If the interface changes, the demo changes with it.</p>
+    <div class="shot"><img id="shot" src="../media/tour.gif" alt="A tour of the shells panel: two shells, a failing test suite, switching between them"></div>
+    <div class="switch">
+      <button aria-pressed="true" data-src="../media/tour.gif">Tour</button>
+      <button aria-pressed="false" data-src="../media/dock.gif">Dev server</button>
+      <button aria-pressed="false" data-src="../media/search.gif">Log search</button>
+    </div>
+  </div>
+</section>
+
+<section class="w states" id="states">
+  <div class="state run">
+    <span class="badge">running</span>
+    <h3>Starts, waits, returns</h3>
+    <p>Block on the real signal — a port answering, a line appearing, silence, an exit — instead of sleeping and hoping. The turn continues the moment the thing is actually up.</p>
+    <div class="ex">waitFor: { port: 5173 }</div>
+  </div>
+  <div class="state fail">
+    <span class="badge">failed</span>
+    <h3>Tells you when it breaks</h3>
+    <p>A watcher turns an endless log into transitions: one message on the way down, one on the way back, nothing while the result repeats. A process that dies counts as a failure.</p>
+    <div class="ex">tsc: ok → fail · TS2339 in total.ts</div>
+  </div>
+  <div class="state done">
+    <span class="badge">finished</span>
+    <h3>Says who ended it</h3>
+    <p>No more "killed by SIGTERM" with no explanation: a stopped shell reports its time limit, its idle limit, the agent, you, or a crash with its exit code.</p>
+    <div class="ex">stopped: hit its time limit · after 15m</div>
+  </div>
+</section>
+
+<section class="w claim" id="why">
+  <h2>The part your agent could never do before</h2>
+  <div class="cols">
+    <div class="col">
+      <h4>Before</h4>
+      <p>A dev server in a tool call blocks the turn. Backgrounded with <code>&amp;</code>, it is invisible — nobody sees the crash, and the only way to check on it is to read the whole log again, every time, in tokens.</p>
+    </div>
+    <div class="col">
+      <h4>With cockpit</h4>
+      <p><b>One daemon owns every process.</b> Shells outlive the turn, the session and the window. The agent reads forward with a cursor; you watch the same shells in a docked panel, on the keyboard, in your own terminal.</p>
+    </div>
+  </div>
+</section>
+
+<section class="w install" id="install">
+  <h2>Install it in one line</h2>
+  <div class="term">
+    <span class="p">$</span><span id="cmd">opencode plugin opencode-cockpit --global</span>
+    <button data-copy="#cmd">Copy</button>
+  </div>
+  <p>Restart OpenCode and ask it to start something. Configuration is optional and lives in one file for both halves of the plugin: <code class="mono">~/.config/opencode-cockpit/config.json</code>.</p>
+  <a class="btn lime" href="#">Read the docs →</a>
+</section>
+
+<footer class="w">
+  <span>opencode-cockpit · MIT · OpenCode 1.18+</span>
+  <span>Shell today. Agents next.</span>
+</footer>
+
+<script>
+const shot = document.getElementById('shot');
+document.querySelectorAll('.switch button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.switch button').forEach(b => b.setAttribute('aria-pressed', String(b === btn)));
+    shot.src = btn.dataset.src;
+    shot.alt = btn.textContent.trim() + ' recording';
+  });
+});
+document.querySelectorAll('[data-copy]').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const text = document.querySelector(btn.dataset.copy).textContent.trim();
+    try { await navigator.clipboard.writeText(text); btn.textContent = 'Copied'; }
+    catch { btn.textContent = 'Press ⌘C'; }
+    setTimeout(() => { btn.textContent = 'Copy'; }, 1600);
+  });
+});
+</script>
+</body>
+</html>
