@@ -6,6 +6,23 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- `watch` on `shell_start` takes a rule object (`{ done, fail, ok, idleSeconds }`), not only a preset
+  name. It read as documented before and was not.
+- Watching a command no preset matches no longer fails: the shell is watched for dying (preset
+  `exit`), so `sleep 300`, a deploy script or any quiet process gets crash detection without
+  patterns.
+
+### Changed
+
+- An ended shell says why it ended and who ended it, instead of "killed by SIGTERM": "stopped: hit
+  its time limit", "stopped: no output for its idle limit", "stopped by you, from the shells panel",
+  "stopped by the agent", "crashed with exit code 3". `ShellInfo` carries `stopReason` and
+  `stoppedBy` (protocol 1.3), and the panel shows the short form.
+- Clearer watch errors: an unknown preset now says `no watch preset named "x"` and points at both
+  `shell.presets` and custom rules.
+
 ## [0.2.0] - 2026-09-18
 
 ### Added

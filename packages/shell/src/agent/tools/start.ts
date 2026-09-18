@@ -1,4 +1,5 @@
 import { type ToolDefinition, tool } from "@opencode-ai/plugin"
+import type { ShellInfo } from "@opencode-cockpit/protocol/shell"
 import { describeStatus, formatWait, header } from "../../core/format.ts"
 import { abortable, askPermission, type ToolKit } from "./shared.ts"
 import { watchArgs } from "./watch-args.ts"
@@ -55,10 +56,20 @@ export function shellStart(kit: ToolKit): ToolDefinition {
         .describe("Block until ready. Same conditions as shell_wait."),
       notifyOnExit: z.boolean().default(true).describe("Message you when the process exits"),
       watch: z
-        .union([z.boolean(), z.string()])
+        .union([
+          z.boolean(),
+          z.string(),
+          z.object({
+            done: z.string().optional().describe("A run finished, e.g. 'Found \\d+ errors'"),
+            fail: z.string().optional(),
+            ok: z.string().optional(),
+            ignoreCase: z.boolean().optional(),
+            idleSeconds: z.number().positive().optional(),
+          }),
+        ])
         .optional()
         .describe(
-          'Watch this shell\'s health and message you only when it changes: true or "auto" picks a preset from the command, or name one (tsc, vitest, cargo…). For processes that never exit.',
+          'Watch this shell\'s health and message you only when it changes. true or "auto" picks a preset from the command (tsc, vitest, cargo…) and falls back to reporting the process dying; a name picks that preset; an object is your own rule, e.g. { done: "\\d+ (passed|failed)", fail: "\\d+ failed" }.',
         ),
       timeoutSeconds: z
         .number()
@@ -111,14 +122,11 @@ export function shellStart(kit: ToolKit): ToolDefinition {
       ]
 
       if (watch) {
-        const preset = typeof watch === "string" ? watch : "auto"
+        const how =
+          typeof watch === "object" ? { rule: watch } : watchArgs(watch === true ? "auto" : watch, config)
         await client
-          .call("shell.watch", { id: info.id, ...watchArgs(preset, config) })
-          .then((watched) =>
-            lines.push(
-              `watching health (${watched.watch?.preset ?? "custom rule"}); changes will be messaged to you`,
-            ),
-          )
+          .call("shell.watch", { id: info.id, ...how })
+          .then((watched) => lines.push(describeWatch(watched)))
           .catch((err) => lines.push(`could not watch: ${err instanceof Error ? err.message : String(err)}`))
       }
       if (args.waitFor) {
@@ -153,6 +161,14 @@ export function shellStart(kit: ToolKit): ToolDefinition {
       return lines.join("\n")
     },
   })
+}
+
+/** What was actually attached: a preset, your own rule, or plain crash reporting. */
+function describeWatch(info: ShellInfo): string {
+  const preset = info.watch?.preset
+  if (preset === "exit")
+    return "watching: no health patterns fit this command, so you will be messaged if it dies"
+  return `watching health (${preset ?? "custom rule"}); changes will be messaged to you`
 }
 
 /** Milliseconds from an option in seconds, or undefined when unset. */

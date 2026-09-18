@@ -24,7 +24,8 @@ export interface CockpitConfig {
   kinds?: Record<string, string>
   /** Applied to every shell the agent starts, unless the call says otherwise. */
   defaults?: {
-    watch?: boolean | string
+    /** true/"auto", a preset name, or your own rule. */
+    watch?: boolean | string | WatchRule
     logFile?: boolean
     idleTimeoutSeconds?: number
     timeoutSeconds?: number

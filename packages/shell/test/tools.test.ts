@@ -110,13 +110,13 @@ describe("agent tools", () => {
   test("shell_wait reports timeouts and exits clearly", async () => {
     const id = idOf(await run("shell_start", { command: "sleep 0.5; exit 2", description: "failing job" }))
     const out = await run("shell_wait", { id, pattern: "never", timeoutSeconds: 5 })
-    expect(out).toContain("process ended: exited with code 2")
+    expect(out).toContain("process ended: crashed with exit code 2")
   })
 
   test("shell_stop silences the exit notification and shell_list shows state", async () => {
     const id = idOf(await run("shell_start", { command: "sleep 60", description: "sleeper" }))
     const out = await run("shell_stop", { id })
-    expect(out).toContain("killed")
+    expect(out).toContain("stopped by") // says who asked, not just "killed by SIGTERM"
     expect(quiet.has(id)).toBe(true)
     const list = await run("shell_list", {})
     expect(list).toContain(id)
@@ -145,6 +145,24 @@ describe("agent tools", () => {
   })
 })
 
+describe("an ended shell says why", () => {
+  test("time limit, idle limit and a stop request read differently", async () => {
+    // Distinct commands: shell_start reuses a finished shell with the same command line.
+    await run("shell_start", { command: "sleep 31", description: "bounded probe", timeoutSeconds: 1 })
+    await run("shell_start", {
+      command: "echo one; sleep 32",
+      description: "quiet job",
+      idleTimeoutSeconds: 1,
+    })
+    const id = idOf(await run("shell_start", { command: "sleep 33", description: "stopped by hand" }))
+    expect(await run("shell_stop", { id })).toContain("stopped by")
+    await Bun.sleep(2500)
+    expect(await run("shell_list", { query: "bounded probe" })).toContain("hit its time limit")
+    expect(await run("shell_list", { query: "quiet job" })).toContain("no output for its idle limit")
+    expect(await run("shell_list", { query: "stopped by hand" })).toContain("stopped by")
+  })
+})
+
 describe("watching shell health", () => {
   test("shell_start can watch, and changes are visible to shell_list", async () => {
     const out = await run("shell_start", {
@@ -163,6 +181,32 @@ describe("watching shell health", () => {
     await run("shell_stop", { id })
   })
 
+  test("watch takes a rule object at start, no preset needed", async () => {
+    const out = await run("shell_start", {
+      command: "echo '3 passed'; sleep 0.4; echo '1 failed'; sleep 30",
+      description: "own rule at start",
+      watch: { done: "\\d+ (passed|failed)", fail: "\\d+ failed" },
+    })
+    expect(out).toContain("custom rule")
+    const id = idOf(out)
+    await Bun.sleep(900)
+    expect(await run("shell_list", { query: "own rule" })).toContain("watch: custom · fail")
+    await run("shell_stop", { id })
+  })
+
+  test("a command no preset matches is watched for dying, which is crash detection", async () => {
+    const out = await run("shell_start", {
+      command: "echo starting; sleep 0.4; exit 3",
+      description: "plain crasher",
+      watch: true,
+    })
+    expect(out).toContain("if it dies")
+    await Bun.sleep(900)
+    const list = await run("shell_list", { query: "plain crasher" })
+    expect(list).toContain("watch: exit · fail")
+    expect(list).toContain("process ended")
+  })
+
   test("shell_watch takes a custom rule and explains an unmatched command", async () => {
     const id = idOf(
       await run("shell_start", { command: "echo booting; sleep 30", description: "custom watch" }),
@@ -176,8 +220,10 @@ describe("watching shell health", () => {
         description: "no preset here",
       }),
     )
-    const error = await run("shell_watch", { id: noPreset }).catch((e: Error) => e.message)
-    expect(error).toContain("no watch preset matches")
+    // A command no preset matches is still watchable: you get told if it dies.
+    expect(await run("shell_watch", { id: noPreset })).toContain("(exit)")
+    const error = await run("shell_watch", { id: noPreset, preset: "nope" }).catch((e: Error) => e.message)
+    expect(error).toContain('no watch preset named "nope"')
     for (const shell of [id, noPreset]) await run("shell_stop", { id: shell })
   })
 })
@@ -226,7 +272,7 @@ describe("finding shells across sessions", () => {
     expect(ambiguous).toContain("matches several shells")
     expect(ambiguous).toContain("DB Monitoring replica")
 
-    expect(await run("shell_stop", { name: "DB Monitoring" }, me())).toContain("killed")
+    expect(await run("shell_stop", { name: "DB Monitoring" }, me())).toContain("stopped by")
     const needsTarget = await run("shell_read", {}, me()).catch((e: Error) => e.message)
     expect(needsTarget).toContain("pass the shell's id or name")
   })
@@ -274,6 +320,6 @@ describe("OpenCode passes raw args (no zod defaults, nulls for omitted fields)",
     expect(await raw("shell_read", { id, view: undefined, after: null, grep: null })).toContain("ping")
     expect(await raw("shell_wait", { id, idleSeconds: 0.2, pattern: null })).toContain("condition met")
     expect(await raw("shell_list", {})).toContain(id)
-    expect(await raw("shell_stop", { id })).toContain("killed")
+    expect(await raw("shell_stop", { id })).toContain("stopped by")
   })
 })

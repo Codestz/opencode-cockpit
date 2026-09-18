@@ -8,8 +8,10 @@ For processes that never exit (tsc --watch, vitest --watch, dev servers) this re
 the log: you get one message when it breaks, and one when it is fixed, and nothing while it repeats
 the same result.
 
-- preset: a named rule ("auto" picks one from the command). Presets exist for tsc, vitest, jest,
-  eslint, biome, cargo, go, gradle, pytest, vite, next, docker-compose and more.
+- preset: a named rule ("auto" picks one from the command, and falls back to reporting the process
+  dying when no patterns fit). Presets exist for tsc, vitest, jest, eslint, biome, cargo, go,
+  gradle, pytest, vite, next, docker-compose and more; "exit" watches only for the process dying,
+  which is how you get crash detection for a command that prints nothing useful.
 - rule: your own patterns when no preset fits: done (a run ended), fail, ok, idleSeconds.
 - off: stop watching.
 

@@ -74,11 +74,16 @@ A watch rule is three regexes, not a parser: `done` (a run ended), `fail` and `o
 tsc, eslint, biome, prettier, mypy, ruff, vitest, jest, mocha, bun test, deno test, pytest, rspec,
 phpunit, playwright, cypress, vite, next, nuxt, astro, angular, webpack/rspack, esbuild, tsup,
 turbo, metro, storybook, cargo, go, dotnet, gradle, maven, docker compose and terraform. Anything
-else takes its own patterns:
+else takes its own patterns, at `shell_start` or later:
 
 ```
+shell_start command="./deploy.sh" description="deploy" watch={ fail: "FAILED", ok: "SUCCEEDED", idleSeconds: 5 }
 shell_watch name="deploy" rule={ fail: "FAILED", ok: "SUCCEEDED", idleSeconds: 5 }
 ```
+
+When no preset fits and no rule is given — `sleep 300`, a plain script, anything that prints nothing
+recognizable — watching still works: the shell is watched for **dying** (preset `exit`), which is
+crash detection with no patterns to write.
 
 Things to ask:
 

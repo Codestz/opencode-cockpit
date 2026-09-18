@@ -58,7 +58,9 @@ export class ShellModule implements Module<"shell"> {
 
   async stop(): Promise<void> {
     for (const id of [...this.idleTimers.keys()]) this.clearIdle(id)
-    await Promise.all([...this.shells.values()].map((s) => s.stop("SIGTERM", 2000).catch(() => {})))
+    await Promise.all(
+      [...this.shells.values()].map((s) => s.stop("SIGTERM", 2000, { reason: "shutdown" }).catch(() => {})),
+    )
     for (const detach of this.attachments.values()) detach()
     for (const shell of this.shells.values()) shell.dispose()
     this.attachments.clear()

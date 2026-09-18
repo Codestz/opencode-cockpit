@@ -461,8 +461,11 @@ describe("watchers", () => {
     const watched = await c.call("shell.watch", { id: auto.id })
     expect(watched.watch?.preset).toBe("tsc")
 
-    const unmatched = await c.call("shell.watch", { id: info.id }).catch((e) => e)
-    expect(unmatched.message).toContain("no watch preset matches")
+    // Nothing matches `echo`, and that still watches: an empty rule reports the process dying.
+    const unmatched = await c.call("shell.watch", { id: info.id })
+    expect(unmatched.watch?.preset).toBe("exit")
+    const named = await c.call("shell.watch", { id: info.id, preset: "nope" }).catch((e) => e)
+    expect(named.message).toContain('no watch preset named "nope"')
 
     const presets = await c.call("shell.presets")
     expect(presets.length).toBeGreaterThan(25)

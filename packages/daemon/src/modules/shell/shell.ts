@@ -1,6 +1,13 @@
 import { createWriteStream, mkdirSync } from "node:fs"
 import { dirname } from "node:path"
-import type { LogLine, Owner, ScreenResult, ShellInfo, ShellStatus } from "@opencode-cockpit/protocol/shell"
+import type {
+  LogLine,
+  Owner,
+  ScreenResult,
+  ShellInfo,
+  ShellStatus,
+  StopReason,
+} from "@opencode-cockpit/protocol/shell"
 import { LineLog } from "./output/line-log.ts"
 import { OutputNormalizer } from "./output/normalizer.ts"
 import { RawRing } from "./output/raw-ring.ts"
@@ -67,6 +74,8 @@ export class Shell {
   private error: string | undefined
   /** Why the daemon stopped it, when it was not a user or agent request. */
   private stoppedBecause: string | undefined
+  private stopReason: StopReason | undefined
+  private stoppedBy: string | undefined
   private summary: string | undefined
   private stopRequested = false
   private timeout: ReturnType<typeof setTimeout> | undefined
@@ -118,6 +127,8 @@ export class Shell {
     }
     this.runStartLine = this.log.lastLine + 1
     this.stoppedBecause = undefined
+    this.stopReason = undefined
+    this.stoppedBy = undefined
     if (this.spec.logFile && !this.logWriter) {
       mkdirSync(dirname(this.spec.logFile), { recursive: true })
       const file = createWriteStream(this.spec.logFile, { flags: "a", mode: 0o600 })
@@ -159,6 +170,7 @@ export class Shell {
     if (this.spec.timeoutMs) {
       this.timeout = setTimeout(() => {
         this.stoppedBecause = `reached its ${Math.round((this.spec.timeoutMs ?? 0) / 1000)}s time limit`
+        this.stopReason = "timeout"
         void this.stop("SIGTERM", 3000)
       }, this.spec.timeoutMs)
     }
@@ -168,6 +180,7 @@ export class Shell {
         () => {
           if (!this.running || Date.now() - this.lastOutputAt < idleMs) return
           this.stoppedBecause = `produced no output for ${Math.round(idleMs / 1000)}s`
+          this.stopReason = "idle"
           void this.stop("SIGTERM", 3000)
         },
         Math.max(500, Math.floor(idleMs / 4)),
@@ -187,11 +200,20 @@ export class Shell {
     if (this.running) this.pty?.resize(cols, rows)
   }
 
-  /** Signal the group, escalate to SIGKILL after `graceMs`, and reap stragglers. */
-  async stop(signal: NodeJS.Signals = "SIGTERM", graceMs = 3000): Promise<void> {
+  /**
+   * Signal the group, escalate to SIGKILL after `graceMs`, and reap stragglers. `cause` says who
+   * asked, so an exit can be reported as a stop rather than as an unexplained kill.
+   */
+  async stop(
+    signal: NodeJS.Signals = "SIGTERM",
+    graceMs = 3000,
+    cause: { reason: StopReason; by?: string } = { reason: "request" },
+  ): Promise<void> {
     const pty = this.pty
     if (!pty || !this.running) return
     this.stopRequested = true
+    this.stopReason ??= cause.reason
+    this.stoppedBy ??= cause.by
     pty.signal(signal)
     const exited = await Promise.race([
       this.exitPromise.then(() => true),
@@ -229,6 +251,8 @@ export class Shell {
     if (this.exit?.signal) info.signal = this.exit.signal
     if (this.error) info.error = this.error
     if (this.summary) info.summary = this.summary
+    if (this.stopReason) info.stopReason = this.stopReason
+    if (this.stoppedBy) info.stoppedBy = this.stoppedBy
     if (this.spec.logFile) info.logFile = this.spec.logFile
     if (this.watcher) info.watch = this.watcher.state()
     if (this.endedAt) info.endedAt = this.endedAt

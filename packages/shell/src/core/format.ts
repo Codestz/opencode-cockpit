@@ -26,16 +26,45 @@ export function formatLines(lines: LogLine[]): string {
 }
 
 export function describeStatus(info: ShellInfo): string {
+  const ran = () => duration((info.endedAt ?? Date.now()) - info.startedAt)
   switch (info.status) {
     case "running":
       return `running (pid ${info.pid}, up ${duration(Date.now() - info.startedAt)})`
     case "exited":
-      return `exited with code ${info.exitCode ?? "?"} after ${duration((info.endedAt ?? Date.now()) - info.startedAt)}`
+      return info.exitCode === 0
+        ? `exited cleanly after ${ran()}`
+        : `crashed with exit code ${info.exitCode ?? "?"} after ${ran()}`
     case "killed":
-      return `killed${info.signal ? ` by ${info.signal}` : ""} after ${duration((info.endedAt ?? Date.now()) - info.startedAt)}`
+      return `${stopPhrase(info)} after ${ran()}`
     case "failed":
       return `failed to start: ${info.error ?? "unknown error"}`
   }
+}
+
+/** Who ended a shell, and why — "killed by SIGTERM" alone never said which of us did it. */
+function stopPhrase(info: ShellInfo): string {
+  switch (info.stopReason) {
+    case "timeout":
+      return "stopped: hit its time limit"
+    case "idle":
+      return "stopped: no output for its idle limit"
+    case "shutdown":
+      return "stopped because the shell daemon shut down"
+    case "request":
+      return `stopped by ${actor(info.stoppedBy)}`
+    default:
+      return info.exitCode != null && info.exitCode !== 0
+        ? `crashed (exit code ${info.exitCode})`
+        : `killed${info.signal ? ` by ${info.signal}` : ""} from outside`
+  }
+}
+
+/** Client names are wire identifiers; say them the way a person would. */
+function actor(client: string | undefined): string {
+  if (!client) return "a request"
+  if (client.includes("tui")) return "you, from the shells panel"
+  if (client.includes("server")) return "the agent"
+  return client
 }
 
 export function header(info: ShellInfo): string {

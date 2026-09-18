@@ -18,6 +18,10 @@ export const ShellInfo = z.object({
   error: z.string().optional(),
   /** Set when a run ends: the last error-looking line of the run, else its last line. */
   summary: z.string().optional(),
+  /** Why the shell stopped, when it did not end on its own. */
+  stopReason: z.enum(["timeout", "idle", "request", "shutdown"]).optional(),
+  /** The client that asked for the stop, for `stopReason: "request"`. */
+  stoppedBy: z.string().optional(),
   startedAt: z.number(),
   endedAt: z.number().optional(),
   cols: z.number().int(),
@@ -32,3 +36,4 @@ export const ShellInfo = z.object({
 })
 
 export type ShellInfo = z.output<typeof ShellInfo>
+export type StopReason = NonNullable<ShellInfo["stopReason"]>

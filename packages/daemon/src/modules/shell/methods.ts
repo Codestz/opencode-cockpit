@@ -6,6 +6,9 @@ import { waitFor } from "./wait.ts"
 import { PRESETS, presetByName, presetForCommand } from "./watch/presets.ts"
 import { compileRule, Watcher } from "./watch/watcher.ts"
 
+/** Preset name for a watcher with no patterns: it only reports the process dying. */
+const EXIT_ONLY = "exit"
+
 /**
  * The `shell.*` methods, kept apart from the module's lifecycle and bookkeeping so each file has
  * one job: this one maps protocol calls onto the module, `module.ts` owns the shells.
@@ -55,27 +58,27 @@ export function shellMethods(module: ShellModule): MethodTable<"shell"> {
       return { ...outcome, info: shell.info() }
     },
 
-    stop: async ({ id, signal, graceMs }) => {
+    stop: async ({ id, signal, graceMs }, { peer }) => {
       const shell = module.require(id)
-      await shell.stop(signal, graceMs)
+      await shell.stop(signal, graceMs, { reason: "request", by: peer.name })
       await shell.exited
       return shell.info()
     },
 
-    restart: async ({ id }) => {
+    restart: async ({ id }, { peer }) => {
       const shell = module.require(id)
       if (shell.running) {
-        await shell.stop("SIGTERM", 3000)
+        await shell.stop("SIGTERM", 3000, { reason: "request", by: peer.name })
         await shell.exited
       }
       module.spawn(shell)
       return shell.info()
     },
 
-    remove: async ({ id }) => {
+    remove: async ({ id }, { peer }) => {
       const shell = module.require(id)
       if (shell.running) {
-        await shell.stop("SIGTERM", 3000)
+        await shell.stop("SIGTERM", 3000, { reason: "request", by: peer.name })
         await shell.exited
       }
       module.forget(shell)
@@ -108,21 +111,23 @@ export function shellMethods(module: ShellModule): MethodTable<"shell"> {
     watch: ({ id, preset, rule }) => {
       const shell = module.require(id)
       const command = [shell.spec.command, ...shell.spec.args].join(" ")
+      const named = preset && preset !== "auto" && preset !== EXIT_ONLY
       const chosen = rule
         ? undefined
-        : preset && preset !== "auto"
-          ? (presetByName(preset) ??
-            invalidParams(`unknown preset "${preset}"; call shell.presets for the list`))
-          : presetForCommand(command)
+        : named
+          ? (presetByName(preset as string) ??
+            invalidParams(
+              `no watch preset named "${preset}". Call shell.presets for the list, or pass your own rule (done/fail/ok patterns).`,
+            ))
+          : preset === EXIT_ONLY
+            ? undefined
+            : presetForCommand(command)
       if (chosen instanceof Error) throw chosen
-      const watchRule = rule ?? chosen?.rule
-      if (!watchRule) {
-        throw invalidParams(
-          `no watch preset matches "${command.slice(0, 80)}"; pass a rule (done/fail/ok patterns) or a preset name`,
-        )
-      }
+      // No pattern fits a command like `sleep 300`, and that is still worth watching: an empty rule
+      // reports nothing until the process dies, which is exactly crash detection.
+      const watchRule = rule ?? chosen?.rule ?? {}
       try {
-        shell.watcher = new Watcher(compileRule(watchRule), chosen?.name)
+        shell.watcher = new Watcher(compileRule(watchRule), chosen?.name ?? (rule ? undefined : EXIT_ONLY))
       } catch (err) {
         throw invalidParams(`invalid watch pattern: ${err instanceof Error ? err.message : String(err)}`)
       }

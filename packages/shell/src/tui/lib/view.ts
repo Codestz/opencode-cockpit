@@ -83,10 +83,26 @@ export function statusDetail(s: ShellInfo, now: number): string {
     case "done":
       return `took ${ran} · ${ago}`
     case "stop":
-      return `stopped after ${ran} · ${ago}`
+      return `${stopWord(s)} after ${ran} · ${ago}`
     case "fail":
       if (s.status === "failed") return "could not start"
       return `exit ${s.exitCode ?? "?"} after ${ran} · ${ago}`
+  }
+}
+
+/** Why it stopped, in one word, because the panel has room for exactly that. */
+function stopWord(s: ShellInfo): string {
+  switch (s.stopReason) {
+    case "timeout":
+      return "timed out"
+    case "idle":
+      return "idle-stopped"
+    case "shutdown":
+      return "daemon stopped it"
+    case "request":
+      return s.stoppedBy?.includes("tui") ? "you stopped it" : "agent stopped it"
+    default:
+      return "stopped"
   }
 }
 
