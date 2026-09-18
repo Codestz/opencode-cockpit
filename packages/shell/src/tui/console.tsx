@@ -5,6 +5,7 @@ import type { ScrollBoxRenderable } from "@opentui/core"
 import { useBindings } from "@opentui/keymap/solid"
 import { useTerminalDimensions } from "@opentui/solid"
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from "solid-js"
+import { kindOfShell } from "../tools/kind.ts"
 import { Badge } from "./badge.tsx"
 import { isReleaseKey, keyToBytes } from "./keys.ts"
 import { type ShellStore, useScreen } from "./store.ts"
@@ -15,6 +16,7 @@ import {
   relativeCwd,
   statusDetail,
   tailLines,
+  tailRuns,
   truncate,
   watchColor,
   watchLabel,
@@ -43,6 +45,22 @@ function friendlyError(err: unknown): string {
 }
 const COMMAND_LINES = 3
 
+/** Splits a line into plain and matching parts so a filtered log can highlight what matched. */
+export function splitMatches(text: string, query: string): { text: string; match: boolean }[] {
+  if (!query) return [{ text, match: false }]
+  const parts: { text: string; match: boolean }[] = []
+  const haystack = text.toLowerCase()
+  const needle = query.toLowerCase()
+  let from = 0
+  for (let at = haystack.indexOf(needle, from); at !== -1; at = haystack.indexOf(needle, from)) {
+    if (at > from) parts.push({ text: text.slice(from, at), match: false })
+    parts.push({ text: text.slice(at, at + needle.length), match: true })
+    from = at + needle.length
+  }
+  if (from < text.length) parts.push({ text: text.slice(from), match: false })
+  return parts.length > 0 ? parts : [{ text, match: false }]
+}
+
 /**
  * Keyboard-first shell console in an overlay. Normal mode: single-key actions. Typing mode:
  * every key goes to the program (ctrl+c included); ctrl+] returns to normal mode.
@@ -55,6 +73,10 @@ export function Console(props: ConsoleProps) {
   const [typing, setTyping] = createSignal(props.typing ?? false)
   const [log, setLog] = createSignal<LogLine[]>([])
   const [notice, setNotice] = createSignal<Notice>()
+  /** Applied log filter, and the query being typed for it. */
+  const [filter, setFilter] = createSignal("")
+  const [searching, setSearching] = createSignal(false)
+  const [draft, setDraft] = createSignal("")
   const { screen } = useScreen(props.store, () => shell()?.id)
   let scroll: ScrollBoxRenderable | undefined
 
@@ -117,13 +139,14 @@ export function Console(props: ConsoleProps) {
 
   // Log view: reload on selection, view switch and new output.
   createEffect(
-    on([() => shell()?.id, view, () => screen()], () => {
+    on([() => shell()?.id, view, filter, () => screen()], () => {
       const id = shell()?.id
       if (!id || view() !== "log") return
+      // The daemon greps server-side, so filtering a 40k-line log costs one call, not a transfer.
       void client
-        .call("shell.read", { id, tail: 2000, limit: 2000 })
+        .call("shell.read", { id, tail: 2000, limit: 2000, grep: filter() || undefined, ignoreCase: true })
         .then((page) => setLog(page.lines))
-        .catch(() => {})
+        .catch(() => setLog([]))
     }),
   )
 
@@ -142,6 +165,21 @@ export function Console(props: ConsoleProps) {
   const release = props.api.keymap.intercept(
     "key",
     (ctx) => {
+      // Search takes keys first: a typed query must reach neither the program nor the dialog.
+      if (searching()) {
+        const event = ctx.event
+        ctx.consume({ preventDefault: true, stopPropagation: true })
+        if (event.name === "escape") return setSearching(false)
+        if (event.name === "return" || event.name === "enter") {
+          setFilter(draft().trim())
+          return setSearching(false)
+        }
+        if (event.name === "backspace") return setDraft((value) => value.slice(0, -1))
+        if (event.sequence && !event.ctrl && !event.meta && event.sequence >= " ") {
+          setDraft((value) => value + event.sequence)
+        }
+        return
+      }
       if (!typing()) return
       const event = ctx.event
       ctx.consume({ preventDefault: true, stopPropagation: true })
@@ -204,17 +242,38 @@ export function Console(props: ConsoleProps) {
       {
         name: "cockpit.console.clear",
         title: "Clear finished shells",
-        run: () =>
+        run: () => {
+          if (finished() === 0) {
+            flash("nothing to clear: no finished shells", "info", 2500)
+            return
+          }
           act("clear", async () => {
             const n = await props.store.clearFinished()
             return `cleared ${n} finished shell${n === 1 ? "" : "s"}`
-          }),
+          })
+        },
       },
-      { name: "cockpit.console.all", title: "Show all / fewer shells", run: () => props.store.toggleAll() },
       {
         name: "cockpit.console.view",
         title: "Toggle screen/log",
         run: () => setView((v) => (v === "log" ? "screen" : "log")),
+      },
+      {
+        name: "cockpit.console.search",
+        title: "Search this shell's log",
+        run: () => {
+          setView("log")
+          setDraft(filter())
+          setSearching(true)
+        },
+      },
+      {
+        name: "cockpit.console.searchClear",
+        title: "Clear the log filter",
+        run: () => {
+          setFilter("")
+          setDraft("")
+        },
       },
       { name: "cockpit.console.details", title: "Toggle details", run: () => toggle("details") },
       { name: "cockpit.console.next", title: "Next shell", run: () => props.store.step(1) },
@@ -237,8 +296,9 @@ export function Console(props: ConsoleProps) {
       { key: "x", cmd: "cockpit.console.stop", desc: "Stop" },
       { key: "d", cmd: "cockpit.console.remove", desc: "Remove" },
       { key: "shift+d", cmd: "cockpit.console.clear", desc: "Clear finished" },
-      { key: "a", cmd: "cockpit.console.all", desc: "All" },
       { key: "tab", cmd: "cockpit.console.view", desc: "Screen/log" },
+      { key: "/", cmd: "cockpit.console.search", desc: "Search log" },
+      { key: "backspace", cmd: "cockpit.console.searchClear", desc: "Clear filter" },
       { key: "?,shift+/", cmd: "cockpit.console.details", desc: "Details" },
       { key: "],l,right", cmd: "cockpit.console.next", desc: "Next" },
       { key: "[,h,left", cmd: "cockpit.console.prev", desc: "Prev" },
@@ -252,6 +312,8 @@ export function Console(props: ConsoleProps) {
   }))
 
   const screenText = createMemo(() => tailLines(screen()?.text, bodyRows(), bodyCols()))
+  // Colour when the daemon sent styled rows; the plain text stays the fallback.
+  const screenRuns = createMemo(() => tailRuns(screen()?.styled, bodyRows(), bodyCols()))
   const details = createMemo(() =>
     shell() ? detailRows(shell() as ShellInfo, props.store.now(), bodyCols()) : [],
   )
@@ -265,26 +327,34 @@ export function Console(props: ConsoleProps) {
           : screenText().split("\n").length
     return Math.min(bodyRows(), Math.max(6, content))
   })
+  const finished = createMemo(() => props.store.shells().filter((s) => s.status !== "running").length)
   const position = createMemo(() => {
-    const list = props.store.visible()
+    const list = props.store.shells()
     const index = list.findIndex((x) => x.id === shell()?.id)
-    const hidden = props.store.hidden().length
-    return list.length > 1 || hidden > 0 ? `${index + 1}/${list.length}${hidden ? ` +${hidden}` : ""}` : ""
+    return list.length > 1 ? `${index + 1}/${list.length}` : ""
   })
   // Only the keys that do something for the selected shell.
+  /** Only the keys that do something right now: no sidebar concepts, no actions with no target. */
   const hint = createMemo(() => {
+    if (searching()) return `search: ${draft()}▏· enter filters · esc cancels`
     if (typing()) return "TYPING: keys go to the shell (ctrl+c included) · ctrl+] stop typing"
-    const next = view() === "log" ? "screen" : "log"
     const wide = dims().width >= 110
-    const live = running()
-      ? wide
-        ? ["i type", "c ^C", "r restart", "x stop"]
-        : ["i type", "c ^C", "r", "x"]
-      : [wide ? "r run again" : "r rerun", wide ? "d remove" : "d"]
-    const common = wide
-      ? [`tab ${next}`, "? details", "[ ] switch", "D clear done", "a all", "esc"]
-      : [`tab ${next}`, "?", "[ ]", "D", "a", "esc"]
-    return [...(shell() ? live : ["n new"]), ...common].join(" · ")
+    const label = (long: string, short: string) => (wide ? long : short)
+    const keys: string[] = []
+    if (!shell()) return ["n new", "esc close"].join(" · ")
+    keys.push(
+      ...(running()
+        ? [label("i type", "i"), label("c ^C", "c"), label("r restart", "r"), label("x stop", "x")]
+        : [label("r run again", "r"), label("d remove", "d")]),
+    )
+    if (view() === "log" && filter()) keys.push(label("backspace clear filter", "⌫ filter"))
+    keys.push(label(`tab ${view() === "log" ? "screen" : "log"}`, "tab"))
+    if (view() !== "details") keys.push(label("/ search log", "/"))
+    keys.push(label("? details", "?"))
+    if (props.store.shells().length > 1) keys.push(label("[ ] switch", "[ ]"))
+    if (finished() > 0) keys.push(label("D clear done", "D"))
+    keys.push(label("n new", "n"), "esc")
+    return keys.join(" · ")
   })
 
   return (
@@ -354,9 +424,30 @@ export function Console(props: ConsoleProps) {
               overflow="hidden"
             >
               <Show when={view() === "screen"}>
-                <text fg={theme().text} wrapMode="none">
-                  {screenText() || " "}
-                </text>
+                <Show
+                  when={screenRuns().length > 0}
+                  fallback={
+                    <text fg={theme().text} wrapMode="none">
+                      {screenText() || " "}
+                    </text>
+                  }
+                >
+                  <box flexDirection="column">
+                    <For each={screenRuns()}>
+                      {(row) => (
+                        <text fg={theme().text} wrapMode="none">
+                          <For each={row}>
+                            {(run) => (
+                              <span style={{ fg: run.fg, bg: run.bg, bold: run.bold, italic: run.italic }}>
+                                {run.text}
+                              </span>
+                            )}
+                          </For>{" "}
+                        </text>
+                      )}
+                    </For>
+                  </box>
+                </Show>
               </Show>
               <Show when={view() === "details"}>
                 <box flexDirection="column">
@@ -385,10 +476,21 @@ export function Console(props: ConsoleProps) {
                     {(line) => (
                       <text fg={theme().text} wrapMode="none">
                         <span style={{ fg: theme().textMuted }}>{String(line.n).padStart(5)} </span>
-                        {truncate(line.text, bodyCols() - 7)}
+                        <For each={splitMatches(truncate(line.text, bodyCols() - 7), filter())}>
+                          {(part) =>
+                            part.match ? (
+                              <span style={{ fg: theme().background, bg: theme().warning }}>{part.text}</span>
+                            ) : (
+                              <span>{part.text}</span>
+                            )
+                          }
+                        </For>
                       </text>
                     )}
                   </For>
+                  <Show when={filter() && log().length === 0}>
+                    <text fg={theme().textMuted}>no lines match "{filter()}"</text>
+                  </Show>
                 </scrollbox>
               </Show>
             </box>
@@ -431,6 +533,7 @@ function detailRows(s: ShellInfo, now: number, cols: number): [string, string][]
   const rows: [string, string][] = []
   for (const [i, line] of wrapText(displayCommand(s), width, 12).entries())
     rows.push([i === 0 ? "command" : "", line])
+  rows.push(["kind", kindOfShell(s)])
   rows.push(["folder", s.cwd])
   rows.push([
     "status",
@@ -448,5 +551,6 @@ function detailRows(s: ShellInfo, now: number, cols: number): [string, string][]
     ])
   }
   rows.push(["output", `${s.lines.last} lines · ${Math.round(s.bytes / 1024)} KiB`])
+  if (s.logFile) rows.push(["log file", s.logFile])
   return rows
 }

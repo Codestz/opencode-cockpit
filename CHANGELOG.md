@@ -23,6 +23,22 @@ All notable changes to this project are documented here. The format follows
   unpinned plugin spec only once, so installs never moved forward on their own.
 - `bun run release <patch|minor|major|x.y.z> [--push]` bumps every package, promotes the changelog
   and tags, so releases stop being a manual edit.
+- **Log search in the console.** `/` filters a shell's scrollback to matching lines, keeping line
+  numbers and highlighting matches; `backspace` clears the filter. Filtering runs in the daemon.
+- **Colours.** The panel and console paint the colours programs actually print, instead of stripping
+  them.
+- **Limits.** `idleTimeoutSeconds` stops a shell after that much silence (never a default: healthy
+  dev servers are idle), alongside the existing `timeoutSeconds` wall-clock limit. Both explain
+  themselves in the shell's summary.
+- **Log files.** `logFile` writes a shell's clean log to `~/.cache/opencode-cockpit/logs/<id>.log`,
+  so history survives the in-memory buffer.
+- **Shell kinds.** Shells classify themselves from their command (server, tests, build, watcher,
+  task); `shell_list` filters by `kind`, so "which servers are up?" is one call.
+
+### Changed
+
+- Console keys now show only what applies: no sidebar-only "show all", no "clear finished" without
+  finished shells, and `[` `]` cycles every shell rather than just the unfolded ones.
 
 ## [0.1.5] - 2026-09-18
 

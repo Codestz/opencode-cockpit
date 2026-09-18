@@ -35,7 +35,7 @@ one loaded is used and OpenCode shows a warning.
 | `shell_wait` | Block on a condition instead of sleeping. |
 | `shell_read` | Clean log from a cursor, with `grep`; or `view: "screen"` for full-screen programs. |
 | `shell_send` | Type text or keys (`ctrl+c`, `up`, `enter`) and get the reply. |
-| `shell_list` | Find shells: filter by text (`query`), `status` (running, failed, finished) and `session` (this, others). Each shows which session started it. |
+| `shell_list` | Find shells: filter by text (`query`), `status`, `session` and `kind` (server, tests, build, watcher, task — derived from the command). |
 | `shell_watch` | Watch a never-ending process and be told **only when its health changes**: "tsc: ok → 3 errors". |
 | `shell_stop` · `shell_restart` | Manage shells. |
 
@@ -44,6 +44,7 @@ with), so you can ask about shells naturally, including ones started in other se
 
 - *"How is DB Monitoring doing?"* → `shell_read name="DB Monitoring"`
 - *"Did any shell from my other session fail?"* → `shell_list status="failed" session="others"`
+- *"Which dev servers are up?"* → `shell_list kind="server" status="running"`
 
 Names match ignoring case, then partially on name or command. If a name fits several shells the
 agent gets the candidates instead of a guess.
@@ -93,6 +94,7 @@ Things to ask:
 | `ctrl+x i` · `/shell` | Open the shell console |
 | `/shell-new` | Start a shell yourself |
 | `/shells-clear` | Remove finished shells |
+| `/cockpit-update` | Update the plugin when a newer release exists |
 | `/shells-restart-daemon` | Restart `cockpitd` (asks first when shells are running) |
 
 Watched shells also show their health (`tsc ✓`, `vitest ✗`) in the panel, sidebar and console.
@@ -100,9 +102,17 @@ Watched shells also show their health (`tsc ✓`, `vitest ✗`) in the panel, si
 Status reads the same everywhere: `RUN` (with a spinner), `FAIL`, `STOP`, `DONE`. Running shells
 and recent failures stay visible; everything else folds into `▸ N more`.
 
-**Console keys.** Running shell: `i` type (every key goes to the program, `ctrl+]` to stop typing),
-`c` ctrl+c, `r` restart, `x` stop. Finished shell: `r` run again, `d` remove. Always: `tab`
-screen or log, `?` details, `[` `]` switch, `D` clear finished, `a` show all, `esc` close.
+**Console keys**, and only the ones that apply right now. Running shell: `i` type (every key goes to
+the program, `ctrl+]` to stop typing), `c` ctrl+c, `r` restart, `x` stop. Finished shell: `r` run
+again, `d` remove. Always: `tab` screen or log, `/` search the log (`backspace` clears the filter),
+`?` details, `[` `]` switch shells, `D` clear finished, `esc` close.
+
+**Searching a long log.** In the console, `/` filters the scrollback to matching lines — keeping
+their original line numbers and highlighting the match — so a 40k-line dev server is one query away
+from the five lines you want. Filtering happens in the daemon, not the terminal.
+
+**Output keeps its colours.** The panel and console paint what the program actually printed, so
+`vitest`, `eslint` and friends read the way they do in a terminal.
 
 ## Configuration
 
@@ -129,6 +139,15 @@ Using `opencode-cockpit` instead? Put the same options under `"shell"`:
 | `COCKPIT_HOME` | `~/.cache/opencode-cockpit` | Socket, logs, process registry |
 | `COCKPIT_IDLE_TIMEOUT_MS` | `600000` | Daemon exits after this long with no clients and no running shells |
 | `COCKPIT_LOG_LEVEL` | `info` | `debug` for verbose daemon logs |
+
+**Limits and log files** (per shell, set by the agent):
+
+- `timeoutSeconds` — stop it after this long, busy or not. Good for probes: *"watch the DB for two
+  minutes"*.
+- `idleTimeoutSeconds` — stop it after this much silence. Never use it for dev servers, which are
+  idle when healthy.
+- `logFile` — also write the clean log to `~/.cache/opencode-cockpit/logs/<id>.log`, so history
+  survives the in-memory buffer. The path shows in the console's details view.
 
 ## Troubleshooting
 

@@ -1,3 +1,5 @@
+import { createWriteStream, mkdirSync } from "node:fs"
+import { dirname } from "node:path"
 import type { LogLine, Owner, ScreenResult, ShellInfo, ShellStatus } from "@opencode-cockpit/protocol/shell"
 import { LineLog } from "./output/line-log.ts"
 import { OutputNormalizer } from "./output/normalizer.ts"
@@ -19,6 +21,9 @@ export interface ShellSpec {
   rows: number
   owner: Owner
   timeoutMs?: number
+  idleTimeoutMs?: number
+  /** Absolute path the clean log is appended to, when logging was requested. */
+  logFile?: string
 }
 
 export interface ShellLimits {
@@ -60,9 +65,13 @@ export class Shell {
   private endedAt: number | undefined
   private exit: PtyExit | undefined
   private error: string | undefined
+  /** Why the daemon stopped it, when it was not a user or agent request. */
+  private stoppedBecause: string | undefined
   private summary: string | undefined
   private stopRequested = false
   private timeout: ReturnType<typeof setTimeout> | undefined
+  private idleTimer: ReturnType<typeof setInterval> | undefined
+  private logWriter: { write(text: string): void; end(): void } | undefined
   private exitPromise: Promise<void> = Promise.resolve()
 
   constructor(
@@ -108,6 +117,15 @@ export class Shell {
       this.screen.reset()
     }
     this.runStartLine = this.log.lastLine + 1
+    this.stoppedBecause = undefined
+    if (this.spec.logFile && !this.logWriter) {
+      mkdirSync(dirname(this.spec.logFile), { recursive: true })
+      const file = createWriteStream(this.spec.logFile, { flags: "a", mode: 0o600 })
+      file.on("error", () => {
+        this.logWriter = undefined
+      })
+      this.logWriter = { write: (text) => file.write(text), end: () => file.end() }
+    }
     this.status = "running"
     this.startedAt = Date.now()
     this.lastOutputAt = this.startedAt
@@ -139,7 +157,21 @@ export class Shell {
     const pty = this.pty
     this.exitPromise = pty.exited.then((exit) => this.onExit(pty, exit))
     if (this.spec.timeoutMs) {
-      this.timeout = setTimeout(() => void this.stop("SIGTERM", 3000), this.spec.timeoutMs)
+      this.timeout = setTimeout(() => {
+        this.stoppedBecause = `reached its ${Math.round((this.spec.timeoutMs ?? 0) / 1000)}s time limit`
+        void this.stop("SIGTERM", 3000)
+      }, this.spec.timeoutMs)
+    }
+    if (this.spec.idleTimeoutMs) {
+      const idleMs = this.spec.idleTimeoutMs
+      this.idleTimer = setInterval(
+        () => {
+          if (!this.running || Date.now() - this.lastOutputAt < idleMs) return
+          this.stoppedBecause = `produced no output for ${Math.round(idleMs / 1000)}s`
+          void this.stop("SIGTERM", 3000)
+        },
+        Math.max(500, Math.floor(idleMs / 4)),
+      )
     }
   }
 
@@ -197,6 +229,7 @@ export class Shell {
     if (this.exit?.signal) info.signal = this.exit.signal
     if (this.error) info.error = this.error
     if (this.summary) info.summary = this.summary
+    if (this.spec.logFile) info.logFile = this.spec.logFile
     if (this.watcher) info.watch = this.watcher.state()
     if (this.endedAt) info.endedAt = this.endedAt
     return info
@@ -204,6 +237,8 @@ export class Shell {
 
   dispose(): void {
     clearTimeout(this.timeout)
+    clearInterval(this.idleTimer)
+    this.logWriter?.end()
     this.listeners.clear()
     this.pty?.close()
     this.screen.dispose()
@@ -225,6 +260,7 @@ export class Shell {
   private createNormalizer(): OutputNormalizer {
     return new OutputNormalizer((text) => {
       const line = this.log.append(text)
+      this.logWriter?.write(`${text}\n`)
       const change = this.watcher?.line(text)
       if (change) this.onWatchChange?.(change)
       for (const l of this.listeners) l.line?.(line)
@@ -246,11 +282,14 @@ export class Shell {
   private onExit(pty: PtyProcess, exit: PtyExit): void {
     if (this.pty !== pty) return // a newer run replaced this one
     clearTimeout(this.timeout)
+    clearInterval(this.idleTimer)
+    this.logWriter?.end()
+    this.logWriter = undefined
     this.normalizer.flush()
     this.exit = exit
     this.endedAt = Date.now()
     this.status = this.stopRequested || exit.signal ? "killed" : "exited"
-    this.summary = this.summarize()
+    this.summary = this.stoppedBecause ? `stopped: ${this.stoppedBecause}` : this.summarize()
     const ended = this.watcher?.exited(exit.exitCode ?? undefined, exit.signal ?? undefined)
     if (ended) this.onWatchChange?.(ended)
     // Session leader is gone; make sure nothing it left behind keeps running.

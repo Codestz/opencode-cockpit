@@ -1,5 +1,5 @@
 import type { TuiThemeCurrent } from "@opencode-ai/plugin/tui"
-import type { ShellInfo } from "@opencode-cockpit/protocol/shell"
+import type { ScreenRun, ShellInfo } from "@opencode-cockpit/protocol/shell"
 import { duration } from "../tools/format.ts"
 
 /** What a human cares about, derived from status + exit code so every surface agrees. */
@@ -163,6 +163,22 @@ export function wrapText(text: string, width: number, maxLines: number): string[
     lines[lines.length - 1] = `${last.slice(0, w - 1)}…`
   }
   return lines
+}
+
+/** Last `rows` styled rows, each cut to `cols`, so colour survives the same trimming as text. */
+export function tailRuns(styled: ScreenRun[][] | undefined, rows: number, cols: number): ScreenRun[][] {
+  if (!styled) return []
+  return styled.slice(Math.max(0, styled.length - rows)).map((row) => {
+    const out: ScreenRun[] = []
+    let width = 0
+    for (const run of row) {
+      if (width >= cols) break
+      const text = run.text.slice(0, cols - width)
+      width += text.length
+      out.push({ ...run, text })
+    }
+    return out
+  })
 }
 
 /** Last `rows` lines of screen text, each cut to `cols`. */

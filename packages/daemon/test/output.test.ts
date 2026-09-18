@@ -139,3 +139,37 @@ describe("Screen", () => {
     screen.dispose()
   })
 })
+
+describe("Screen colours", () => {
+  test("resolves ANSI colours and attributes into styled runs", async () => {
+    const screen = new Screen(40, 4)
+    // red "FAIL", default " ok", bold bright-green "PASS", 256-colour orange, then truecolor.
+    screen.write(
+      new TextEncoder().encode(
+        "\x1b[31mFAIL\x1b[0m ok \x1b[1;92mPASS\x1b[0m\r\n\x1b[38;5;208m256\x1b[0m \x1b[38;2;18;52;86mrgb\x1b[0m\r\n",
+      ),
+    )
+    const snap = await screen.snapshot()
+    const first = snap.styled?.[0] ?? []
+    expect(first[0]).toMatchObject({ text: "FAIL", fg: "#cd0000" })
+    expect(first[1]).toMatchObject({ text: " ok " })
+    expect(first[1]?.fg).toBeUndefined()
+    expect(first[2]).toMatchObject({ text: "PASS", fg: "#00ff00", bold: true })
+
+    const second = snap.styled?.[1] ?? []
+    expect(second[0]).toMatchObject({ text: "256", fg: "#ff8700" })
+    expect(second.at(-1)).toMatchObject({ text: "rgb", fg: "#123456" })
+    // Plain text stays in step with the styled rows.
+    expect(snap.text.split("\n")[0]).toBe("FAIL ok PASS")
+    screen.dispose()
+  })
+
+  test("blank rows carry no runs", async () => {
+    const screen = new Screen(20, 3)
+    screen.write(new TextEncoder().encode("one\r\n"))
+    const snap = await screen.snapshot()
+    expect(snap.styled).toHaveLength(1)
+    expect(snap.styled?.[0]).toEqual([{ text: "one" }])
+    screen.dispose()
+  })
+})

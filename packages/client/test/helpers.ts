@@ -11,7 +11,7 @@ export function tempHome(): CockpitPaths {
 export async function startDaemon(paths = tempHome(), idleTimeoutMs = 0) {
   const daemon = new Daemon({
     paths,
-    modules: createModules(),
+    modules: createModules({ shell: { logDir: `${paths.home}/logs` } }),
     idleTimeoutMs,
     logToFile: false,
     logLevel: "error",

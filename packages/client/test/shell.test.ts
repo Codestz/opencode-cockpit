@@ -496,3 +496,42 @@ describe("watchers", () => {
     expect(changes.at(-1)?.summary).toContain("exit code 7")
   })
 })
+
+describe("limits and log files", () => {
+  test("a time limit stops the shell and says why", async () => {
+    const c = env.client()
+    const info = await c.call("shell.start", bash("sleep 30", { timeoutMs: 700 }))
+    const done = await c.call("shell.wait", { id: info.id, until: { exit: true }, timeoutMs: 5000 })
+    expect(done.info.status).toBe("killed")
+    expect(done.info.summary).toContain("time limit")
+  })
+
+  test("idle auto-kill stops a silent shell but leaves a busy one alone", async () => {
+    const c = env.client()
+    const silent = await c.call("shell.start", bash("echo hello; sleep 30", { idleTimeoutMs: 800 }))
+    const busy = await c.call(
+      "shell.start",
+      bash("while true; do echo tick; sleep 0.2; done", { idleTimeoutMs: 800 }),
+    )
+    const stopped = await c.call("shell.wait", { id: silent.id, until: { exit: true }, timeoutMs: 6000 })
+    expect(stopped.info.status).toBe("killed")
+    expect(stopped.info.summary).toContain("no output for")
+    expect((await c.call("shell.get", { id: busy.id })).status).toBe("running")
+    await c.call("shell.stop", { id: busy.id, graceMs: 500 })
+  })
+
+  test("logFile writes the clean log to disk, surviving eviction", async () => {
+    const c = env.client()
+    const info = await c.call(
+      "shell.start",
+      bash("printf '\\r10%%\\r55%%\\rdone\\n'; echo second line", { logFile: true }),
+    )
+    await c.call("shell.wait", { id: info.id, until: { exit: true }, timeoutMs: 5000 })
+    await Bun.sleep(200)
+    const path = (await c.call("shell.get", { id: info.id })).logFile as string
+    expect(path).toContain(info.id)
+    const written = await Bun.file(path).text()
+    // Same normalization the agent reads: redraws collapsed, no escape codes.
+    expect(written.split("\n").filter(Boolean)).toEqual(["done", "second line"])
+  })
+})

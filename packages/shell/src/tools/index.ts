@@ -5,6 +5,7 @@ import type { ShellInfo } from "@opencode-cockpit/protocol/shell"
 import { commandOf, filterShells, matchByName, type SessionFilter, type StatusFilter } from "./find.ts"
 import { describeStatus, formatLines, formatRead, formatWait, header } from "./format.ts"
 import { encodeKey, KEY_NAMES } from "./keys.ts"
+import { kindOfShell, type ShellKind } from "./kind.ts"
 
 export interface ToolDeps {
   client: CockpitClient
@@ -171,7 +172,19 @@ export function createTools(deps: ToolDeps): Record<string, ToolDefinition> {
           .int()
           .positive()
           .optional()
-          .describe("Stop the process after this long. Only for commands expected to finish."),
+          .describe("Stop the process after this long, busy or not. Good for bounded jobs and probes."),
+        idleTimeoutSeconds: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe(
+            "Stop the process after this much silence. Never use it for dev servers, which are idle when healthy.",
+          ),
+        logFile: z
+          .boolean()
+          .default(false)
+          .describe("Also write the clean log to a file, so old lines survive the in-memory buffer"),
       },
       async execute(args, ctx) {
         await askPermission(ctx, args.command)
@@ -184,6 +197,8 @@ export function createTools(deps: ToolDeps): Record<string, ToolDefinition> {
           title: args.description,
           owner: { project: ctx.directory, session: ctx.sessionID, instance: deps.instance },
           timeoutMs: args.timeoutSeconds ? Math.round(args.timeoutSeconds * 1000) : undefined,
+          idleTimeoutMs: args.idleTimeoutSeconds ? Math.round(args.idleTimeoutSeconds * 1000) : undefined,
+          logFile: args.logFile === true,
           reuse: true,
         })
         if (args.notifyOnExit === false) deps.quiet.add(info.id)
@@ -237,6 +252,7 @@ export function createTools(deps: ToolDeps): Record<string, ToolDefinition> {
             client.call("shell.wait", { id: info.id, until: { idleMs: 700, exit: true }, timeoutMs: 2500 }),
           )
         }
+        if (info.logFile) lines.push(`log file: ${info.logFile}`)
         lines.push(await peek(info))
         return lines.join("\n")
       },
@@ -433,11 +449,17 @@ export function createTools(deps: ToolDeps): Record<string, ToolDefinition> {
 Filter to find the one you need instead of reading them all:
 - query: text in the name or command, e.g. "db" or "vitest"
 - status: running, failed, finished
-- session: this (started by you in this session), others (other sessions or the user)`,
+- session: this (started by you in this session), others (other sessions or the user)
+- kind: server, tests, build, watcher, task — derived from the command, so "which servers are up?"
+  is one call`,
       args: {
         query: z.string().optional().describe("Case-insensitive text in the shell name or command"),
         status: z.enum(["running", "failed", "finished", "any"]).default("any"),
         session: z.enum(["this", "others", "any"]).default("any"),
+        kind: z
+          .enum(["server", "tests", "build", "watcher", "task", "any"])
+          .default("any")
+          .describe("What the shell is, derived from its command"),
         all: z.boolean().default(false).describe("Include shells from other projects"),
       },
       async execute(args, ctx) {
@@ -446,6 +468,7 @@ Filter to find the one you need instead of reading them all:
           args.all === true ? {} : { owner: { project: ctx.directory } },
         )
         const shells = filterShells(everything, {
+          kind: (args.kind ?? "any") as ShellKind | "any",
           query: args.query ?? undefined,
           status: (args.status ?? "any") as StatusFilter,
           session: (args.session ?? "any") as SessionFilter,
@@ -464,7 +487,7 @@ Filter to find the one you need instead of reading them all:
               ? `\n    watch: ${s.watch.preset ?? "custom"} · ${s.watch.status}${s.watch.summary ? ` · ${s.watch.summary.slice(0, 120)}` : ""}`
               : ""
             return [
-              `${s.id}  ${s.status.padEnd(7)}  "${s.title}"${s.run > 1 ? ` (run ${s.run})` : ""} · ${await sessionLabel(s, ctx)}`,
+              `${s.id}  ${s.status.padEnd(7)}  "${s.title}"${s.run > 1 ? ` (run ${s.run})` : ""} · ${kindOfShell(s)} · ${await sessionLabel(s, ctx)}`,
               `    $ ${commandOf(s).slice(0, 200)}${failure}`,
               `    ${describeStatus(s)}${watch}${tail ? `\n    last: ${tail.slice(0, 200)}` : ""}`,
             ].join("\n")

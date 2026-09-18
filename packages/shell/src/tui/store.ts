@@ -109,8 +109,10 @@ export function createShellStore(
       frame,
       selected: pick,
       select: (id) => setSelectedId(id),
+      // Cycles every shell in the project: folding only exists to keep the sidebar short, and a
+      // shell you cannot reach from the console would be a trap.
       step(delta) {
-        const list = folded().visible
+        const list = order(state.list)
         if (list.length === 0) return
         const index = Math.max(
           0,

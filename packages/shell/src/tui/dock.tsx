@@ -11,6 +11,7 @@ import {
   kindOf,
   statusDetail,
   tailLines,
+  tailRuns,
   truncate,
   watchColor,
   watchLabel,
@@ -36,7 +37,9 @@ export function Dock(props: DockProps) {
     (props.store.showAll() ? props.store.shells() : props.store.visible()).slice(0, tabLimit()),
   )
   const overflow = createMemo(() => props.store.shells().length - tabs().length)
-  const body = createMemo(() => tailLines(screen()?.text, bodyRows(), Math.max(10, dims().width - 4)))
+  const bodyCols = () => Math.max(10, dims().width - 4)
+  const body = createMemo(() => tailLines(screen()?.text, bodyRows(), bodyCols()))
+  const bodyRuns = createMemo(() => tailRuns(screen()?.styled, bodyRows(), bodyCols()))
 
   return (
     <box
@@ -114,9 +117,30 @@ export function Dock(props: DockProps) {
               overflow="hidden"
               onMouseUp={() => props.onOpenConsole(shell().id)}
             >
-              <text fg={theme().text} wrapMode="none">
-                {body() || " "}
-              </text>
+              <Show
+                when={bodyRuns().length > 0}
+                fallback={
+                  <text fg={theme().text} wrapMode="none">
+                    {body() || " "}
+                  </text>
+                }
+              >
+                <box flexDirection="column">
+                  <For each={bodyRuns()}>
+                    {(row) => (
+                      <text fg={theme().text} wrapMode="none">
+                        <For each={row}>
+                          {(run) => (
+                            <span style={{ fg: run.fg, bg: run.bg, bold: run.bold, italic: run.italic }}>
+                              {run.text}
+                            </span>
+                          )}
+                        </For>{" "}
+                      </text>
+                    )}
+                  </For>
+                </box>
+              </Show>
             </box>
             <box flexDirection="row" gap={1} paddingLeft={2} flexShrink={0} height={1} overflow="hidden">
               <text fg={kindColor(theme(), kindOf(shell()))} wrapMode="none" flexShrink={0}>

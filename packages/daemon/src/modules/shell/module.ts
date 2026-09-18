@@ -1,3 +1,4 @@
+import { join } from "node:path"
 import type { ShellInfo, StartParams } from "@opencode-cockpit/protocol/shell"
 import { invalidParams, invalidState, notFound } from "../../core/errors.ts"
 import type { Logger } from "../../core/logger.ts"
@@ -22,6 +23,8 @@ export interface ShellModuleOptions {
   outputFlushMs?: number
   /** Where to record owned process groups so a restarted daemon can reap orphans. */
   registryFile?: string
+  /** Directory for per-shell log files, when a caller asks for one. */
+  logDir?: string
 }
 
 const DEFAULT_LIMITS: ShellLimits = { logChars: 4_000_000, rawBytes: 1_000_000, scrollback: 2000 }
@@ -218,9 +221,10 @@ export class ShellModule implements Module<"shell"> {
         return previous.info()
       }
     }
+    const id = this.uniqueId()
     const shell = new Shell(
       {
-        id: this.uniqueId(),
+        id,
         command: params.command,
         args: params.args,
         cwd: params.cwd,
@@ -230,6 +234,8 @@ export class ShellModule implements Module<"shell"> {
         rows: params.rows,
         owner: params.owner,
         timeoutMs: params.timeoutMs,
+        idleTimeoutMs: params.idleTimeoutMs,
+        logFile: params.logFile ? join(this.options.logDir ?? "/tmp", `${id}.log`) : undefined,
       },
       this.backend,
       this.limits,

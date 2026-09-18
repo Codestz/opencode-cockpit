@@ -69,6 +69,9 @@ Presets cover about 35 tools (tsc, vitest, jest, eslint, cargo, go, gradle, pyte
 docker compose…), and anything else takes three regexes of its own. A watched process that dies
 counts as a failure, so a crashed dev server is reported too.
 
+**You can find things in a huge log.** `/` in the console filters the scrollback to matching lines,
+keeping line numbers and highlighting matches — and output keeps the colours the program printed.
+
 **It can type.** Prompts, REPLs, migration wizards: `shell_send` sends text or named keys
 (`ctrl+c`, `up`, `enter`) and returns whatever the program printed back.
 
@@ -92,6 +95,7 @@ counts as a failure, so a crashed dev server is reported too.
 | `ctrl+x i` · `/shell` | Open the shell console |
 | `/shell-new` | Start a shell yourself |
 | `/shells-clear` | Remove finished shells |
+| `/cockpit-update` | Update the plugin when a newer release exists |
 
 Status reads the same everywhere — `RUN` (with a spinner), `FAIL`, `STOP`, `DONE` — running shells
 and recent failures stay in view, the rest folds behind `▸ N more`. In the console: `i` types
@@ -160,7 +164,7 @@ Each shell's output feeds three views at once: a normalized **log** for the agen
 
 - **Agents** — live subagent tree with a peek overlay.
 - **Doctor** — one command that checks your setup and tells you how to fix it.
-- Coloured output in the panel and console.
+- Shell groups in the sidebar, if the five-row cap ever stops being enough.
 
 ## Contributing
 

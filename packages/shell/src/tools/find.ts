@@ -1,4 +1,5 @@
 import type { ShellInfo } from "@opencode-cockpit/protocol/shell"
+import { kindOfShell, type ShellKind } from "./kind.ts"
 
 /** The command as written, without the `$SHELL -c` wrapper. */
 export function commandOf(s: ShellInfo): string {
@@ -9,6 +10,8 @@ export type StatusFilter = "running" | "failed" | "finished" | "any"
 export type SessionFilter = "this" | "others" | "any"
 
 export interface ShellFilter {
+  /** What the shell is, derived from its command (server, tests, build, watcher, task). */
+  kind?: ShellKind | "any"
   /** Case-insensitive text found in the name or the command. */
   query?: string
   status?: StatusFilter
@@ -24,6 +27,7 @@ export function isFailed(s: ShellInfo): boolean {
 export function filterShells(list: readonly ShellInfo[], filter: ShellFilter): ShellInfo[] {
   const query = filter.query?.trim().toLowerCase()
   return list.filter((s) => {
+    if (filter.kind && filter.kind !== "any" && kindOfShell(s) !== filter.kind) return false
     if (query && !s.title.toLowerCase().includes(query) && !commandOf(s).toLowerCase().includes(query)) {
       return false
     }

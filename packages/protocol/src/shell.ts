@@ -76,6 +76,8 @@ export const ShellInfo = z.object({
   bytes: z.number().int(),
   /** Health reported by this shell's watcher, when one is attached. */
   watch: WatchState.optional(),
+  /** File this shell's clean log is written to, when logging was requested. */
+  logFile: z.string().optional(),
 })
 
 const Dimension = z.number().int().min(2).max(1000)
@@ -89,8 +91,15 @@ export const StartParams = z.object({
   cols: Dimension.default(120),
   rows: Dimension.default(32),
   owner: Owner,
-  /** Stop the shell automatically after this long. */
+  /** Stop the shell automatically after this long, however busy it is. */
   timeoutMs: z.number().int().positive().optional(),
+  /**
+   * Stop the shell after this much silence. Never a default: a dev server is idle by definition,
+   * and killing one for being quiet would be wrong.
+   */
+  idleTimeoutMs: z.number().int().positive().optional(),
+  /** Also write the clean log to a file, for debugging after the buffer has evicted old lines. */
+  logFile: z.boolean().default(false),
   /**
    * Restart a finished shell with the same command, args, cwd, project and session instead of
    * creating a new one. Repeated runs then share one id and one log.
@@ -141,11 +150,25 @@ export const ReadResult = z.object({
   status: ShellStatus,
 })
 
+/** A run of characters sharing one style, so a UI can repaint colour without parsing escapes. */
+export const ScreenRun = z.object({
+  text: z.string(),
+  /** Resolved "#rrggbb"; absent means the viewer's default foreground. */
+  fg: z.string().optional(),
+  bg: z.string().optional(),
+  bold: z.boolean().optional(),
+  dim: z.boolean().optional(),
+  italic: z.boolean().optional(),
+  underline: z.boolean().optional(),
+})
+
 export const ScreenResult = z.object({
   text: z.string(),
   cols: z.number().int(),
   rows: z.number().int(),
   cursor: z.object({ x: z.number().int(), y: z.number().int() }),
+  /** The same rows as `text`, carrying colour. */
+  styled: z.array(z.array(ScreenRun)).optional(),
 })
 
 export const WriteParams = z.object({ id: ShellId, data: z.string().max(1_000_000) })
@@ -233,6 +256,7 @@ export type StartParams = z.output<typeof StartParams>
 export type ReadParams = z.output<typeof ReadParams>
 export type ReadResult = z.output<typeof ReadResult>
 export type ScreenResult = z.output<typeof ScreenResult>
+export type ScreenRun = z.output<typeof ScreenRun>
 export type WaitParams = z.output<typeof WaitParams>
 export type WaitResult = z.output<typeof WaitResult>
 export type WaitReason = z.output<typeof WaitReason>

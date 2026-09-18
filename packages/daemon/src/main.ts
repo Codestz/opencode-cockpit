@@ -12,7 +12,9 @@ const foreground = process.argv.includes("--foreground")
 const paths = resolvePaths(env)
 const daemon = new Daemon({
   paths,
-  modules: createModules({ shell: { registryFile: join(paths.home, "shells.json") } }),
+  modules: createModules({
+    shell: { registryFile: join(paths.home, "shells.json"), logDir: join(paths.home, "logs") },
+  }),
   idleTimeoutMs: Number(env.COCKPIT_IDLE_TIMEOUT_MS ?? 10 * 60_000),
   logLevel: (env.COCKPIT_LOG_LEVEL as Level | undefined) ?? "info",
   logToFile: !foreground,
