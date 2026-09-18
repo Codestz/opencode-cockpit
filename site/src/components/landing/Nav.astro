@@ -1,0 +1,34 @@
+---
+import Logo from "../Logo.astro"
+import { nav } from "../../data/landing"
+const base = import.meta.env.BASE_URL
+---
+<nav>
+  <div class="page">
+    <a class="brand" href={base}><Logo /> Cockpit</a>
+    <div class="links">
+      {nav.links.map((l) => <a href={l.href}>{l.label}</a>)}
+    </div>
+    <div class="right">
+      <span class="version mono">{nav.version}</span>
+      <a href={`${base}start/what-cockpit-is/`}>Docs</a>
+      <a href={nav.github}>GitHub</a>
+      <a class="btn btn-solid" href="#install">Install</a>
+    </div>
+  </div>
+</nav>
+
+<style>
+  nav {
+    position: sticky; top: 0; z-index: 40; border-bottom: 1px solid var(--ck-line);
+    background: color-mix(in srgb, var(--ck-bg) 85%, transparent); backdrop-filter: blur(14px);
+  }
+  nav .page { display: flex; align-items: center; gap: 30px; height: 66px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--ck-font-display); font-weight: 600; font-size: 16.5px; letter-spacing: -0.02em; }
+  .links { display: flex; gap: 24px; font-size: 14.5px; color: var(--ck-fg-2); }
+  .links a:hover { color: var(--ck-fg); }
+  .right { margin-left: auto; display: flex; align-items: center; gap: 18px; font-size: 14.5px; color: var(--ck-fg-2); }
+  .right a:hover { color: var(--ck-fg); }
+  .version { font-size: 12px; color: var(--ck-fg-3); border: 1px solid var(--ck-line); border-radius: 7px; padding: 4px 9px; }
+  @media (max-width: 940px) { .links { display: none; } }
+</style>

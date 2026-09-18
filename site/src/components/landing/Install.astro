@@ -1,0 +1,56 @@
+---
+import SectionHead from "./SectionHead.astro"
+import { install } from "../../data/landing"
+---
+<section class="page section" id="install" style="padding-top:0">
+  <SectionHead number={install.number} kicker={install.kicker} title={install.title} />
+
+  <div class="seg">
+    {install.modes.map((m, i) => (
+      <button type="button" aria-pressed={i === 0} data-mode={m.id}>{m.label}</button>
+    ))}
+  </div>
+
+  <div class="surface box">
+    {install.modes.map((m, i) => (
+      <div class="mode" data-mode-panel={m.id} hidden={i !== 0}>
+        <div class="cmd mono">
+          <span class="sigil">$</span><span data-copy-text>{m.command}</span>
+          <button type="button" data-copy>copy</button>
+        </div>
+        <p class="install-note" set:html={m.note} />
+      </div>
+    ))}
+    <div class="steps">
+      {install.steps.map((s, i) => (
+        <div><i class="mono">{String(i + 1).padStart(2, "0")}</i><span set:html={s} /></div>
+      ))}
+    </div>
+  </div>
+</section>
+
+<style>
+  .seg { margin-top: 36px; display: inline-flex; border: 1px solid var(--ck-line); border-radius: var(--ck-radius-sm); padding: 4px; gap: 4px; background: var(--ck-card); }
+  .seg button { background: none; border: 0; border-radius: 7px; padding: 8px 16px; font: inherit; font-size: 14px; color: var(--ck-fg-2); cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: var(--ck-card-2); color: var(--ck-fg); }
+  .box { margin-top: 18px; padding: 22px 24px; max-width: 760px; }
+  .cmd { display: flex; align-items: center; gap: 12px; font-size: 14px; background: var(--ck-bg-2); border: 1px solid var(--ck-line); border-radius: 9px; padding: 13px 15px; overflow-x: auto; }
+  .cmd .sigil { color: var(--ck-accent); }
+  .cmd button { margin-left: auto; background: none; border: 0; color: var(--ck-fg-3); font: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+  .cmd button:hover { color: var(--ck-fg); }
+  .install-note { margin-top: 14px; color: var(--ck-fg-2); font-size: 14.5px; }
+  .steps { margin-top: 18px; display: flex; flex-direction: column; gap: 9px; font-size: 14.5px; color: var(--ck-fg-2); }
+  .steps div { display: grid; grid-template-columns: 22px 1fr; gap: 10px; }
+  .steps i { font-style: normal; font-size: 12px; color: var(--ck-fg-3); padding-top: 3px; }
+</style>
+
+<script>
+  const tabs = document.querySelectorAll<HTMLButtonElement>(".seg button")
+  const panels = document.querySelectorAll<HTMLElement>("[data-mode-panel]")
+  tabs.forEach((tab) =>
+    tab.addEventListener("click", () => {
+      tabs.forEach((t) => t.setAttribute("aria-pressed", String(t === tab)))
+      panels.forEach((p) => { p.hidden = p.dataset.modePanel !== tab.dataset.mode })
+    }),
+  )
+</script>

@@ -1,0 +1,83 @@
+---
+import SectionHead from "./SectionHead.astro"
+import { demo } from "../../data/landing"
+const base = import.meta.env.BASE_URL.replace(/\/$/, "")
+---
+<section class="page section" id="demo" style="padding-top:0">
+  <SectionHead number={demo.number} kicker={demo.kicker} title={demo.title} intro={demo.intro} />
+
+  <div class="demo">
+    <div class="rail">
+      {demo.clips.map((c, i) => (
+        <button
+          type="button"
+          aria-pressed={i === 0}
+          data-src={`${base}/casts/${c.cast}.cast`}
+          data-caption={c.caption}
+        >{c.label}<small class="mono">{c.hint}</small></button>
+      ))}
+    </div>
+    <div>
+      <div class="frame" id="player"></div>
+      <p class="cap mono" id="cap">{demo.clips[0].caption}</p>
+    </div>
+  </div>
+</section>
+
+<style>
+  .demo { margin-top: 40px; display: grid; grid-template-columns: 230px minmax(0, 1fr); gap: 24px; align-items: start; }
+  .rail { display: flex; flex-direction: column; gap: 6px; }
+  .rail button {
+    text-align: left; background: none; border: 0; border-left: 2px solid var(--ck-line);
+    padding: 11px 14px; color: var(--ck-fg-3); font: inherit; font-size: 14px; cursor: pointer; transition: 0.14s ease;
+  }
+  .rail button:hover { color: var(--ck-fg-2); }
+  .rail button[aria-pressed="true"] { border-left-color: var(--ck-accent); color: var(--ck-fg); }
+  .rail small { display: block; font-size: 11.5px; color: var(--ck-fg-3); margin-top: 3px; }
+  .frame { background: var(--ck-card); border: 1px solid var(--ck-line); border-radius: var(--ck-radius); padding: 12px; }
+  .cap { margin-top: 12px; font-size: 12px; color: var(--ck-fg-3); }
+  @media (max-width: 940px) { .demo { grid-template-columns: 1fr; } }
+</style>
+
+<script>
+  import * as AsciinemaPlayer from "asciinema-player"
+  import "asciinema-player/dist/bundle/asciinema-player.css"
+
+  const mount = document.getElementById("player")!
+  const cap = document.getElementById("cap")!
+  const buttons = document.querySelectorAll<HTMLButtonElement>(".rail button")
+  let player: { dispose(): void } | undefined
+
+  const play = (btn: HTMLButtonElement) => {
+    player?.dispose()
+    player = AsciinemaPlayer.create(btn.dataset.src!, mount, {
+      autoPlay: true, loop: true, controls: true, speed: 1.4, idleTimeLimit: 0.9,
+      theme: "cockpit", fit: "width",
+    })
+    cap.textContent = btn.dataset.caption ?? ""
+  }
+
+  buttons.forEach((btn) =>
+    btn.addEventListener("click", () => {
+      buttons.forEach((b) => b.setAttribute("aria-pressed", String(b === btn)))
+      play(btn)
+    }),
+  )
+
+  // Nothing is fetched until the section is actually on screen.
+  new IntersectionObserver((entries, obs) => {
+    for (const e of entries) if (e.isIntersecting) { play(buttons[0]!); obs.disconnect() }
+  }, { rootMargin: "300px" }).observe(mount)
+</script>
+
+<style is:global>
+  .asciinema-player-theme-cockpit {
+    --term-color-foreground: #c7d2dc;
+    --term-color-background: var(--ck-bg);
+    --term-color-0: #0b0d10; --term-color-1: #f0797a; --term-color-2: #5fe3c0; --term-color-3: #f0b45e;
+    --term-color-4: #6ea8fe; --term-color-5: #c79bf0; --term-color-6: #5fd8e3; --term-color-7: #c7d2dc;
+    --term-color-8: #5f6e7b; --term-color-9: #ff9b9c; --term-color-10: #7ff0d1; --term-color-11: #ffc97d;
+    --term-color-12: #8dbcff; --term-color-13: #dcb4ff; --term-color-14: #8ae8f0; --term-color-15: #e8edf2;
+  }
+  .ap-player { font-family: var(--ck-font-mono) !important; }
+</style>

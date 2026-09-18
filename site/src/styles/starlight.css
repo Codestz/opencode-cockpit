@@ -1,0 +1,54 @@
+/**
+ * Maps Starlight's own variables onto the tokens, so the docs and the landing page cannot drift.
+ * Add nothing here that is not a mapping or a small correction.
+ */
+:root,
+:root[data-theme="dark"] {
+  --sl-color-accent: var(--ck-accent);
+  --sl-color-accent-low: var(--ck-accent-soft);
+  --sl-color-accent-high: var(--ck-accent);
+  --sl-color-white: var(--ck-fg);
+  --sl-color-gray-1: var(--ck-fg);
+  --sl-color-gray-2: var(--ck-fg-2);
+  --sl-color-gray-3: var(--ck-fg-2);
+  --sl-color-gray-4: var(--ck-fg-3);
+  --sl-color-gray-5: var(--ck-line-2);
+  --sl-color-gray-6: var(--ck-line);
+  --sl-color-black: var(--ck-bg);
+  --sl-color-bg: var(--ck-bg);
+  --sl-color-bg-nav: var(--ck-bg);
+  --sl-color-bg-sidebar: var(--ck-bg);
+  --sl-color-bg-inline-code: var(--ck-card-2);
+  /* text drawn on top of the accent — without this the current sidebar item is unreadable */
+  --sl-color-text-invert: var(--ck-accent-ink);
+  --sl-color-text-accent: var(--ck-accent);
+  --sl-color-hairline: var(--ck-line);
+  --sl-color-hairline-light: var(--ck-line-2);
+  --sl-font: var(--ck-font);
+  --sl-font-mono: var(--ck-font-mono);
+  --sl-content-width: 50rem;
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent: var(--ck-accent);
+  --sl-color-white: var(--ck-fg);
+  --sl-color-black: var(--ck-bg);
+  --sl-color-bg: var(--ck-bg);
+  --sl-color-bg-nav: var(--ck-bg);
+  --sl-color-bg-sidebar: var(--ck-bg);
+  --sl-color-gray-7: var(--ck-card);
+}
+
+/* Headings in the display face, like the landing page. */
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3,
+site-title {
+  font-family: var(--ck-font-display);
+  letter-spacing: -0.02em;
+}
+
+/* Code and terminal output should read as terminal output. */
+.sl-markdown-content code {
+  font-family: var(--ck-font-mono);
+}

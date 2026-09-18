@@ -1,0 +1,17 @@
+---
+import { specs } from "../../data/landing"
+---
+<div class="page">
+  <div class="specs">
+    {specs.map((s) => (
+      <span class="spec"><b>{s.value}</b><span>{s.label}</span></span>
+    ))}
+  </div>
+</div>
+
+<style>
+  .specs { display: flex; flex-wrap: wrap; gap: 0 40px; padding-block: 28px; margin-top: 26px; border-block: 1px solid var(--ck-line); }
+  .spec { display: flex; align-items: baseline; gap: 10px; }
+  .spec b { font-family: var(--ck-font-display); font-size: 22px; font-weight: 600; letter-spacing: -0.03em; }
+  .spec span { font-size: 13.5px; color: var(--ck-fg-3); }
+</style>

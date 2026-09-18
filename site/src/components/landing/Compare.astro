@@ -1,0 +1,33 @@
+---
+import SectionHead from "./SectionHead.astro"
+import { compare } from "../../data/landing"
+---
+<section class="page section" id="why">
+  <SectionHead number={compare.number} kicker={compare.kicker} title={compare.title} intro={compare.intro} />
+  <div class="rows">
+    <div class="rowhead mono">
+      <span>{compare.columns[0]}</span><span>{compare.columns[1]}</span>
+    </div>
+    {compare.rows.map(([then, now], i) => (
+      <div class="row">
+        <span class="then"><i class="mono">{String(i + 1).padStart(2, "0")}</i>{then}</span>
+        <span class="now"><i class="mono">→</i>{now}</span>
+      </div>
+    ))}
+  </div>
+</section>
+
+<style>
+  .rows { margin-top: 40px; display: flex; flex-direction: column; border-top: 1px solid var(--ck-line); }
+  .rowhead { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px; padding-bottom: 12px; font-size: 11.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ck-fg-3); }
+  .row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px; padding-block: 20px; border-bottom: 1px solid var(--ck-line); align-items: baseline; }
+  .then, .now { display: flex; gap: 12px; font-size: 15.5px; }
+  .then { color: var(--ck-fg-3); }
+  .then i, .now i { font-style: normal; font-size: 12px; padding-top: 3px; }
+  .then i { color: var(--ck-fg-3); }
+  .now i { color: var(--ck-accent); }
+  @media (max-width: 940px) {
+    .row, .rowhead { grid-template-columns: 1fr; gap: 10px; }
+    .rowhead span:last-child { display: none; }
+  }
+</style>

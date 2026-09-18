@@ -1,0 +1,28 @@
+---
+import Base from "../layouts/Base.astro"
+import Nav from "../components/landing/Nav.astro"
+import Hero from "../components/landing/Hero.astro"
+import Specs from "../components/landing/Specs.astro"
+import Compare from "../components/landing/Compare.astro"
+import Platform from "../components/landing/Platform.astro"
+import Bays from "../components/landing/Bays.astro"
+import Demo from "../components/landing/Demo.astro"
+import Install from "../components/landing/Install.astro"
+import Closing from "../components/landing/Closing.astro"
+---
+<Base
+  title="Cockpit — instruments for OpenCode"
+  description="A platform for OpenCode capabilities. Shell ships today: background terminals your agent starts, waits on, and never babysits."
+>
+  <Nav />
+  <main>
+    <Hero />
+    <Specs />
+    <Compare />
+    <Platform />
+    <Bays />
+    <Demo />
+    <Install />
+  </main>
+  <Closing />
+</Base>

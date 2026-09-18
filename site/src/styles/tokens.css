@@ -1,0 +1,55 @@
+/**
+ * Every colour, radius and type decision on the site lives here. Change a value and both the
+ * landing page and the docs follow — nothing else hard-codes a colour.
+ */
+:root {
+  /* surfaces, coolest to warmest */
+  --ck-bg: #0b0d10;
+  --ck-bg-2: #0f1216;
+  --ck-card: #12161b;
+  --ck-card-2: #171c22;
+  --ck-line: #1e252c;
+  --ck-line-2: #2a333c;
+
+  /* text */
+  --ck-fg: #e8edf2;
+  --ck-fg-2: #94a3b0;
+  --ck-fg-3: #5f6e7b;
+
+  /* one accent, plus the two states the product itself uses */
+  --ck-accent: #5fe3c0;
+  --ck-accent-ink: #05261f;
+  --ck-accent-soft: rgba(95, 227, 192, 0.12);
+  --ck-warn: #f0b45e;
+  --ck-info: #6ea8fe;
+
+  /* shape and type */
+  --ck-radius: 14px;
+  --ck-radius-sm: 10px;
+  --ck-font: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --ck-font-display: "Sora", var(--ck-font);
+  --ck-font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* rhythm */
+  --ck-page: 1180px;
+  --ck-gutter: 26px;
+  --ck-section: 80px;
+}
+
+/* The one light-mode concession: Starlight ships a light theme and people use it. */
+:root[data-theme="light"] {
+  --ck-bg: #f6f8f9;
+  --ck-bg-2: #eef1f3;
+  --ck-card: #ffffff;
+  --ck-card-2: #f2f5f7;
+  --ck-line: #dfe5e9;
+  --ck-line-2: #c9d2d8;
+  --ck-fg: #10171c;
+  --ck-fg-2: #4a5a66;
+  --ck-fg-3: #6b7a86;
+  --ck-accent: #0f9e82;
+  --ck-accent-ink: #ffffff;
+  --ck-accent-soft: rgba(15, 158, 130, 0.1);
+  --ck-warn: #9a6512;
+  --ck-info: #2f6fd0;
+}

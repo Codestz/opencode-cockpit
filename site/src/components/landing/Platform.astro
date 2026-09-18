@@ -1,0 +1,36 @@
+---
+import SectionHead from "./SectionHead.astro"
+import { platform } from "../../data/landing"
+
+/** One inline set of glyphs: no icon dependency, and they inherit the accent. */
+const paths: Record<string, string> = {
+  daemon: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/>',
+  config: '<path d="M4 7h16M4 12h10M4 17h13"/><circle cx="18" cy="12" r="2"/>',
+  panel: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 15h18M9 20v-5"/>',
+  wire: '<path d="M4 12h5l2-6 3 12 2-6h4"/>',
+}
+---
+<section class="page section" id="platform" style="padding-top:0">
+  <SectionHead number={platform.number} kicker={platform.kicker} title={platform.title} intro={platform.intro} />
+  <div class="pieces">
+    {platform.pieces.map((p) => (
+      <div class="piece">
+        <div class="ico"><svg viewBox="0 0 24 24" aria-hidden="true" set:html={paths[p.icon]} /></div>
+        <div>
+          <h3>{p.title}</h3>
+          <p set:html={p.body} />
+        </div>
+      </div>
+    ))}
+  </div>
+</section>
+
+<style>
+  .pieces { margin-top: 44px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 34px 48px; }
+  .piece { display: grid; grid-template-columns: 38px 1fr; gap: 16px; }
+  .ico { width: 38px; height: 38px; border-radius: 11px; border: 1px solid var(--ck-line-2); background: var(--ck-card); display: grid; place-items: center; }
+  .ico :global(svg) { width: 18px; height: 18px; stroke: var(--ck-accent); fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+  h3 { font-size: 17px; letter-spacing: -0.02em; }
+  p { margin-top: 7px; color: var(--ck-fg-2); font-size: 14.5px; line-height: 1.62; }
+  @media (max-width: 940px) { .pieces { grid-template-columns: 1fr; } }
+</style>

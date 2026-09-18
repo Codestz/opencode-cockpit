@@ -1,0 +1,17 @@
+{
+  "name": "@opencode-cockpit/site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sync": "bun scripts/sync.ts",
+    "dev": "bun run sync && astro dev",
+    "build": "bun run sync && astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.36.0",
+    "astro": "^5.14.0",
+    "asciinema-player": "^3.10.0",
+    "sharp": "^0.34.0"
+  }
+}

@@ -1,0 +1,35 @@
+---
+import { closing, nav } from "../../data/landing"
+const base = import.meta.env.BASE_URL
+---
+<section class="end">
+  <div class="page">
+    <h2>{closing.title}</h2>
+    <p>{closing.body}</p>
+    <div class="actions">
+      <a class="btn btn-solid btn-lg" href="#install">Install Cockpit</a>
+      <a class="btn btn-line btn-lg" href={`${base}start/what-cockpit-is/`}>Read the docs</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="page">
+    <span>opencode-cockpit · MIT</span>
+    <span>
+      <a href={nav.github}>GitHub</a> ·
+      <a href="https://www.npmjs.com/package/opencode-cockpit">npm</a> ·
+      <a href={`${base}help/changelog/`}>Changelog</a>
+    </span>
+  </div>
+</footer>
+
+<style>
+  .end { border-top: 1px solid var(--ck-line); padding-block: 74px; }
+  .end h2 { font-size: clamp(27px, 3.2vw, 36px); }
+  .end p { margin-top: 14px; color: var(--ck-fg-2); }
+  .actions { margin-top: 26px; display: flex; gap: 12px; flex-wrap: wrap; }
+  footer { border-top: 1px solid var(--ck-line); padding-block: 26px; font-size: 13.5px; color: var(--ck-fg-3); }
+  footer .page { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  footer a:hover { color: var(--ck-fg); }
+</style>
