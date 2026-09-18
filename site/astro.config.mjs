@@ -21,6 +21,7 @@ export default defineConfig({
       components: {
         // The landing page is ours; Starlight owns everything under /docs.
         SiteTitle: "./src/components/DocsTitle.astro",
+        Head: "./src/components/DocsHead.astro",
       },
       sidebar: [
         {
