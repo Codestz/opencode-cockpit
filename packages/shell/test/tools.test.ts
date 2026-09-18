@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { mkdtempSync, rmSync } from "node:fs"
-import type { ToolContext } from "@opencode-ai/plugin"
+import { type ToolContext, tool } from "@opencode-ai/plugin"
 import { startDaemon } from "../../client/test/helpers.ts"
 import { createTools } from "../src/agent/tools/index.ts"
 import { encodeKey } from "../src/agent/tools/keys.ts"
@@ -33,9 +33,9 @@ const run = (name: string, args: Record<string, unknown>, context = ctx()) => {
 }
 
 function parse(name: string, args: Record<string, unknown>) {
-  // biome-ignore lint/suspicious/noExplicitAny: zod shape from the tool definition
-  const { z } = require("zod") as any
-  return z.object((tools[name] as { args: object }).args).parse(args)
+  // The plugin SDK's own zod, so the tests resolve it exactly like the tools do.
+  const shape = (tools[name] as { args: Record<string, never> }).args
+  return tool.schema.object(shape).parse(args)
 }
 
 const idOf = (out: string) => (/sh_[a-z2-7]{8}/.exec(out) as RegExpExecArray)[0]
