@@ -5,175 +5,198 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cockpit — instruments for OpenCode</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@400;450;500&family=Sora:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
 /* ===========================================================================
    Cockpit — landing page
-   Calm dark product page: air, soft cards, one accent. The terminal is the
-   hero image, the platform is the story, Shell is the bay that ships today.
+   Composition: left-aligned, asymmetric, numbered sections with rules running
+   off to the right. The hero image is the plugin's own panel (a deck of live
+   instruments), not a generic terminal window. Cool blue-tinted neutrals with
+   a single aqua accent; amber appears only where the product uses it — a
+   failing watcher.
    =========================================================================== */
 :root{
-  --bg:#0a0a0b;
-  --bg-2:#101012;
-  --card:#121214;
-  --card-2:#161618;
-  --line:#232326;
-  --line-2:#2e2e33;
-  --fg:#ededee;
-  --fg-2:#a1a1a8;
-  --fg-3:#6e6e76;
-  --accent:#ff8a3d;
-  --accent-soft:rgba(255,138,61,.12);
-  --ok:#5ec98a;
-  --info:#5aa9f0;
-  --radius:12px;
+  --bg:#0b0d10;
+  --bg-2:#0f1216;
+  --card:#12161b;
+  --card-2:#171c22;
+  --line:#1e252c;
+  --line-2:#2a333c;
+  --fg:#e8edf2;
+  --fg-2:#94a3b0;
+  --fg-3:#5f6e7b;
+  --aqua:#5fe3c0;
+  --aqua-dim:rgba(95,227,192,.12);
+  --amber:#f0b45e;
+  --blue:#6ea8fe;
+  --r:14px;
 }
 *{box-sizing:border-box}
 html{color-scheme:dark;scroll-behavior:smooth}
 body{
   margin:0;background:var(--bg);color:var(--fg);
-  font-family:Geist,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;
+  font-family:Geist,-apple-system,BlinkMacSystemFont,sans-serif;font-size:16px;line-height:1.62;
+  -webkit-font-smoothing:antialiased;
 }
-.mono{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
 a{color:inherit;text-decoration:none}
-h1,h2,h3{margin:0;letter-spacing:-.025em;text-wrap:balance;font-weight:600}
+h1,h2,h3{margin:0;font-family:Sora,Geist,sans-serif;font-weight:600;letter-spacing:-.03em;text-wrap:balance}
 p{margin:0}
-.w{max-width:1140px;margin:0 auto;padding-inline:24px}
+.mono{font-family:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+.w{max-width:1180px;margin:0 auto;padding-inline:26px}
+:focus-visible{outline:2px solid var(--aqua);outline-offset:3px}
 
 /* ---------------- nav ---------------- */
-nav{position:sticky;top:0;z-index:40;background:rgba(10,10,11,.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
-nav .w{display:flex;align-items:center;gap:14px;height:64px}
-.brand{display:flex;align-items:center;gap:9px;font-weight:600;letter-spacing:-.02em}
-.brand .mark{width:22px;height:22px;border:1.5px solid var(--accent);border-radius:6px;position:relative;flex:none}
-.brand .mark::after{content:"";position:absolute;inset:5px;border-radius:2px;background:var(--accent)}
-.links{display:flex;gap:26px;margin-left:26px;font-size:14.5px;color:var(--fg-2)}
-.links a:hover{color:var(--fg)}
-nav .right{margin-left:auto;display:flex;align-items:center;gap:14px}
-.ver{font-size:13px;color:var(--fg-3);border:1px solid var(--line);border-radius:999px;padding:3px 10px}
-.btn{
-  display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:9px;
-  font-size:14.5px;font-weight:500;padding:9px 16px;border:1px solid transparent;cursor:pointer;
-  font-family:inherit;transition:background .15s ease,border-color .15s ease,color .15s ease;
-}
-.btn.primary{background:var(--fg);color:#0a0a0b}
-.btn.primary:hover{background:#fff}
-.btn.ghost{border-color:var(--line-2);color:var(--fg)}
-.btn.ghost:hover{background:var(--card-2)}
-.btn.lg{padding:12px 20px;font-size:15.5px;border-radius:10px}
-.btn:focus-visible,.demo .tabs button:focus-visible,[data-copy]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+nav{position:sticky;top:0;z-index:40;background:rgba(11,13,16,.85);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+nav .w{display:flex;align-items:center;gap:30px;height:66px}
+.brand{display:flex;align-items:center;gap:10px;font-family:Sora,sans-serif;font-weight:600;letter-spacing:-.02em;font-size:16.5px}
+.brand svg{width:22px;height:22px;flex:none}
+nav .links{display:flex;gap:24px;font-size:14.5px;color:var(--fg-2)}
+nav .links a:hover{color:var(--fg)}
+nav .right{margin-left:auto;display:flex;align-items:center;gap:18px;font-size:14.5px;color:var(--fg-2)}
+.tagpill{font-family:"Geist Mono",monospace;font-size:12px;color:var(--fg-3);border:1px solid var(--line);border-radius:7px;padding:4px 9px}
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:10px;font-family:inherit;font-size:14.5px;font-weight:500;padding:9px 17px;border:1px solid transparent;cursor:pointer;transition:.15s ease}
+.btn.solid{background:var(--aqua);color:#05261f}
+.btn.solid:hover{background:#7ff0d1}
+.btn.line{border-color:var(--line-2);color:var(--fg)}
+.btn.line:hover{background:var(--card-2)}
+.btn.lg{padding:13px 22px;font-size:15.5px}
 
 /* ---------------- hero ---------------- */
-.hero{padding-block:84px 60px;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.02fr);gap:56px;align-items:center}
-.pill{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--line-2);border-radius:999px;padding:6px 14px;font-size:13px;color:var(--fg-2)}
-.pill i{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
-h1{font-size:clamp(40px,5.2vw,58px);line-height:1.06;margin-top:22px;font-weight:600}
-h1 span{color:var(--accent)}
-.sub{margin-top:20px;color:var(--fg-2);font-size:17.5px;line-height:1.62;max-width:46ch}
-.actions{margin-top:30px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
-.chip{margin-top:18px;display:inline-flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--bg-2);border-radius:8px;padding:9px 13px;font-size:13.5px;color:var(--fg-2)}
-.chip .d{color:var(--fg-3)}
-.chip button{background:none;border:0;color:var(--fg-3);cursor:pointer;font:inherit;font-size:12.5px;padding:0 0 0 6px}
-.chip button:hover{color:var(--fg)}
+.hero{display:grid;grid-template-columns:minmax(0,1.02fr) minmax(0,1fr);gap:64px;padding-block:88px 40px;align-items:start}
+.eyebrow{font-family:"Geist Mono",monospace;font-size:12.5px;letter-spacing:.06em;color:var(--aqua)}
+h1{font-size:clamp(42px,5vw,60px);line-height:1.04;margin-top:20px}
+h1 b{font-weight:600;color:var(--fg);position:relative;white-space:nowrap}
+h1 b::after{content:"";position:absolute;left:0;right:0;bottom:6px;height:10px;background:var(--aqua-dim);border-bottom:2px solid var(--aqua);z-index:-1}
+.sub{margin-top:24px;color:var(--fg-2);font-size:18px;line-height:1.66;max-width:48ch}
+.hero .actions{margin-top:32px;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+.cmdchip{margin-top:20px;display:inline-flex;align-items:center;gap:12px;font-family:"Geist Mono",monospace;font-size:13.5px;color:var(--fg-2);border:1px dashed var(--line-2);border-radius:9px;padding:10px 14px}
+.cmdchip span.d{color:var(--aqua)}
+.cmdchip button{background:none;border:0;color:var(--fg-3);font:inherit;font-size:12.5px;cursor:pointer}
+.cmdchip button:hover{color:var(--fg)}
 
-/* terminal card — the hero image */
-.term{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 30px 70px -50px #000}
-.term header{display:flex;align-items:center;gap:8px;padding:12px 15px;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--fg-3)}
-.dots{display:flex;gap:6px;margin-right:8px}
-.dots i{width:10px;height:10px;border-radius:50%;background:#2a2a2e}
-.term .body{padding:18px 20px;font-family:"Geist Mono",monospace;font-size:13px;line-height:1.8;min-height:318px;white-space:pre-wrap}
-.term .body .p{color:var(--accent)}
-.term .body .g{color:var(--ok)}
-.term .body .b{color:var(--info)}
-.term .body .d{color:var(--fg-3)}
-.term .body .warn{color:#e5b567}
-.caret{display:inline-block;width:7px;height:15px;background:var(--fg-2);vertical-align:-2px}
+/* the deck: the plugin's own panel as the hero image */
+.deck{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.deck > .cap{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--line);font-family:"Geist Mono",monospace;font-size:12px;color:var(--fg-3);letter-spacing:.04em}
+.deck > .cap .live{margin-left:auto;display:inline-flex;align-items:center;gap:7px;color:var(--aqua)}
+.deck > .cap .live i{width:6px;height:6px;border-radius:50%;background:var(--aqua)}
+@media (prefers-reduced-motion:no-preference){.deck > .cap .live i{animation:pulse 2.6s ease-in-out infinite}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.slot{display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--line)}
+.slot .badge{font-family:"Geist Mono",monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;border-radius:6px;padding:4px 8px;border:1px solid var(--line-2);color:var(--fg-3)}
+.slot.run .badge{color:var(--aqua);border-color:rgba(95,227,192,.4);background:var(--aqua-dim)}
+.slot.warn .badge{color:var(--amber);border-color:rgba(240,180,94,.4);background:rgba(240,180,94,.1)}
+.slot .name{font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slot .name em{font-style:normal;color:var(--fg-3);font-family:"Geist Mono",monospace;font-size:12.5px}
+.slot .meta{font-family:"Geist Mono",monospace;font-size:12px;color:var(--fg-3);font-variant-numeric:tabular-nums}
+.deck .out{padding:15px 16px 17px;font-family:"Geist Mono",monospace;font-size:12.5px;line-height:1.8;color:var(--fg-2);min-height:150px;white-space:pre-wrap;background:var(--bg-2)}
+.deck .out .a{color:var(--aqua)}
+.deck .out .b{color:var(--blue)}
+.deck .out .w{color:var(--amber)}
+.deck .out .d{color:var(--fg-3)}
+.caret{display:inline-block;width:7px;height:14px;background:var(--fg-2);vertical-align:-2px}
 @media (prefers-reduced-motion:no-preference){.caret{animation:blink 1.1s steps(1) infinite}}
 @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
 
-/* ---------------- stat band ---------------- */
-.band{border-block:1px solid var(--line);background:var(--bg-2)}
-.band .w{display:grid;grid-template-columns:repeat(4,1fr);padding-block:34px}
-.stat{text-align:center;padding-inline:16px;border-right:1px solid var(--line)}
-.stat:last-child{border-right:0}
-.stat b{display:block;font-size:34px;font-weight:600;letter-spacing:-.04em;line-height:1.1}
-.stat span{display:block;margin-top:7px;font-size:12.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--fg-3)}
+/* inline spec row, left-aligned instead of a centred stat band */
+.specs{display:flex;flex-wrap:wrap;gap:0 40px;padding-block:28px;margin-top:26px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.spec{display:flex;align-items:baseline;gap:10px}
+.spec b{font-family:Sora,sans-serif;font-size:22px;font-weight:600;letter-spacing:-.03em}
+.spec span{font-size:13.5px;color:var(--fg-3)}
 
-/* ---------------- sections ---------------- */
-section{padding-block:88px}
-.kicker{font-size:12.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fg-3);text-align:center}
-.h2{font-size:clamp(28px,3.4vw,38px);text-align:center;margin-top:14px}
-.lede{text-align:center;color:var(--fg-2);margin:16px auto 0;max-width:60ch;font-size:16.5px}
+/* ---------------- section chrome: numbered, left-aligned, rule to the right ---------------- */
+section{padding-block:80px}
+.head{display:flex;align-items:center;gap:18px}
+.head .no{font-family:"Geist Mono",monospace;font-size:12.5px;color:var(--aqua);letter-spacing:.08em}
+.head .t{font-family:"Geist Mono",monospace;font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--fg-3)}
+.head .rule{flex:1;height:1px;background:var(--line)}
+h2{font-size:clamp(27px,3.2vw,36px);margin-top:20px;max-width:22ch}
+.intro{margin-top:16px;color:var(--fg-2);font-size:16.5px;max-width:64ch}
 
-.two{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:44px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:26px}
-.card h3{font-size:17px;margin-bottom:14px}
-.card.bad h3{color:var(--fg-2)}
-.card ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px}
-.card li{display:grid;grid-template-columns:18px 1fr;gap:10px;font-size:14.5px;color:var(--fg-2);line-height:1.55}
-.card li i{font-style:normal;color:var(--fg-3)}
-.card.good li i{color:var(--accent)}
-.card.good li{color:var(--fg)}
+/* problem: staggered rows rather than two cards */
+.rows{margin-top:40px;display:flex;flex-direction:column;border-top:1px solid var(--line)}
+.row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:26px;padding-block:20px;border-bottom:1px solid var(--line);align-items:baseline}
+.row .then{color:var(--fg-3);font-size:15.5px;display:flex;gap:12px}
+.row .then i{font-style:normal;font-family:"Geist Mono",monospace;font-size:12px;color:var(--fg-3);padding-top:3px}
+.row .now{font-size:15.5px;display:flex;gap:12px}
+.row .now i{font-style:normal;color:var(--aqua);font-family:"Geist Mono",monospace;font-size:12px;padding-top:3px}
+.rowhead{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:26px;padding-bottom:12px;font-family:"Geist Mono",monospace;font-size:11.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--fg-3)}
 
-/* bays */
-.bays{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:44px}
-.bay{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:26px;display:flex;flex-direction:column;gap:13px;transition:border-color .16s ease}
-.bay:hover{border-color:var(--line-2)}
-.bay .status{display:inline-flex;align-items:center;gap:7px;font-size:12px;letter-spacing:.06em;text-transform:uppercase;border:1px solid var(--line-2);border-radius:999px;padding:4px 11px;align-self:flex-start;color:var(--fg-2)}
-.bay .status i{width:6px;height:6px;border-radius:50%;background:var(--fg-3)}
-.bay.live .status{color:var(--accent);border-color:rgba(255,138,61,.35);background:var(--accent-soft)}
-.bay.live .status i{background:var(--accent)}
-.bay.next .status i{background:var(--info)}
-.bay h3{font-size:21px}
-.bay p{color:var(--fg-2);font-size:14.5px;line-height:1.6;flex:1}
-.bay .tags{display:flex;flex-wrap:wrap;gap:7px}
-.bay .tags span{font-family:"Geist Mono",monospace;font-size:11.5px;color:var(--fg-3);border:1px solid var(--line);border-radius:6px;padding:3px 8px}
+/* platform: list with a left rail, not a card grid */
+.pieces{margin-top:44px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:34px 48px}
+.piece{display:grid;grid-template-columns:38px 1fr;gap:16px}
+.piece .ico{width:38px;height:38px;border-radius:11px;border:1px solid var(--line-2);background:var(--card);display:grid;place-items:center}
+.piece .ico svg{width:18px;height:18px;stroke:var(--aqua);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.piece h3{font-size:17px;letter-spacing:-.02em}
+.piece p{margin-top:7px;color:var(--fg-2);font-size:14.5px;line-height:1.62}
+.piece code{font-family:"Geist Mono",monospace;font-size:13px;color:var(--fg)}
 
-/* platform grid */
-.four{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;margin-top:44px}
-.feat{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:26px}
-.feat .ico{width:34px;height:34px;border-radius:9px;background:var(--card-2);border:1px solid var(--line-2);display:grid;place-items:center;margin-bottom:15px}
-.feat .ico svg{width:17px;height:17px;stroke:var(--accent);fill:none;stroke-width:1.6;stroke-linecap:round}
-.feat h3{font-size:17px;margin-bottom:9px}
-.feat p{color:var(--fg-2);font-size:14.5px;line-height:1.62}
-.feat code{font-family:"Geist Mono",monospace;font-size:13px;color:var(--fg)}
+/* bays: a switcher, not three equal cards */
+.switch{margin-top:40px;display:grid;grid-template-columns:270px minmax(0,1fr);gap:24px;align-items:start}
+.baylist{display:flex;flex-direction:column;gap:8px}
+.baybtn{
+  display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;text-align:left;
+  background:none;border:1px solid var(--line);border-radius:11px;padding:15px 16px;cursor:pointer;
+  font:inherit;color:var(--fg-2);transition:.15s ease;
+}
+.baybtn:hover{border-color:var(--line-2);color:var(--fg)}
+.baybtn[aria-selected=true]{background:var(--card);border-color:var(--aqua);color:var(--fg)}
+.baybtn b{display:block;font-family:Sora,sans-serif;font-size:16px;font-weight:600;letter-spacing:-.02em}
+.baybtn small{display:block;color:var(--fg-3);font-size:12.5px;margin-top:2px}
+.baybtn .dot{width:7px;height:7px;border-radius:50%;background:var(--fg-3)}
+.baybtn.live .dot{background:var(--aqua)}
+.baybtn.next .dot{background:var(--blue)}
+.baypanel{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:28px 30px;min-height:290px}
+.baypanel h3{font-size:22px}
+.baypanel > p{margin-top:12px;color:var(--fg-2);font-size:15.5px;max-width:62ch}
+.baypanel ul{margin:22px 0 0;padding:0;list-style:none;display:grid;grid-template-columns:1fr 1fr;gap:12px 26px}
+.baypanel li{display:grid;grid-template-columns:16px 1fr;gap:10px;font-size:14.5px;color:var(--fg-2)}
+.baypanel li i{font-style:normal;color:var(--aqua);font-size:12px;padding-top:3px}
+.baypanel .foot{margin-top:24px;padding-top:18px;border-top:1px solid var(--line);display:flex;gap:18px;flex-wrap:wrap;font-family:"Geist Mono",monospace;font-size:12.5px;color:var(--fg-3)}
 
-/* demo */
-.demo{margin-top:44px;background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
-.demo .tabs{display:flex;gap:4px;padding:12px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-.demo .tabs button{font:inherit;font-size:13.5px;color:var(--fg-2);background:none;border:1px solid transparent;border-radius:8px;padding:7px 13px;cursor:pointer}
-.demo .tabs button[aria-pressed=true]{background:var(--card-2);border-color:var(--line-2);color:var(--fg)}
-.demo .shot{padding:14px;background:#08080a}
-.demo img{display:block;width:100%;max-width:100%;border-radius:8px}
-.demo .note{padding:13px 16px;border-top:1px solid var(--line);font-size:13px;color:var(--fg-3);display:flex;gap:18px;flex-wrap:wrap}
-.demo .note b{color:var(--fg-2);font-weight:500}
+/* demo: vertical tab rail on the left */
+.demo{margin-top:40px;display:grid;grid-template-columns:210px minmax(0,1fr);gap:24px;align-items:start}
+.demo .rail{display:flex;flex-direction:column;gap:6px}
+.demo .rail button{
+  text-align:left;background:none;border:0;border-left:2px solid var(--line);padding:11px 14px;
+  color:var(--fg-3);font:inherit;font-size:14px;cursor:pointer;transition:.14s ease;
+}
+.demo .rail button:hover{color:var(--fg-2)}
+.demo .rail button[aria-pressed=true]{border-left-color:var(--aqua);color:var(--fg)}
+.demo .rail small{display:block;font-family:"Geist Mono",monospace;font-size:11.5px;color:var(--fg-3);margin-top:3px}
+.demo .frame{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px}
+.demo .frame img{display:block;width:100%;max-width:100%;border-radius:8px}
+.demo .cap{margin-top:12px;font-family:"Geist Mono",monospace;font-size:12px;color:var(--fg-3)}
 
-/* install */
-.install{margin-top:44px;display:grid;grid-template-columns:1fr 1fr;gap:20px}
-.install .card h3{font-size:16px;margin-bottom:0}
-.install .cmd{margin-top:14px;display:flex;align-items:center;gap:10px;background:var(--bg-2);border:1px solid var(--line);border-radius:9px;padding:12px 14px;font-family:"Geist Mono",monospace;font-size:13.5px;overflow-x:auto}
-.install .cmd .p{color:var(--accent)}
-.install .cmd button{margin-left:auto;background:none;border:0;color:var(--fg-3);cursor:pointer;font:inherit;font-size:12.5px;white-space:nowrap}
-.install .cmd button:hover{color:var(--fg)}
-.install p.small{margin-top:12px;font-size:13.5px;color:var(--fg-3);line-height:1.6}
+/* install: segmented control */
+.seg{margin-top:36px;display:inline-flex;border:1px solid var(--line);border-radius:10px;padding:4px;gap:4px;background:var(--card)}
+.seg button{background:none;border:0;border-radius:7px;padding:8px 16px;font:inherit;font-size:14px;color:var(--fg-2);cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--card-2);color:var(--fg)}
+.installbox{margin-top:18px;border:1px solid var(--line);border-radius:var(--r);background:var(--card);padding:22px 24px;max-width:760px}
+.installbox .cmd{display:flex;align-items:center;gap:12px;font-family:"Geist Mono",monospace;font-size:14px;background:var(--bg-2);border:1px solid var(--line);border-radius:9px;padding:13px 15px;overflow-x:auto}
+.installbox .cmd .p{color:var(--aqua)}
+.installbox .cmd button{margin-left:auto;background:none;border:0;color:var(--fg-3);font:inherit;font-size:12.5px;cursor:pointer;white-space:nowrap}
+.installbox .cmd button:hover{color:var(--fg)}
+.installbox p{margin-top:14px;color:var(--fg-2);font-size:14.5px}
+.installbox .steps{margin-top:18px;display:flex;flex-direction:column;gap:9px;font-size:14.5px;color:var(--fg-2)}
+.installbox .steps div{display:grid;grid-template-columns:22px 1fr;gap:10px}
+.installbox .steps i{font-style:normal;font-family:"Geist Mono",monospace;font-size:12px;color:var(--fg-3);padding-top:3px}
 
-/* closing */
-.cta{text-align:center;padding-block:92px;border-top:1px solid var(--line)}
-.cta h2{font-size:clamp(28px,3.6vw,40px)}
-.cta p{color:var(--fg-2);margin-top:14px}
-.cta .actions{justify-content:center}
-
-footer{border-top:1px solid var(--line);padding-block:30px;color:var(--fg-3);font-size:13.5px}
+/* close */
+.end{border-top:1px solid var(--line);padding-block:74px}
+.end h2{max-width:none}
+.end .actions{margin-top:26px;display:flex;gap:12px;flex-wrap:wrap}
+footer{border-top:1px solid var(--line);padding-block:26px;font-size:13.5px;color:var(--fg-3)}
 footer .w{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
 footer a:hover{color:var(--fg)}
 
-@media (max-width:920px){
-  .hero{grid-template-columns:1fr;gap:38px;padding-block:52px 40px}
-  .two,.four,.bays,.install{grid-template-columns:1fr}
-  .band .w{grid-template-columns:1fr 1fr;gap:26px 0}
-  .stat:nth-child(2){border-right:0}
-  .links{display:none}
-  section{padding-block:60px}
+@media (max-width:940px){
+  .hero{grid-template-columns:1fr;gap:38px;padding-block:52px 28px}
+  .pieces,.baypanel ul{grid-template-columns:1fr}
+  .switch,.demo{grid-template-columns:1fr}
+  .row,.rowhead{grid-template-columns:1fr;gap:10px}
+  .rowhead span:last-child{display:none}
+  nav .links{display:none}
+  section{padding-block:56px}
 }
 </style>
 </head>
@@ -181,195 +204,211 @@ footer a:hover{color:var(--fg)}
 
 <nav>
   <div class="w">
-    <a class="brand" href="#"><span class="mark"></span> Cockpit</a>
+    <a class="brand" href="#">
+      <svg viewBox="0 0 24 24" fill="none"><rect x="2.5" y="2.5" width="19" height="19" rx="5" stroke="#5fe3c0" stroke-width="1.6"/><path d="M7 15.5V9.5M12 15.5V12M17 15.5v-9" stroke="#5fe3c0" stroke-width="1.8" stroke-linecap="round"/></svg>
+      Cockpit
+    </a>
     <div class="links">
-      <a href="#problem">Why</a>
-      <a href="#platform">Platform</a>
-      <a href="#bays">Bays</a>
-      <a href="#demo">Demo</a>
-      <a href="#">Docs</a>
+      <a href="#why">Why</a><a href="#platform">Platform</a><a href="#bays">Bays</a><a href="#demo">Demo</a><a href="#install">Install</a>
     </div>
     <div class="right">
-      <span class="ver">v0.2.1</span>
-      <a href="#" style="color:var(--fg-2);font-size:14.5px">GitHub</a>
-      <a class="btn primary" href="#install">Install</a>
+      <span class="tagpill">v0.2.1</span>
+      <a href="#">Docs</a>
+      <a href="#">GitHub</a>
+      <a class="btn solid" href="#install">Install</a>
     </div>
   </div>
 </nav>
 
 <header class="w hero">
   <div>
-    <span class="pill"><i></i> Instruments for OpenCode</span>
-    <h1>Everything OpenCode<br><span>doesn't do yet</span>.</h1>
-    <p class="sub">A shared daemon, one config file, and a place in the interface — so capabilities plug
-      in as bays. Shell ships today: background terminals your agent starts, waits on, and never babysits.</p>
+    <p class="eyebrow">// instruments for OpenCode</p>
+    <h1>Give your agent a <b>flight deck</b>, not another tool call.</h1>
+    <p class="sub">Cockpit is a platform for OpenCode capabilities: one daemon that owns long-lived
+      state, one config for both halves of a plugin, and real estate in the interface. Shell is fitted
+      today — background terminals that keep running, report their own health, and never need watching.</p>
     <div class="actions">
-      <a class="btn primary lg" href="#install">Install Cockpit</a>
-      <a class="btn ghost lg" href="#demo">See it running</a>
+      <a class="btn solid lg" href="#install">Install Cockpit</a>
+      <a class="btn line lg" href="#demo">Watch a session</a>
     </div>
-    <div class="chip mono"><span class="d">$</span> opencode plugin opencode-cockpit --global <button data-copy>copy</button></div>
+    <div class="cmdchip"><span class="d">$</span><span>opencode plugin opencode-cockpit --global</span><button data-copy>copy</button></div>
   </div>
 
-  <div class="term">
-    <header><span class="dots"><i></i><i></i><i></i></span> opencode — cockpit</header>
-    <div class="body mono" id="stream"></div>
+  <div class="deck">
+    <div class="cap">SHELLS — THIS PROJECT <span class="live"><i></i> live</span></div>
+    <div class="slot run">
+      <span class="badge">run</span>
+      <span class="name">Vite dev server <em>· :5173</em></span>
+      <span class="meta">4m 12s</span>
+    </div>
+    <div class="slot warn">
+      <span class="badge">fail</span>
+      <span class="name">tsc --watch <em>· 1 error</em></span>
+      <span class="meta">11m 02s</span>
+    </div>
+    <div class="slot run">
+      <span class="badge">run</span>
+      <span class="name">vitest --watch <em>· 26 passed</em></span>
+      <span class="meta">6m 40s</span>
+    </div>
+    <div class="out" id="stream"></div>
   </div>
 </header>
 
-<div class="band">
-  <div class="w">
-    <div class="stat"><b>1</b><span>daemon, every window</span></div>
-    <div class="stat"><b>9</b><span>agent tools</span></div>
-    <div class="stat"><b>35</b><span>watch presets</span></div>
-    <div class="stat"><b>0</b><span>babysitting</span></div>
+<div class="w">
+  <div class="specs">
+    <span class="spec"><b>1</b><span>daemon, shared by every window</span></span>
+    <span class="spec"><b>9</b><span>agent tools</span></span>
+    <span class="spec"><b>35</b><span>watch presets</span></span>
+    <span class="spec"><b>3</b><span>views of every shell</span></span>
   </div>
 </div>
 
-<section class="w" id="problem">
-  <p class="kicker">The problem</p>
-  <h2 class="h2">Long-running work doesn't fit in a tool call.</h2>
-  <p class="lede">A dev server blocks the turn. Backgrounded with <span class="mono">&amp;</span> it
-    disappears. Either way the agent ends up re-reading whole logs, in tokens, to find out what happened.</p>
+<section class="w" id="why">
+  <div class="head"><span class="no">01</span><span class="t">The problem</span><span class="rule"></span></div>
+  <h2>A tool call is the wrong shape for work that keeps going.</h2>
+  <p class="intro">Everything long-running hits the same wall: the call either blocks until the process
+    dies, or backgrounds it into the dark. Cockpit changes the shape of the call.</p>
 
-  <div class="two">
-    <div class="card bad">
-      <h3>Without Cockpit</h3>
-      <ul>
-        <li><i>—</i><span>The turn blocks until the server is killed</span></li>
-        <li><i>—</i><span>Backgrounded processes vanish with the session</span></li>
-        <li><i>—</i><span>"Is it up yet?" answered by sleeping and guessing</span></li>
-        <li><i>—</i><span>A crash at 3am is noticed by nobody</span></li>
-        <li><i>—</i><span>Whole logs re-read every turn, in tokens</span></li>
-      </ul>
+  <div class="rows">
+    <div class="rowhead"><span>Bash in a tool call</span><span>A Cockpit shell</span></div>
+    <div class="row">
+      <span class="then"><i>01</i>Blocks the turn until the server is killed</span>
+      <span class="now"><i>→</i>Returns the moment the port actually answers</span>
     </div>
-    <div class="card good">
-      <h3>With Cockpit</h3>
-      <ul>
-        <li><i>✓</i><span>Returns when the port actually answers</span></li>
-        <li><i>✓</i><span>Shells outlive the turn, the session and the window</span></li>
-        <li><i>✓</i><span>Waits on a pattern, a port, silence or exit</span></li>
-        <li><i>✓</i><span>A process that dies is reported as a failure</span></li>
-        <li><i>✓</i><span>Reads forward with a cursor, greps before it costs</span></li>
-      </ul>
+    <div class="row">
+      <span class="then"><i>02</i>Backgrounded with &amp; and lost with the session</span>
+      <span class="now"><i>→</i>Outlives the turn, the session and the window</span>
+    </div>
+    <div class="row">
+      <span class="then"><i>03</i>"Is it ready?" answered by sleeping and hoping</span>
+      <span class="now"><i>→</i>Waits on a port, a pattern, silence or exit</span>
+    </div>
+    <div class="row">
+      <span class="then"><i>04</i>A crash nobody notices until the next command</span>
+      <span class="now"><i>→</i>A process that dies is reported as a failure</span>
+    </div>
+    <div class="row">
+      <span class="then"><i>05</i>The whole log re-read every turn, in tokens</span>
+      <span class="now"><i>→</i>Reads forward from a cursor, greps before it costs</span>
     </div>
   </div>
 </section>
 
 <section class="w" id="platform" style="padding-top:0">
-  <p class="kicker">The platform</p>
-  <h2 class="h2">Cockpit is the part every capability shares.</h2>
-  <p class="lede">Bays don't re-solve process ownership, configuration or interface plumbing. They plug
-    into one airframe and inherit all of it.</p>
+  <div class="head"><span class="no">02</span><span class="t">The platform</span><span class="rule"></span></div>
+  <h2>What every capability inherits.</h2>
+  <p class="intro">A bay never re-solves process ownership, configuration or interface plumbing. It
+    declares what it needs and gets the rest from the airframe.</p>
 
-  <div class="four">
-    <div class="feat">
-      <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 14h6"/></svg></div>
-      <h3>A daemon that outlives the session</h3>
-      <p>OpenCode's interface and server run in separate threads that can't share memory, and neither
-        survives a restart. <code>cockpitd</code> owns the state instead — shared by every window,
-        self-upgrading, cleaning up after crashes, exiting when idle.</p>
+  <div class="pieces">
+    <div class="piece">
+      <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg></div>
+      <div>
+        <h3>A daemon that outlives the session</h3>
+        <p>OpenCode's interface and server run in separate threads that cannot share memory, and
+          neither survives a restart. <code>cockpitd</code> owns the state: shared by every window,
+          self-upgrading, reaping what crashes leave behind, exiting when idle.</p>
+      </div>
     </div>
-    <div class="feat">
-      <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3v18M3 8h18M3 16h18"/></svg></div>
-      <h3>One config for both halves</h3>
-      <p>Agent plugins are configured in <code>opencode.json</code>, interface plugins in
-        <code>tui.json</code>. Cockpit reads one file — global, then project, then plugin entry — and
-        ignores a broken one instead of failing.</p>
+    <div class="piece">
+      <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h10M4 17h13"/><circle cx="18" cy="12" r="2"/></svg></div>
+      <div>
+        <h3>One config for both halves</h3>
+        <p>Agent plugins are configured in <code>opencode.json</code>, interface plugins in
+          <code>tui.json</code>. Cockpit reads a single file — global, then project, then plugin entry
+          — and ignores a broken one rather than failing.</p>
+      </div>
     </div>
-    <div class="feat">
+    <div class="piece">
       <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 15h18M9 20v-5"/></svg></div>
-      <h3>A place in the interface</h3>
-      <p>A docked panel, a full console, a sidebar section and a keymap namespace. A bay asks for the
-        slot it needs and inherits the chrome, the theme and the keybind conventions.</p>
+      <div>
+        <h3>Real estate in the interface</h3>
+        <p>A docked panel, a full-screen console, a sidebar section, a keymap namespace. A bay asks for
+          the slot it needs and inherits the chrome, the theme and the keybind conventions.</p>
+      </div>
     </div>
-    <div class="feat">
-      <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 12h6l2-5 3 10 2-5h3"/></svg></div>
-      <h3>A typed wire between them</h3>
-      <p>JSON-RPC over a private socket, with schemas shared by client and daemon and versioned at
-        <code>protocol 1.3</code>. A bay adds methods and events without the others knowing.</p>
+    <div class="piece">
+      <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 12h5l2-6 3 12 2-6h4"/></svg></div>
+      <div>
+        <h3>A typed wire between them</h3>
+        <p>JSON-RPC over a private socket, schemas shared by client and daemon, versioned at
+          <code>protocol 1.3</code>. A bay adds methods and events without the others knowing, and a
+          mismatch is reported instead of guessed at.</p>
+      </div>
     </div>
   </div>
 </section>
 
 <section class="w" id="bays" style="padding-top:0">
-  <p class="kicker">Capability bays</p>
-  <h2 class="h2">Install the suite, or just the instrument you want.</h2>
-  <p class="lede">Every bay is its own npm package and can be switched off in config. They share the
-    daemon, so fitting a second one costs nothing.</p>
+  <div class="head"><span class="no">03</span><span class="t">Capability bays</span><span class="rule"></span></div>
+  <h2>Fit the suite, or a single instrument.</h2>
+  <p class="intro">Every bay is its own npm package with a switch in config. They share the daemon, so
+    the second one costs nothing.</p>
 
-  <div class="bays">
-    <article class="bay live">
-      <span class="status"><i></i> Available</span>
-      <h3>Shell</h3>
-      <p>Background terminals with a real PTY. Waits on ports and patterns, watches health and reports
-        only changes, searches its own log, and says who stopped it.</p>
-      <div class="tags"><span>9 tools</span><span>35 presets</span><span>v0.2.1</span></div>
-    </article>
-    <article class="bay next">
-      <span class="status"><i></i> Next</span>
-      <h3>Agents</h3>
-      <p>Subagents you can actually watch: a live tree in the sidebar and a peek overlay that doesn't
-        replace your conversation — driven by the keyboard, not a mouse.</p>
-      <div class="tags"><span>live tree</span><span>peek</span><span>keyboard</span></div>
-    </article>
-    <article class="bay">
-      <span class="status"><i></i> Open</span>
-      <h3>Proposed</h3>
-      <p>Checkpoints, a context and cost meter, ports and services, scheduled prompts. The bay is open —
-        open an issue and make the case.</p>
-      <div class="tags"><span>your idea here</span></div>
-    </article>
+  <div class="switch">
+    <div class="baylist" role="tablist">
+      <button class="baybtn live" role="tab" aria-selected="true" data-bay="shell">
+        <span><b>Shell</b><small>Background terminals</small></span><span class="dot"></span>
+      </button>
+      <button class="baybtn next" role="tab" aria-selected="false" data-bay="agents">
+        <span><b>Agents</b><small>Subagents you can watch</small></span><span class="dot"></span>
+      </button>
+      <button class="baybtn" role="tab" aria-selected="false" data-bay="open">
+        <span><b>Open bay</b><small>Proposals welcome</small></span><span class="dot"></span>
+      </button>
+    </div>
+    <div class="baypanel" id="baypanel"></div>
   </div>
 </section>
 
 <section class="w" id="demo" style="padding-top:0">
-  <p class="kicker">Bay 01 — Shell</p>
-  <h2 class="h2">Recorded, not mocked up.</h2>
-  <p class="lede">Every frame below comes from a real OpenCode session, generated by a script in the
-    repository and re-run on every release.</p>
+  <div class="head"><span class="no">04</span><span class="t">Recorded, not mocked up</span><span class="rule"></span></div>
+  <h2>Every frame is a real session.</h2>
+  <p class="intro">Generated by a script in the repository that drives a real OpenCode, and re-run on
+    every release — so a demo can never drift from what ships.</p>
 
   <div class="demo">
-    <div class="tabs" id="tabs">
-      <button aria-pressed="true" data-src="../media/dock.gif">Panel under the chat</button>
-      <button aria-pressed="false" data-src="../media/search.gif">Search a long log</button>
-      <button aria-pressed="false" data-src="../media/tour.gif">Two shells at once</button>
+    <div class="rail" id="rail">
+      <button aria-pressed="true" data-src="../media/dock.gif">Panel under the chat<small>dev server, live</small></button>
+      <button aria-pressed="false" data-src="../media/search.gif">Search a long log<small>240 lines → 4</small></button>
+      <button aria-pressed="false" data-src="../media/tour.gif">Two shells at once<small>switch, filter, return</small></button>
     </div>
-    <div class="shot"><img id="shot" src="../media/dock.gif" alt="A dev server running in the OpenCode shells panel"></div>
-    <div class="note">
-      <span><b>Source</b> bun run record tapes/dock.ts</span>
-      <span><b>Ships as</b> asciicast — 18 KB, selectable text</span>
-      <span><b>Never stale</b> re-recorded on every release</span>
+    <div>
+      <div class="frame"><img id="shot" src="../media/dock.gif" alt="A dev server running in the OpenCode shells panel"></div>
+      <p class="cap">bun run record tapes/dock.ts → asciicast (18 KB, selectable) → gif for GitHub</p>
     </div>
   </div>
 </section>
 
 <section class="w" id="install" style="padding-top:0">
-  <p class="kicker">Install</p>
-  <h2 class="h2">Two minutes, then ask it to start something.</h2>
+  <div class="head"><span class="no">05</span><span class="t">Install</span><span class="rule"></span></div>
+  <h2>Two minutes, then ask it to start something.</h2>
 
-  <div class="install">
-    <div class="card">
-      <h3>Everything</h3>
-      <div class="cmd"><span class="p">$</span><span>opencode plugin opencode-cockpit --global</span><button data-copy>copy</button></div>
-      <p class="small">All bays, with a switch for each: <span class="mono">{ "features": { "shell": true } }</span>.
-        New bays arrive with an update and stay off until you turn them on.</p>
-    </div>
-    <div class="card">
-      <h3>One bay</h3>
-      <div class="cmd"><span class="p">$</span><span>opencode plugin @opencode-cockpit/shell --global</span><button data-copy>copy</button></div>
-      <p class="small">Same daemon, same config file, same interface slots. Add the rest later without
-        changing anything you already set up.</p>
+  <div class="seg" id="seg">
+    <button aria-pressed="true" data-mode="all">Everything</button>
+    <button aria-pressed="false" data-mode="one">Shell only</button>
+  </div>
+
+  <div class="installbox">
+    <div class="cmd"><span class="p">$</span><span id="cmd">opencode plugin opencode-cockpit --global</span><button data-copy>copy</button></div>
+    <p id="installnote">All bays, each with a switch: <span class="mono">{ "features": { "shell": true } }</span>.
+      New bays arrive with an update and stay off until you turn them on.</p>
+    <div class="steps">
+      <div><i>01</i><span>Run the command above — it writes both plugin entries for you.</span></div>
+      <div><i>02</i><span>Restart OpenCode. The daemon starts on first use and exits when idle.</span></div>
+      <div><i>03</i><span>Optional: put kinds, watch presets and defaults in <span class="mono">~/.config/opencode-cockpit/config.json</span>.</span></div>
     </div>
   </div>
 </section>
 
-<section class="cta">
+<section class="end">
   <div class="w">
     <h2>Stop babysitting your terminal.</h2>
-    <p>Requires OpenCode 1.18+ on macOS or Linux. MIT licensed.</p>
+    <p class="intro">OpenCode 1.18+ on macOS and Linux. MIT licensed, every bay its own package.</p>
     <div class="actions">
-      <a class="btn primary lg" href="#install">Install Cockpit</a>
-      <a class="btn ghost lg" href="#">Read the docs</a>
+      <a class="btn solid lg" href="#install">Install Cockpit</a>
+      <a class="btn line lg" href="#">Read the docs</a>
     </div>
   </div>
 </section>
@@ -382,24 +421,15 @@ footer a:hover{color:var(--fg)}
 </footer>
 
 <script>
-/* The hero terminal types a real session: the agent starts a shell, waits for
-   the port, keeps working, and is told when the watcher flips to fail. */
+/* hero deck: the watcher speaking up, which is the thing nothing else does */
 const LINES = [
-  '<span class="d">// the agent, not you</span>',
-  '<span class="p">›</span> shell_start <span class="b">command</span>="npm run dev"',
-  '             <span class="b">waitFor</span>={ port: 5173 } <span class="b">watch</span>=true',
+  '<span class="d">// unprompted, four minutes into the session</span>',
   '',
-  '  <span class="g">VITE v5.4.8</span>  ready in 412 ms',
-  '  <span class="b">➜ Local:</span>  http://localhost:5173/',
-  '',
-  '<span class="d">  started sh_9wq2f1ab · port answered in 0.9s · watching (vite)</span>',
-  '',
-  '<span class="p">›</span> <span class="d">…the agent keeps working. four minutes later, unprompted:</span>',
-  '',
-  '<span class="warn">⚠ vite: ok → fail</span>',
+  '<span class="w">⚠ tsc: ok → fail</span>',
   '  src/checkout/total.ts:42 — TS2339 Property \'id\' does not exist',
   '',
-  '<span class="d">  one message on the way down, one on the way back. no polling.</span>',
+  '<span class="a">›</span> shell_read <span class="b">id</span>=sh_9wq2f1ab <span class="b">after</span>=2481 <span class="b">grep</span>="error TS"',
+  '<span class="d">  2 lines, 180 tokens — not the whole log</span>',
 ];
 const stream = document.getElementById('stream');
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -408,22 +438,67 @@ const render = n => {
     + '<div><span class="caret"></span></div>';
 };
 if (reduced) render(LINES.length);
-else {
-  let i = 0;
-  const next = () => { render(++i); if (i < LINES.length) setTimeout(next, LINES[i - 1] ? 440 : 150); };
-  setTimeout(next, 320);
-}
+else { let i = 0; const next = () => { render(++i); if (i < LINES.length) setTimeout(next, LINES[i-1] ? 520 : 160); }; setTimeout(next, 500); }
 
-/* demo tabs */
+/* bays */
+const BAYS = {
+  shell: {
+    title: 'Shell', status: 'Available · v0.2.1',
+    blurb: 'Background terminals with a real PTY — the things a tool call cannot hold: dev servers, watchers, test suites, REPLs, tunnels.',
+    points: ['Waits on a port, a pattern, silence or exit','Watchers report transitions, not noise','Three views: agent log, your screen, raw replay','Search the scrollback from the console','Time and idle limits, with the reason recorded','Reuses a finished shell instead of piling up'],
+    foot: ['9 agent tools','35 watch presets','@opencode-cockpit/shell']
+  },
+  agents: {
+    title: 'Agents', status: 'Next up',
+    blurb: "OpenCode can run subagents, but watching them means clicking into a panel that replaces your conversation. This bay makes them ambient.",
+    points: ['A live tree in the sidebar','Peek without losing your place','Keyboard navigation, no mouse','Per-agent output you can follow','Roll up cost and duration','Jump to the run that failed'],
+    foot: ['planned','design open','@opencode-cockpit/agents']
+  },
+  open: {
+    title: 'Open bay', status: 'Proposals welcome',
+    blurb: 'The airframe takes more instruments than these. Ideas on the table, none of them started — the strongest case wins the slot.',
+    points: ['Checkpoints you can roll back to','A context and cost meter','Ports and services, seen at a glance','Scheduled and recurring prompts','Shared memory between sessions','Yours — open an issue'],
+    foot: ['MIT','one package per bay','open an issue']
+  }
+};
+const panel = document.getElementById('baypanel');
+function showBay(name){
+  const b = BAYS[name];
+  document.querySelectorAll('.baybtn').forEach(x => x.setAttribute('aria-selected', String(x.dataset.bay === name)));
+  panel.innerHTML = `
+    <h3>${b.title}</h3>
+    <p>${b.blurb}</p>
+    <ul>${b.points.map(p => `<li><i>→</i><span>${p}</span></li>`).join('')}</ul>
+    <div class="foot">${b.foot.map(f => `<span>${f}</span>`).join('')}<span style="margin-left:auto">${b.status}</span></div>`;
+}
+document.querySelectorAll('.baybtn').forEach(b => b.addEventListener('click', () => showBay(b.dataset.bay)));
+showBay('shell');
+
+/* demo rail */
 const shot = document.getElementById('shot');
-document.getElementById('tabs').addEventListener('click', e => {
+document.getElementById('rail').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   [...b.parentNode.children].forEach(x => x.setAttribute('aria-pressed', String(x === b)));
   shot.src = b.dataset.src;
-  shot.alt = b.textContent.trim();
+  shot.alt = b.firstChild.textContent.trim();
 });
 
-/* copy buttons take the command sitting beside them */
+/* install segmented control */
+const CMD = {
+  all: ['opencode plugin opencode-cockpit --global',
+        'All bays, each with a switch: <span class="mono">{ "features": { "shell": true } }</span>. New bays arrive with an update and stay off until you turn them on.'],
+  one: ['opencode plugin @opencode-cockpit/shell --global',
+        'Just this bay. Same daemon, same config file, same interface slots — add the rest later without changing anything you already set up.']
+};
+document.getElementById('seg').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  [...b.parentNode.children].forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+  const [cmd, note] = CMD[b.dataset.mode];
+  document.getElementById('cmd').textContent = cmd;
+  document.getElementById('installnote').innerHTML = note;
+});
+
+/* copy */
 document.querySelectorAll('[data-copy]').forEach(btn => {
   btn.addEventListener('click', async () => {
     const text = btn.parentNode.textContent.replace(/\s*copy\s*$/, '').replace(/^\s*\$\s*/, '').trim();
