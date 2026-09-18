@@ -23,6 +23,8 @@ export interface ShellModuleOptions {
   registryFile?: string
   /** Directory for per-shell log files, when a caller asks for one. */
   logDir?: string
+  /** How often to look for shells whose window is gone for good. */
+  orphanSweepMs?: number
 }
 
 const DEFAULT_LIMITS: ShellLimits = { logChars: 4_000_000, rawBytes: 1_000_000, scrollback: 2000 }
@@ -36,6 +38,10 @@ export class ShellModule implements Module<"shell"> {
   private readonly backend: PtyBackend
   private readonly limits: ShellLimits
   private log: Logger = silentLogger
+  /** When each absent window was last seen, for the orphan sweep. */
+  private readonly goneSince = new Map<string, number>()
+  private sweepTimer: ReturnType<typeof setInterval> | undefined
+  private connected: () => Set<string> = () => new Set()
   private registry: ProcessRegistry | undefined
   private readonly idleTimers = new Map<string, ReturnType<typeof setInterval>>()
   /** @internal */
@@ -49,6 +55,10 @@ export class ShellModule implements Module<"shell"> {
   async start(ctx: ModuleContext): Promise<void> {
     this.log = ctx.log
     this.emit = ctx.emit
+    this.connected = ctx.instances
+    // A shell whose window never comes back should not outlive the day. Checked rarely: the
+    // decision is a timestamp comparison, and only shells that asked for it are considered.
+    this.sweepTimer = setInterval(() => this.sweepOrphans(), this.options.orphanSweepMs ?? 60_000)
     if (this.options.registryFile) {
       this.registry = new ProcessRegistry(this.options.registryFile, ctx.log)
       const reaped = this.registry.reap()
@@ -57,6 +67,7 @@ export class ShellModule implements Module<"shell"> {
   }
 
   async stop(): Promise<void> {
+    clearInterval(this.sweepTimer)
     for (const id of [...this.idleTimers.keys()]) this.clearIdle(id)
     await Promise.all(
       [...this.shells.values()].map((s) => s.stop("SIGTERM", 2000, { reason: "shutdown" }).catch(() => {})),
@@ -65,6 +76,49 @@ export class ShellModule implements Module<"shell"> {
     for (const shell of this.shells.values()) shell.dispose()
     this.attachments.clear()
     this.shells.clear()
+  }
+
+  /**
+   * An OpenCode window disconnected. Both halves of a plugin share an instance id, so this only
+   * counts as "the window is gone" once neither half is connected any more.
+   */
+  peerClosed(peer: { instance?: string }, remaining: Set<string>): void {
+    const instance = peer.instance
+    if (!instance || remaining.has(instance)) return
+    this.goneSince.set(instance, Date.now())
+    for (const shell of this.shells.values()) {
+      if (!shell.spec.stopOnExit || shell.spec.owner.instance !== instance || !shell.running) continue
+      this.log.info("stopping shell with its window", { id: shell.id, instance })
+      void shell
+        .stop("SIGTERM", 2000, {
+          reason: "shutdown",
+          because: "the OpenCode window that started it closed",
+        })
+        .catch(() => {})
+    }
+  }
+
+  /** Shells whose window has been gone longer than they allow. */
+  private sweepOrphans(): void {
+    const live = this.connected()
+    for (const instance of [...this.goneSince.keys()]) if (live.has(instance)) this.goneSince.delete(instance)
+
+    const now = Date.now()
+    for (const shell of this.shells.values()) {
+      const limit = shell.spec.orphanAfterMs
+      const instance = shell.spec.owner.instance
+      if (!limit || !instance || !shell.running || live.has(instance)) continue
+      const gone = this.goneSince.get(instance) ?? now
+      this.goneSince.set(instance, gone)
+      if (now - gone < limit) continue
+      this.log.info("stopping orphaned shell", { id: shell.id, instance, afterMs: now - gone })
+      void shell
+        .stop("SIGTERM", 2000, {
+          reason: "shutdown",
+          because: `nothing watched it for ${Math.round((now - gone) / 60_000)} minutes`,
+        })
+        .catch(() => {})
+    }
   }
 
   busy(): boolean {
@@ -84,6 +138,8 @@ export class ShellModule implements Module<"shell"> {
           title: params.title ?? previous.spec.title,
           timeoutMs: params.timeoutMs,
           owner: params.owner,
+          stopOnExit: params.stopOnExit,
+          orphanAfterMs: params.orphanAfterMs,
         })
         this.spawn(previous)
         return previous.info()
@@ -104,6 +160,8 @@ export class ShellModule implements Module<"shell"> {
         timeoutMs: params.timeoutMs,
         idleTimeoutMs: params.idleTimeoutMs,
         logFile: params.logFile ? join(this.options.logDir ?? "/tmp", `${id}.log`) : undefined,
+        stopOnExit: params.stopOnExit,
+        orphanAfterMs: params.orphanAfterMs,
       },
       this.backend,
       this.limits,

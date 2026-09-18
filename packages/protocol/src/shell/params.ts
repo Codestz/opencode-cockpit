@@ -23,6 +23,13 @@ export const StartParams = z.object({
   idleTimeoutMs: z.number().int().positive().optional(),
   /** Also write the clean log to a file, for debugging after the buffer has evicted old lines. */
   logFile: z.boolean().default(false),
+  /** Stop this shell when the OpenCode window that started it goes away. */
+  stopOnExit: z.boolean().optional(),
+  /**
+   * Stop it after this long with nothing from its window connected. The answer to a shell that
+   * would otherwise run for a week because everyone who knew about it has gone.
+   */
+  orphanAfterMs: z.number().int().positive().optional(),
   /**
    * Restart a finished shell with the same command, args, cwd, project and session instead of
    * creating a new one. Repeated runs then share one id and one log.

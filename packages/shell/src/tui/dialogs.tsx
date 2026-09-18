@@ -92,7 +92,7 @@ export function newShell(api: TuiPluginApi, store: ShellStore, open: (id?: strin
             args: ["-c", command],
             cwd: store.project(),
             title: command.slice(0, 60),
-            owner: { project: store.project() },
+            owner: { project: store.project(), session: store.session() },
             reuse: true,
           })
           .then((info) => {
@@ -136,6 +136,46 @@ export function restartDaemon(api: TuiPluginApi, store: ShellStore) {
       title="Restart shell daemon?"
       message={`${running} running shell${running === 1 ? "" : "s"} will be stopped.`}
       onConfirm={() => restart(true)}
+      onCancel={() => api.ui.dialog.clear()}
+    />
+  ))
+}
+
+/**
+ * Stopping shells in bulk. Two commands rather than one, because "everything I can see" and
+ * "everything, including what I cannot" are different intentions — and the second one asks first.
+ */
+export function stopShells(api: TuiPluginApi, store: ShellStore, reach: "view" | "project"): void {
+  const list = (reach === "view" ? store.shells() : store.all()).filter((s) => s.status === "running")
+  if (list.length === 0) {
+    return api.ui.toast({ title: "Shells", message: "Nothing is running.", duration: 3000 })
+  }
+
+  const stop = () => {
+    api.ui.dialog.clear()
+    void Promise.all(
+      list.map((shell) => store.client.call("shell.stop", { id: shell.id, graceMs: 2000 }).catch(() => {})),
+    ).then(() => {
+      void store.refresh()
+      api.ui.toast({
+        title: "Shells",
+        message: `Stopped ${list.length} shell${list.length === 1 ? "" : "s"}.`,
+        duration: 4000,
+      })
+    })
+  }
+
+  // Shells from other conversations are the ones you are not looking at; say so before killing them.
+  const elsewhere =
+    reach === "project" ? list.length - store.shells().filter((s) => s.status === "running").length : 0
+  if (elsewhere <= 0) return stop()
+
+  const DialogConfirm = api.ui.DialogConfirm
+  api.ui.dialog.replace(() => (
+    <DialogConfirm
+      title="Stop every shell in this project?"
+      message={`${list.length} running · ${elsewhere} from other conversations.`}
+      onConfirm={stop}
       onCancel={() => api.ui.dialog.clear()}
     />
   ))

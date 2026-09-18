@@ -7,6 +7,12 @@ import Cast from "../../../components/Cast.astro"
 
 <Cast name="dock" caption="The panel under the conversation, then the console." />
 
+## One conversation at a time
+
+The panel lists the shells of the session you are in. A project's shells all mixed together is how
+the panel stops making sense, so switching conversations changes what you see — without stopping
+anything. Press <kbd>s</kbd> in the console to widen it to the whole project and back.
+
 ## The panel
 
 A dock under the chat with a tab per shell, the selected shell's live screen, and the health of each
@@ -23,6 +29,7 @@ Full screen, one shell at a time.
 | <kbd>/</kbd> | Filter the log — matches highlighted, line numbers kept |
 | <kbd>?</kbd> | Details: command, folder, timing, watcher, log file |
 | <kbd>[</kbd> <kbd>]</kbd> | Previous / next shell |
+| <kbd>s</kbd> | This session only, or the whole project |
 | <kbd>r</kbd> · <kbd>x</kbd> · <kbd>c</kbd> | Restart · stop · interrupt |
 | <kbd>n</kbd> | Start a new shell yourself |
 | <kbd>esc</kbd> | Back to the conversation |
@@ -35,6 +42,7 @@ Filtering happens in the daemon, so a 40,000-line dev server costs nothing to se
 
 ## Commands
 
-`/shells` toggles the panel, `/shell` opens the console, `/shell-new` starts one,
+`/shells-stop` stops the shells you are looking at; `/shells-stop-all` stops every shell in the
+project and asks first when that includes conversations you cannot see. `/shells` toggles the panel, `/shell` opens the console, `/shell-new` starts one,
 `/shells-clear` forgets finished shells, `/shells-restart-daemon` replaces a daemon running older
 code. Rebind them under `ui.keybinds`.

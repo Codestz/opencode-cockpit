@@ -20,6 +20,8 @@ interface ConnState {
 
 class PeerImpl implements Peer {
   name = "unknown"
+  /** The OpenCode window this connection belongs to; both halves of a plugin share one. */
+  instance: string | undefined
   greeted = false
   readonly topics = new Set<string>()
   private readonly closers: (() => void)[] = []
@@ -33,8 +35,9 @@ class PeerImpl implements Peer {
     private readonly log: Logger,
   ) {}
 
-  greet(name: string): void {
+  greet(name: string, instance?: string): void {
     this.name = name
+    this.instance = instance
     this.greeted = true
   }
 
@@ -103,7 +106,7 @@ class PeerImpl implements Peer {
 
 export interface RpcServerHooks {
   onConnect(count: number): void
-  onDisconnect(count: number): void
+  onDisconnect(count: number, peer: Peer): void
 }
 
 export class RpcServer {
@@ -119,6 +122,13 @@ export class RpcServer {
 
   get clientCount(): number {
     return this.peers.size
+  }
+
+  /** The OpenCode windows currently connected, by instance id. */
+  get instances(): Set<string> {
+    const ids = new Set<string>()
+    for (const peer of this.peers) if (peer.instance) ids.add(peer.instance)
+    return ids
   }
 
   listen(path: string): void {
@@ -172,7 +182,7 @@ export class RpcServer {
   private drop(peer: PeerImpl): void {
     if (!this.peers.delete(peer)) return
     peer.close()
-    this.hooks.onDisconnect(this.peers.size)
+    this.hooks.onDisconnect(this.peers.size, peer)
   }
 
   private async handleLine(peer: PeerImpl, line: string): Promise<void> {

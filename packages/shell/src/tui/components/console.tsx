@@ -271,6 +271,11 @@ export function Console(props: ConsoleProps) {
         run: () => scroll?.scrollTo(scroll.scrollHeight),
       },
       { name: "cockpit.console.top", title: "Scroll to top", run: () => scroll?.scrollTo(0) },
+      {
+        name: "cockpit.console.scope",
+        title: "This session / whole project",
+        run: () => props.store.toggleScope(),
+      },
       { name: "cockpit.console.close", title: "Close console", run: () => props.onClose() },
     ],
     bindings: [
@@ -287,6 +292,7 @@ export function Console(props: ConsoleProps) {
       { key: "],l,right", cmd: "cockpit.console.next", desc: "Next" },
       { key: "[,h,left", cmd: "cockpit.console.prev", desc: "Prev" },
       { key: "n", cmd: "cockpit.console.new", desc: "New" },
+      { key: "s", cmd: "cockpit.console.scope", desc: "Scope" },
       { key: "j,down", cmd: "cockpit.console.down", desc: "Down" },
       { key: "k,up", cmd: "cockpit.console.up", desc: "Up" },
       { key: "shift+g,end", cmd: "cockpit.console.bottom", desc: "End" },
@@ -338,6 +344,11 @@ export function Console(props: ConsoleProps) {
     if (view() !== "details") keys.push(label("/ search log", "/"))
     keys.push(label("? details", "?"))
     if (props.store.shells().length > 1) keys.push(label("[ ] switch", "[ ]"))
+    keys.push(
+      props.store.scope() === "session"
+        ? label("s whole project", "s project")
+        : label("s this session", "s session"),
+    )
     if (finished() > 0) keys.push(label("D clear done", "D"))
     keys.push(label("n new", "n"), "esc")
     return keys.join(" · ")

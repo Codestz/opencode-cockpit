@@ -51,7 +51,12 @@ export class Daemon {
       this.router,
       {
         onConnect: () => this.refreshIdle(),
-        onDisconnect: () => this.refreshIdle(),
+        onDisconnect: (_count, peer) => {
+          // A window may keep working through its other half, so modules are told who is left.
+          const remaining = this.server.instances
+          for (const module of this.options.modules) module.peerClosed?.(peer, remaining)
+          this.refreshIdle()
+        },
       },
       this.log.child("rpc"),
     )
@@ -73,6 +78,7 @@ export class Daemon {
           // Module state changes (a shell exiting) can make the daemon idle.
           this.refreshIdle()
         },
+        instances: () => this.server.instances,
       })
     }
     this.server.listen(paths.socket)
@@ -147,7 +153,7 @@ export class Daemon {
 
   private registerCore(): void {
     this.router.add("daemon.hello", (raw, { peer }) => {
-      const params = raw as { client: { name: string }; protocol: { major: number } }
+      const params = raw as { client: { name: string; instance?: string }; protocol: { major: number } }
       if (params.protocol.major !== PROTOCOL_VERSION.major) {
         throw new RpcError(ErrorCode.ProtocolMismatch, "protocol major version mismatch", {
           daemon: PROTOCOL_VERSION,
@@ -155,7 +161,7 @@ export class Daemon {
           busy: this.busy(),
         })
       }
-      peer.greet(params.client.name)
+      peer.greet(params.client.name, params.client.instance)
       return {
         daemonVersion: DAEMON_VERSION,
         build: DAEMON_BUILD,

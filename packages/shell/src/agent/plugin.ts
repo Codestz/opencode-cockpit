@@ -52,8 +52,9 @@ export function createShellServer({ source = SHELL_PACKAGE }: ShellServerOptions
 
 async function shellHooks({ client: opencode, directory }: PluginInput, options?: unknown): Promise<Hooks> {
   const config = loadConfig(directory, options)
-  const cockpit = createClient("opencode-cockpit/server")
+  // Identifies this OpenCode window to the daemon, so shells can end with it.
   const instance = crypto.randomUUID()
+  const cockpit = createClient("opencode-cockpit/server", instance)
   const quiet = new Set<string>()
 
   const userShell =

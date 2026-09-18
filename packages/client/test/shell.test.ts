@@ -538,3 +538,63 @@ describe("limits and log files", () => {
     expect(written.split("\n").filter(Boolean)).toEqual(["done", "second line"])
   })
 })
+
+describe("shells end with the window that started them", () => {
+  test("stopOnExit stops a shell when its window disconnects, and spares everyone else's", async () => {
+    const mine = env.client("mine", "window-a")
+    const theirs = env.client("theirs", "window-b")
+
+    const ends = await mine.call("shell.start", {
+      ...bash("sleep 30"),
+      owner: { ...owner, instance: "window-a" },
+      stopOnExit: true,
+    })
+    const stays = await theirs.call("shell.start", {
+      ...bash("sleep 30"),
+      owner: { ...owner, instance: "window-b" },
+      stopOnExit: true,
+    })
+    const kept = await mine.call("shell.start", {
+      ...bash("sleep 30"),
+      owner: { ...owner, instance: "window-a" },
+    })
+
+    mine.close()
+    await Bun.sleep(600)
+
+    const list = await theirs.call("shell.list", {})
+    const status = (id: string) => list.find((s) => s.id === id)?.status
+    expect(status(ends.id)).not.toBe("running") // its window closed
+    expect(status(stays.id)).toBe("running") // a different window
+    expect(status(kept.id)).toBe("running") // never asked to stop
+
+    await theirs.call("shell.stop", { id: stays.id, graceMs: 300 })
+    await theirs.call("shell.stop", { id: kept.id, graceMs: 300 })
+  })
+})
+
+describe("a shell whose window never comes back", () => {
+  test("is stopped once it has been alone longer than it allows", async () => {
+    // Its own daemon, sweeping often enough to watch it happen.
+    const own = await startDaemon(tempHome(), 0, { orphanSweepMs: 120 })
+    try {
+      const gone = own.client("gone", "window-gone")
+      const watcher = own.client("watcher", "window-here")
+      await watcher.call("shell.list", {}) // keep a window connected, so the daemon is not idle
+
+      const orphan = await gone.call("shell.start", {
+        ...bash("sleep 30"),
+        owner: { ...owner, instance: "window-gone" },
+        orphanAfterMs: 1,
+      })
+      gone.close()
+
+      await Bun.sleep(900)
+      const stopped = (await watcher.call("shell.list", {})).find((s) => s.id === orphan.id)
+      expect(stopped?.status).not.toBe("running")
+      expect(stopped?.summary ?? "").toContain("watched it")
+    } finally {
+      await own.dispose()
+    }
+  })
+})

@@ -66,6 +66,9 @@ export function Dock(props: DockProps) {
         <text fg={theme().text} flexShrink={0}>
           <b>Shells</b>
         </text>
+        <text fg={theme().textMuted} flexShrink={0}>
+          {props.store.scope() === "session" ? "this session" : "project"}
+        </text>
         <Show
           when={props.store.shells().length > 0}
           fallback={

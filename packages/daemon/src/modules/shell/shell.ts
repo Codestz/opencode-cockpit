@@ -31,6 +31,10 @@ export interface ShellSpec {
   idleTimeoutMs?: number
   /** Absolute path the clean log is appended to, when logging was requested. */
   logFile?: string
+  /** Stop when the OpenCode window that started it goes away. */
+  stopOnExit?: boolean
+  /** Stop after this long with that window gone. */
+  orphanAfterMs?: number
 }
 
 export interface ShellLimits {
@@ -207,13 +211,14 @@ export class Shell {
   async stop(
     signal: NodeJS.Signals = "SIGTERM",
     graceMs = 3000,
-    cause: { reason: StopReason; by?: string } = { reason: "request" },
+    cause: { reason: StopReason; by?: string; because?: string } = { reason: "request" },
   ): Promise<void> {
     const pty = this.pty
     if (!pty || !this.running) return
     this.stopRequested = true
     this.stopReason ??= cause.reason
     this.stoppedBy ??= cause.by
+    this.stoppedBecause ??= cause.because
     pty.signal(signal)
     const exited = await Promise.race([
       this.exitPromise.then(() => true),

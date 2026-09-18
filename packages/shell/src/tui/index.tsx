@@ -9,7 +9,7 @@ import { type CockpitConfig, loadConfig } from "../core/config.ts"
 import { Console } from "./components/console.tsx"
 import { Dock } from "./components/dock.tsx"
 import { SidebarShells } from "./components/sidebar.tsx"
-import { announceUpdate, newShell, offerUpdate, pickShell, restartDaemon } from "./dialogs.tsx"
+import { announceUpdate, newShell, offerUpdate, pickShell, restartDaemon, stopShells } from "./dialogs.tsx"
 import { createShellStore } from "./state/store.ts"
 
 const DEFAULT_KEYS = {
@@ -109,6 +109,22 @@ const shellTui: TuiPlugin = async (api, rawOptions, meta) => {
         namespace: "palette",
         slashName: "shell-new",
         run: () => newShell(api, store, openConsole),
+      },
+      {
+        name: "cockpit.shells.stop",
+        title: "Stop the shells in view",
+        category: "Shells",
+        namespace: "palette",
+        slashName: "shells-stop",
+        run: () => stopShells(api, store, "view"),
+      },
+      {
+        name: "cockpit.shells.stopAll",
+        title: "Stop every shell in this project",
+        category: "Shells",
+        namespace: "palette",
+        slashName: "shells-stop-all",
+        run: () => stopShells(api, store, "project"),
       },
       {
         name: "cockpit.shells.clear",

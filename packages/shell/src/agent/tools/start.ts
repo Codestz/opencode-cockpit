@@ -97,6 +97,9 @@ export function shellStart(kit: ToolKit): ToolDefinition {
       const logFile = args.logFile ?? defaults.logFile ?? false
       const notifyOnExit = args.notifyOnExit ?? defaults.notifyOnExit ?? true
       const watch = args.watch ?? defaults.watch ?? (config.watch?.auto ? "auto" : undefined)
+      // Nothing should outlive the window that asked for it by more than the user allows.
+      const lifecycle = config.lifecycle ?? {}
+      const orphanMinutes = lifecycle.orphanAfterMinutes ?? 60
       const shell = deps.shellCommand(args.command)
       const info = await client.call("shell.start", {
         command: shell.command,
@@ -108,6 +111,8 @@ export function shellStart(kit: ToolKit): ToolDefinition {
         timeoutMs: seconds(args.timeoutSeconds ?? defaults.timeoutSeconds),
         idleTimeoutMs: seconds(args.idleTimeoutSeconds ?? defaults.idleTimeoutSeconds),
         logFile: logFile === true,
+        stopOnExit: (lifecycle.onExit ?? "stopMine") === "stopMine",
+        orphanAfterMs: orphanMinutes > 0 ? orphanMinutes * 60_000 : undefined,
         reuse: true,
       })
       if (notifyOnExit === false) deps.quiet.add(info.id)

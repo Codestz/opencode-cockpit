@@ -6,6 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **The panel shows the conversation you are in.** A project's shells listed together stopped making
+  sense as soon as two sessions were open. Switching conversations now changes what the panel lists,
+  without stopping anything; `s` in the console widens it to the whole project and back, and
+  `shell_list` already took `session`.
+- **Shells end with the window that started them.** `lifecycle.onExit` defaults to `stopMine`, so
+  closing OpenCode stops its own shells — a window closing counts only once both halves of the
+  plugin have gone, so quitting one of two open windows never touches the other's. `keep` restores
+  the old behaviour of leaving them for the next window.
+
+### Added
+
+- `lifecycle.orphanAfterMinutes` (60 by default): a shell no window has been connected to for that
+  long is stopped, so nothing runs for a week because everyone who knew about it has gone.
+- `/shells-stop` stops the shells in view; `/shells-stop-all` stops every shell in the project and
+  confirms first when that reaches conversations you are not looking at. "Everything I can see" and
+  "everything, including what I cannot" are different intentions.
+
+### Fixed
+
+- A shell started by hand had no session recorded, so the session-scoped panel did not list it — and
+  attaching then asked the daemon for output from an offset past the end, which crashed the handler
+  and left the console empty. Manual shells now belong to the conversation they were started from,
+  attaching looks in every shell rather than only the listed ones, and an offset past the end is
+  read as "only what comes next" instead of an error.
+
 ## [0.2.1] - 2026-09-18
 
 ### Added

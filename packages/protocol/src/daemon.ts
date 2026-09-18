@@ -5,6 +5,11 @@ export const ClientInfo = z.object({
   name: z.string().min(1),
   version: z.string().min(1),
   pid: z.number().int().optional(),
+  /**
+   * Opaque id of the OpenCode window this client belongs to. Both halves of a plugin share one, so
+   * the daemon can tell "this window went away" from "one of its two connections dropped".
+   */
+  instance: z.string().min(1).optional(),
 })
 
 export const Version = z.object({ major: z.number().int(), minor: z.number().int() })
