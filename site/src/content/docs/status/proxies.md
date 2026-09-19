@@ -61,6 +61,22 @@ estimate cannot match that. Read the real figure with a
 A failing request leaves the last good value on screen, and the call is off the draw path, so a slow
 proxy never makes the interface stutter.
 
+## Subagents
+
+The `cost` segment reports **the session's own running total — the same number OpenCode prints in
+its sidebar**. That is deliberate: two figures on one screen that disagree are worse than either,
+and an earlier version summed the messages it could see and read $0.30 against the host's $0.56.
+
+Whether a subagent's spend is part of that total is OpenCode's behaviour, not this bay's. We show
+what the host shows, so the two always agree — and if the host starts counting child sessions, so
+will we, with no change here.
+
+If you delegate heavily and want to be sure, the check takes a minute: run a turn that spawns a
+subagent, then compare the `cost` segment against the sum you would expect. If it is short, the
+host is not rolling child sessions up, and a
+[command segment](/opencode-cockpit/status/commands/) against your proxy's own spend endpoint is
+the number to trust — it counts every request whoever made it.
+
 ## What is never available
 
 Anthropic plan quotas — the `5h` and `7d` windows a Claude Code statusline can show. They describe a

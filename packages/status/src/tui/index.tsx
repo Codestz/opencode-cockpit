@@ -39,9 +39,22 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
     if (config.modules?.length) {
       const loaded = await loadCustomSegments(config.modules, directory)
       custom = loaded.segments
-      // A module that will not load is worth saying out loud: its segments silently vanish.
+      /**
+       * A module that will not load is worth saying out loud twice over: its segments simply are
+       * not there, which looks exactly like a plugin that did nothing. The toast is gone in ten
+       * seconds, so the reason also goes to OpenCode's log, where it can still be read afterwards
+       * — a whole session was once spent diagnosing an import that had already explained itself
+       * and then disappeared.
+       */
       for (const error of loaded.errors) {
         api.ui.toast({ variant: "error", title: "Statusline", message: error, duration: 10_000 })
+        void api.client.app
+          .log({
+            service: "opencode-cockpit.status",
+            level: "error",
+            message: `statusline module failed to load: ${error}`,
+          })
+          .catch(() => {})
       }
     }
 

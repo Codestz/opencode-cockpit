@@ -60,6 +60,20 @@ look solid", and the two interpretations share no code.
 - A segment that throws loses only its own row. A module that fails to load raises a toast naming
   the file.
 
+## Checking what actually reached the terminal
+
+`preview` paints with its own ANSI and the smoke harness serialises the screen as text, so both are
+blind to colour and emphasis. When a design looks wrong and the code looks right:
+
+```sh
+bun run capture --sidebar --find "40%" --find bold
+```
+
+It drives a real OpenCode and reports the escape codes written around the text you name. That is
+how three separate "is this even working" questions were settled in minutes rather than rounds:
+bold *was* being emitted and the font had no bold face; italic *was* being emitted and the word was
+truncated; a track *was* being drawn and `panel` was the panel's own colour.
+
 ## Where everything lives
 
 | What | Where |

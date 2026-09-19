@@ -28,8 +28,14 @@ All notable changes to this project are documented here. The format follows
   this bay learned the expensive way — solid bars rather than dashes, words rather than colour
   alone, no headings above optional rows, look at it before shipping it.
 
+- **Presets** — a whole line by name, built-ins only: `minimal`, `default`, `detailed`, `sidebar`.
+  Anything written beside one wins, so it is a starting point rather than a mode.
+
 ### Fixed
 
+- **A statusline module that fails to load now says so in OpenCode's log**, not only in a toast
+  that is gone in ten seconds. The entry names both the module and the directory resolution was
+  attempted from, which is the pair that makes an import failure obvious instead of mysterious.
 - **`maxRows` and the padding settings work at the top level of the config**, not only inside a
   `lines` entry. Writing them there is the natural guess, and being quietly ignored cost exactly
   the rows they were meant to keep.
