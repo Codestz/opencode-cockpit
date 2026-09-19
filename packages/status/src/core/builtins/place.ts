@@ -2,7 +2,7 @@
 
 import { compact, shortPath, truncateStart } from "../format.ts"
 import type { SegmentDef } from "../types.ts"
-import { num } from "./settings.ts"
+import { formatted, num } from "./settings.ts"
 
 export const SEGMENTS: SegmentDef[] = [
   {
@@ -31,12 +31,25 @@ export const SEGMENTS: SegmentDef[] = [
     },
   },
   {
-    name: "git.diff",
+    /**
+     * What *this session* changed, which is what OpenCode's own Files list shows -- not what `git
+     * status` would. A file you edited by hand was never part of the session and does not appear
+     * here, which is why the old name, `git.diff`, was a trap. That name still works.
+     *
+     * For the working tree, use a command segment: `git diff --shortstat`.
+     */
+    name: "session.diff",
     icon: "±",
     priority: 50,
-    render(ctx) {
+    render(ctx, config) {
       const diff = ctx.session?.diff
       if (!diff || (diff.additions === 0 && diff.deletions === 0)) return undefined
+      const shaped = formatted(config, {
+        files: diff.files,
+        added: diff.additions,
+        removed: diff.deletions,
+      })
+      if (shaped) return shaped
       // Two colours: what was added and what was taken away are read separately.
       return {
         runs: [

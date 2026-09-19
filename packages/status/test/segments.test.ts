@@ -119,6 +119,20 @@ describe("context window", () => {
   })
 
   /**
+   * The fill used to take the text's tone, which is muted below the warning threshold -- so the
+   * bar sat grey for most of a session while occupying the widest part of the line.
+   */
+  test("the bar fills with a colour that means something at every level", () => {
+    const fillOf = (used: number) => {
+      const drawn = render("context", withLimit(used, 200_000), { style: "bar", width: 10 })
+      return drawn?.runs.find((run) => run.text.includes("█"))?.tone
+    }
+    expect(fillOf(80_000)).toBe("success")
+    expect(fillOf(160_000)).toBe("warning")
+    expect(fillOf(190_000)).toBe("error")
+  })
+
+  /**
    * The bar people actually want: one bar whose cells are coloured by what fills them, so the
    * shape of the session -- mostly cache, mostly fresh input -- reads at a glance.
    */
@@ -186,10 +200,20 @@ describe("the rest of the built-ins", () => {
     expect(render("git.branch", boring)?.tone).toBe("muted")
   })
 
+  /**
+   * It reports what this session changed, which is what OpenCode's Files list shows -- not the
+   * working tree. A file edited by hand never appears, and the old name implied it would.
+   */
+  test("the session diff keeps working under its old name", () => {
+    const changed = ctx({ session: session({ diff: { files: 1, additions: 2, deletions: 0 } }) })
+    expect(render("session.diff", changed)?.text).toBe("+2 / -0")
+    expect(render("git.diff", changed)?.text).toBe("+2 / -0")
+  })
+
   test("diff shows only when something changed", () => {
-    expect(render("git.diff", ctx({ session: session() }))).toBeUndefined()
+    expect(render("session.diff", ctx({ session: session() }))).toBeUndefined()
     const changed = ctx({ session: session({ diff: { files: 2, additions: 40, deletions: 3 } }) })
-    const drawn = render("git.diff", changed)
+    const drawn = render("session.diff", changed)
     expect(drawn?.text).toBe("+40 / -3")
     // Added and removed are read separately, so they are coloured separately.
     expect(drawn?.runs.find((run) => run.text === "+40")?.tone).toBe("success")
@@ -227,6 +251,12 @@ describe("the rest of the built-ins", () => {
     expect(drawn?.tone).toBe("warning")
   })
 
+  // A startedAt of 0 is a real instant; treating it as missing hid the segment entirely.
+  test("elapsed counts from a zero start rather than hiding", () => {
+    const old = ctx({ now: 222_480_000, session: session({ startedAt: 0 }) })
+    expect(render("session.time", old)?.text).toBe("2d 13h")
+  })
+
   test("busy reports how long it has been working", () => {
     const working = ctx({ now: 90_000, session: session({ status: "busy", startedAt: 30_000 }) })
     expect(render("session.status", working)?.text).toBe("working 1m00s")
@@ -256,6 +286,88 @@ describe("the rest of the built-ins", () => {
   test("literal text is passed through", () => {
     expect(render("text", ctx(), { value: "prod" })?.text).toBe("prod")
     expect(render("text", ctx())).toBeUndefined()
+  })
+})
+
+/**
+ * Anything a CLI can print belongs in a command, shaped in the shell. These segments read the
+ * session snapshot, which no shell can produce -- so the shape has to be configurable here, or it
+ * is whatever shape we happened to choose.
+ */
+describe("segments take the shape you ask for", () => {
+  const changed = ctx({ session: session({ diff: { files: 3, additions: 12, deletions: 4 } }) })
+
+  test("a diff can be written however the line needs it", () => {
+    expect(render("session.diff", changed, { format: "+{added} -{removed}" })?.text).toBe("+12 -4")
+    expect(render("session.diff", changed, { format: "{files}f" })?.text).toBe("3f")
+    expect(render("session.diff", changed, { format: "{added}/{removed} in {files}" })?.text).toBe(
+      "12/4 in 3",
+    )
+  })
+
+  /**
+   * The figures behind a share. A cache hit rate of 99% reads as wrong until the parts are
+   * visible, and with prompt caching it usually is not.
+   */
+  test("tokens can be broken into the parts it is made of", () => {
+    const spent = ctx({
+      session: session({
+        tokens: { input: 1200, output: 800, reasoning: 0, cache: { read: 96_000, write: 2000 } },
+      }),
+    })
+    expect(render("tokens", spent)?.text).toBe("100k tok")
+    expect(
+      render("tokens", spent, {
+        format: "{total} tok · in {input} · out {output} · read {cacheRead} · write {cacheWrite}",
+      })?.text,
+    ).toBe("100k tok · in 1.2k · out 800 · read 96k · write 2k")
+    expect(render("tokens", spent, { format: "{totalExact}" })?.text).toBe("100000")
+  })
+
+  /**
+   * Meaning carried by colour rather than by a row of equal-weight words — and the same three
+   * colours the split bar uses, so the same quantity reads the same wherever it appears.
+   */
+  test("the parts style colours each quantity and leaves out the empty ones", () => {
+    const spent = ctx({
+      session: session({
+        tokens: { input: 436, output: 146, reasoning: 0, cache: { read: 79_300, write: 0 } },
+      }),
+    })
+    const drawn = render("tokens", spent, { style: "parts" })
+    expect(drawn?.text).toBe("79.9k cache 79.3k in 436 out 146")
+    expect(drawn?.runs.find((run) => run.text === "79.3k")?.tone).toBe("success")
+    expect(drawn?.runs.find((run) => run.text === "436")?.tone).toBe("info")
+    expect(drawn?.runs.find((run) => run.text === "146")?.tone).toBe("accent")
+    // "write 0" is a column spent saying nothing happened.
+    expect(drawn?.text).not.toContain("write")
+  })
+
+  test("todo takes one too, including what is left rather than what is done", () => {
+    const busy = ctx({ session: session({ todo: { total: 7, completed: 3 } }) })
+    expect(render("todo", busy, { format: "{left} to go" })?.text).toBe("4 to go")
+    expect(render("todo", busy, { format: "{done}/{total}" })?.text).toBe("3/7")
+  })
+
+  test("no format means the segment's own shape, in its own colours", () => {
+    const drawn = render("session.diff", changed)
+    expect(drawn?.text).toBe("+12 / -4")
+    expect(drawn?.runs).toHaveLength(3) // the default keeps added and removed coloured apart
+  })
+
+  // A format is one run in one tone: full control of the words, at the cost of the colouring.
+  test("a formatted segment is a single run", () => {
+    const drawn = render("session.diff", changed, { format: "+{added} -{removed}" })
+    expect(drawn?.runs).toHaveLength(1)
+  })
+
+  test("an unknown placeholder is left visible rather than silently blank", () => {
+    expect(render("session.diff", changed, { format: "{nope} {added}" })?.text).toBe("{nope} 12")
+  })
+
+  // To hide a segment you leave it out of the list; an empty format is not a second way to do it.
+  test("an empty format falls back to the segment's own shape", () => {
+    expect(render("session.diff", changed, { format: "" })?.text).toBe("+12 / -4")
   })
 })
 

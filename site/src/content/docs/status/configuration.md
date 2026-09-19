@@ -30,7 +30,7 @@ fatal: a config written against a newer version costs you a segment, not the lin
 | --- | --- | --- |
 | `cwd` | folder, relative to the worktree | `maxWidth` |
 | `git.branch` | current branch, dimmed on the default branch | |
-| `git.diff` | `+150 / -30` for the session | |
+| `session.diff` | `+150 / -30` — what **this session** changed, not the working tree | |
 | `model` | `claude-opus-5` | `full` |
 | `context` | how full the window is | `style`, `width`, `warnAt`, `dangerAt` |
 | `tokens` | `78.5k tok` | |
@@ -44,6 +44,35 @@ fatal: a config written against a newer version costs you a segment, not the lin
 | `command` | a shell command's output | `name`, `row` |
 
 Every one also takes `prefix`, `suffix`, `priority`, `color` and `icon`.
+
+## What `session.diff` counts
+
+What **this session** changed — the same files OpenCode lists in its own sidebar, tracked through
+the session's snapshots. Not `git status`: a file you edited by hand was never part of the session
+and will not appear, however dirty the tree is.
+
+Both questions are worth asking, and they are different questions — "what have I changed here" is
+not "what has the agent changed this turn". The working tree needs a command, because a built-in
+that shelled out would stop being a pure function of the snapshot, which is what makes every one of
+them testable without a filesystem:
+
+```jsonc
+{
+  "statusline": {
+    "modules": ["<examples/bottom.ts>"],
+    "commands": { "tree": { "run": "git diff --shortstat", "intervalMs": 5000 } },
+    "segments": [
+      { "type": "session.diff", "prefix": "session " },
+      { "type": "worktree", "prefix": "tree " }
+    ]
+  }
+}
+```
+
+`git diff --shortstat` prints `3 files changed, 12 insertions(+), 4 deletions(-)`, far too long for
+a line — the `worktree` segment in `examples/bottom.ts` reads that and draws `3f +12 -4`.
+
+`session.diff` also answers to `git.diff`, its old and more misleading name.
 
 ## The context segment
 

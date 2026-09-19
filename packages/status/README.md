@@ -3,9 +3,7 @@
 A statusline for [OpenCode](https://opencode.ai) you can actually configure — declarative segments,
 your own TypeScript, or the statusline script you already wrote for Claude Code.
 
-```
- ▕████████┊┊░░░░┊░░░░┊▏ 39% │ +1.2%/min · 48m left │ ▌94% cached │ +150 / -30 │ ◷ 12m04s
-```
+![The statusline under an OpenCode conversation: a context bar at 40%, the token total with its cache, input and output parts, the session diff, elapsed time and todo progress](https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/statusline.png)
 
 Part of [opencode-cockpit](https://github.com/Codestz/opencode-cockpit). Install it on its own, or
 get it with every other bay through the `opencode-cockpit` bundle.
@@ -103,7 +101,7 @@ it fits. How full the context is survives a 60-column window; the version string
 | --- | --- | --- |
 | `cwd` | folder, relative to the worktree | `maxWidth` |
 | `git.branch` | current branch, dimmed on the default branch | |
-| `git.diff` | `+150 / -30` for the session | |
+| `session.diff` | `+150 / -30` — what **this session** changed, not the working tree | |
 | `model` | `claude-opus-5` | `full` |
 | `context` | how full the window is | `style`: `percent` \| `bar` \| `gradient` \| `split`, `width`, `warnAt`, `dangerAt` |
 | `tokens` | `78.5k tok` | |
@@ -117,6 +115,25 @@ it fits. How full the context is survives a 60-column window; the version string
 | `command` | the output of a shell command | `name`, `row` |
 
 Every segment takes `prefix`, `suffix`, `priority`, `color` (a tone name or `#rrggbb`) and `icon`.
+
+`session.diff` reports what OpenCode's own Files list shows: the files **this session** changed. A
+file you edited by hand was never part of the session and will not appear.
+
+For the **working tree**, pair a command with the `worktree` segment in `examples/bottom.ts` — a
+built-in that shelled out would stop being a pure function of the snapshot, which is what makes
+every one of them testable without a filesystem:
+
+```jsonc
+{
+  "commands": { "tree": { "run": "git diff --shortstat", "intervalMs": 5000 } },
+  "segments": [
+    { "type": "session.diff", "prefix": "session " },
+    { "type": "worktree", "prefix": "tree " }
+  ]
+}
+```
+
+`session.diff` also answers to `git.diff`, its old and more misleading name.
 
 **A segment with nothing to say says nothing.** `cost` hides itself where nobody declared prices
 rather than reporting `$0.00`; `context` hides itself where nobody declared a window rather than

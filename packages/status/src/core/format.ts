@@ -139,13 +139,32 @@ export function gradient(t: number, stops: Rgb[] = HEAT): string {
   ])
 }
 
-/** "3m42s" — the precision a statusline can afford for a session that is still running. */
+/**
+ * "3m42s" while you are watching it, "2d 13h" once you are not.
+ *
+ * Each tier drops the one below as it stops mattering: seconds are worth watching in the first
+ * minute and meaningless after an hour, and "61h48m" is a number nobody converts in their head.
+ */
 export function preciseDuration(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000))
   const s = total % 60
   const m = Math.floor(total / 60) % 60
-  const h = Math.floor(total / 3600)
-  if (h > 0) return `${h}h${String(m).padStart(2, "0")}m`
+  const h = Math.floor(total / 3600) % 24
+  const d = Math.floor(total / 86_400)
+  if (d > 0) return h === 0 ? `${d}d` : `${d}d ${h}h`
+  if (total >= 3600) return `${Math.floor(total / 3600)}h${String(m).padStart(2, "0")}m`
   if (m > 0) return `${m}m${String(s).padStart(2, "0")}s`
   return `${s}s`
+}
+
+/**
+ * Filling `{name}` placeholders from a segment's own values.
+ *
+ * This is what a `format` setting runs on. A segment that draws several figures should not also
+ * decide the words between them — "3f +12 -4" suits one line and "+12/-4" another, and neither is
+ * ours to insist on. An unknown placeholder is left as written, so a typo is visible rather than
+ * silently blank.
+ */
+export function template(text: string, values: Record<string, string | number>): string {
+  return text.replace(/\{(\w+)\}/g, (whole, name: string) => (name in values ? String(values[name]) : whole))
 }

@@ -112,12 +112,22 @@ describe("resolving lines", () => {
    * percentage, spend and model. A default that repeated them would draw the same figure several
    * times on one screen, which is exactly what it looked like before this rule.
    */
-  test("the default line says nothing the host already says", () => {
-    const host = ["cwd", "git.branch", "model", "context", "tokens", "cost"]
-    for (const duplicated of host) {
-      expect(DEFAULT_SEGMENTS).not.toContain(duplicated)
+  /**
+   * The rule is not to avoid every fact OpenCode mentions -- it is to avoid saying one no better
+   * than the host does. A bar with the breakdown beside it is a different instrument from
+   * "78.5K (39%)" in a corner; a second copy of the path or the model is just a second copy.
+   */
+  test("the default line adds nothing that is only a second copy", () => {
+    const types = DEFAULT_SEGMENTS.map((entry) => (typeof entry === "string" ? entry : entry.type))
+    for (const copied of ["cwd", "git.branch", "model", "cost"]) {
+      expect(types).not.toContain(copied)
     }
-    expect(DEFAULT_SEGMENTS.length).toBeGreaterThan(0)
+  })
+
+  test("the default line leads with the instrument the host does not offer", () => {
+    const [first] = DEFAULT_SEGMENTS
+    expect(typeof first === "string" ? first : first?.type).toBe("context")
+    expect(typeof first === "string" ? undefined : first?.style).toBe("bar")
   })
 
   test("the simple form is one line on the chosen surface", () => {

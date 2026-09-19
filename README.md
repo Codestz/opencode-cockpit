@@ -25,7 +25,12 @@ ships.*
 | Feature | What your agent gains | Package |
 |---|---|---|
 | **Shell** | Background terminals it starts, waits on, reads and types into — dev servers, watchers, test suites, REPLs | [`@opencode-cockpit/shell`](packages/shell) |
-| **Agents** *(next)* | A live, keyboard-first view of every subagent, without leaving your chat | `@opencode-cockpit/agents` |
+| **Statusline** | Live session state under your conversation — context, tokens, diff, time — configurable down to the word | [`@opencode-cockpit/status`](packages/status) |
+
+![The statusline under an OpenCode conversation: a context bar at 40%, the token total with its cache, input and output parts, the session diff, elapsed time and todo progress](media/statusline.png)
+
+*The statusline with no configuration at all. Every part of it is a segment you can reshape,
+recolour or remove — or write yourself in TypeScript.*
 
 ## Shell, by example
 
@@ -168,15 +173,26 @@ Each shell's output feeds three views at once: a normalized **log** for the agen
 |---|---|---|
 | [`opencode-cockpit`](packages/opencode) | The bundle: every bay, each switchable | [README](packages/opencode/README.md) |
 | [`@opencode-cockpit/shell`](packages/shell) | Bay 01 — background terminals | [README](packages/shell/README.md) · [docs](https://codestz.github.io/opencode-cockpit/shell/overview/) |
+| [`@opencode-cockpit/status`](packages/status) | Bay 02 — the statusline | [README](packages/status/README.md) · [docs](https://codestz.github.io/opencode-cockpit/status/overview/) |
 | [`@opencode-cockpit/daemon`](packages/daemon) | `cockpitd`, the shared process host | [README](packages/daemon/README.md) |
 | [`@opencode-cockpit/client`](packages/client) | Typed, auto-spawning client | [README](packages/client/README.md) |
 | [`@opencode-cockpit/protocol`](packages/protocol) | Wire contracts and schemas | [README](packages/protocol/README.md) |
 
-## Roadmap
+## What is being worked on
 
-- **Agents** — live subagent tree with a peek overlay.
-- **Doctor** — one command that checks your setup and tells you how to fix it.
-- Shell groups in the sidebar, if the five-row cap ever stops being enough.
+Not a roadmap of promises — the next thing, and why it is next.
+
+**Review — a pull request, in the terminal.** A turn ends and you read the whole diff at once, or
+you read none of it and hope. GitHub solved the reading part years ago: comment on a line, comment
+on a file, mark a file read, suggest the change instead of describing it — and nothing reaches the
+author until you press *submit review*. The same shape fits here, with the review going to the chat
+as one message instead of six interruptions.
+
+OpenCode already exposes what it needs: `session.diff` returns each file's `before` and `after` in
+full, `session.revert` undoes a single message or part, and a plugin can write to the prompt. What
+is missing is the view and the keys.
+
+**Doctor.** One command that checks your setup and says how to fix it.
 
 ## Contributing
 

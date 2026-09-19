@@ -15,6 +15,13 @@ mkdirSync(casts, { recursive: true })
 const tapes = readdirSync(join(root, "tapes")).filter((f) => f.endsWith(".cast"))
 for (const file of tapes) copyFileSync(join(root, "tapes", file), join(casts, file))
 
+// Screenshots live in media/ alongside the recordings, and are served from the site's own origin
+// so a page renders the same locally as it does once deployed.
+const shots = join(site, "public", "media")
+mkdirSync(shots, { recursive: true })
+const images = readdirSync(join(root, "media")).filter((f) => f.endsWith(".png"))
+for (const file of images) copyFileSync(join(root, "media", file), join(shots, file))
+
 // The changelog is a docs page, but the release script owns the file: import it with a title.
 const changelog = readFileSync(join(root, "CHANGELOG.md"), "utf8")
   .replace(/^# Changelog\n+/, "")
@@ -32,4 +39,4 @@ ${changelog}`
 mkdirSync(join(site, "src", "content", "docs", "help"), { recursive: true })
 writeFileSync(join(site, "src", "content", "docs", "help", "changelog.md"), page)
 
-console.log(`synced ${tapes.length} casts and the changelog`)
+console.log(`synced ${tapes.length} casts, ${images.length} images and the changelog`)

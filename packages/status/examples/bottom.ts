@@ -1,6 +1,12 @@
 /**
  * Everything on one line, for a window with no sidebar open.
  *
+ * Every segment here reads the session snapshot, which is the line this bay draws: anything a CLI
+ * can already print belongs in a `command`, shaped in the shell, not in a segment that duplicates
+ * it. The working tree, for instance, needs no code from us at all:
+ *
+ *   "commands": { "tree": { "run": "git diff --shortstat | awk '{print \"+\"$4\" -\"$6}'" } }
+ *
  * This is the whole statusline for someone who lives in the bottom line: how full the context is,
  * which way it is going, what the session has changed, and whether anything needs them. It is the
  * densest of the examples on purpose -- the bottom line is the only surface with real width.

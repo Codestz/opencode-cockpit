@@ -49,6 +49,17 @@ export function cutSegment(segment: Segment, max: number): Segment {
 
 const BY_NAME = new Map(BUILTINS.map((def) => [def.name, def]))
 
+/**
+ * Names that changed, kept working. `git.diff` read as "what git would tell me", when it has
+ * always been what this session changed.
+ */
+const ALIASES: Record<string, string> = { "git.diff": "session.diff" }
+
+for (const [from, to] of Object.entries(ALIASES)) {
+  const def = BY_NAME.get(to)
+  if (def) BY_NAME.set(from, def)
+}
+
 export function findSegment(type: string): SegmentDef | undefined {
   return BY_NAME.get(type)
 }

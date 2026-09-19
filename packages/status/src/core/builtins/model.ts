@@ -3,7 +3,7 @@
 import { contextRatio, contextUsed } from "../context.ts"
 import { bar, compact, gradient, money, percent, shortModel } from "../format.ts"
 import type { Run, SegmentDef, Tone } from "../types.ts"
-import { num, str } from "./settings.ts"
+import { formatted, num, str } from "./settings.ts"
 
 export const SEGMENTS: SegmentDef[] = [
   {
@@ -75,13 +75,20 @@ export const SEGMENTS: SegmentDef[] = [
 
       if (style === "bar") {
         const filled = bar(ratio, width)
+        /**
+         * The fill carries its own meaning: green while there is room, amber as it tightens, red
+         * when it is nearly gone. It used to take the same tone as the text, which is muted below
+         * the warning threshold -- so the bar sat grey and dead for most of a session, saying
+         * nothing while occupying the widest part of the line.
+         */
+        const fill: Tone = ratio >= dangerAt ? "error" : ratio >= warnAt ? "warning" : "success"
         return {
           runs: [
-            { text: "▐", tone: "muted", dim: true },
-            { text: filled.trimEnd(), tone },
-            { text: "·".repeat(filled.length - filled.trimEnd().length), tone: "muted", dim: true },
-            { text: "▌", tone: "muted", dim: true },
-            { text: ` ${percent(ratio)}`, tone },
+            { text: "▐", tone: "border" },
+            { text: filled.trimEnd(), tone: fill },
+            { text: "·".repeat(filled.length - filled.trimEnd().length), tone: "border" },
+            { text: "▌", tone: "border" },
+            { text: ` ${percent(ratio)}`, tone: fill, bold: ratio >= dangerAt },
           ],
         }
       }
@@ -92,9 +99,51 @@ export const SEGMENTS: SegmentDef[] = [
     name: "tokens",
     icon: "⧉",
     priority: 30,
-    render(ctx) {
-      const used = contextUsed(ctx.session?.tokens)
-      return used > 0 ? { text: `${compact(used)} tok`, tone: "muted" } : undefined
+    /**
+     * The total by default, and every part of it through `format` — which is the only way to see
+     * what a session is actually made of. A cache share of 99% looks wrong until you can read the
+     * figures behind it; with prompt caching it is usually right, and the way to know is to look.
+     *
+     *   { "type": "tokens", "format": "{total} tok · in {input} · cache {cacheRead}" }
+     */
+    render(ctx, config) {
+      const tokens = ctx.session?.tokens
+      const used = contextUsed(tokens)
+      if (!tokens || used === 0) return undefined
+      const shaped = formatted(config, {
+        total: compact(used),
+        totalExact: used,
+        input: compact(tokens.input),
+        output: compact(tokens.output),
+        reasoning: compact(tokens.reasoning),
+        cacheRead: compact(tokens.cache.read),
+        cacheWrite: compact(tokens.cache.write),
+        cache: compact(tokens.cache.read + tokens.cache.write),
+      })
+      if (shaped) return shaped
+
+      /**
+       * The parts, coloured by what they are rather than labelled in a row of equal-weight text:
+       * cache green, fresh input blue, output accent — the same three colours the split bar uses,
+       * so the same quantity reads the same wherever it appears. A part that is zero is left out;
+       * "write 0" is a column spent saying nothing happened.
+       */
+      if (str(config, "style") === "parts") {
+        const parts: [string, number, Tone][] = [
+          ["cache", tokens.cache.read + tokens.cache.write, "success"],
+          ["in", tokens.input, "info"],
+          ["out", tokens.output + tokens.reasoning, "accent"],
+        ]
+        const runs: Run[] = [{ text: compact(used), tone: "text", bold: true }]
+        for (const [label, value, tone] of parts) {
+          if (value === 0) continue
+          runs.push({ text: ` ${label} `, tone: "muted", dim: true })
+          runs.push({ text: compact(value), tone })
+        }
+        return { runs }
+      }
+
+      return { text: `${compact(used)} tok`, tone: "muted" }
     },
   },
   {

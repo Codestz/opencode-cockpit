@@ -173,24 +173,31 @@ export function asStatusConfig(input: unknown): StatusConfig {
 /**
  * The default line: what someone who writes nothing at all should see.
  *
- * Deliberately none of what OpenCode already puts on screen. Its footer carries the path, the
- * branch and the token count; its sidebar carries the context percentage and the spend; its prompt
- * carries the agent and the model. Repeating those buys a second copy of something you are already
- * looking at -- on one screen the context percentage can end up drawn five times.
+ * It took a long walk to arrive here, and the shape is the point. A capacity bar that means
+ * something at a glance, the total beside the three quantities that make it up, what changed, how
+ * long it has been. Colour carries which is which; the separators carry the grouping.
  *
- * So the default is what the host does not say: what the session has changed, what it still has to
- * do, whether it is stuck, and whether anything is broken. Every one of those is available as a
- * segment if you do want it twice.
+ * It does repeat one thing OpenCode already shows -- the token count and the percentage, which its
+ * footer carries in a corner. That is deliberate. The rule is not to avoid every fact the host
+ * mentions, it is to avoid saying it no better than the host does: a bar you can read without
+ * looking, with the breakdown beside it, is a different instrument from "78.5K (39%)" in the
+ * corner. What stays out are the facts a second copy adds nothing to -- the path, the branch, the
+ * model, the spend.
  */
 export const DEFAULT_SEGMENTS: (string | SegmentConfig)[] = [
-  "session.status",
-  "git.diff",
+  { type: "context", style: "bar", width: 14, icon: "" },
+  { type: "tokens", format: "tk {total}", icon: "" },
+  { type: "tokens", format: "cache {cacheRead}", color: "success", icon: "" },
+  { type: "tokens", format: "in {input}", color: "info", icon: "" },
+  { type: "tokens", format: "out {output}", color: "accent", icon: "" },
+  { type: "session.diff", icon: "" },
+  { type: "session.time", icon: "" },
   "todo",
-  "session.time",
+  "session.status",
   "diagnostics",
 ]
 
-export const DEFAULT_SEPARATOR = " · "
+export const DEFAULT_SEPARATOR = " │ "
 
 export interface ResolvedLine {
   surface: Surface

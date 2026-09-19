@@ -26,17 +26,37 @@ already wrote for Claude Code, colours and all. See
 opencode plugin @opencode-cockpit/status --global
 ```
 
-## Agents — next
+## Review — next
 
-OpenCode can run subagents, but watching one means clicking into a panel that replaces your
-conversation. The plan: a live tree in the sidebar, a peek overlay that keeps your place, keyboard
-navigation, per-agent output, and cost rolled up per run.
+A turn ends and you read the whole diff at once, or you read none of it and hope.
+
+GitHub solved the reading part years ago, and the shape transfers: comment on a line, comment on a
+file, mark a file read so the next turn starts smaller, suggest the change rather than describing
+it — and none of it reaches the author until you submit the review. Here the review goes to the
+chat as one message instead of six interruptions, and a part you reject can be reverted on its own
+rather than costing you the turn.
+
+What it needs already exists: `session.diff` returns each file's `before` and `after` in full,
+`session.revert` undoes a single message or part, and a plugin can write to the prompt. What is
+missing is the view and the keys.
+
+## Doctor — after that
+
+One command that checks your setup and says how to fix it.
 
 ## The open bay
 
-Nothing started, ideas on the table: checkpoints, a context and cost meter, ports and services,
-scheduled prompts, shared memory between sessions.
-[Open an issue](https://github.com/Codestz/opencode-cockpit/issues) and make the case.
+Nothing started, ideas on the table: checkpoints, ports and services, scheduled prompts, shared
+memory between sessions. [Open an issue](https://github.com/Codestz/opencode-cockpit/issues) and
+make the case.
+
+Two ideas that were considered and dropped, so nobody spends time on them twice:
+
+- **A live subagent tree.** OpenCode's own subagent view already does most of it; a second one
+  would have been a different arrangement of the same information rather than a new capability.
+- **Taking over the sidebar's Context block.** It is not a slot a plugin can contribute to and
+  there is no setting for it, so hiding or replacing it is not possible from a plugin at all. It
+  would need a change in OpenCode.
 
 ## Installing one, or all
 

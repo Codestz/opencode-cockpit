@@ -6,6 +6,7 @@ import {
   duration,
   money,
   percent,
+  preciseDuration,
   shortModel,
   shortPath,
   truncate,
@@ -60,6 +61,22 @@ describe("duration", () => {
 
   test("negative time reads as none rather than as a minus sign", () => {
     expect(duration(-5000)).toBe("0s")
+  })
+})
+
+describe("precise duration", () => {
+  test("drops each tier as it stops mattering", () => {
+    expect(preciseDuration(42_000)).toBe("42s")
+    expect(preciseDuration(222_000)).toBe("3m42s")
+    expect(preciseDuration(3_600_000)).toBe("1h00m")
+    expect(preciseDuration(8_100_000)).toBe("2h15m")
+  })
+
+  // "61h48m" is a number nobody converts in their head.
+  test("past a day it counts days, not hours", () => {
+    expect(preciseDuration(222_480_000)).toBe("2d 13h")
+    expect(preciseDuration(86_400_000)).toBe("1d")
+    expect(preciseDuration(90_000_000)).toBe("1d 1h")
   })
 })
 

@@ -10,7 +10,7 @@ export const nav = {
     { label: "Demo", href: "#demo" },
     { label: "Install", href: "#install" },
   ],
-  version: "v0.2.1",
+  version: "v0.3.0",
   github: "https://github.com/Codestz/opencode-cockpit",
 }
 
@@ -19,8 +19,9 @@ export const hero = {
   title: ["Give your agent a", "flight deck", ", not another tool call."] as const,
   body:
     "Cockpit is a platform for OpenCode capabilities: one daemon that owns long-lived state, one " +
-    "config for both halves of a plugin, and real estate in the interface. Shell is fitted today — " +
-    "background terminals that keep running, report their own health, and never need watching.",
+    "config for both halves of a plugin, and real estate in the interface. Two bays are fitted: " +
+    "background terminals that keep running and report their own health, and a statusline that tells " +
+    "you what the session is actually costing you.",
   install: "opencode plugin opencode-cockpit --global",
   /** The panel, as it looks while a session is running. */
   deck: {
@@ -46,7 +47,7 @@ export const specs = [
   { value: "1", label: "daemon, shared by every window" },
   { value: "9", label: "agent tools" },
   { value: "35", label: "watch presets" },
-  { value: "3", label: "views of every shell" },
+  { value: "14", label: "statusline segments" },
 ]
 
 export const compare = {
@@ -121,7 +122,7 @@ export const bays = {
       name: "Shell",
       tagline: "Background terminals",
       state: "live",
-      status: "Available · v0.2.1",
+      status: "Available · v0.3.0",
       blurb:
         "Background terminals with a real PTY — the things a tool call cannot hold: dev servers, watchers, " +
         "test suites, REPLs, tunnels.",
@@ -136,23 +137,42 @@ export const bays = {
       foot: ["9 agent tools", "35 watch presets", "@opencode-cockpit/shell"],
     },
     {
-      id: "agents",
-      name: "Agents",
-      tagline: "Subagents you can watch",
+      id: "status",
+      name: "Statusline",
+      tagline: "Session state, at a glance",
+      state: "live",
+      status: "Available · v0.3.0",
+      blurb:
+        "A line of live session state under your conversation: how full the context is, where the tokens " +
+        "went, what changed, how long it has taken.",
+      points: [
+        "A capacity bar that means something at a glance",
+        "Tokens split into cache, input and output",
+        "Fourteen segments, or write your own in TypeScript",
+        "Your Claude Code statusline script runs unchanged",
+        "Colours follow whatever theme you run",
+        "Nothing shown that the host already says better",
+      ],
+      foot: ["14 segments", "2 surfaces", "@opencode-cockpit/status"],
+    },
+    {
+      id: "review",
+      name: "Review",
+      tagline: "Read the diff like a pull request",
       state: "next",
       status: "Next up",
       blurb:
-        "OpenCode can run subagents, but watching them means clicking into a panel that replaces your " +
-        "conversation. This bay makes them ambient.",
+        "A turn ends and you read the whole diff at once, or you read none of it and hope. This bay puts a " +
+        "review in the terminal: comment, mark read, suggest — then send it all back at once.",
       points: [
-        "A live tree in the sidebar",
-        "Peek without losing your place",
-        "Keyboard navigation, no mouse",
-        "Per-agent output you can follow",
-        "Roll up cost and duration",
-        "Jump to the run that failed",
+        "Comment on a line, a hunk or a whole file",
+        "Mark a file read, so the next turn starts smaller",
+        "Suggest a change instead of describing it",
+        "Revert one part without discarding the turn",
+        "Send the review as a single message",
+        "Built on session.diff, which carries before and after",
       ],
-      foot: ["planned", "design open", "@opencode-cockpit/agents"],
+      foot: ["planned", "design open", "@opencode-cockpit/review"],
     },
     {
       id: "open",

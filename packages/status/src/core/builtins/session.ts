@@ -4,6 +4,7 @@ import type { SegmentConfig } from "../config.ts"
 import { todoRemaining } from "../context.ts"
 import { duration, preciseDuration } from "../format.ts"
 import type { SegmentDef } from "../types.ts"
+import { formatted } from "./settings.ts"
 
 export const SEGMENTS: SegmentDef[] = [
   {
@@ -20,6 +21,8 @@ export const SEGMENTS: SegmentDef[] = [
        * `showComplete` keeps it for anyone who wants the confirmation.
        */
       if (left === 0 && config.showComplete !== true) return undefined
+      const shaped = formatted(config, { done: todo.completed, total: todo.total, left })
+      if (shaped) return shaped
       return {
         text: `${todo.completed}/${todo.total} todo`,
         tone: left === 0 ? "success" : "muted",
@@ -58,7 +61,8 @@ export const SEGMENTS: SegmentDef[] = [
     priority: 20,
     render(ctx, config) {
       const started = ctx.session?.startedAt
-      if (!started) return undefined
+      // `=== undefined`, not falsy: a startedAt of 0 is a real instant, not a missing one.
+      if (started === undefined) return undefined
       const elapsed = ctx.now - started
       // "3m42s" while you are watching it; "2h 5m" once the seconds stop mattering.
       const text = config.coarse === true ? duration(elapsed) : preciseDuration(elapsed)
