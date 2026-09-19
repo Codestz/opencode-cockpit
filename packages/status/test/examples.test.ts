@@ -93,7 +93,7 @@ describe("every shipped example", () => {
 
 describe("the bottom example", () => {
   test("the capacity bar is exactly the width asked for, between its end caps", () => {
-    const drawn = buildSegments(ctx({ session: working(0.5) }), [{ type: "capacity", width: 20 }], {
+    const drawn = buildSegments(ctx({ session: working(0.5) }), [{ type: "bar", width: 20 }], {
       custom: loaded.bottom.segments,
       icons: false,
     })[0]
@@ -104,16 +104,16 @@ describe("the bottom example", () => {
    * A figure, not a picture. A sparkline redraws its shape every second, and movement in the
    * corner of your eye is the one thing a statusline must not do.
    */
-  test("pace needs two readings before it claims a rate", () => {
-    expect(draw("bottom", "pace", ctx({ now: 1000, session: working() }))).toBeUndefined()
+  test("filling needs two readings before it claims a rate", () => {
+    expect(draw("bottom", "filling", ctx({ now: 1000, session: working() }))).toBeUndefined()
   })
 
-  test("pace reports a rate and what is left at it, and draws no moving shape", () => {
+  test("filling reports a rate and what is left at it, and draws no moving shape", () => {
     // A window filling steadily, read minutes apart. The segment keeps its own history, so it is
     // driven rather than called once.
     let drawn: Segment | undefined
     for (let minute = 1; minute <= 5; minute++) {
-      drawn = draw("bottom", "pace", ctx({ now: minute * 60_000, session: working(minute * 0.1) }))
+      drawn = draw("bottom", "filling", ctx({ now: minute * 60_000, session: working(minute * 0.1) }))
     }
     const text = segmentText(drawn as Segment)
     expect(text).toMatch(/\+\d+(\.\d)?%\/min/)
@@ -122,7 +122,7 @@ describe("the bottom example", () => {
   })
 
   test("cache reports the share of the window it did not have to re-send", () => {
-    const drawn = draw("bottom", "cache", ctx({ session: working(0.5) }))
+    const drawn = draw("bottom", "cached", ctx({ session: working(0.5) }))
     expect(segmentText(drawn as Segment)).toBe("▌50% cached")
   })
 })
@@ -137,7 +137,7 @@ describe("the full sidebar example", () => {
 
   test("carries everything the host's Context block did", () => {
     const ctxWith = ctx({ session: full() })
-    expect(segmentText(draw("sidebar-full", "gauge", ctxWith) as Segment)).toContain("40%")
+    expect(segmentText(draw("sidebar-full", "bar", ctxWith) as Segment)).toContain("40%")
     expect(segmentText(draw("sidebar-full", "window", ctxWith) as Segment)).toContain("/")
     expect(segmentText(draw("sidebar-full", "spend", ctxWith) as Segment)).toContain("$")
   })
@@ -157,7 +157,7 @@ describe("the full sidebar example", () => {
         model: { providerID: "p", modelID: "m" },
       },
     })
-    expect(draw("sidebar-full", "gauge", unmeasured)).toBeUndefined()
+    expect(draw("sidebar-full", "bar", unmeasured)).toBeUndefined()
     expect(segmentText(draw("sidebar-full", "window", unmeasured) as Segment)).toContain("tok")
   })
 
@@ -168,7 +168,7 @@ describe("the full sidebar example", () => {
 
   test("tasks go quiet once the list is finished", () => {
     const done = ctx({ session: { ...working(0.4), todo: { total: 5, completed: 5 } } })
-    expect(draw("sidebar-full", "tasks", done)).toBeUndefined()
+    expect(draw("sidebar-full", "todo", done)).toBeUndefined()
   })
 })
 

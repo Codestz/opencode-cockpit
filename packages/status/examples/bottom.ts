@@ -16,8 +16,8 @@
  *       "modules": ["<this file>"],
  *       "lines": [
  *         { "surface": "bottom", "separator": " │ ",
- *           "segments": ["capacity", "pace", "burn", "git.diff", "todo", "session.time",
- *                        "diagnostics"] }
+ *           "segments": ["bar", "filling", "rate", "cached", "session.diff", "todo",
+ *                        "session.time", "diagnostics"] }
  *       ]
  *     }
  *   }
@@ -49,7 +49,7 @@ export default {
      * stands for, and a quarter tick marks the empty half so the bar can be read against
      * something rather than eyeballed.
      */
-    capacity(ctx: StatusContext, config) {
+    bar(ctx: StatusContext, config) {
       const ratio = contextRatio(ctx.session)
       if (ratio === undefined) return undefined
       const width = typeof config.width === "number" ? config.width : 20
@@ -80,7 +80,7 @@ export default {
      * thing a statusline must not do. The same information as a rate changes its digits and
      * nothing else.
      */
-    pace(ctx: StatusContext) {
+    filling(ctx: StatusContext) {
       sample(ctx)
       const seen = samples.filter((entry) => entry.ratio > 0)
       const first = seen[0]
@@ -107,7 +107,7 @@ export default {
     },
 
     /** Spend per minute with a direction. Silent where nobody declared prices. */
-    burn(ctx: StatusContext) {
+    rate(ctx: StatusContext) {
       sample(ctx)
       const session = ctx.session
       if (!session?.priced || session.cost <= 0) return undefined
@@ -128,7 +128,7 @@ export default {
      * How much of the window is cache rather than fresh input. High is cheap and fast; low means
      * the session keeps re-sending what it already sent.
      */
-    cache(ctx: StatusContext) {
+    cached(ctx: StatusContext) {
       const tokens = ctx.session?.tokens
       const total = contextUsed(tokens)
       if (!tokens || total === 0) return undefined
@@ -142,7 +142,7 @@ export default {
     },
 
     /** The session's own size, for when a window has quietly filled up with one long turn. */
-    weight(ctx: StatusContext) {
+    tokens(ctx: StatusContext) {
       const used = contextUsed(ctx.session?.tokens)
       return used > 0 ? { text: `${compact(used)} tok`, tone: "muted" as const } : undefined
     },

@@ -9,10 +9,12 @@ import {
   globalConfigPath,
   loadStatusConfig,
   mergeStatus,
+  PRESETS,
   PROJECT_FILE,
   readStatusFile,
   resolveLines,
 } from "../src/core/config.ts"
+import { findSegment } from "../src/core/segments.ts"
 
 const dirs: string[] = []
 const tmp = () => {
@@ -96,6 +98,43 @@ describe("precedence", () => {
   test("commands from both sources are kept", () => {
     const merged = mergeStatus({ commands: { budget: { run: "a" } } }, { commands: { pods: { run: "b" } } })
     expect(Object.keys(merged.commands ?? {}).sort()).toEqual(["budget", "pods"])
+  })
+})
+
+/**
+ * A preset is the answer to "I want a good statusline, not a design exercise" — so it has to be a
+ * starting point that anything written beside it overrides, never a mode that ignores you.
+ */
+describe("presets", () => {
+  test("a name gives you a whole line", () => {
+    const [line] = resolveLines({ preset: "minimal" })
+    expect(line?.segments.length).toBeGreaterThan(0)
+    expect(line?.surface).toBe("bottom")
+  })
+
+  test("a preset brings its own surface", () => {
+    expect(resolveLines({ preset: "sidebar" })[0]?.surface).toBe("sidebar")
+    expect(resolveLines({ preset: "sidebar" })[0]?.stack).toBe("vertical")
+  })
+
+  test("anything written beside it wins", () => {
+    const [line] = resolveLines({ preset: "minimal", separator: "  ", segments: ["cwd"] })
+    expect(line?.separator).toBe("  ")
+    expect(line?.segments).toEqual(["cwd"])
+  })
+
+  test("a name nothing answers to falls back rather than drawing nothing", () => {
+    const [line] = resolveLines({ preset: "nope" })
+    expect(line?.segments).toEqual(DEFAULT_SEGMENTS)
+  })
+
+  test("every preset uses only built-ins, so none of them needs a module", () => {
+    for (const [name, preset] of Object.entries(PRESETS)) {
+      for (const entry of preset.segments) {
+        const type = typeof entry === "string" ? entry : entry.type
+        expect(findSegment(type), `${name} uses "${type}"`).toBeDefined()
+      }
+    }
   })
 })
 

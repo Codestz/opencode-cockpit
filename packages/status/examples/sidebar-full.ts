@@ -56,7 +56,7 @@ function row(label: string, value: Run[]): { runs: Run[] } {
 export default {
   segments: {
     /** The headline figure, and the one the host's block led with. */
-    gauge(ctx: StatusContext, config) {
+    bar(ctx: StatusContext, config) {
       const ratio = contextRatio(ctx.session)
       if (ratio === undefined) return undefined
       const width = typeof config.width === "number" ? config.width : 16
@@ -95,7 +95,7 @@ export default {
      * side rather than a share of them. A share reads as "100%" for most of a cached session,
      * which looks like a bug even when it is arithmetic.
      */
-    cache(ctx: StatusContext) {
+    cached(ctx: StatusContext) {
       const tokens = ctx.session?.tokens
       if (!tokens || contextUsed(tokens) === 0) return undefined
       const fresh = tokens.input + tokens.output + tokens.reasoning
@@ -134,7 +134,7 @@ export default {
     },
 
     /** What the session has done to the tree. */
-    work(ctx: StatusContext) {
+    changes(ctx: StatusContext) {
       const diff = ctx.session?.diff
       if (!diff || diff.files === 0) return undefined
       return row("diff", [
@@ -148,7 +148,7 @@ export default {
      * Work outstanding, for a sidebar where OpenCode's own Todo list is switched off. With that
      * list on, this is a worse copy of it — the list carries the task names.
      */
-    tasks(ctx: StatusContext) {
+    todo(ctx: StatusContext) {
       const todo = ctx.session?.todo
       if (!todo || todo.total === 0 || todo.completed === todo.total) return undefined
       return row("todo", [

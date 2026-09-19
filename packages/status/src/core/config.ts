@@ -62,6 +62,8 @@ export interface CommandConfig {
 export type Stack = "horizontal" | "vertical"
 
 export interface LineConfig {
+  /** A whole line by name; anything written beside it wins. */
+  preset?: string
   surface?: Surface
   segments?: (string | SegmentConfig)[]
   /** Drawn between segments. Defaults to " · " across, and nothing down. */
@@ -87,6 +89,11 @@ export interface LineConfig {
 
 export interface StatusConfig {
   enabled?: boolean
+  /**
+   * A whole line by name: `minimal`, `default`, `detailed`, `sidebar`. Anything you write
+   * alongside it wins, so a preset is a starting point rather than a mode.
+   */
+  preset?: string
   /** One line, for the common case. Use `lines` for more than one surface. */
   surface?: Surface
   segments?: (string | SegmentConfig)[]
@@ -170,6 +177,7 @@ export function asStatusConfig(input: unknown): StatusConfig {
   const own: StatusConfig = {}
   for (const key of [
     "enabled",
+    "preset",
     "surface",
     "segments",
     "separator",
@@ -219,6 +227,62 @@ export const DEFAULT_SEGMENTS: (string | SegmentConfig)[] = [
 
 export const DEFAULT_SEPARATOR = " │ "
 
+/**
+ * Whole lines, by the name of what you want.
+ *
+ * Composing a good statusline from fourteen segments is a design exercise, and most people want a
+ * good line rather than the exercise. Every preset is built-ins only — none needs a module, a
+ * command, or anything installed beside it.
+ */
+export const PRESETS: Record<
+  string,
+  { about: string; surface: Surface; segments: (string | SegmentConfig)[] }
+> = {
+  minimal: {
+    about: "how full the context is, and what changed",
+    surface: "bottom",
+    segments: [
+      { type: "context", style: "bar", width: 12, icon: "" },
+      { type: "session.diff", icon: "" },
+      "session.status",
+      "diagnostics",
+    ],
+  },
+  default: {
+    about: "the capacity bar, where the tokens went, what changed, how long",
+    surface: "bottom",
+    segments: DEFAULT_SEGMENTS,
+  },
+  detailed: {
+    about: "everything the built-ins know, for a wide window",
+    surface: "bottom",
+    segments: [
+      { type: "context", style: "split", width: 14, icon: "" },
+      { type: "tokens", style: "parts", icon: "" },
+      { type: "model", icon: "" },
+      "cost",
+      { type: "session.diff", icon: "" },
+      "todo",
+      { type: "session.time", icon: "" },
+      "session.status",
+      "diagnostics",
+    ],
+  },
+  sidebar: {
+    about: "a quiet column beside OpenCode's own blocks",
+    surface: "sidebar",
+    segments: [
+      { type: "context", style: "bar", width: 14, icon: "" },
+      { type: "tokens", format: "tk {total}", icon: "" },
+      { type: "tokens", format: "cache {cacheRead}", color: "success", icon: "" },
+      { type: "session.diff", icon: "" },
+      { type: "session.time", icon: "" },
+      "todo",
+      "diagnostics",
+    ],
+  },
+}
+
 export interface ResolvedLine {
   surface: Surface
   segments: (string | SegmentConfig)[]
@@ -248,6 +312,7 @@ export function resolveLines(config: StatusConfig): ResolvedLine[] {
     ? config.lines
     : [
         {
+          preset: config.preset,
           surface: config.surface,
           segments: config.segments,
           separator: config.separator,
@@ -258,12 +323,14 @@ export function resolveLines(config: StatusConfig): ResolvedLine[] {
         },
       ]
   return lines.map((line) => {
-    const surface = line.surface ?? "bottom"
+    // A preset fills in what was not written; it never overrides what was.
+    const preset = PRESETS[line.preset ?? config.preset ?? ""]
+    const surface = line.surface ?? config.surface ?? preset?.surface ?? "bottom"
     // The sidebar is a narrow column: across, it would be three truncated words.
     const stack = line.stack ?? config.stack ?? (surface === "sidebar" ? "vertical" : "horizontal")
     return {
       surface,
-      segments: line.segments ?? config.segments ?? DEFAULT_SEGMENTS,
+      segments: line.segments ?? config.segments ?? preset?.segments ?? DEFAULT_SEGMENTS,
       separator: line.separator ?? config.separator ?? (stack === "vertical" ? "" : DEFAULT_SEPARATOR),
       stack,
       maxRows: line.maxRows ?? config.maxRows ?? 8,

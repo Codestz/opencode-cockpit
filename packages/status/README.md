@@ -40,6 +40,19 @@ leaves out:
 Everything else is one line of config away — including the things the host shows, if you want them
 in both places.
 
+## A whole line by name
+
+Composing fourteen segments is a design exercise; most people want a good line. A preset is
+built-ins only — nothing to install, nothing to write:
+
+```jsonc
+{ "statusline": { "preset": "default" } }
+```
+
+`minimal` · `default` · `detailed` · `sidebar`. Anything you write beside one wins, so it is a
+starting point and not a mode. See [`examples/`](./examples) for the modules to reach for when a
+preset is not enough.
+
 ## Configuration
 
 `~/.config/opencode-cockpit/config.json` for every project, `<project>/.cockpit.json` for one, and
