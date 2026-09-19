@@ -45,6 +45,16 @@ export default defineConfig({
             { label: "Panel and keys", slug: "shell/interface" },
           ],
         },
+        {
+          label: "Statusline",
+          items: [
+            { label: "Overview", slug: "status/overview" },
+            { label: "Segments and layout", slug: "status/configuration" },
+            { label: "Your own segments", slug: "status/modules" },
+            { label: "Claude Code statuslines", slug: "status/commands" },
+            { label: "Proxies", slug: "status/proxies" },
+          ],
+        },
         { label: "Configuration", slug: "configuration" },
         {
           label: "Platform",

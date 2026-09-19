@@ -30,11 +30,20 @@ export function kindColor(theme: TuiThemeCurrent, kind: Kind) {
   }
 }
 
-/** Fixed 7-column pill so lists line up: " ⠹ RUN ", " FAIL  ". */
+/**
+ * The status mark: a coloured rule and its label, in a fixed 7 columns so lists line up.
+ *
+ * It used to be a filled pill. Filled blocks have to be as wide as their text, so a column of
+ * them stacks into a wall of colour that competes with the shell names beside it; a rule carries
+ * the same colour in one column and lets the list breathe.
+ */
 export function badgeText(kind: Kind, frame = 0): string {
-  if (kind === "run") return ` ${SPINNER[frame % SPINNER.length]} RUN `
-  return ` ${BADGE_LABEL[kind].padEnd(4)}  `
+  if (kind === "run") return `▌ ${SPINNER[frame % SPINNER.length]} RUN`
+  return `▌ ${BADGE_LABEL[kind].padEnd(5)}`
 }
+
+/** The rule itself, so it can be coloured apart from the label it marks. */
+export const BADGE_RULE = "▌"
 
 const RANK: Record<Kind, number> = { run: 0, fail: 1, stop: 2, done: 3 }
 

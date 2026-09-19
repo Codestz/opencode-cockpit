@@ -11,6 +11,9 @@
   "references": [
     {
       "path": "../shell"
+    },
+    {
+      "path": "../status"
     }
   ]
 }

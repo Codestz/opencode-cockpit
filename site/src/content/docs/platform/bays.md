@@ -15,17 +15,41 @@ shell, log search, limits and log files. See [Shell](/opencode-cockpit/shell/ove
 opencode plugin @opencode-cockpit/shell --global
 ```
 
-## Agents — next
+## Statusline — available
 
-OpenCode can run subagents, but watching one means clicking into a panel that replaces your
-conversation. The plan: a live tree in the sidebar, a peek overlay that keeps your place, keyboard
-navigation, per-agent output, and cost rolled up per run.
+A line of live session state under the conversation, or a column of it in the sidebar. Fourteen
+segments, two surfaces, and three ways to configure it — including running the statusline script you
+already wrote for Claude Code, colours and all. See
+[Statusline](/opencode-cockpit/status/overview/).
+
+```sh
+opencode plugin @opencode-cockpit/status --global
+```
+
+## Review — next
+
+A turn ends and you read the whole diff at once, or you read none of it and hope.
+
+GitHub solved the reading part years ago, and the shape transfers: comment on a line, comment on a
+file, mark a file read so the next turn starts smaller, suggest the change rather than describing
+it — and none of it reaches the author until you submit the review. Here the review goes to the
+chat as one message instead of six interruptions, and a part you reject can be reverted on its own
+rather than costing you the turn.
+
+What it needs already exists: `session.diff` returns each file's `before` and `after` in full,
+`session.revert` undoes a single message or part, and a plugin can write to the prompt. What is
+missing is the view and the keys.
+
+## Doctor — after that
+
+One command that checks your setup and says how to fix it.
 
 ## The open bay
 
-Nothing started, ideas on the table: checkpoints, a context and cost meter, ports and services,
-scheduled prompts, shared memory between sessions.
-[Open an issue](https://github.com/Codestz/opencode-cockpit/issues) and make the case.
+Nothing started, ideas on the table: checkpoints, ports and services, scheduled prompts, shared
+memory between sessions. [Open an issue](https://github.com/Codestz/opencode-cockpit/issues) and
+make the case.
+
 
 ## Installing one, or all
 

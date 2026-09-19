@@ -1,0 +1,63 @@
+{
+  "name": "@opencode-cockpit/status",
+  "version": "0.2.2",
+  "description": "A statusline for OpenCode you can actually configure: declarative segments, a typed module, or your existing Claude Code statusline command",
+  "type": "module",
+  "license": "MIT",
+  "author": "Codestz",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Codestz/opencode-cockpit.git",
+    "directory": "packages/status"
+  },
+  "homepage": "https://github.com/Codestz/opencode-cockpit#readme",
+  "bugs": {
+    "url": "https://github.com/Codestz/opencode-cockpit/issues"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "statusline",
+    "status-line",
+    "tui",
+    "terminal",
+    "prompt"
+  ],
+  "exports": {
+    "./tui": {
+      "types": "./types/tui/index.d.ts",
+      "default": "./dist/tui/index.js"
+    },
+    "./config": {
+      "types": "./types/core/config.d.ts",
+      "default": "./dist/core/config.js"
+    },
+    "./segment": {
+      "types": "./types/core/authoring.d.ts",
+      "default": "./dist/core/authoring.js"
+    }
+  },
+  "engines": {
+    "opencode": ">=1.18.0",
+    "bun": ">=1.3.5"
+  },
+  "files": [
+    "dist",
+    "types",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@opencode-cockpit/client": "workspace:*",
+    "@opencode-ai/plugin": "1.18.31"
+  },
+  "devDependencies": {
+    "@opentui/core": "0.4.5",
+    "@opentui/keymap": "0.4.5",
+    "@opentui/solid": "0.4.5",
+    "solid-js": "1.9.12"
+  }
+}

@@ -15,14 +15,15 @@
     "url": "https://github.com/Codestz/opencode-cockpit/issues"
   },
   "keywords": [
+    "agents",
+    "background",
     "opencode",
     "opencode-plugin",
     "pty",
     "shell",
-    "background",
-    "tui",
+    "statusline",
     "terminal",
-    "agents"
+    "tui"
   ],
   "exports": {
     "./server": {
@@ -49,7 +50,8 @@
   },
   "dependencies": {
     "@opencode-cockpit/shell": "workspace:*",
-    "@opencode-ai/plugin": "1.18.31"
+    "@opencode-ai/plugin": "1.18.31",
+    "@opencode-cockpit/status": "workspace:*"
   },
   "devDependencies": {
     "@opencode-cockpit/client": "workspace:*"

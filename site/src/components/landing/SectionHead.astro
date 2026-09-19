@@ -3,7 +3,7 @@ interface Props { number: string; kicker: string; title: string; intro?: string 
 const { number, kicker, title, intro } = Astro.props
 ---
 <div class="section-head">
-  <span class="no">{number}</span><span class="kicker">{kicker}</span><span class="rule"></span>
+  {number && <span class="no">{number}</span>}<span class="kicker">{kicker}</span><span class="rule"></span>
 </div>
 <h2>{title}</h2>
 {intro && <p class="intro" set:html={intro} />}

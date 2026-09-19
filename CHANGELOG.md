@@ -6,6 +6,35 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Statusline, bay 02.** A line of live session state under the conversation, or a column of it in
+  the sidebar. Fourteen built-in segments, two surfaces, and three ways to configure it: declarative
+  segments in `.cockpit.json`, your own TypeScript module, or a shell command.
+  `opencode plugin @opencode-cockpit/status --global`, or get it with the bundle.
+- **Your Claude Code statusline works here.** A command segment is fed the same JSON on stdin that
+  Claude Code's `statusLine` hook sends, including `context_window` and `current_usage`, so an
+  existing script runs unchanged. Its colours survive too: the SGR escapes are parsed rather than
+  stripped, with 24-bit and 256-colour values kept exactly and the basic sixteen mapped to theme
+  tones. Multi-row scripts keep their rows.
+- **Segments written in TypeScript**, against `@opencode-cockpit/status/segment`. A module is handed
+  the same snapshot the built-ins get and touches no OpenCode api, so a custom segment is as
+  testable as a built-in — and because it is loaded once and called on every repaint, it can keep
+  history, which is what makes a sparkline or a rate possible. A module can live in your config
+  directory rather than inside a project; nothing needs installing beside it.
+- **Honest behind a proxy.** Tokens always work. Cost and the context percentage are computed from
+  your model catalogue, so behind LiteLLM or a gateway they need declaring in `provider.<id>.models`
+  — and where they are not declared, those segments stay silent rather than reporting `$0.00` and
+  `0%`. The same rule runs through the bay: a segment with nothing to say says nothing.
+
+### Changed
+
+- **Shell's status marks are a coloured rule rather than a filled pill.** A block of colour has to
+  be as wide as the word inside it, and a column of them reads as a wall of colour competing with
+  the shell names beside it. Same seven columns, so lists still line up.
+- Room under the **Shells** heading in the sidebar, so the title reads as a heading and not as the
+  first item of the list.
+
 ## [0.2.2] - 2026-09-18
 
 ### Changed

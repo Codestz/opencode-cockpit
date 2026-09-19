@@ -1,0 +1,446 @@
+import { describe, expect, test } from "bun:test"
+import type { SessionSnapshot, StatusContext } from "../src/core/context.ts"
+import { buildSegments, findSegment, type Segment, segmentText } from "../src/core/segments.ts"
+
+const session = (over: Partial<SessionSnapshot> = {}): SessionSnapshot => ({
+  id: "ses_1",
+  status: "idle",
+  cost: 0,
+  priced: false,
+  messages: 2,
+  startedAt: 0,
+  diff: { files: 0, additions: 0, deletions: 0 },
+  todo: { total: 0, completed: 0 },
+  ...over,
+})
+
+const ctx = (over: Partial<StatusContext> = {}): StatusContext => ({
+  now: 60_000,
+  directory: "/w/app",
+  worktree: "/w/app",
+  home: "/home/u",
+  version: "0.2.2",
+  lsp: [],
+  mcp: [],
+  commands: {},
+  width: 120,
+  ...over,
+})
+
+/**
+ * One segment, rendered on its own, flattened to what it would read as. Icons are off here so the
+ * assertions are about the values; there is a separate test for icons.
+ */
+const render = (type: string, context: StatusContext, config: Record<string, unknown> = {}) => {
+  const [segment] = buildSegments(context, [{ type, ...config }], { icons: false })
+  return segment ? { ...segment, text: segmentText(segment), tone: segment.runs[0]?.tone } : undefined
+}
+
+describe("a segment with nothing to say says nothing", () => {
+  test("no session means no session-shaped segments", () => {
+    const empty = ctx()
+    for (const type of ["git.diff", "model", "context", "cost", "todo", "session.status"]) {
+      expect(render(type, empty)).toBeUndefined()
+    }
+  })
+
+  test("no branch, no branch segment", () => {
+    expect(render("git.branch", ctx())).toBeUndefined()
+  })
+
+  test("healthy services are silent", () => {
+    const healthy = ctx({ lsp: [{ name: "tsserver", status: "connected" }], mcp: [] })
+    expect(render("diagnostics", healthy)).toBeUndefined()
+  })
+
+  test("idle is silent, because it is the normal state", () => {
+    expect(render("session.status", ctx({ session: session() }))).toBeUndefined()
+  })
+})
+
+describe("cost never claims a number nobody configured", () => {
+  /**
+   * The case behind this: a proxy such as LiteLLM, where OpenCode's catalogue knows no prices, so
+   * cost is 0 because nothing was declared — not because the work was free. Showing "$0.00" there
+   * would be a confident lie.
+   */
+  test("an unpriced provider hides the segment even with messages spent", () => {
+    const spent = ctx({ session: session({ priced: false, cost: 0, messages: 20 }) })
+    expect(render("cost", spent)).toBeUndefined()
+  })
+
+  test("a priced provider with real spend shows it", () => {
+    const spent = ctx({ session: session({ priced: true, cost: 1.234 }) })
+    expect(render("cost", spent)?.text).toBe("$1.23")
+  })
+
+  test("a priced provider at zero stays quiet unless asked", () => {
+    const fresh = ctx({ session: session({ priced: true, cost: 0 }) })
+    expect(render("cost", fresh)).toBeUndefined()
+    expect(render("cost", fresh, { showZero: true })?.text).toBe("$0")
+  })
+})
+
+describe("context window", () => {
+  const withLimit = (used: number, limit?: number) =>
+    ctx({
+      session: session({
+        ...(limit
+          ? { model: { providerID: "p", modelID: "m", contextLimit: limit } }
+          : {
+              model: { providerID: "p", modelID: "m" },
+            }),
+        tokens: { input: used, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+      }),
+    })
+
+  // Behind a proxy nobody declares limit.context, and a percentage needs a denominator.
+  test("no declared window means no percentage invented", () => {
+    expect(render("context", withLimit(50_000))).toBeUndefined()
+  })
+
+  test("reports the share of the window in use", () => {
+    expect(render("context", withLimit(50_000, 200_000))?.text).toBe("25% ctx")
+  })
+
+  test("warns and then alarms as it fills", () => {
+    expect(render("context", withLimit(50_000, 200_000))?.tone).toBe("muted")
+    expect(render("context", withLimit(160_000, 200_000))?.tone).toBe("warning")
+    expect(render("context", withLimit(190_000, 200_000))?.tone).toBe("error")
+  })
+
+  test("the thresholds are settable", () => {
+    expect(render("context", withLimit(100_000, 200_000), { warnAt: 0.4 })?.tone).toBe("warning")
+  })
+
+  test("the bar style is exactly as wide as asked, between its end caps", () => {
+    const drawn = render("context", withLimit(100_000, 200_000), { style: "bar", width: 6 })
+    expect(drawn?.text).toMatch(/^▐.{6}▌ 50%$/)
+  })
+
+  /**
+   * The fill used to take the text's tone, which is muted below the warning threshold -- so the
+   * bar sat grey for most of a session while occupying the widest part of the line.
+   */
+  test("the bar fills with a colour that means something at every level", () => {
+    const fillOf = (used: number) => {
+      const drawn = render("context", withLimit(used, 200_000), { style: "bar", width: 10 })
+      return drawn?.runs.find((run) => run.text.includes("█"))?.tone
+    }
+    expect(fillOf(80_000)).toBe("success")
+    expect(fillOf(160_000)).toBe("warning")
+    expect(fillOf(190_000)).toBe("error")
+  })
+
+  /**
+   * The bar people actually want: one bar whose cells are coloured by what fills them, so the
+   * shape of the session -- mostly cache, mostly fresh input -- reads at a glance.
+   */
+  test("the split style colours the bar by where the tokens came from", () => {
+    const mixed = ctx({
+      session: session({
+        model: { providerID: "p", modelID: "m", contextLimit: 1000 },
+        tokens: { input: 200, output: 100, reasoning: 0, cache: { read: 400, write: 0 } },
+      }),
+    })
+    const [drawn] = buildSegments(mixed, [{ type: "context", style: "split", width: 10 }], {
+      icons: false,
+    })
+    const runs = drawn?.runs ?? []
+    const cells = (tone: string) =>
+      runs.filter((run) => run.tone === tone).reduce((n, run) => n + run.text.length, 0)
+
+    expect(cells("success")).toBe(4) // cache read: 400/1000 of ten cells
+    expect(cells("info")).toBe(2) // fresh input
+    expect(cells("accent")).toBe(1) // output
+    expect(segmentText(drawn as Segment)).toContain("70%")
+    // Caps, bar and figure: the bar itself is exactly the width asked for.
+    expect(segmentText(drawn as Segment)).toMatch(/^▐.{10}▌ 70%$/)
+  })
+
+  // Before the first assistant message there are no tokens at all, so there is nothing to split.
+  test("the split style says nothing before the session has any tokens", () => {
+    const fresh = ctx({
+      session: session({ model: { providerID: "p", modelID: "m", contextLimit: 200_000 } }),
+    })
+    expect(render("context", fresh, { style: "split" })).toBeUndefined()
+  })
+
+  test("counts cache and reasoning, which is what actually occupies the window", () => {
+    const full = ctx({
+      session: session({
+        model: { providerID: "p", modelID: "m", contextLimit: 1000 },
+        tokens: { input: 100, output: 100, reasoning: 100, cache: { read: 100, write: 100 } },
+      }),
+    })
+    expect(render("context", full)?.text).toBe("50% ctx")
+  })
+})
+
+describe("the rest of the built-ins", () => {
+  test("cwd names the root and relativises inside it", () => {
+    expect(render("cwd", ctx())?.text).toBe("app")
+    expect(render("cwd", ctx({ directory: "/w/app/src" }))?.text).toBe("src")
+  })
+
+  // Outside both the worktree and home a path has no short form, and an absolute one can be wider
+  // than the terminal; the tail is the half that says where you are.
+  test("a long path outside the worktree is cut from the left, not left to eat the line", () => {
+    const far = ctx({ directory: "/private/var/folders/zz/T/ck-probe-AbCdEf/project" })
+    const drawn = render("cwd", far)
+    expect(drawn?.text).toBe("…z/T/ck-probe-AbCdEf/project")
+    expect((drawn?.text ?? "").length).toBeLessThanOrEqual(28)
+    expect(render("cwd", far, { maxWidth: 10 })?.text).toHaveLength(10)
+  })
+
+  test("a feature branch stands out from the default branch", () => {
+    const feature = ctx({ branch: "status-bay", defaultBranch: "main" })
+    const boring = ctx({ branch: "main", defaultBranch: "main" })
+    expect(render("git.branch", feature)?.tone).toBe("info")
+    expect(render("git.branch", boring)?.tone).toBe("muted")
+  })
+
+  /**
+   * It reports what this session changed, which is what OpenCode's Files list shows -- not the
+   * working tree. A file edited by hand never appears, and the old name implied it would.
+   */
+  test("the session diff keeps working under its old name", () => {
+    const changed = ctx({ session: session({ diff: { files: 1, additions: 2, deletions: 0 } }) })
+    expect(render("session.diff", changed)?.text).toBe("+2 / -0")
+    expect(render("git.diff", changed)?.text).toBe("+2 / -0")
+  })
+
+  test("diff shows only when something changed", () => {
+    expect(render("session.diff", ctx({ session: session() }))).toBeUndefined()
+    const changed = ctx({ session: session({ diff: { files: 2, additions: 40, deletions: 3 } }) })
+    const drawn = render("session.diff", changed)
+    expect(drawn?.text).toBe("+40 / -3")
+    // Added and removed are read separately, so they are coloured separately.
+    expect(drawn?.runs.find((run) => run.text === "+40")?.tone).toBe("success")
+    expect(drawn?.runs.find((run) => run.text === "-3")?.tone).toBe("error")
+  })
+
+  test("todo counts what is left to do", () => {
+    const busy = ctx({ session: session({ todo: { total: 7, completed: 3 } }) })
+    expect(render("todo", busy)?.text).toBe("3/7 todo")
+    expect(render("todo", busy)?.tone).toBe("muted")
+  })
+
+  /**
+   * Todos live for the whole session, so a finished list would otherwise report "7/7 todo" for
+   * the rest of it -- a permanent reminder that you already finished.
+   */
+  test("a finished list goes quiet, unless you ask to keep it", () => {
+    const done = ctx({ session: session({ todo: { total: 7, completed: 7 } }) })
+    expect(render("todo", done)).toBeUndefined()
+    expect(render("todo", done, { showComplete: true })?.text).toBe("7/7 todo")
+    expect(render("todo", done, { showComplete: true })?.tone).toBe("success")
+  })
+
+  // A session that is retrying looks identical to a slow one in OpenCode today.
+  test("a retry says which attempt and how long until the next", () => {
+    const retrying = ctx({
+      now: 1000,
+      session: session({
+        status: "retry",
+        retry: { attempt: 2, message: "rate limited", next: 6000 },
+      }),
+    })
+    const drawn = render("session.status", retrying)
+    expect(drawn?.text).toBe("retry 2 in 5s")
+    expect(drawn?.tone).toBe("warning")
+  })
+
+  // A startedAt of 0 is a real instant; treating it as missing hid the segment entirely.
+  test("elapsed counts from a zero start rather than hiding", () => {
+    const old = ctx({ now: 222_480_000, session: session({ startedAt: 0 }) })
+    expect(render("session.time", old)?.text).toBe("2d 13h")
+  })
+
+  test("busy reports how long it has been working", () => {
+    const working = ctx({ now: 90_000, session: session({ status: "busy", startedAt: 30_000 }) })
+    expect(render("session.status", working)?.text).toBe("working 1m00s")
+  })
+
+  test("diagnostics name what is broken and count the rest", () => {
+    const broken = ctx({
+      lsp: [
+        { name: "tsserver", status: "error" },
+        { name: "gopls", status: "connected" },
+      ],
+      mcp: [
+        { name: "github", status: "failed" },
+        { name: "jira", status: "failed" },
+      ],
+    })
+    expect(render("diagnostics", broken)?.text).toBe("⚠ tsserver, github +1")
+    expect(render("diagnostics", broken)?.tone).toBe("error")
+  })
+
+  test("a command segment shows whatever the command last returned", () => {
+    const withCommand = ctx({ commands: { budget: "$412 left" } })
+    expect(render("command", withCommand, { name: "budget" })?.text).toBe("$412 left")
+    expect(render("command", ctx(), { name: "budget" })).toBeUndefined()
+  })
+
+  test("literal text is passed through", () => {
+    expect(render("text", ctx(), { value: "prod" })?.text).toBe("prod")
+    expect(render("text", ctx())).toBeUndefined()
+  })
+})
+
+/**
+ * Anything a CLI can print belongs in a command, shaped in the shell. These segments read the
+ * session snapshot, which no shell can produce -- so the shape has to be configurable here, or it
+ * is whatever shape we happened to choose.
+ */
+describe("segments take the shape you ask for", () => {
+  const changed = ctx({ session: session({ diff: { files: 3, additions: 12, deletions: 4 } }) })
+
+  test("a diff can be written however the line needs it", () => {
+    expect(render("session.diff", changed, { format: "+{added} -{removed}" })?.text).toBe("+12 -4")
+    expect(render("session.diff", changed, { format: "{files}f" })?.text).toBe("3f")
+    expect(render("session.diff", changed, { format: "{added}/{removed} in {files}" })?.text).toBe(
+      "12/4 in 3",
+    )
+  })
+
+  /**
+   * The figures behind a share. A cache hit rate of 99% reads as wrong until the parts are
+   * visible, and with prompt caching it usually is not.
+   */
+  test("tokens can be broken into the parts it is made of", () => {
+    const spent = ctx({
+      session: session({
+        tokens: { input: 1200, output: 800, reasoning: 0, cache: { read: 96_000, write: 2000 } },
+      }),
+    })
+    expect(render("tokens", spent)?.text).toBe("100k tok")
+    expect(
+      render("tokens", spent, {
+        format: "{total} tok · in {input} · out {output} · read {cacheRead} · write {cacheWrite}",
+      })?.text,
+    ).toBe("100k tok · in 1.2k · out 800 · read 96k · write 2k")
+    expect(render("tokens", spent, { format: "{totalExact}" })?.text).toBe("100000")
+  })
+
+  /**
+   * Meaning carried by colour rather than by a row of equal-weight words — and the same three
+   * colours the split bar uses, so the same quantity reads the same wherever it appears.
+   */
+  test("the parts style colours each quantity and leaves out the empty ones", () => {
+    const spent = ctx({
+      session: session({
+        tokens: { input: 436, output: 146, reasoning: 0, cache: { read: 79_300, write: 0 } },
+      }),
+    })
+    const drawn = render("tokens", spent, { style: "parts" })
+    expect(drawn?.text).toBe("79.9k cache 79.3k in 436 out 146")
+    expect(drawn?.runs.find((run) => run.text === "79.3k")?.tone).toBe("success")
+    expect(drawn?.runs.find((run) => run.text === "436")?.tone).toBe("info")
+    expect(drawn?.runs.find((run) => run.text === "146")?.tone).toBe("accent")
+    // "write 0" is a column spent saying nothing happened.
+    expect(drawn?.text).not.toContain("write")
+  })
+
+  test("todo takes one too, including what is left rather than what is done", () => {
+    const busy = ctx({ session: session({ todo: { total: 7, completed: 3 } }) })
+    expect(render("todo", busy, { format: "{left} to go" })?.text).toBe("4 to go")
+    expect(render("todo", busy, { format: "{done}/{total}" })?.text).toBe("3/7")
+  })
+
+  test("no format means the segment's own shape, in its own colours", () => {
+    const drawn = render("session.diff", changed)
+    expect(drawn?.text).toBe("+12 / -4")
+    expect(drawn?.runs).toHaveLength(3) // the default keeps added and removed coloured apart
+  })
+
+  // A format is one run in one tone: full control of the words, at the cost of the colouring.
+  test("a formatted segment is a single run", () => {
+    const drawn = render("session.diff", changed, { format: "+{added} -{removed}" })
+    expect(drawn?.runs).toHaveLength(1)
+  })
+
+  test("an unknown placeholder is left visible rather than silently blank", () => {
+    expect(render("session.diff", changed, { format: "{nope} {added}" })?.text).toBe("{nope} 12")
+  })
+
+  // To hide a segment you leave it out of the list; an empty format is not a second way to do it.
+  test("an empty format falls back to the segment's own shape", () => {
+    expect(render("session.diff", changed, { format: "" })?.text).toBe("+12 / -4")
+  })
+})
+
+describe("building a line", () => {
+  test("drops the quiet segments and keeps the order written", () => {
+    const context = ctx({ branch: "main", session: session({ priced: true, cost: 2 }) })
+    const built = buildSegments(
+      context,
+      [
+        { type: "cwd" },
+        { type: "git.branch" },
+        { type: "cost" },
+        { type: "todo" }, // nothing to say
+      ],
+      { icons: false },
+    )
+    expect(built.map((s) => s.id)).toEqual(["cwd", "git.branch", "cost"])
+  })
+
+  // A config written against a newer version should cost you the segment, not the line.
+  test("an unknown segment type is skipped rather than fatal", () => {
+    const built = buildSegments(ctx(), [{ type: "does.not.exist" }, { type: "cwd" }], { icons: false })
+    expect(built.map((s) => s.id)).toEqual(["cwd"])
+  })
+
+  test("prefix and suffix wrap the value", () => {
+    const built = buildSegments(
+      ctx({ branch: "main" }),
+      [{ type: "git.branch", prefix: "on ", suffix: "!" }],
+      { icons: false },
+    )
+    expect(segmentText(built[0] as Segment)).toBe("on main!")
+  })
+
+  // The icon rides in its own dim run, so it can be coloured apart from the value it labels.
+  test("icons are on by default, overridable, and can be switched off wholesale", () => {
+    const [withIcon] = buildSegments(ctx({ branch: "main" }), [{ type: "git.branch" }])
+    expect(segmentText(withIcon as Segment)).toBe("⑂ main")
+    expect(withIcon?.runs[0]?.dim).toBe(true)
+
+    const [own] = buildSegments(ctx({ branch: "main" }), [{ type: "git.branch", icon: "»" }])
+    expect(segmentText(own as Segment)).toBe("» main")
+
+    const [none] = buildSegments(ctx({ branch: "main" }), [{ type: "git.branch" }], { icons: false })
+    expect(segmentText(none as Segment)).toBe("main")
+  })
+
+  test("the same type twice gets distinct ids, so fitting can drop one", () => {
+    const built = buildSegments(
+      ctx(),
+      [
+        { type: "text", value: "a" },
+        { type: "text", value: "b" },
+      ],
+      { icons: false },
+    )
+    expect(built.map((s) => s.id)).toEqual(["text", "text#2"])
+  })
+
+  // A colour named on the segment has to reach every run in it, or a multi-run segment would
+  // only half-obey it.
+  test("a configured colour overrides every run of the segment", () => {
+    const [tone] = buildSegments(ctx({ branch: "main" }), [{ type: "git.branch", color: "error" }])
+    expect(tone?.runs.every((run) => run.tone === "error")).toBe(true)
+
+    const [hex] = buildSegments(ctx({ branch: "main" }), [{ type: "git.branch", color: "#ff8800" }])
+    expect(hex?.runs.every((run) => run.color === "#ff8800")).toBe(true)
+  })
+
+  test("priority falls back to the built-in's own", () => {
+    const [own] = buildSegments(ctx(), [{ type: "cwd" }], { icons: false })
+    expect(own?.priority).toBe(findSegment("cwd")?.priority)
+    const [set] = buildSegments(ctx(), [{ type: "cwd", priority: 5 }], { icons: false })
+    expect(set?.priority).toBe(5)
+  })
+})

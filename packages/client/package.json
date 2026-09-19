@@ -23,6 +23,10 @@
     ".": {
       "types": "./types/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./feature": {
+      "types": "./types/feature.d.ts",
+      "default": "./dist/feature.js"
     }
   },
   "files": [

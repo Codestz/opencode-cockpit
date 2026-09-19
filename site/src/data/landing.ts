@@ -4,54 +4,36 @@
  */
 export const nav = {
   links: [
-    { label: "Why", href: "#why" },
+    { label: "What's fitted", href: "#bays" },
+    { label: "Shell", href: "#shell" },
+    { label: "Statusline", href: "#status" },
     { label: "Platform", href: "#platform" },
-    { label: "Bays", href: "#bays" },
-    { label: "Demo", href: "#demo" },
     { label: "Install", href: "#install" },
   ],
-  version: "v0.2.1",
+  version: "v0.3.0",
   github: "https://github.com/Codestz/opencode-cockpit",
 }
 
 export const hero = {
   eyebrow: "// instruments for OpenCode",
-  title: ["Give your agent a", "flight deck", ", not another tool call."] as const,
+  title: ["Give OpenCode the", "instruments", "it does not ship with."] as const,
   body:
-    "Cockpit is a platform for OpenCode capabilities: one daemon that owns long-lived state, one " +
-    "config for both halves of a plugin, and real estate in the interface. Shell is fitted today — " +
-    "background terminals that keep running, report their own health, and never need watching.",
+    "A tool call has to finish. A dev server does not, and neither does the context window filling " +
+    "up behind you. Cockpit is the instrument panel: things your agent can use, and things that " +
+    "tell you what it is doing. One package per capability, one switch each.",
   install: "opencode plugin opencode-cockpit --global",
-  /** The panel, as it looks while a session is running. */
-  deck: {
-    caption: "SHELLS — THIS PROJECT",
-    slots: [
-      { state: "run", name: "Vite dev server", detail: "· :5173", meta: "4m 12s" },
-      { state: "warn", name: "tsc --watch", detail: "· 1 error", meta: "11m 02s" },
-      { state: "run", name: "vitest --watch", detail: "· 26 passed", meta: "6m 40s" },
-    ],
-    lines: [
-      '<span class="d">// unprompted, four minutes into the session</span>',
-      "",
-      '<span class="w">⚠ tsc: ok → fail</span>',
-      "  src/checkout/total.ts:42 — TS2339 Property 'id' does not exist",
-      "",
-      '<span class="a">›</span> shell_read <span class="b">id</span>=sh_9wq2f1ab <span class="b">after</span>=2481 <span class="b">grep</span>="error TS"',
-      '<span class="d">  2 lines, 180 tokens — not the whole log</span>',
-    ],
-  },
 }
 
 export const specs = [
   { value: "1", label: "daemon, shared by every window" },
   { value: "9", label: "agent tools" },
   { value: "35", label: "watch presets" },
-  { value: "3", label: "views of every shell" },
+  { value: "14", label: "statusline segments" },
 ]
 
 export const compare = {
-  number: "01",
-  kicker: "The problem",
+  number: "",
+  kicker: "Why not just bash",
   title: "A tool call is the wrong shape for work that keeps going.",
   intro:
     "Everything long-running hits the same wall: the call either blocks until the process dies, or " +
@@ -67,7 +49,7 @@ export const compare = {
 }
 
 export const platform = {
-  number: "02",
+  number: "04",
   kicker: "The platform",
   title: "What every capability inherits.",
   intro:
@@ -108,23 +90,33 @@ export const platform = {
   ],
 }
 
+/**
+ * One entry per bay, in the order they appear down the page.
+ *
+ * The page is built from this list: a short index at the top, then a section each. Fitting another
+ * bay is appending an object here — it was a fixed three-card grid before, which meant a fourth
+ * capability would have cost a redesign rather than an entry.
+ */
 export const bays = {
-  number: "03",
-  kicker: "Capability bays",
-  title: "Fit the suite, or a single instrument.",
+  number: "01",
+  kicker: "What is fitted",
+  title: "Two instruments today. One switch each.",
   intro:
-    "Every bay is its own npm package with a switch in config. They share the daemon, so the second " +
-    "one costs nothing.",
+    "Every bay is its own npm package with a switch in config. They share the daemon, the config " +
+    "file and the keys, so the second costs nothing and moving between them changes nothing you " +
+    "have already set up.",
   items: [
     {
       id: "shell",
       name: "Shell",
       tagline: "Background terminals",
       state: "live",
-      status: "Available · v0.2.1",
+      status: "Available",
+      gains: { agent: "Terminals that keep running", you: "A panel that reports its own health" },
       blurb:
-        "Background terminals with a real PTY — the things a tool call cannot hold: dev servers, watchers, " +
-        "test suites, REPLs, tunnels.",
+        "A tool call has to finish. A dev server does not — so your agent either blocks on it, or " +
+        "backgrounds it and loses the output. Shell gives it terminals with a real PTY that outlive " +
+        "the turn, wait for a port or a pattern, and hand back the part that matters.",
       points: [
         "Waits on a port, a pattern, silence or exit",
         "Watchers report transitions, not noise",
@@ -134,66 +126,77 @@ export const bays = {
         "Reuses a finished shell instead of piling up",
       ],
       foot: ["9 agent tools", "35 watch presets", "@opencode-cockpit/shell"],
+      docs: "/shell/overview/",
+      media: {
+        kind: "casts" as const,
+        clips: [
+          { cast: "session", label: "A real conversation", hint: "ask → shell_start → answer", caption: "tapes/session.ts · a real model turn, start to finish" },
+          { cast: "dock", label: "Panel under the chat", hint: "dev server, live", caption: "tapes/dock.ts · the panel and the console, at full size" },
+          { cast: "search", label: "Search a long log", hint: "240 lines → 4", caption: "tapes/search.ts · filtering happens in the daemon" },
+          { cast: "tour", label: "Two shells at once", hint: "two shells, one keyboard", caption: "tapes/tour.ts · switching without the mouse" },
+        ],
+      },
     },
     {
-      id: "agents",
-      name: "Agents",
-      tagline: "Subagents you can watch",
-      state: "next",
-      status: "Next up",
+      id: "status",
+      name: "Statusline",
+      tagline: "The session, at a glance",
+      state: "live",
+      status: "Available",
+      gains: { agent: "—", you: "What the session is costing you" },
       blurb:
-        "OpenCode can run subagents, but watching them means clicking into a panel that replaces your " +
-        "conversation. This bay makes them ambient.",
+        "How full is the context? Where did the tokens go? What has changed? OpenCode answers the " +
+        "first in a corner and the rest not at all. The statusline answers them where you are already " +
+        "looking, and every part of it is a segment you can reshape, recolour or write yourself.",
       points: [
-        "A live tree in the sidebar",
-        "Peek without losing your place",
-        "Keyboard navigation, no mouse",
-        "Per-agent output you can follow",
-        "Roll up cost and duration",
-        "Jump to the run that failed",
+        "A capacity bar that means something at a glance",
+        "Tokens split into cache, input and output",
+        "Fourteen segments, or your own in TypeScript",
+        "Your Claude Code statusline script runs unchanged",
+        "Colours follow whatever theme you run",
+        "Silent about anything the host already says better",
       ],
-      foot: ["planned", "design open", "@opencode-cockpit/agents"],
-    },
-    {
-      id: "open",
-      name: "Open bay",
-      tagline: "Proposals welcome",
-      state: "open",
-      status: "Proposals welcome",
-      blurb:
-        "The airframe takes more instruments than these. Ideas on the table, none of them started — the " +
-        "strongest case wins the slot.",
-      points: [
-        "Checkpoints you can roll back to",
-        "A context and cost meter",
-        "Ports and services, seen at a glance",
-        "Scheduled and recurring prompts",
-        "Shared memory between sessions",
-        "Yours — open an issue",
-      ],
-      foot: ["MIT", "one package per bay", "open an issue"],
+      foot: ["14 segments", "2 surfaces", "@opencode-cockpit/status"],
+      docs: "/status/overview/",
+      media: {
+        kind: "image" as const,
+        src: "/media/statusline.png",
+        alt: "The statusline under an OpenCode conversation: a context bar at 40 per cent, the token total with its cache, input and output parts, the session diff, and elapsed time",
+        caption: "the default line · no configuration written at all",
+      },
     },
   ],
 }
 
-export const demo = {
-  number: "04",
-  kicker: "Recorded, not mocked up",
-  title: "A real session, not a storyboard.",
+/** What is coming, and the reason it is next. */
+export const next = {
+  number: "05",
+  kicker: "What is next",
+  title: "One bay at a time, and only what can be built.",
   intro:
-    "The first clip is an unedited model turn: a question, the agent reaching for <code>shell_start</code> " +
-    "by itself, the panel filling underneath, and the answer coming back. Recorded by a script in the " +
-    "repository that drives a real OpenCode, so a demo can never drift from what ships.",
-  clips: [
-    { cast: "session", label: "A real conversation", hint: "ask → shell_start → answer", caption: "tapes/session.ts · a real model turn, start to finish" },
-    { cast: "dock", label: "Panel under the chat", hint: "dev server, live", caption: "tapes/dock.ts · the panel and the console, at full size" },
-    { cast: "search", label: "Search a long log", hint: "240 lines → 4", caption: "tapes/search.ts · filtering happens in the daemon" },
-    { cast: "tour", label: "Two shells at once", hint: "two shells, one keyboard", caption: "tapes/tour.ts · switching without the mouse" },
+    "Nothing is listed here that cannot be built with what OpenCode already exposes. One bay at a " +
+    "time, shipped before the next is announced.",
+  items: [
+    {
+      name: "Review",
+      state: "next",
+      blurb:
+        "A pull request in the terminal. Comment on a line, comment on a file, mark a file read, " +
+        "suggest the change instead of describing it — and none of it reaches the chat until you " +
+        "submit, when it arrives as one message instead of six interruptions.",
+      why: "session.diff carries each file's before and after in full; session.revert undoes one part.",
+    },
+    {
+      name: "Doctor",
+      state: "later",
+      blurb: "One command that checks your setup and tells you how to fix it.",
+      why: "",
+    },
   ],
 }
 
 export const install = {
-  number: "05",
+  number: "06",
   kicker: "Install",
   title: "Two minutes, then ask it to start something.",
   modes: [

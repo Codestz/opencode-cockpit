@@ -2,4 +2,6 @@ dist/
 .astro/
 node_modules/
 public/casts/
+# synced from media/ by scripts/sync.ts, like the casts above
+public/media/
 src/content/docs/help/changelog.md

@@ -50,15 +50,22 @@ describe("badges", () => {
   })
 
   test("the spinner advances and wraps", () => {
-    expect(badgeText("run", 0)).toBe(` ${SPINNER[0]} RUN `)
-    expect(badgeText("run", 1)).toBe(` ${SPINNER[1]} RUN `)
+    expect(badgeText("run", 0)).toBe(`▌ ${SPINNER[0]} RUN`)
+    expect(badgeText("run", 1)).toBe(`▌ ${SPINNER[1]} RUN`)
     expect(badgeText("run", SPINNER.length)).toBe(badgeText("run", 0))
     expect(badgeText("run", SPINNER.length * 3 + 4)).toBe(badgeText("run", 4))
   })
 
   test("finished badges do not spin", () => {
     expect(badgeText("done", 7)).toBe(badgeText("done", 0))
-    expect(badgeText("fail", 0).trim()).toBe(BADGE_LABEL.fail)
+    expect(badgeText("fail", 0).replace("▌", "").trim()).toBe(BADGE_LABEL.fail)
+  })
+
+  // The rule is its own leading column so it can be coloured apart from the label.
+  test("every badge starts with the rule", () => {
+    for (const kind of ["run", "fail", "stop", "done"] as const) {
+      expect(badgeText(kind).startsWith("▌")).toBe(true)
+    }
   })
 
   test("colour follows meaning, not status", () => {

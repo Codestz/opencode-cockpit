@@ -14,7 +14,7 @@ import { join } from "node:path"
 
 const root = join(import.meta.dir, "..")
 // Dependency order, matching the release workflow.
-const PACKAGES = ["protocol", "daemon", "client", "shell", "opencode"]
+const PACKAGES = ["protocol", "daemon", "client", "shell", "status", "opencode"]
 const work = mkdtempSync(join(tmpdir(), "cockpit-pack-"))
 const tarballs = join(work, "tarballs")
 // Short: unix socket paths are limited to 104 bytes on macOS.
@@ -30,6 +30,21 @@ const run = (cmd: string[], cwd: string) => {
 }
 
 try {
+  /**
+   * The release workflow keeps its own list of what to publish, and a package missing from it
+   * publishes a bundle whose dependency does not exist — the 0.1.0 incident. The list lives in two
+   * places because one is YAML and one is TypeScript; this is what stops them drifting apart.
+   */
+  const workflow = await Bun.file(join(root, ".github/workflows/release.yml")).text()
+  const published = /for dir in ([a-z ]+); do/.exec(workflow)?.[1]?.trim().split(/\s+/)
+  if (!published) throw new Error("release.yml no longer has a publish loop this check can read")
+  const missing = PACKAGES.filter((pkg) => !published.includes(pkg))
+  if (missing.length > 0) {
+    throw new Error(
+      `release.yml does not publish: ${missing.join(", ")}. Add them to the loop, in dependency order.`,
+    )
+  }
+
   // Publishing packs whatever is on disk; build first so dist/ is current.
   run(["bun", "run", "build"], root)
 
@@ -72,7 +87,7 @@ try {
   // Internal packages are not on the registry yet: point every reference at its tarball.
   const overrides = Object.fromEntries(Object.keys(names).map((n) => [n, tarball(n)]))
   /**
-   * Both ways a person can install this, each in its own project.
+   * Every way a person can install this, each in its own project.
    *
    * They used to share one, which meant the bundle's dependencies could satisfy the standalone
    * package and hide a missing one — exactly the install the docs recommend for a single bay.
@@ -80,6 +95,7 @@ try {
   const installs = [
     { name: "bundle", packages: ["opencode-cockpit"] },
     { name: "shell alone", packages: ["@opencode-cockpit/shell"] },
+    { name: "status alone", packages: ["@opencode-cockpit/status"] },
   ]
 
   for (const install of installs) {
@@ -118,20 +134,48 @@ try {
         throw new Error(`${install.name}: ${pkg}/tui must publish compiled JS, got ${entry}`)
     }
 
-    const shellTui = Bun.resolveSync("@opencode-cockpit/shell/tui", dir)
-    const compiled = await Bun.file(shellTui).text()
-    for (const marker of ['from "@opentui/solid"', "createComponent"]) {
-      if (!compiled.includes(marker)) {
-        throw new Error(`${install.name}: ${shellTui} is not Solid-compiled output (missing ${marker})`)
+    // Each bay draws with Solid, so each bay's published entry has to be transformed output.
+    const bays = install.packages.includes("opencode-cockpit")
+      ? ["@opencode-cockpit/shell", "@opencode-cockpit/status"]
+      : install.packages
+    for (const bay of bays) {
+      const entry = Bun.resolveSync(`${bay}/tui`, dir)
+      const compiled = await Bun.file(entry).text()
+      for (const marker of ['from "@opentui/solid"', "createComponent"]) {
+        if (!compiled.includes(marker)) {
+          throw new Error(`${install.name}: ${entry} is not Solid-compiled output (missing ${marker})`)
+        }
       }
-    }
-    if (!compiled.includes('from "solid-js"')) {
-      throw new Error(`${install.name}: shell/tui should import solid-js by name, for OpenCode to rewrite`)
+      if (!compiled.includes('from "solid-js"')) {
+        throw new Error(`${install.name}: ${bay}/tui should import solid-js by name, for OpenCode to rewrite`)
+      }
     }
     if (install.packages.includes("opencode-cockpit")) {
       const bundleTui = await Bun.file(Bun.resolveSync("opencode-cockpit/tui", dir)).text()
-      if (!bundleTui.includes("@opencode-cockpit/shell/tui")) {
-        throw new Error("the bundle's tui entry should load the shell feature's compiled entry")
+      for (const bay of bays) {
+        if (!bundleTui.includes(`${bay}/tui`)) {
+          throw new Error(`the bundle's tui entry should load ${bay}'s compiled entry`)
+        }
+      }
+    }
+
+    /**
+     * A statusline module is written against `@opencode-cockpit/status/segment`, so that subpath
+     * has to resolve from a project that installed only this bay — otherwise every example in the
+     * README fails for the people the README is written for.
+     */
+    if (bays.includes("@opencode-cockpit/status")) {
+      for (const subpath of ["config", "segment"]) {
+        const resolved = Bun.resolveSync(`@opencode-cockpit/status/${subpath}`, dir)
+        if (!resolved.endsWith(".js")) {
+          throw new Error(`${install.name}: status/${subpath} must publish JS, got ${resolved}`)
+        }
+      }
+      const authoring = await import(Bun.resolveSync("@opencode-cockpit/status/segment", dir))
+      for (const name of ["gradient", "contextRatio", "contextUsed", "compact", "money"]) {
+        if (typeof authoring[name] !== "function") {
+          throw new Error(`${install.name}: status/segment must export ${name}() for modules to use`)
+        }
       }
     }
     for (const bundled of ["solid-js", "@opentui/core", "@opentui/solid"]) {
@@ -140,6 +184,12 @@ try {
           `${install.name}: ${bundled} was installed with the plugin; the host's instance must be used`,
         )
       }
+    }
+
+    // The statusline bay has no server half and no daemon: there is nothing further to run.
+    if (!bays.includes("@opencode-cockpit/shell")) {
+      console.log(`  ${install.name}: loads, compiled interface entry, authoring subpaths resolve`)
+      return
     }
 
     const servers = install.packages.map((pkg) =>

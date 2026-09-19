@@ -1,16 +1,24 @@
 /** @jsxImportSource @opentui/solid */
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import type { ShellInfo } from "@opencode-cockpit/protocol/shell"
-import { badgeText, kindColor, kindOf } from "../lib/view.ts"
+import { BADGE_RULE, badgeText, kindColor, kindOf } from "../lib/view.ts"
 
-/** Status pill: label on a coloured background, readable in any font and colour scheme. */
+/**
+ * Status mark: a coloured rule and its label.
+ *
+ * Not a filled pill. A block of colour has to be as wide as the word inside it, and a list of
+ * them reads as a wall of colour rather than as a list of shells; the rule carries the same
+ * meaning in one column.
+ */
 export function Badge(props: { api: TuiPluginApi; shell: ShellInfo; frame: number }) {
   const theme = () => props.api.theme.current
   const kind = () => kindOf(props.shell)
+  const colour = () => kindColor(theme(), kind())
   return (
     <text flexShrink={0} wrapMode="none">
-      <span style={{ fg: theme().background, bg: kindColor(theme(), kind()) }}>
-        <b>{badgeText(kind(), props.frame)}</b>
+      <span style={{ fg: colour() }}>{BADGE_RULE}</span>
+      <span style={{ fg: colour() }}>
+        <b>{badgeText(kind(), props.frame).slice(BADGE_RULE.length)}</b>
       </span>
     </text>
   )
