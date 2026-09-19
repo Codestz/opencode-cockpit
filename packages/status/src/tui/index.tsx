@@ -4,9 +4,10 @@ import type { TuiPlugin, TuiPluginModule } from "@opencode-ai/plugin/tui"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
 import { createMemo } from "solid-js"
 import pkg from "../../package.json" with { type: "json" }
-import { asSegmentConfig, loadStatusConfig, resolveLines } from "../core/config.ts"
-import { fit } from "../core/render.ts"
-import { buildSegments } from "../core/segments.ts"
+import { asSegmentConfig, loadStatusConfig, type ResolvedLine, resolveLines } from "../core/config.ts"
+import { loadCustomSegments } from "../core/custom.ts"
+import { fit, fitColumn } from "../core/render.ts"
+import { buildSegments, type SegmentDef } from "../core/segments.ts"
 import { StatusLine } from "./components/statusline.tsx"
 import { buildContext } from "./state/snapshot.ts"
 import { createStatusStore } from "./state/store.ts"
@@ -29,20 +30,37 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
     }
     api.lifecycle.onDispose(() => claim.release())
 
-    const config = loadStatusConfig(api.state.path.directory, rawOptions)
+    const directory = api.state.path.directory
+    const config = loadStatusConfig(directory, rawOptions)
     if (config.enabled === false) return
+
+    // Your own segments, loaded before the first draw so they are never missing from frame one.
+    let custom: ReadonlyMap<string, SegmentDef> = new Map()
+    if (config.modules?.length) {
+      const loaded = await loadCustomSegments(config.modules, directory)
+      custom = loaded.segments
+      // A module that will not load is worth saying out loud: its segments silently vanish.
+      for (const error of loaded.errors) {
+        api.ui.toast({ variant: "error", title: "Statusline", message: error, duration: 10_000 })
+      }
+    }
 
     const lines = resolveLines(config)
     const store = createStatusStore(api, config, { version: pkg.version, build: buildContext })
     api.lifecycle.onDispose(() => store.dispose())
 
     /** A line, fitted to the room its surface actually has. */
-    const line = (spec: (typeof lines)[number], width: () => number) => {
+    const line = (spec: ResolvedLine, width: () => number) => {
       const segments = createMemo(() => {
-        const built = buildSegments(store.context(), spec.segments.map(asSegmentConfig))
-        return fit(built, width(), spec.separator).segments
+        const built = buildSegments(store.context(), spec.segments.map(asSegmentConfig), {
+          custom,
+          icons: spec.icons,
+        })
+        return spec.stack === "vertical"
+          ? fitColumn(built, width(), spec.maxRows).segments
+          : fit(built, width(), spec.separator).segments
       })
-      return <StatusLine api={api} segments={segments} separator={spec.separator} />
+      return <StatusLine api={api} segments={segments} separator={spec.separator} stack={spec.stack} />
     }
 
     const on = (surface: string) => lines.filter((spec) => spec.surface === surface)
@@ -56,10 +74,13 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
       slots: {
         app_bottom: () => <>{bottom.map((spec) => line(spec, () => api.renderer.width - 2))}</>,
         // The prompt's right-hand side is narrow; a third of the window is as much as it can take.
+        // Session route only: on the home screen there is no session, so the line would be mostly
+        // empty and the two things it could still say are already on OpenCode's own footer.
         session_prompt_right: () => (
           <>{promptRight.map((spec) => line(spec, () => Math.floor(api.renderer.width / 3)))}</>
         ),
-        sidebar_footer: () => (
+        // sidebar_content, not sidebar_footer: the host does not draw plugin content in the footer.
+        sidebar_content: () => (
           <>{sidebar.map((spec) => line(spec, () => Math.max(10, Math.floor(api.renderer.width / 4))))}</>
         ),
       },

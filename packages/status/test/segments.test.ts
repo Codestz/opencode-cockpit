@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import type { SessionSnapshot, StatusContext } from "../src/core/context.ts"
-import { buildSegments, findSegment } from "../src/core/segments.ts"
+import { buildSegments, findSegment, type Segment, segmentText } from "../src/core/segments.ts"
 
 const session = (over: Partial<SessionSnapshot> = {}): SessionSnapshot => ({
   id: "ses_1",
@@ -27,9 +27,14 @@ const ctx = (over: Partial<StatusContext> = {}): StatusContext => ({
   ...over,
 })
 
-/** One segment, rendered on its own: what the line would show for just that built-in. */
-const render = (type: string, context: StatusContext, config: Record<string, unknown> = {}) =>
-  buildSegments(context, [{ type, ...config }])[0]
+/**
+ * One segment, rendered on its own, flattened to what it would read as. Icons are off here so the
+ * assertions are about the values; there is a separate test for icons.
+ */
+const render = (type: string, context: StatusContext, config: Record<string, unknown> = {}) => {
+  const [segment] = buildSegments(context, [{ type, ...config }], { icons: false })
+  return segment ? { ...segment, text: segmentText(segment), tone: segment.runs[0]?.tone } : undefined
+}
 
 describe("a segment with nothing to say says nothing", () => {
   test("no session means no session-shaped segments", () => {
@@ -108,9 +113,43 @@ describe("context window", () => {
     expect(render("context", withLimit(100_000, 200_000), { warnAt: 0.4 })?.tone).toBe("warning")
   })
 
-  test("the bar style is exactly as wide as asked, plus its brackets and figure", () => {
+  test("the bar style is exactly as wide as asked, between its end caps", () => {
     const drawn = render("context", withLimit(100_000, 200_000), { style: "bar", width: 6 })
-    expect(drawn?.text).toMatch(/^\[.{6}\] 50%$/)
+    expect(drawn?.text).toMatch(/^▐.{6}▌ 50%$/)
+  })
+
+  /**
+   * The bar people actually want: one bar whose cells are coloured by what fills them, so the
+   * shape of the session -- mostly cache, mostly fresh input -- reads at a glance.
+   */
+  test("the split style colours the bar by where the tokens came from", () => {
+    const mixed = ctx({
+      session: session({
+        model: { providerID: "p", modelID: "m", contextLimit: 1000 },
+        tokens: { input: 200, output: 100, reasoning: 0, cache: { read: 400, write: 0 } },
+      }),
+    })
+    const [drawn] = buildSegments(mixed, [{ type: "context", style: "split", width: 10 }], {
+      icons: false,
+    })
+    const runs = drawn?.runs ?? []
+    const cells = (tone: string) =>
+      runs.filter((run) => run.tone === tone).reduce((n, run) => n + run.text.length, 0)
+
+    expect(cells("success")).toBe(4) // cache read: 400/1000 of ten cells
+    expect(cells("info")).toBe(2) // fresh input
+    expect(cells("accent")).toBe(1) // output
+    expect(segmentText(drawn as Segment)).toContain("70%")
+    // Caps, bar and figure: the bar itself is exactly the width asked for.
+    expect(segmentText(drawn as Segment)).toMatch(/^▐.{10}▌ 70%$/)
+  })
+
+  // Before the first assistant message there are no tokens at all, so there is nothing to split.
+  test("the split style says nothing before the session has any tokens", () => {
+    const fresh = ctx({
+      session: session({ model: { providerID: "p", modelID: "m", contextLimit: 200_000 } }),
+    })
+    expect(render("context", fresh, { style: "split" })).toBeUndefined()
   })
 
   test("counts cache and reasoning, which is what actually occupies the window", () => {
@@ -150,7 +189,11 @@ describe("the rest of the built-ins", () => {
   test("diff shows only when something changed", () => {
     expect(render("git.diff", ctx({ session: session() }))).toBeUndefined()
     const changed = ctx({ session: session({ diff: { files: 2, additions: 40, deletions: 3 } }) })
-    expect(render("git.diff", changed)?.text).toBe("+40/-3")
+    const drawn = render("git.diff", changed)
+    expect(drawn?.text).toBe("+40 / -3")
+    // Added and removed are read separately, so they are coloured separately.
+    expect(drawn?.runs.find((run) => run.text === "+40")?.tone).toBe("success")
+    expect(drawn?.runs.find((run) => run.text === "-3")?.tone).toBe("error")
   })
 
   test("todo counts down and turns green when it is done", () => {
@@ -177,7 +220,7 @@ describe("the rest of the built-ins", () => {
 
   test("busy reports how long it has been working", () => {
     const working = ctx({ now: 90_000, session: session({ status: "busy", startedAt: 30_000 }) })
-    expect(render("session.status", working)?.text).toBe("working 1m")
+    expect(render("session.status", working)?.text).toBe("working 1m00s")
   })
 
   test("diagnostics name what is broken and count the rest", () => {
@@ -210,45 +253,73 @@ describe("the rest of the built-ins", () => {
 describe("building a line", () => {
   test("drops the quiet segments and keeps the order written", () => {
     const context = ctx({ branch: "main", session: session({ priced: true, cost: 2 }) })
-    const built = buildSegments(context, [
-      { type: "cwd" },
-      { type: "git.branch" },
-      { type: "cost" },
-      { type: "todo" }, // nothing to say
-    ])
+    const built = buildSegments(
+      context,
+      [
+        { type: "cwd" },
+        { type: "git.branch" },
+        { type: "cost" },
+        { type: "todo" }, // nothing to say
+      ],
+      { icons: false },
+    )
     expect(built.map((s) => s.id)).toEqual(["cwd", "git.branch", "cost"])
   })
 
   // A config written against a newer version should cost you the segment, not the line.
   test("an unknown segment type is skipped rather than fatal", () => {
-    const built = buildSegments(ctx(), [{ type: "does.not.exist" }, { type: "cwd" }])
+    const built = buildSegments(ctx(), [{ type: "does.not.exist" }, { type: "cwd" }], { icons: false })
     expect(built.map((s) => s.id)).toEqual(["cwd"])
   })
 
   test("prefix and suffix wrap the value", () => {
-    const built = buildSegments(ctx({ branch: "main" }), [{ type: "git.branch", prefix: "on ", suffix: "!" }])
-    expect(built[0]?.text).toBe("on main!")
+    const built = buildSegments(
+      ctx({ branch: "main" }),
+      [{ type: "git.branch", prefix: "on ", suffix: "!" }],
+      { icons: false },
+    )
+    expect(segmentText(built[0] as Segment)).toBe("on main!")
+  })
+
+  // The icon rides in its own dim run, so it can be coloured apart from the value it labels.
+  test("icons are on by default, overridable, and can be switched off wholesale", () => {
+    const [withIcon] = buildSegments(ctx({ branch: "main" }), [{ type: "git.branch" }])
+    expect(segmentText(withIcon as Segment)).toBe("⑂ main")
+    expect(withIcon?.runs[0]?.dim).toBe(true)
+
+    const [own] = buildSegments(ctx({ branch: "main" }), [{ type: "git.branch", icon: "»" }])
+    expect(segmentText(own as Segment)).toBe("» main")
+
+    const [none] = buildSegments(ctx({ branch: "main" }), [{ type: "git.branch" }], { icons: false })
+    expect(segmentText(none as Segment)).toBe("main")
   })
 
   test("the same type twice gets distinct ids, so fitting can drop one", () => {
-    const built = buildSegments(ctx(), [
-      { type: "text", value: "a" },
-      { type: "text", value: "b" },
-    ])
+    const built = buildSegments(
+      ctx(),
+      [
+        { type: "text", value: "a" },
+        { type: "text", value: "b" },
+      ],
+      { icons: false },
+    )
     expect(built.map((s) => s.id)).toEqual(["text", "text#2"])
   })
 
-  test("a configured tone wins, and a hex colour is carried through", () => {
+  // A colour named on the segment has to reach every run in it, or a multi-run segment would
+  // only half-obey it.
+  test("a configured colour overrides every run of the segment", () => {
     const [tone] = buildSegments(ctx({ branch: "main" }), [{ type: "git.branch", color: "error" }])
-    expect(tone?.tone).toBe("error")
+    expect(tone?.runs.every((run) => run.tone === "error")).toBe(true)
+
     const [hex] = buildSegments(ctx({ branch: "main" }), [{ type: "git.branch", color: "#ff8800" }])
-    expect(hex?.color).toBe("#ff8800")
+    expect(hex?.runs.every((run) => run.color === "#ff8800")).toBe(true)
   })
 
   test("priority falls back to the built-in's own", () => {
-    const [own] = buildSegments(ctx(), [{ type: "cwd" }])
+    const [own] = buildSegments(ctx(), [{ type: "cwd" }], { icons: false })
     expect(own?.priority).toBe(findSegment("cwd")?.priority)
-    const [set] = buildSegments(ctx(), [{ type: "cwd", priority: 5 }])
+    const [set] = buildSegments(ctx(), [{ type: "cwd", priority: 5 }], { icons: false })
     expect(set?.priority).toBe(5)
   })
 })

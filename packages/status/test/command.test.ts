@@ -1,11 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import {
-  type ClaudeCodeStatusInput,
-  claudeCodeInput,
-  cleanOutput,
-  createRunner,
-  execShell,
-} from "../src/core/command.ts"
+import { type ClaudeCodeStatusInput, claudeCodeInput } from "../src/core/claude-code.ts"
+import { cleanOutput, createRunner, execShell, outputRows } from "../src/core/command.ts"
 import type { StatusContext } from "../src/core/context.ts"
 
 const ctx = (over: Partial<StatusContext> = {}): StatusContext => ({
@@ -22,16 +17,20 @@ const ctx = (over: Partial<StatusContext> = {}): StatusContext => ({
 })
 
 describe("reading a command's output", () => {
-  test("takes the first line and trims it", () => {
-    expect(cleanOutput("  hello  \nsecond\n")).toBe("hello")
+  test("keeps every row and drops only the trailing blank space", () => {
+    expect(cleanOutput("top\nbottom\n\n")).toBe("top\nbottom")
     expect(cleanOutput("")).toBe("")
+    expect(outputRows(cleanOutput("top\r\nbottom\n"))).toEqual(["top", "bottom"])
+    expect(outputRows("")).toEqual([])
   })
 
-  // Scripts written for Claude Code colour themselves with escapes; the line is painted from
-  // theme tones instead, so the escapes must not reach the screen as text.
-  test("strips the colour escapes a ported script will emit", () => {
+  /**
+   * The escapes are deliberately kept: they are parsed into styled runs when the segment draws,
+   * so a script someone already tuned for Claude Code keeps the colours its author chose.
+   */
+  test("keeps the colour escapes a ported script emits", () => {
     const esc = String.fromCharCode(27)
-    expect(cleanOutput(`${esc}[32mmain${esc}[0m`)).toBe("main")
+    expect(cleanOutput(`${esc}[32mmain${esc}[0m`)).toContain(`${esc}[32m`)
   })
 })
 
@@ -59,13 +58,76 @@ describe("the Claude Code payload", () => {
     expect(payload.hook_event_name).toBe("Status")
     expect(payload.session_id).toBe("ses_1")
     expect(payload.cwd).toBe("/w/app/src")
-    expect(payload.workspace).toEqual({ current_dir: "/w/app/src", project_dir: "/w/app" })
+    expect(payload.workspace).toEqual({
+      current_dir: "/w/app/src",
+      project_dir: "/w/app",
+      git_worktree: "/w/app",
+    })
     expect(payload.model.id).toBe("claude-opus-5")
+    expect(payload.model.display_name).toBe("claude-opus-5")
     expect(payload.cost.total_cost_usd).toBe(1.5)
     expect(payload.cost.total_lines_added).toBe(40)
     expect(payload.cost.total_lines_removed).toBe(3)
     expect(payload.cost.total_duration_ms).toBe(30_000)
     expect(payload.exceeds_200k_tokens).toBe(true)
+  })
+
+  /**
+   * The fields a real statusline actually draws from. A script wanting a capacity bar reads
+   * `context_window.used_percentage`; without it, it either draws nothing or divides by a number
+   * it had to guess.
+   */
+  test("carries the context window when one was declared", () => {
+    const payload = claudeCodeInput(
+      ctx({
+        session: {
+          id: "ses_1",
+          status: "idle",
+          cost: 0,
+          priced: true,
+          messages: 1,
+          model: { providerID: "p", modelID: "m", contextLimit: 200_000 },
+          tokens: { input: 30_000, output: 10_000, reasoning: 0, cache: { read: 60_000, write: 0 } },
+          diff: { files: 0, additions: 0, deletions: 0 },
+          todo: { total: 0, completed: 0 },
+        },
+      }),
+    )
+    expect(payload.context_window).toEqual({
+      used_percentage: 50,
+      remaining_percentage: 50,
+      context_window_size: 200_000,
+      total_input_tokens: 90_000,
+      total_output_tokens: 10_000,
+    })
+    expect(payload.current_usage).toEqual({
+      input_tokens: 30_000,
+      output_tokens: 10_000,
+      cache_creation_tokens: 0,
+      cache_read_tokens: 60_000,
+    })
+  })
+
+  // Behind a proxy nobody declares a window; a script dividing by a made-up size draws a
+  // confident wrong bar, which is worse than the field being absent.
+  test("omits the context window when nobody declared one", () => {
+    const payload = claudeCodeInput(
+      ctx({
+        session: {
+          id: "ses_1",
+          status: "idle",
+          cost: 0,
+          priced: false,
+          messages: 1,
+          model: { providerID: "p", modelID: "m" },
+          tokens: { input: 10, output: 5, reasoning: 0, cache: { read: 0, write: 0 } },
+          diff: { files: 0, additions: 0, deletions: 0 },
+          todo: { total: 0, completed: 0 },
+        },
+      }),
+    )
+    expect(payload.context_window).toBeUndefined()
+    expect(payload.current_usage).toBeDefined()
   })
 
   test("a session-less window still produces a valid payload", () => {

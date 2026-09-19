@@ -1,12 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import { fit, lineWidth } from "../src/core/render.ts"
-import type { Segment } from "../src/core/segments.ts"
+import { type Segment, segmentText } from "../src/core/segments.ts"
 
 const seg = (id: string, text: string, priority: number): Segment => ({
   id,
-  text,
+  runs: [{ text, tone: "muted" }],
   priority,
-  tone: "muted",
 })
 
 const SEP = " · "
@@ -57,15 +56,15 @@ describe("fitting to a narrow terminal", () => {
   test("a single segment wider than the terminal is cut, not dropped", () => {
     const out = fit([seg("only", "a-very-long-path-indeed", 50)], 8, SEP)
     expect(out.segments).toHaveLength(1)
-    expect(out.segments[0]?.text).toBe("a-very-…")
-    expect(out.segments[0]?.text).toHaveLength(8)
+    expect(segmentText(out.segments[0] as Segment)).toBe("a-very-…")
+    expect(segmentText(out.segments[0] as Segment)).toHaveLength(8)
   })
 
   test("when nothing fits, the most important one survives, cut to width", () => {
     const out = fit(line, 5, SEP)
     expect(out.segments).toHaveLength(1)
     expect(out.segments[0]?.id).toBe("ctx")
-    expect(out.segments[0]?.text).toHaveLength(5)
+    expect(segmentText(out.segments[0] as Segment)).toHaveLength(5)
   })
 
   // A zero-width frame happens while the terminal is being resized.

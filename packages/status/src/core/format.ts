@@ -102,3 +102,50 @@ export function truncate(text: string, max: number): string {
   if (max === 1) return "…"
   return `${text.slice(0, max - 1)}…`
 }
+
+/* --------------------------------------------------------------------- colour */
+
+type Rgb = [number, number, number]
+
+/** Green, through amber, to red: the gradient a capacity bar is read against. */
+const HEAT: Rgb[] = [
+  [46, 204, 113],
+  [241, 196, 15],
+  [231, 76, 60],
+]
+
+function hex([r, g, b]: Rgb): string {
+  return `#${[r, g, b].map((n) => Math.round(n).toString(16).padStart(2, "0")).join("")}`
+}
+
+/**
+ * The colour at `t` (0..1) along a gradient, interpolated rather than bucketed. A bar whose cells
+ * step smoothly from green to red reads as a measurement; one that flips between three colours
+ * reads as three states.
+ */
+export function gradient(t: number, stops: Rgb[] = HEAT): string {
+  const clamped = Math.min(1, Math.max(0, t))
+  if (stops.length === 0) return "#ffffff"
+  if (stops.length === 1) return hex(stops[0] as Rgb)
+  const span = 1 / (stops.length - 1)
+  const index = Math.min(stops.length - 2, Math.floor(clamped / span))
+  const from = stops[index] as Rgb
+  const to = stops[index + 1] as Rgb
+  const local = (clamped - index * span) / span
+  return hex([
+    from[0] + (to[0] - from[0]) * local,
+    from[1] + (to[1] - from[1]) * local,
+    from[2] + (to[2] - from[2]) * local,
+  ])
+}
+
+/** "3m42s" — the precision a statusline can afford for a session that is still running. */
+export function preciseDuration(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000))
+  const s = total % 60
+  const m = Math.floor(total / 60) % 60
+  const h = Math.floor(total / 3600)
+  if (h > 0) return `${h}h${String(m).padStart(2, "0")}m`
+  if (m > 0) return `${m}m${String(s).padStart(2, "0")}s`
+  return `${s}s`
+}

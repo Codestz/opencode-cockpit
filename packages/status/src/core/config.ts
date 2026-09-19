@@ -49,11 +49,23 @@ export interface CommandConfig {
   priority?: number
 }
 
+/**
+ * How a line lays its segments out. A wide line under the prompt reads across; a sidebar four
+ * columns wide reads down.
+ */
+export type Stack = "horizontal" | "vertical"
+
 export interface LineConfig {
   surface?: Surface
   segments?: (string | SegmentConfig)[]
-  /** Drawn between segments. Defaults to " · ". */
+  /** Drawn between segments. Defaults to " · " across, and nothing down. */
   separator?: string
+  /** Defaults to vertical in the sidebar, horizontal everywhere else. */
+  stack?: Stack
+  /** Built-in icons. On by default; switch off for a terminal missing the glyphs. */
+  icons?: boolean
+  /** Vertical only: rows to draw at most. Lowest priority goes first. Defaults to 8. */
+  maxRows?: number
 }
 
 export interface StatusConfig {
@@ -62,9 +74,17 @@ export interface StatusConfig {
   surface?: Surface
   segments?: (string | SegmentConfig)[]
   separator?: string
+  stack?: Stack
+  /** Built-in icons. On by default; switch off for a terminal missing the glyphs. */
+  icons?: boolean
   lines?: LineConfig[]
   /** Named commands usable as segments: `{"type": "command", "name": "budget"}`. */
   commands?: Record<string, CommandConfig>
+  /**
+   * Your own segments: paths to modules that export them by name, usable in `segments` exactly
+   * like the built-ins. `~` and a path relative to the project both work.
+   */
+  modules?: string[]
 }
 
 export interface CockpitStatusConfig {
@@ -104,6 +124,8 @@ export function readStatusFile(path: string): StatusConfig {
 export function mergeStatus(base: StatusConfig, over: StatusConfig): StatusConfig {
   const merged: StatusConfig = { ...base, ...over }
   if (base.commands || over.commands) merged.commands = { ...base.commands, ...over.commands }
+  // Modules add up: a project can bring its own segments without losing the ones you use everywhere.
+  if (base.modules || over.modules) merged.modules = [...(base.modules ?? []), ...(over.modules ?? [])]
   return merged
 }
 
@@ -117,7 +139,17 @@ export function asStatusConfig(input: unknown): StatusConfig {
   const section = raw.statusline ?? (raw.status as unknown)
   if (section && typeof section === "object") return section as StatusConfig
   const own: StatusConfig = {}
-  for (const key of ["enabled", "surface", "segments", "separator", "lines", "commands"] as const) {
+  for (const key of [
+    "enabled",
+    "surface",
+    "segments",
+    "separator",
+    "stack",
+    "icons",
+    "lines",
+    "commands",
+    "modules",
+  ] as const) {
     if (raw[key] !== undefined) Object.assign(own, { [key]: raw[key] })
   }
   return own
@@ -138,18 +170,41 @@ export const DEFAULT_SEGMENTS: (string | SegmentConfig)[] = [
 
 export const DEFAULT_SEPARATOR = " · "
 
+export interface ResolvedLine {
+  surface: Surface
+  segments: (string | SegmentConfig)[]
+  separator: string
+  stack: Stack
+  maxRows: number
+  icons: boolean
+}
+
 /** Normalises whatever the config said into the lines the renderer draws. */
-export function resolveLines(
-  config: StatusConfig,
-): Required<Pick<LineConfig, "surface" | "segments" | "separator">>[] {
+export function resolveLines(config: StatusConfig): ResolvedLine[] {
   const lines = config.lines?.length
     ? config.lines
-    : [{ surface: config.surface, segments: config.segments, separator: config.separator }]
-  return lines.map((line) => ({
-    surface: line.surface ?? "bottom",
-    segments: line.segments ?? config.segments ?? DEFAULT_SEGMENTS,
-    separator: line.separator ?? config.separator ?? DEFAULT_SEPARATOR,
-  }))
+    : [
+        {
+          surface: config.surface,
+          segments: config.segments,
+          separator: config.separator,
+          stack: config.stack,
+          icons: config.icons,
+        },
+      ]
+  return lines.map((line) => {
+    const surface = line.surface ?? "bottom"
+    // The sidebar is a narrow column: across, it would be three truncated words.
+    const stack = line.stack ?? config.stack ?? (surface === "sidebar" ? "vertical" : "horizontal")
+    return {
+      surface,
+      segments: line.segments ?? config.segments ?? DEFAULT_SEGMENTS,
+      separator: line.separator ?? config.separator ?? (stack === "vertical" ? "" : DEFAULT_SEPARATOR),
+      stack,
+      maxRows: line.maxRows ?? 8,
+      icons: line.icons ?? config.icons ?? true,
+    }
+  })
 }
 
 /** A segment written as a bare string is that built-in with no settings. */

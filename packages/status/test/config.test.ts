@@ -109,7 +109,7 @@ describe("resolving lines", () => {
 
   test("the simple form is one line on the chosen surface", () => {
     const [line] = resolveLines({ surface: "promptRight", segments: ["cwd"], separator: " " })
-    expect(line).toEqual({ surface: "promptRight", segments: ["cwd"], separator: " " })
+    expect(line).toMatchObject({ surface: "promptRight", segments: ["cwd"], separator: " " })
   })
 
   test("several lines each pick up the shared defaults they did not set", () => {
@@ -118,14 +118,43 @@ describe("resolving lines", () => {
       segments: ["cwd"],
       lines: [{ surface: "bottom" }, { surface: "sidebar", segments: ["cost"] }],
     })
-    expect(lines).toEqual([
-      { surface: "bottom", segments: ["cwd"], separator: " | " },
-      { surface: "sidebar", segments: ["cost"], separator: " | " },
+    expect(lines).toMatchObject([
+      { surface: "bottom", segments: ["cwd"], separator: " | ", stack: "horizontal" },
+      { surface: "sidebar", segments: ["cost"], separator: " | ", stack: "vertical" },
     ])
   })
 
   test("an empty lines array falls back rather than drawing nothing", () => {
     expect(resolveLines({ lines: [] })).toHaveLength(1)
+  })
+
+  // A four-column sidebar read across would be three truncated words.
+  test("the sidebar stacks down by default, every other surface across", () => {
+    const [side] = resolveLines({ surface: "sidebar" })
+    expect(side?.stack).toBe("vertical")
+    expect(side?.separator).toBe("")
+
+    const [prompt] = resolveLines({ surface: "promptRight" })
+    expect(prompt?.stack).toBe("horizontal")
+    expect(prompt?.separator).toBe(DEFAULT_SEPARATOR)
+  })
+
+  test("an explicit stack wins over the surface's default", () => {
+    const [side] = resolveLines({ surface: "sidebar", stack: "horizontal" })
+    expect(side?.stack).toBe("horizontal")
+    expect(side?.separator).toBe(DEFAULT_SEPARATOR)
+  })
+
+  test("modules from both sources add up rather than replacing each other", () => {
+    const merged = mergeStatus({ modules: ["~/a.ts"] }, { modules: ["./b.ts"] })
+    expect(merged.modules).toEqual(["~/a.ts", "./b.ts"])
+  })
+
+  // Promised in the docs, so it has to actually reach the builder.
+  test("icons are on by default and can be switched off globally or per line", () => {
+    expect(resolveLines({})[0]?.icons).toBe(true)
+    expect(resolveLines({ icons: false })[0]?.icons).toBe(false)
+    expect(resolveLines({ icons: false, lines: [{ icons: true }] })[0]?.icons).toBe(true)
   })
 
   test("a bare string is that built-in with no settings", () => {

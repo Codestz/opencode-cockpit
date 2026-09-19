@@ -31,6 +31,10 @@
     "./config": {
       "types": "./types/core/config.d.ts",
       "default": "./dist/core/config.js"
+    },
+    "./segment": {
+      "types": "./types/core/authoring.d.ts",
+      "default": "./dist/core/authoring.js"
     }
   },
   "engines": {

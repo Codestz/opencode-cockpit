@@ -1,67 +1,29 @@
-import type { CommandConfig } from "./config.ts"
-import { contextUsed, type StatusContext } from "./context.ts"
-
 /**
- * The escape hatch: a shell command whose stdout becomes a segment.
+ * Running a shell command for a segment.
  *
- * It is fed the same JSON on stdin that Claude Code's statusLine hook sends, so a statusline
- * script someone already wrote works here unchanged. That matters more than elegance — nobody
- * rewrites a working statusline to try a new editor.
- *
- * Unlike Claude Code's, this is not on the draw path: the command runs on its own interval and the
- * line renders whatever it last returned, so a slow script makes the value stale rather than making
- * the interface stutter.
+ * Unlike Claude Code's statusline, this is not on the draw path: the command runs on its own
+ * interval and the line renders whatever it last returned, so a slow script makes the value stale
+ * rather than making the interface stutter.
  */
 
-/** Claude Code's statusLine stdin payload, as close as our data allows. */
-export interface ClaudeCodeStatusInput {
-  hook_event_name: "Status"
-  session_id: string
-  cwd: string
-  model: { id: string; display_name: string }
-  workspace: { current_dir: string; project_dir: string }
-  version: string
-  output_style: { name: string }
-  cost: {
-    total_cost_usd: number
-    total_duration_ms: number
-    total_lines_added: number
-    total_lines_removed: number
-  }
-  exceeds_200k_tokens: boolean
-}
+import { claudeCodeInput } from "./claude-code.ts"
+import type { CommandConfig } from "./config.ts"
+import type { StatusContext } from "./context.ts"
 
-export function claudeCodeInput(ctx: StatusContext): ClaudeCodeStatusInput {
-  const session = ctx.session
-  const model = session?.model
-  return {
-    hook_event_name: "Status",
-    session_id: session?.id ?? "",
-    cwd: ctx.directory,
-    model: {
-      id: model?.modelID ?? "",
-      display_name: model?.modelID ?? "",
-    },
-    workspace: { current_dir: ctx.directory, project_dir: ctx.worktree },
-    version: ctx.version,
-    output_style: { name: "default" },
-    cost: {
-      total_cost_usd: session?.cost ?? 0,
-      total_duration_ms: session?.startedAt ? Math.max(0, ctx.now - session.startedAt) : 0,
-      total_lines_added: session?.diff.additions ?? 0,
-      total_lines_removed: session?.diff.deletions ?? 0,
-    },
-    exceeds_200k_tokens: contextUsed(session?.tokens) > 200_000,
-  }
-}
-
-// Control sequences a script emits for colour. The line is drawn by OpenTUI, which paints from
-// theme tones rather than raw escapes, so they are removed instead of printed as gibberish.
-const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, "g")
-
+/**
+ * What a command's output is worth keeping: every row, escapes and all.
+ *
+ * The colour escapes are deliberately *not* stripped — they are parsed into styled runs when the
+ * segment draws, so a script someone already tuned for Claude Code looks the same here. Claude
+ * Code statuslines may also print several rows, so the rows are kept rather than the first one.
+ */
 export function cleanOutput(stdout: string): string {
-  const [first = ""] = stdout.replace(ANSI, "").split("\n")
-  return first.trim()
+  return stdout.replace(/\r/g, "").replace(/\s+$/, "")
+}
+
+/** The rows of a command's last output. */
+export function outputRows(value: string): string[] {
+  return value.length === 0 ? [] : value.split("\n")
 }
 
 export interface CommandRunner {

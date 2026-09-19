@@ -7,8 +7,6 @@ import type { SessionSnapshot, StatusContext, TokenCounts } from "../../core/con
  * the plugin api lives here, so every built-in stays a pure function of its input.
  */
 
-const EMPTY_TOKENS: TokenCounts = { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }
-
 /** The session the interface is showing, when it is showing one. */
 export function currentSession(api: TuiPluginApi): string | undefined {
   const route = api.route.current
@@ -106,5 +104,3 @@ export function buildContext(
     width: options.width,
   }
 }
-
-export { EMPTY_TOKENS }
