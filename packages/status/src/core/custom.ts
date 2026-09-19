@@ -4,7 +4,7 @@ import { basename, dirname, extname, isAbsolute, join, resolve } from "node:path
 import { pathToFileURL } from "node:url"
 import type { SegmentConfig } from "./config.ts"
 import type { StatusContext } from "./context.ts"
-import type { Piece, Run, SegmentDef, Tone } from "./segments.ts"
+import type { Piece, Pieces, Run, SegmentDef, Tone } from "./segments.ts"
 
 /**
  * Your own segments, written in TypeScript.
@@ -35,7 +35,7 @@ import type { Piece, Run, SegmentDef, Tone } from "./segments.ts"
 export type CustomRender = (
   ctx: StatusContext,
   config: SegmentConfig,
-) => { text: string; tone?: Tone; color?: string } | { runs: Run[] } | string | undefined
+) => { text: string; tone?: Tone; color?: string } | { runs: Run[] } | Piece[] | string | undefined
 
 export interface CustomModule {
   segments?: Record<string, CustomRender | { render: CustomRender; priority?: number }>
@@ -120,9 +120,11 @@ export async function loadCustomSegments(
         segments.set(name, {
           name,
           priority,
-          render(ctx, config): Piece | undefined {
+          render(ctx, config): Pieces | undefined {
             const value = render(ctx, config)
             if (value === undefined) return undefined
+            // Several rows: each is drawn on its own, and empty ones are left out.
+            if (Array.isArray(value)) return value.length > 0 ? value : undefined
             if (typeof value === "string") return value ? { text: value, tone: "muted" } : undefined
             if ("runs" in value) return value.runs.length > 0 ? value : undefined
             return value.text

@@ -35,6 +35,10 @@
     "./segment": {
       "types": "./types/core/authoring.d.ts",
       "default": "./dist/core/authoring.js"
+    },
+    "./fixtures": {
+      "types": "./types/core/fixtures.d.ts",
+      "default": "./dist/core/fixtures.js"
     }
   },
   "engines": {
@@ -44,6 +48,8 @@
   "files": [
     "dist",
     "types",
+    "examples",
+    "skills",
     "README.md",
     "LICENSE"
   ],
@@ -59,5 +65,8 @@
     "@opentui/keymap": "0.4.5",
     "@opentui/solid": "0.4.5",
     "solid-js": "1.9.12"
+  },
+  "bin": {
+    "opencode-statusline": "./dist/cli/preview.js"
   }
 }

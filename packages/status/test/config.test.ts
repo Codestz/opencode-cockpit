@@ -192,6 +192,21 @@ describe("resolving lines", () => {
     expect(own?.paddingLeft).toBe(0)
   })
 
+  /**
+   * Writing these at the top level is the natural guess, and having them quietly ignored costs
+   * exactly the rows they were meant to keep.
+   */
+  test("maxRows and padding can be set once for every line", () => {
+    const [line] = resolveLines({ surface: "sidebar", maxRows: 20, paddingLeft: 4 })
+    expect(line?.maxRows).toBe(20)
+    expect(line?.paddingLeft).toBe(4)
+  })
+
+  test("a line still overrides what the top level set", () => {
+    const [line] = resolveLines({ maxRows: 20, lines: [{ surface: "sidebar", maxRows: 3 }] })
+    expect(line?.maxRows).toBe(3)
+  })
+
   test("a bare string is that built-in with no settings", () => {
     expect(asSegmentConfig("cwd")).toEqual({ type: "cwd" })
     expect(asSegmentConfig({ type: "cwd", priority: 5 })).toEqual({ type: "cwd", priority: 5 })

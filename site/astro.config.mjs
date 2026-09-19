@@ -50,6 +50,7 @@ export default defineConfig({
           items: [
             { label: "Overview", slug: "status/overview" },
             { label: "Segments and layout", slug: "status/configuration" },
+            { label: "What you can draw", slug: "status/drawing" },
             { label: "Your own segments", slug: "status/modules" },
             { label: "Claude Code statuslines", slug: "status/commands" },
             { label: "Proxies", slug: "status/proxies" },

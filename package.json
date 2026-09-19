@@ -17,7 +17,8 @@
     "build": "bun scripts/build.ts",
     "smoke:tui": "bun scripts/tui-smoke.ts",
     "release": "bun scripts/release.ts",
-    "record": "bun scripts/record.ts"
+    "record": "bun scripts/record.ts",
+    "preview": "bun packages/status/src/cli/preview.ts"
   },
   "devDependencies": {
     "@babel/core": "7.28.0",

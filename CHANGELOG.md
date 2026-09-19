@@ -6,6 +6,34 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`preview` — draw your statusline in a terminal, without restarting OpenCode.**
+  `bunx @opencode-cockpit/status preview --watch` redraws on every save, against six sample
+  sessions: a fresh one before the first reply, a long one nearly out of room, one behind a proxy
+  with nothing declared, a stalled one, and no session at all. Designing a statusline used to mean
+  editing, restarting and squinting — one sidebar cost about twenty restarts, and three of the
+  mistakes were glyph choices that read differently on screen than in a sentence.
+- **`"debug": true`** draws a placeholder where a segment said nothing, so the three reasons a
+  segment can be absent stop looking identical: `⟨context⟩` it ran and had nothing to say,
+  `⟨?contex⟩` nothing answers to that name, `⟨!name⟩` it threw.
+- **A segment can return several rows.** An array is a row each, which is how a gauge, a table or a
+  row per service is drawn. Returning one used to be a silent no-op.
+- **`italic` and `underline` on a run**, drawn as markup. `strikethrough` and `inverse` are not
+  offered: OpenTUI has no element for either, so they could never have reached the screen.
+- **`examples/gallery.ts`** — every technique the renderer offers in one column: six kinds of bar,
+  braille, sparklines, rules, dots, chips, dividers, emphasis, every tone, and multi-row output.
+  Run it through `preview` and copy the row you want.
+- **A design skill**, shipped with the package at `skills/statusline-design/`, carrying the rules
+  this bay learned the expensive way — solid bars rather than dashes, words rather than colour
+  alone, no headings above optional rows, look at it before shipping it.
+
+### Fixed
+
+- **`maxRows` and the padding settings work at the top level of the config**, not only inside a
+  `lines` entry. Writing them there is the natural guess, and being quietly ignored cost exactly
+  the rows they were meant to keep.
+
 ## [0.3.0] - 2026-09-19
 
 ### Added

@@ -55,6 +55,7 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
         const built = buildSegments(store.context(), spec.segments.map(asSegmentConfig), {
           custom,
           icons: spec.icons,
+          debug: spec.debug,
         })
         return spec.stack === "vertical"
           ? fitColumn(built, width(), spec.maxRows).segments

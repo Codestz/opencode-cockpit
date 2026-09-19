@@ -9,7 +9,7 @@ import { buildSegments, type Segment, segmentText, segmentWidth } from "../src/c
  * run is worse than no example, and this is the only thing that catches one.
  */
 
-const EXAMPLES = ["bottom", "sidebar"] as const
+const EXAMPLES = ["bottom", "sidebar", "sidebar-full"] as const
 
 const session = (over: Partial<SessionSnapshot> = {}): SessionSnapshot => ({
   id: "ses_1",
@@ -124,6 +124,51 @@ describe("the bottom example", () => {
   test("cache reports the share of the window it did not have to re-send", () => {
     const drawn = draw("bottom", "cache", ctx({ session: working(0.5) }))
     expect(segmentText(drawn as Segment)).toBe("▌50% cached")
+  })
+})
+
+/**
+ * This one replaces OpenCode's own Context block rather than sitting beside it, so it has to carry
+ * what that block carried — the percentage, the token total and the spend — or turning the host's
+ * block off leaves the user worse off than before.
+ */
+describe("the full sidebar example", () => {
+  const full = (over: Partial<ReturnType<typeof working>> = {}) => ({ ...working(0.4), ...over })
+
+  test("carries everything the host's Context block did", () => {
+    const ctxWith = ctx({ session: full() })
+    expect(segmentText(draw("sidebar-full", "gauge", ctxWith) as Segment)).toContain("40%")
+    expect(segmentText(draw("sidebar-full", "window", ctxWith) as Segment)).toContain("/")
+    expect(segmentText(draw("sidebar-full", "spend", ctxWith) as Segment)).toContain("$")
+  })
+
+  test("every row fits a sidebar column", () => {
+    const ctxWith = ctx({ session: full() })
+    for (const type of loaded["sidebar-full"].segments.keys()) {
+      const drawn = draw("sidebar-full", type, ctxWith)
+      if (drawn) expect(segmentWidth(drawn)).toBeLessThanOrEqual(32)
+    }
+  })
+
+  test("without a declared window it reports the total rather than a share of nothing", () => {
+    const unmeasured = ctx({
+      session: {
+        ...working(0.4),
+        model: { providerID: "p", modelID: "m" },
+      },
+    })
+    expect(draw("sidebar-full", "gauge", unmeasured)).toBeUndefined()
+    expect(segmentText(draw("sidebar-full", "window", unmeasured) as Segment)).toContain("tok")
+  })
+
+  test("spend stays silent on an unpriced model", () => {
+    const unpriced = ctx({ session: { ...working(0.4), priced: false } })
+    expect(draw("sidebar-full", "spend", unpriced)).toBeUndefined()
+  })
+
+  test("tasks go quiet once the list is finished", () => {
+    const done = ctx({ session: { ...working(0.4), todo: { total: 5, completed: 5 } } })
+    expect(draw("sidebar-full", "tasks", done)).toBeUndefined()
   })
 })
 

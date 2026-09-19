@@ -1,6 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 
 import type { TuiPluginApi, TuiThemeCurrent } from "@opencode-ai/plugin/tui"
+import type { JSX } from "solid-js"
 import { For, Show } from "solid-js"
 import type { Run, Segment, Tone } from "../../core/segments.ts"
 
@@ -48,6 +49,21 @@ function runStyle(theme: TuiThemeCurrent, run: Run) {
   return bg ? { fg, bg } : { fg }
 }
 
+/**
+ * Emphasis is markup, not a style property.
+ *
+ * OpenTUI draws bold, italic and underline through `<b>`, `<i>` and `<u>` around the text — there
+ * is no attribute to set. Passing one as a prop on the span type-checks and renders nothing at
+ * all, which is how every attribute disappeared at once while the colours kept working.
+ */
+function decorate(run: Run): JSX.Element {
+  let node: JSX.Element = run.text
+  if (run.underline) node = <u>{node}</u>
+  if (run.italic) node = <i>{node}</i>
+  if (run.bold) node = <b>{node}</b>
+  return node
+}
+
 export interface StatusLineProps {
   api: TuiPluginApi
   segments: () => Segment[]
@@ -83,7 +99,10 @@ export function StatusLine(props: StatusLineProps) {
             <text wrapMode="none" flexShrink={0}>
               <For each={segment.runs}>
                 {(run) => (
-                  <Show when={run.bold} fallback={<span style={runStyle(theme(), run)}>{run.text}</span>}>
+                  <Show
+                    when={run.bold}
+                    fallback={<span style={runStyle(theme(), run)}>{decorate(run)}</span>}
+                  >
                     <span style={runStyle(theme(), run)}>
                       <b>{run.text}</b>
                     </span>

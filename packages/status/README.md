@@ -157,6 +157,21 @@ That removes the host's own `Context / tokens / % used / spent` block, leaving t
 for `internal:sidebar-files`, `-todo`, `-lsp`, `-mcp`, `-footer`, and the home screen's
 `internal:home-footer` and `internal:home-tips`.
 
+## What you can draw
+
+A segment returns styled runs of text, so the design space is finite and worth seeing all at once.
+`examples/gallery.ts` draws every technique in one column — solid, gradient, fine and split bars, a
+bar painted in background colour, steps, a sparkline, rules, dots, chips, dividers, emphasis, every
+tone, and one segment returning several rows:
+
+```sh
+bunx @opencode-cockpit/status preview --module examples/gallery.ts --state working
+```
+
+It is a terminal, not a browser — no DOM, no images, no borders. What there is: truecolor
+foreground and background, bold, dim, and alignment. See
+[What you can draw](https://codestz.github.io/opencode-cockpit/status/drawing/).
+
 ## Your own segments, in TypeScript
 
 The declarative config covers the usual line and a shell command covers anything with a CLI. Neither

@@ -70,6 +70,8 @@ export interface LineConfig {
   stack?: Stack
   /** Built-in icons. On by default; switch off for a terminal missing the glyphs. */
   icons?: boolean
+  /** Draw a placeholder where a segment said nothing, so a typo and missing data look different. */
+  debug?: boolean
   /** Vertical only: rows to draw at most. Lowest priority goes first. Defaults to 8. */
   maxRows?: number
   /**
@@ -92,6 +94,18 @@ export interface StatusConfig {
   stack?: Stack
   /** Built-in icons. On by default; switch off for a terminal missing the glyphs. */
   icons?: boolean
+  /** Draw a placeholder where a segment said nothing, so a typo and missing data look different. */
+  debug?: boolean
+  /**
+   * Vertical lines: rows to draw at most. Settable here as well as per line, because writing it
+   * here is the natural guess and having it quietly ignored costs exactly the rows it was meant
+   * to keep.
+   */
+  maxRows?: number
+  paddingLeft?: number
+  paddingRight?: number
+  paddingTop?: number
+  paddingBottom?: number
   lines?: LineConfig[]
   /** Named commands usable as segments: `{"type": "command", "name": "budget"}`. */
   commands?: Record<string, CommandConfig>
@@ -161,6 +175,12 @@ export function asStatusConfig(input: unknown): StatusConfig {
     "separator",
     "stack",
     "icons",
+    "debug",
+    "maxRows",
+    "paddingLeft",
+    "paddingRight",
+    "paddingTop",
+    "paddingBottom",
     "lines",
     "commands",
     "modules",
@@ -206,6 +226,7 @@ export interface ResolvedLine {
   stack: Stack
   maxRows: number
   icons: boolean
+  debug: boolean
   paddingLeft: number
   paddingRight: number
   paddingTop: number
@@ -232,6 +253,8 @@ export function resolveLines(config: StatusConfig): ResolvedLine[] {
           separator: config.separator,
           stack: config.stack,
           icons: config.icons,
+          debug: config.debug,
+          maxRows: config.maxRows,
         },
       ]
   return lines.map((line) => {
@@ -243,12 +266,13 @@ export function resolveLines(config: StatusConfig): ResolvedLine[] {
       segments: line.segments ?? config.segments ?? DEFAULT_SEGMENTS,
       separator: line.separator ?? config.separator ?? (stack === "vertical" ? "" : DEFAULT_SEPARATOR),
       stack,
-      maxRows: line.maxRows ?? 8,
+      maxRows: line.maxRows ?? config.maxRows ?? 8,
       icons: line.icons ?? config.icons ?? true,
-      paddingLeft: line.paddingLeft ?? PADDING[surface].left,
-      paddingRight: line.paddingRight ?? PADDING[surface].right,
-      paddingTop: line.paddingTop ?? PADDING[surface].top,
-      paddingBottom: line.paddingBottom ?? PADDING[surface].bottom,
+      debug: line.debug ?? config.debug ?? false,
+      paddingLeft: line.paddingLeft ?? config.paddingLeft ?? PADDING[surface].left,
+      paddingRight: line.paddingRight ?? config.paddingRight ?? PADDING[surface].right,
+      paddingTop: line.paddingTop ?? config.paddingTop ?? PADDING[surface].top,
+      paddingBottom: line.paddingBottom ?? config.paddingBottom ?? PADDING[surface].bottom,
     }
   })
 }
