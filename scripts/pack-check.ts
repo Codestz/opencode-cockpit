@@ -30,6 +30,21 @@ const run = (cmd: string[], cwd: string) => {
 }
 
 try {
+  /**
+   * The release workflow keeps its own list of what to publish, and a package missing from it
+   * publishes a bundle whose dependency does not exist — the 0.1.0 incident. The list lives in two
+   * places because one is YAML and one is TypeScript; this is what stops them drifting apart.
+   */
+  const workflow = await Bun.file(join(root, ".github/workflows/release.yml")).text()
+  const published = /for dir in ([a-z ]+); do/.exec(workflow)?.[1]?.trim().split(/\s+/)
+  if (!published) throw new Error("release.yml no longer has a publish loop this check can read")
+  const missing = PACKAGES.filter((pkg) => !published.includes(pkg))
+  if (missing.length > 0) {
+    throw new Error(
+      `release.yml does not publish: ${missing.join(", ")}. Add them to the loop, in dependency order.`,
+    )
+  }
+
   // Publishing packs whatever is on disk; build first so dist/ is current.
   run(["bun", "run", "build"], root)
 

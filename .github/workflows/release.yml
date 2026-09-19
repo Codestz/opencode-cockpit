@@ -60,7 +60,9 @@ jobs:
           bun run build
           mkdir -p "$RUNNER_TEMP/tarballs"
           # Dependency order; already-published versions are skipped so reruns are safe.
-          for dir in protocol daemon client shell opencode; do
+          # Dependency order matters: the bundle depends on every bay, so a bay missing from
+          # this list publishes a bundle whose dependency does not exist (the 0.1.0 incident).
+          for dir in protocol daemon client shell status opencode; do
             name=$(jq -r .name "packages/$dir/package.json")
             version=$(jq -r .version "packages/$dir/package.json")
             if npm view "$name@$version" version >/dev/null 2>&1; then
