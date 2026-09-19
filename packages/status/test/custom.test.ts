@@ -1,4 +1,6 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
+import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
 import type { StatusContext } from "../src/core/context.ts"
 import { type CustomModule, loadCustomSegments, resolveModulePath } from "../src/core/custom.ts"
 import { fitColumn } from "../src/core/render.ts"
@@ -159,5 +161,93 @@ describe("stacking down a column", () => {
   test("no room means no rows rather than a crash", () => {
     expect(fitColumn([seg("a", "x", 1)], 0, 5).segments).toEqual([])
     expect(fitColumn([seg("a", "x", 1)], 10, 0).segments).toEqual([])
+  })
+})
+
+describe("a module that lives outside a project", () => {
+  const dirs: string[] = []
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+  })
+
+  const moduleIn = (source: string) => {
+    const dir = mkdtempSync("/tmp/ck-module-")
+    dirs.push(dir)
+    const file = join(dir, "line.ts")
+    writeFileSync(file, source)
+    return { dir, file }
+  }
+
+  /**
+   * The repro from testing: a config directory has no `node_modules`, so the bare specifier every
+   * example is written against cannot resolve from the module's own directory -- and its segments
+   * vanish from the line with only a start-up toast to explain it.
+   */
+  test("resolves the authoring import with no node_modules in sight", async () => {
+    const { dir, file } = moduleIn(`
+      import { compact, contextUsed } from "@opencode-cockpit/status/segment"
+      import type { CustomModule, StatusContext } from "@opencode-cockpit/status/segment"
+      export default {
+        segments: {
+          weight: (ctx: StatusContext) => {
+            const used = contextUsed(ctx.session?.tokens)
+            return used > 0 ? \`\${compact(used)} tok\` : undefined
+          },
+        },
+      } satisfies CustomModule
+    `)
+    expect(existsSync(join(dir, "node_modules"))).toBe(false)
+
+    const { segments, errors } = await loadCustomSegments([file], dir)
+    expect(errors).toEqual([])
+    expect(segments.has("weight")).toBe(true)
+
+    const withTokens = ctx({
+      session: {
+        id: "s",
+        status: "idle",
+        cost: 0,
+        priced: false,
+        messages: 1,
+        tokens: { input: 1200, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+        diff: { files: 0, additions: 0, deletions: 0 },
+        todo: { total: 0, completed: 0 },
+      },
+    })
+    const [drawn] = buildSegments(withTokens, [{ type: "weight" }], { custom: segments })
+    expect(segmentText(drawn as Segment)).toBe("1.2k tok")
+  })
+
+  test("leaves nothing behind in the directory it loaded from", async () => {
+    const { dir, file } = moduleIn(`
+      import { compact } from "@opencode-cockpit/status/segment"
+      export default { segments: { one: () => compact(1000) } }
+    `)
+    await loadCustomSegments([file], dir)
+    expect(readdirSync(dir)).toEqual(["line.ts"])
+  })
+
+  // A module's own neighbours have to keep resolving, which is why the shim is written beside it.
+  test("a module's relative imports still work", async () => {
+    const { dir, file } = moduleIn(`
+      import { label } from "./label.ts"
+      import { compact } from "@opencode-cockpit/status/segment"
+      export default { segments: { one: () => \`\${label} \${compact(2000)}\` } }
+    `)
+    writeFileSync(join(dir, "label.ts"), 'export const label = "used"')
+
+    const { segments, errors } = await loadCustomSegments([file], dir)
+    expect(errors).toEqual([])
+    const [drawn] = buildSegments(ctx(), [{ type: "one" }], { custom: segments })
+    expect(segmentText(drawn as Segment)).toBe("used 2k")
+  })
+
+  // Only the authoring import is worth retrying; a module's own failure is reported as itself.
+  test("a module that fails for its own reasons still reports that reason", async () => {
+    const { dir, file } = moduleIn(`throw new Error("module said no")\nexport default {}`)
+    const { errors } = await loadCustomSegments([file], dir)
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toContain("module said no")
+    expect(errors[0]).not.toContain("@opencode-cockpit/status/segment")
   })
 })

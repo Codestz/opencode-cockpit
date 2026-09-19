@@ -10,7 +10,7 @@
  *       "modules": ["<this file>"],
  *       "lines": [
  *         { "surface": "bottom", "separator": " │ ",
- *           "segments": ["capacity", "trend", "burn", "git.diff", "todo", "session.time",
+ *           "segments": ["capacity", "pace", "burn", "git.diff", "todo", "session.time",
  *                        "diagnostics"] }
  *       ]
  *     }
@@ -24,7 +24,6 @@ import { compact, contextRatio, contextUsed, gradient } from "@opencode-cockpit/
 
 /** Samples kept between ticks: the shape of a session is not visible in any single reading. */
 const samples: { at: number; ratio: number; cost: number }[] = []
-const SPARK = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"]
 
 function sample(ctx: StatusContext): void {
   const last = samples[samples.length - 1]
@@ -68,24 +67,36 @@ export default {
     },
 
     /**
-     * Where the context has been heading, scaled to what this session has actually seen rather
-     * than to the whole window -- against 0-100 a steady session draws a flat wall of blocks.
+     * How fast the window is filling, as a figure rather than a picture.
+     *
+     * This was a sparkline. A sparkline redraws its whole shape every second, and a shape moving
+     * in the corner of your eye pulls attention away from what you are reading -- which is the one
+     * thing a statusline must not do. The same information as a rate changes its digits and
+     * nothing else.
      */
-    trend(ctx: StatusContext) {
+    pace(ctx: StatusContext) {
       sample(ctx)
       const seen = samples.filter((entry) => entry.ratio > 0)
-      if (seen.length < 2) return undefined
-      const low = Math.min(...seen.map((entry) => entry.ratio))
-      const high = Math.max(...seen.map((entry) => entry.ratio))
-      const span = high - low
+      const first = seen[0]
+      const last = seen[seen.length - 1]
+      if (!first || !last || last.at === first.at) return undefined
+      const perMinute = ((last.ratio - first.ratio) / (last.at - first.at)) * 60_000 * 100
+      if (Math.abs(perMinute) < 0.05) return undefined
+      // Minutes left at this rate is the figure worth knowing; the rate itself is the input.
+      const headroom = (1 - last.ratio) * 100
+      const minutesLeft = perMinute > 0 ? headroom / perMinute : Number.POSITIVE_INFINITY
       return {
-        runs: seen.slice(-12).map((entry) => {
-          const height = span < 0.005 ? 0.5 : (entry.ratio - low) / span
-          return {
-            text: SPARK[Math.min(7, Math.floor(height * 8))] as string,
-            color: gradient(entry.ratio),
-          }
-        }),
+        runs: [
+          { text: `+${perMinute.toFixed(1)}%/min`, tone: "muted" as const },
+          ...(Number.isFinite(minutesLeft) && minutesLeft < 90
+            ? [
+                {
+                  text: ` · ${Math.round(minutesLeft)}m left`,
+                  tone: minutesLeft < 15 ? ("warning" as const) : ("muted" as const),
+                },
+              ]
+            : []),
+        ],
       }
     },
 

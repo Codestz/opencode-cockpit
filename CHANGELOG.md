@@ -22,6 +22,17 @@ All notable changes to this project are documented here. The format follows
   testable as a built-in — and because it is loaded once and called on every repaint, it can keep
   history, which is what makes a sparkline or a rate possible.
 
+### Fixed
+
+- **Cost matched the session, not the messages still on screen.** The bay summed the messages it
+  could see, which under-reports twice over: a turn still streaming has not booked its cost, and
+  revert or compaction takes spent history out of the list. Against a proxy it read $0.30 where
+  OpenCode's own sidebar read $0.56. It now reads the session's running total.
+- **A statusline module no longer has to live inside a project.** `~/.config/opencode-cockpit/` is
+  the natural home for one, and nothing is installed beside it there — so the authoring import
+  failed and every segment the module defined vanished from the line. The import is now resolved
+  against the installed bay.
+
 ### Changed
 
 - **Shell's status marks are a coloured rule rather than a filled pill.** A block of colour has to

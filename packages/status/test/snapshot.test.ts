@@ -13,6 +13,7 @@ const usage = (input: number, output = 0, cacheRead = 0) => ({
 })
 
 interface FakeState {
+  sessionCost?: number
   messages?: unknown[]
   status?: { type: string; attempt?: number; message?: string; next?: number }
   diff?: { file: string; additions: number; deletions: number }[]
@@ -32,7 +33,11 @@ const api = (state: FakeState = {}): TuiPluginApi =>
       vcs: state.branch ? { branch: state.branch, default_branch: "main" } : undefined,
       provider: [{ id: "p", models: state.models ?? {} }],
       session: {
-        get: () => ({ title: "A session", time: { created: 1000 } }),
+        get: () => ({
+          title: "A session",
+          time: { created: 1000 },
+          ...(state.sessionCost === undefined ? {} : { cost: state.sessionCost }),
+        }),
         messages: () => state.messages ?? [],
         status: () => state.status ?? { type: "idle" },
         diff: () => state.diff ?? [],
@@ -70,15 +75,34 @@ describe("token usage during a turn", () => {
     expect(contextUsed(snapshot({ messages: [first, second] }).tokens)).toBe(4000)
   })
 
+  const priced = (cost: number) => ({
+    role: "assistant",
+    cost,
+    tokens: usage(10),
+    modelID: "m",
+    providerID: "p",
+  })
+
   test("cost is the whole session, not the last message", () => {
-    const message = (cost: number) => ({
-      role: "assistant",
-      cost,
-      tokens: usage(10),
-      modelID: "m",
-      providerID: "p",
-    })
-    expect(snapshot({ messages: [message(0.5), message(0.25)] }).cost).toBe(0.75)
+    expect(snapshot({ messages: [priced(0.5), priced(0.25)] }).cost).toBe(0.75)
+  })
+
+  /**
+   * The bay used to sum the messages it could see, which under-reports twice over: a turn still
+   * streaming has not booked its cost, and revert or compaction removes spent history from the
+   * list. OpenCode's own sidebar reads a running total on the session record, so the two disagreed
+   * on screen -- $0.30 here against $0.56 there.
+   */
+  test("cost matches the session's own total, not the visible messages", () => {
+    expect(snapshot({ messages: [priced(0.3)], sessionCost: 0.56 }).cost).toBe(0.56)
+  })
+
+  test("the message sum stands in when the session keeps no total", () => {
+    expect(snapshot({ messages: [priced(0.3)] }).cost).toBe(0.3)
+  })
+
+  test("a session total of zero is honoured rather than treated as missing", () => {
+    expect(snapshot({ messages: [priced(0.3)], sessionCost: 0 }).cost).toBe(0)
   })
 
   test("a session with no assistant message yet has no tokens and no model", () => {

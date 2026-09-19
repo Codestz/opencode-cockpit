@@ -4,7 +4,7 @@ A statusline for [OpenCode](https://opencode.ai) you can actually configure — 
 your own TypeScript, or the statusline script you already wrote for Claude Code.
 
 ```
- ▕████████┊┊░░░░┊░░░░┊▏ 39% │ ▁▂▃▅▆█ │ ▌94% cached │ +150 / -30 │ ▤ 3/7 todo │ ◷ 12m04s
+ ▕████████┊┊░░░░┊░░░░┊▏ 39% │ +1.2%/min · 48m left │ ▌94% cached │ +150 / -30 │ ◷ 12m04s
 ```
 
 Part of [opencode-cockpit](https://github.com/Codestz/opencode-cockpit). Install it on its own, or
@@ -158,6 +158,10 @@ export default {
 The name is then usable anywhere a built-in is, and reusing a built-in's name replaces it. A segment
 returns a string, a `{ text, tone }`, or `{ runs: [...] }` for several styles in one segment — an
 icon in one colour, a figure in another, a bar whose cells are coloured by what fills them.
+
+Paths take `~`, an absolute path, or one relative to the project. A module in your config directory
+works even though nothing is installed next to it: the authoring import is resolved against the
+installed bay rather than against the module's own folder.
 
 A module is handed the same snapshot the built-ins get and touches no OpenCode api, which makes a
 custom segment exactly as testable as a built-in. It is loaded once and its segments are called on

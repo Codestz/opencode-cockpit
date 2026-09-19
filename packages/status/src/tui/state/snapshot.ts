@@ -23,13 +23,13 @@ export function sessionSnapshot(api: TuiPluginApi, id: string, now: number): Ses
   const status = api.state.session.status(id)
   const session = api.state.session.get(id)
 
-  let cost = 0
+  let summed = 0
   let tokens: TokenCounts | undefined
   let modelID: string | undefined
   let providerID: string | undefined
   for (const message of messages) {
     if (message.role !== "assistant") continue
-    cost += message.cost ?? 0
+    summed += message.cost ?? 0
     /**
      * The newest assistant message is what currently occupies the window -- but only once it has
      * reported its usage. A message that is still streaming carries zeroes, and taking those would
@@ -40,6 +40,18 @@ export function sessionSnapshot(api: TuiPluginApi, id: string, now: number): Ses
     modelID = message.modelID
     providerID = message.providerID
   }
+
+  /**
+   * OpenCode keeps a running total on the session record, and its own sidebar reads that. Summing
+   * the messages we can see under-reports it twice over: a turn still streaming has not booked its
+   * cost yet, and revert or compaction takes spent history out of the list entirely. Observed live
+   * against a proxy as $0.30 here against $0.56 in the sidebar.
+   *
+   * The field is not in the published `Session` type, so it is read defensively and the sum stands
+   * in when it is absent.
+   */
+  const accumulated = (session as { cost?: unknown } | undefined)?.cost
+  const cost = typeof accumulated === "number" && Number.isFinite(accumulated) ? accumulated : summed
 
   const model = modelID && providerID ? describeModel(api, providerID, modelID) : undefined
 

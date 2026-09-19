@@ -7,7 +7,7 @@ Statusline puts a line of live session state under your conversation, or a colum
 sidebar. Bay 02, new in 0.3.0.
 
 ```
- ▕████████┊┊░░░░┊░░░░┊▏ 39% │ ▁▂▃▅▆█ │ ▌94% cached │ +150 / -30 │ ▤ 3/7 todo │ ◷ 12m04s
+ ▕████████┊┊░░░░┊░░░░┊▏ 39% │ +1.2%/min · 48m left │ ▌94% cached │ +150 / -30 │ ◷ 12m04s
 ```
 
 ## What it shows by default, and why it's so little

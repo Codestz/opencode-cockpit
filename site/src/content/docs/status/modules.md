@@ -36,6 +36,11 @@ export default {
 The name is then usable anywhere a built-in is. Reusing a built-in's name replaces it. Paths take
 `~`, an absolute path, or one relative to the project.
 
+**A module does not need to live in a project.** `~/.config/opencode-cockpit/` is the natural home
+for one, and nothing is installed next to it there — so the authoring import is resolved against the
+installed bay rather than against the module's own folder. Without that, every example on this page
+would fail for exactly the people following it.
+
 ## What a segment is handed
 
 A `StatusContext`: a plain snapshot, not OpenCode's plugin api. That is what makes a custom segment
@@ -106,8 +111,11 @@ export default {
 This is the real argument for a module over config, more than styling is: a sparkline, a rate, a
 direction — none of them exist in any single reading.
 
-Scale a sparkline to the range it has actually seen rather than to the whole window. A session
-sitting at a steady 39% draws a flat wall of identical blocks against a 0–100 scale.
+**Prefer a figure to a picture.** A sparkline redraws its whole shape every second, and movement in
+the corner of your eye pulls attention away from what you are reading — the one thing a statusline
+must not do. The same history reads better as a rate: `+1.2%/min · 48m left` changes its digits and
+nothing else. If you do draw one, scale it to the range it has actually seen; against 0–100 a
+session sitting at a steady 39% draws a flat wall of identical blocks.
 
 ## Worked examples
 

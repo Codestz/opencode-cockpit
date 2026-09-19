@@ -100,9 +100,25 @@ describe("the bottom example", () => {
     expect(segmentText(drawn as Segment)).toMatch(/^▕.{20}▏ 50%$/)
   })
 
-  test("the trend needs two readings before it claims a direction", () => {
-    const first = draw("bottom", "trend", ctx({ now: 1000, session: working() }))
-    expect(first).toBeUndefined()
+  /**
+   * A figure, not a picture. A sparkline redraws its shape every second, and movement in the
+   * corner of your eye is the one thing a statusline must not do.
+   */
+  test("pace needs two readings before it claims a rate", () => {
+    expect(draw("bottom", "pace", ctx({ now: 1000, session: working() }))).toBeUndefined()
+  })
+
+  test("pace reports a rate and what is left at it, and draws no moving shape", () => {
+    // A window filling steadily, read minutes apart. The segment keeps its own history, so it is
+    // driven rather than called once.
+    let drawn: Segment | undefined
+    for (let minute = 1; minute <= 5; minute++) {
+      drawn = draw("bottom", "pace", ctx({ now: minute * 60_000, session: working(minute * 0.1) }))
+    }
+    const text = segmentText(drawn as Segment)
+    expect(text).toMatch(/\+\d+(\.\d)?%\/min/)
+    // Block-drawing characters are what a sparkline is made of; this segment draws none.
+    expect(text).not.toMatch(/[▁▂▃▄▅▆▇█]/)
   })
 
   test("cache reports the share of the window it did not have to re-send", () => {

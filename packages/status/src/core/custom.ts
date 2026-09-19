@@ -1,5 +1,7 @@
+import { rmSync } from "node:fs"
 import { homedir } from "node:os"
-import { isAbsolute, resolve } from "node:path"
+import { basename, dirname, extname, isAbsolute, join, resolve } from "node:path"
+import { pathToFileURL } from "node:url"
 import type { SegmentConfig } from "./config.ts"
 import type { StatusContext } from "./context.ts"
 import type { Piece, Run, SegmentDef, Tone } from "./segments.ts"
@@ -54,6 +56,39 @@ export function resolveModulePath(path: string, directory: string, home = homedi
 
 const DEFAULT_PRIORITY = 45
 
+/** The specifier a module is written against, which is the whole point of the failure below. */
+const AUTHORING = "@opencode-cockpit/status/segment"
+
+/**
+ * Loading a module that lives outside a project.
+ *
+ * A statusline module belongs next to the config it serves, and the natural home for that is
+ * `~/.config/opencode-cockpit/`. But a bare import resolves from the importing file's own
+ * directory, and a config directory has no `node_modules` -- so every example in our own README
+ * fails for exactly the people the README is written for, and its segments vanish from the line
+ * with only a start-up toast to say why.
+ *
+ * The specifier resolves perfectly well from *this* file, so the fallback rewrites it to that
+ * resolved path and imports a copy placed beside the original, where the module's own relative
+ * imports still work. Only on failure: a module inside a project that installed the bay never
+ * takes this path.
+ */
+async function importWithAuthoring(full: string): Promise<unknown> {
+  const resolved = Bun.resolveSync("./authoring.ts", import.meta.dir)
+  const source = await Bun.file(full).text()
+  const patched = source.replaceAll(AUTHORING, pathToFileURL(resolved).href)
+  if (patched === source) throw new Error(`does not import ${AUTHORING}`)
+
+  // Beside the original, so `./helpers.ts` next to a module keeps resolving.
+  const shim = join(dirname(full), `.${basename(full, extname(full))}.cockpit.${extname(full).slice(1)}`)
+  try {
+    await Bun.write(shim, patched)
+    return await import(`${shim}?t=${Date.now()}`)
+  } finally {
+    rmSync(shim, { force: true })
+  }
+}
+
 export async function loadCustomSegments(
   paths: readonly string[],
   directory: string,
@@ -65,7 +100,15 @@ export async function loadCustomSegments(
   for (const path of paths) {
     const full = resolveModulePath(path, directory)
     try {
-      const loaded = (await importer(full)) as { default?: CustomModule } & CustomModule
+      let loaded: { default?: CustomModule } & CustomModule
+      try {
+        loaded = (await importer(full)) as { default?: CustomModule } & CustomModule
+      } catch (err) {
+        // Only the one failure is worth retrying; anything else is the module's own problem.
+        const message = err instanceof Error ? err.message : String(err)
+        if (!message.includes(AUTHORING)) throw err
+        loaded = (await importWithAuthoring(full)) as { default?: CustomModule } & CustomModule
+      }
       const module = loaded.default ?? loaded
       for (const [name, entry] of Object.entries(module.segments ?? {})) {
         const render = typeof entry === "function" ? entry : entry.render
