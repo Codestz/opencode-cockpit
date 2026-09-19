@@ -74,6 +74,36 @@ a line — the `worktree` segment in `examples/bottom.ts` reads that and draws `
 
 `session.diff` also answers to `git.diff`, its old and more misleading name.
 
+## Replacing OpenCode's own sidebar blocks
+
+The sidebar you see is not one panel — each block is an **internal plugin**, and `tui.json` can
+switch any of them off:
+
+```jsonc
+// ~/.config/opencode/tui.json
+{
+  "plugin": ["opencode-cockpit"],
+  "plugin_enabled": { "internal:sidebar-context": false }
+}
+```
+
+That removes OpenCode's own `Context / tokens / % used / spent` block, leaving the space to a
+`sidebar` line of your own. It is the honest way to avoid the same figure twice: rather than this
+bay staying quiet about what the host says, you turn off the half you would rather not read.
+
+| Plugin | What it draws |
+| --- | --- |
+| `internal:sidebar-context` | tokens, context percentage, spend |
+| `internal:sidebar-files` | files this session changed |
+| `internal:sidebar-todo` | the todo list |
+| `internal:sidebar-lsp` | language-server status |
+| `internal:sidebar-mcp` | MCP server status |
+| `internal:sidebar-footer` | the path and version at the bottom |
+| `internal:home-footer`, `internal:home-tips` | the home screen's furniture |
+| `internal:notifications` | toasts |
+
+`api.plugins.list()` prints the current set, so the list above can be checked rather than trusted.
+
 ## The context segment
 
 Four styles, because a context meter is the segment people care most about.

@@ -140,6 +140,23 @@ rather than reporting `$0.00`; `context` hides itself where nobody declared a wi
 inventing a denominator; `diagnostics` is silent while everything is healthy. That rule matters
 behind a proxy — see [Proxies](#proxies-litellm-and-friends).
 
+## Replacing OpenCode's own sidebar blocks
+
+Each block of OpenCode's sidebar is an internal plugin, and `tui.json` can switch one off:
+
+```jsonc
+// ~/.config/opencode/tui.json
+{
+  "plugin": ["@opencode-cockpit/status"],
+  "plugin_enabled": { "internal:sidebar-context": false }
+}
+```
+
+That removes the host's own `Context / tokens / % used / spent` block, leaving the space to a
+`sidebar` line of your own — the honest way to avoid reading the same figure twice. The same works
+for `internal:sidebar-files`, `-todo`, `-lsp`, `-mcp`, `-footer`, and the home screen's
+`internal:home-footer` and `internal:home-tips`.
+
 ## Your own segments, in TypeScript
 
 The declarative config covers the usual line and a shell command covers anything with a CLI. Neither
