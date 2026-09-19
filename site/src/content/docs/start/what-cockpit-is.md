@@ -1,13 +1,32 @@
 ---
 title: What Cockpit is
-description: A platform for OpenCode capabilities — one daemon, one config, one place in the interface.
+description: Instruments for OpenCode — things your agent can use, and things that tell you what it is doing.
 ---
 
-Cockpit is the airframe. Capabilities bolt into it as **bays**; today there is one fitted, **Shell**,
-which gives your agent background terminals.
+Your agent starts a dev server and the tool call blocks until you kill it. It backgrounds one
+instead and loses the output. It runs the suite and pastes two thousand lines into a context window
+whose size you are guessing at.
 
-The platform exists because every capability of this kind hits the same three problems, and solving
-them once is the whole point.
+OpenCode is an excellent terminal agent flying without instruments. Cockpit is the panel.
+
+## What is fitted today
+
+| Bay | Your agent gains | You gain |
+| --- | --- | --- |
+| **[Shell](/opencode-cockpit/shell/overview/)** | Terminals that keep running — it starts them, waits for "ready", reads the part that matters | A live panel of every process, with health it reports itself |
+| **[Statusline](/opencode-cockpit/status/overview/)** | — | The session at a glance: how full the context is, where the tokens went, what changed, how long |
+
+Each is its own npm package with a switch in config. Take the suite or a single bay; either way it
+is the same daemon, the same config file and the same keys, so moving between them changes nothing
+you have already set up.
+
+**[Review](/opencode-cockpit/platform/bays/)** is next: a pull request in the terminal, where
+comments on lines and files batch up and reach the chat as one message.
+
+## Why a platform and not two plugins
+
+Because every capability of this kind hits the same three problems, and solving them once is what
+makes the second bay cheap.
 
 ## A daemon that outlives the session
 

@@ -3,25 +3,29 @@ import Base from "../layouts/Base.astro"
 import Nav from "../components/landing/Nav.astro"
 import Hero from "../components/landing/Hero.astro"
 import Specs from "../components/landing/Specs.astro"
+import Fitted from "../components/landing/Fitted.astro"
+import Bay from "../components/landing/Bay.astro"
 import Compare from "../components/landing/Compare.astro"
 import Platform from "../components/landing/Platform.astro"
-import Bays from "../components/landing/Bays.astro"
-import Demo from "../components/landing/Demo.astro"
+import Next from "../components/landing/Next.astro"
 import Install from "../components/landing/Install.astro"
 import Closing from "../components/landing/Closing.astro"
 ---
 <Base
   title="Cockpit — instruments for OpenCode"
-  description="A platform for OpenCode capabilities. Shell ships today: background terminals your agent starts, waits on, and never babysits."
+  description="Instruments for OpenCode: background terminals your agent starts and waits on, and a statusline that tells you what the session is costing. One daemon, one config, a switch per bay."
 >
   <Nav />
   <main>
     <Hero />
     <Specs />
+    <!-- The index, then a section each. Fitting another bay is an entry in bays.items. -->
+    <Fitted />
+    <Bay id="shell" number="02" />
     <Compare />
+    <Bay id="status" number="03" />
     <Platform />
-    <Bays />
-    <Demo />
+    <Next />
     <Install />
   </main>
   <Closing />

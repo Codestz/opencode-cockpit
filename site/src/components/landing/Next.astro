@@ -1,0 +1,34 @@
+---
+/** What is coming, and the reason it is next. */
+import SectionHead from "./SectionHead.astro"
+import { next } from "../../data/landing"
+---
+<section class="page section" id="next" style="padding-top:0">
+  <SectionHead number={next.number} kicker={next.kicker} title={next.title} intro={next.intro} />
+
+  <div class="rows">
+    {next.items.map((item) => (
+      <article class="row surface">
+        <div class="head">
+          <h3>{item.name}</h3>
+          <span class="state mono" data-state={item.state}>{item.state === "next" ? "next up" : "after that"}</span>
+        </div>
+        <p>{item.blurb}</p>
+        {item.why && <p class="why mono">{item.why}</p>}
+      </article>
+    ))}
+  </div>
+
+</section>
+
+<style>
+  .rows { margin-top: 36px; display: grid; gap: 16px; }
+  .row { padding: 24px 26px; }
+  .head { display: flex; align-items: baseline; gap: 14px; }
+  h3 { font-size: 20px; letter-spacing: -0.02em; }
+  .state { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ck-fg-3); }
+  .state[data-state="next"] { color: var(--ck-info); }
+  .row p { margin-top: 12px; color: var(--ck-fg-2); font-size: 15px; max-width: 74ch; }
+  .why { margin-top: 10px; font-size: 12.5px; color: var(--ck-fg-3); }
+
+</style>

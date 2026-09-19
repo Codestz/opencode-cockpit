@@ -50,13 +50,6 @@ Nothing started, ideas on the table: checkpoints, ports and services, scheduled 
 memory between sessions. [Open an issue](https://github.com/Codestz/opencode-cockpit/issues) and
 make the case.
 
-Two ideas that were considered and dropped, so nobody spends time on them twice:
-
-- **A live subagent tree.** OpenCode's own subagent view already does most of it; a second one
-  would have been a different arrangement of the same information rather than a new capability.
-- **Taking over the sidebar's Context block.** It is not a slot a plugin can contribute to and
-  there is no setting for it, so hiding or replacing it is not possible from a plugin at all. It
-  would need a change in OpenCode.
 
 ## Installing one, or all
 

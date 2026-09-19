@@ -1,0 +1,162 @@
+---
+/**
+ * One bay, given a section of its own: what it is, what it gives you, and it running.
+ *
+ * Every bay renders through this, so fitting another is an entry in `bays.items` rather than a
+ * redesign of the page. Media is either the recordings (Shell) or a screenshot (Statusline); the
+ * shape of the section does not change between them.
+ */
+import { bays } from "../../data/landing"
+
+interface Props {
+  id: string
+  number: string
+}
+const { id, number } = Astro.props
+const bay = bays.items.find((item) => item.id === id)!
+const base = import.meta.env.BASE_URL.replace(/\/$/, "")
+const casts = bay.media.kind === "casts" ? bay.media.clips : []
+---
+<section class="page section bay" id={bay.id}>
+  <header>
+    <p class="kicker mono"><span class="num">{number}</span> {bay.tagline}</p>
+    <h2>{bay.name}</h2>
+    <p class="blurb">{bay.blurb}</p>
+    <p class="gains mono">
+      {/* A bay that gives the agent nothing says so by leaving the side out, not by printing a dash. */}
+      {bay.gains.agent !== "—" && <span><i>agent</i> {bay.gains.agent}</span>}
+      <span><i>you</i> {bay.gains.you}</span>
+    </p>
+  </header>
+
+  <div class="body">
+    <ul class="points">
+      {bay.points.map((point) => (
+        <li><i class="mono">→</i><span>{point}</span></li>
+      ))}
+    </ul>
+
+    {bay.media.kind === "image" && (
+      <figure class="media">
+        <img src={`${base}${bay.media.src}`} alt={bay.media.alt} loading="lazy" decoding="async" />
+        <figcaption class="mono">{bay.media.caption}</figcaption>
+      </figure>
+    )}
+
+    {bay.media.kind === "casts" && (
+      <div class="media casts" data-casts={bay.id}>
+        <div class="rail">
+          {casts.map((clip, i) => (
+            <button
+              type="button"
+              aria-pressed={i === 0}
+              data-src={`${base}/casts/${clip.cast}.cast`}
+              data-caption={clip.caption}
+            >{clip.label}<small class="mono">{clip.hint}</small></button>
+          ))}
+        </div>
+        <div>
+          <div class="frame" data-mount></div>
+          <p class="cap mono" data-cap>{casts[0]?.caption}</p>
+        </div>
+      </div>
+    )}
+  </div>
+
+  <footer class="foot mono">
+    {bay.foot.map((item) => <span>{item}</span>)}
+    <a class="more" href={`${base}${bay.docs}`}>Read the docs →</a>
+  </footer>
+</section>
+
+<style>
+  .bay { padding-top: 0; }
+  header { max-width: 72ch; }
+  .kicker { color: var(--ck-fg-3); font-size: 12.5px; letter-spacing: 0.08em; text-transform: uppercase; }
+  .num { color: var(--ck-accent); margin-right: 8px; }
+  h2 { margin-top: 10px; font-size: clamp(26px, 3.4vw, 38px); letter-spacing: -0.02em; }
+  .blurb { margin-top: 14px; color: var(--ck-fg-2); font-size: 16px; }
+  .gains { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px 26px; font-size: 12.5px; color: var(--ck-fg-2); }
+  .gains i { font-style: normal; color: var(--ck-fg-3); margin-right: 8px; text-transform: uppercase; letter-spacing: 0.08em; }
+
+  .body { margin-top: 34px; display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 28px; align-items: start; }
+  .points { margin: 0; padding: 0; list-style: none; display: grid; gap: 13px; }
+  .points li { display: grid; grid-template-columns: 16px 1fr; gap: 10px; font-size: 14.5px; color: var(--ck-fg-2); }
+  .points i { font-style: normal; color: var(--ck-accent); font-size: 12px; padding-top: 3px; }
+
+  .media figcaption, .cap { margin-top: 12px; font-size: 12px; color: var(--ck-fg-3); }
+  .media img {
+    display: block; width: 100%; height: auto; border: 1px solid var(--ck-line);
+    border-radius: var(--ck-radius); background: var(--ck-terminal);
+  }
+
+  .casts { display: grid; grid-template-columns: 210px minmax(0, 1fr); gap: 20px; align-items: start; }
+  .rail { display: flex; flex-direction: column; gap: 6px; }
+  .rail button {
+    text-align: left; background: none; border: 0; border-left: 2px solid var(--ck-line);
+    padding: 10px 13px; color: var(--ck-fg-3); font: inherit; font-size: 13.5px; cursor: pointer; transition: 0.14s ease;
+  }
+  .rail button:hover { color: var(--ck-fg-2); }
+  .rail button[aria-pressed="true"] { border-left-color: var(--ck-accent); color: var(--ck-fg); }
+  .rail small { display: block; font-size: 11.5px; color: var(--ck-fg-3); margin-top: 3px; }
+  .frame { background: var(--ck-terminal); border: 1px solid var(--ck-line); border-radius: var(--ck-radius); padding: 12px; }
+
+  .foot {
+    margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--ck-line);
+    display: flex; gap: 18px; flex-wrap: wrap; font-size: 12.5px; color: var(--ck-fg-3);
+  }
+  .more { margin-left: auto; color: var(--ck-accent); text-decoration: none; }
+  .more:hover { text-decoration: underline; }
+
+  @media (max-width: 940px) {
+    .body { grid-template-columns: 1fr; }
+    .casts { grid-template-columns: 1fr; }
+  }
+</style>
+
+<script>
+  import * as AsciinemaPlayer from "asciinema-player"
+  import "asciinema-player/dist/bundle/asciinema-player.css"
+
+  // Scoped per section, so a bay with recordings can sit anywhere on the page, more than once.
+  for (const group of document.querySelectorAll<HTMLElement>("[data-casts]")) {
+    const mount = group.querySelector<HTMLElement>("[data-mount]")!
+    const cap = group.querySelector<HTMLElement>("[data-cap]")!
+    const buttons = group.querySelectorAll<HTMLButtonElement>(".rail button")
+    let player: { dispose(): void } | undefined
+
+    const play = (btn: HTMLButtonElement) => {
+      player?.dispose()
+      player = AsciinemaPlayer.create(btn.dataset.src!, mount, {
+        autoPlay: true, loop: true, controls: true, speed: 1.4, idleTimeLimit: 0.9,
+        theme: "cockpit", fit: "width",
+      })
+      cap.textContent = btn.dataset.caption ?? ""
+    }
+
+    buttons.forEach((btn) =>
+      btn.addEventListener("click", () => {
+        buttons.forEach((b) => b.setAttribute("aria-pressed", String(b === btn)))
+        play(btn)
+      }),
+    )
+
+    // Nothing is fetched until the section is actually on screen.
+    new IntersectionObserver((entries, obs) => {
+      for (const e of entries) if (e.isIntersecting) { play(buttons[0]!); obs.disconnect() }
+    }, { rootMargin: "300px" }).observe(mount)
+  }
+</script>
+
+<style is:global>
+  .asciinema-player-theme-cockpit {
+    --term-color-foreground: #c7d2dc;
+    /* recordings keep a terminal ground in both themes: the colours were made for it */
+    --term-color-background: var(--ck-terminal);
+    --term-color-0: #0b0d10; --term-color-1: #f0797a; --term-color-2: #5fe3c0; --term-color-3: #f0b45e;
+    --term-color-4: #6ea8fe; --term-color-5: #c79bf0; --term-color-6: #5fd8e3; --term-color-7: #c7d2dc;
+    --term-color-8: #5f6e7b; --term-color-9: #ff9b9c; --term-color-10: #7ff0d1; --term-color-11: #ffc97d;
+    --term-color-12: #8dbcff; --term-color-13: #dcb4ff; --term-color-14: #8ae8f0; --term-color-15: #e8edf2;
+  }
+  .ap-player { font-family: var(--ck-font-mono) !important; }
+</style>

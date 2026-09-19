@@ -1,0 +1,42 @@
+---
+/** The index: what is fitted, in one glance, each linking to its own section below. */
+import SectionHead from "./SectionHead.astro"
+import { bays } from "../../data/landing"
+---
+<section class="page section" id="bays" style="padding-top:0">
+  <SectionHead number={bays.number} kicker={bays.kicker} title={bays.title} intro={bays.intro} />
+
+  <div class="grid">
+    {bays.items.map((bay) => (
+      <a class="card surface" href={`#${bay.id}`}>
+        <span class="dot" data-state={bay.state}></span>
+        <h3>{bay.name}</h3>
+        <p class="tag">{bay.tagline}</p>
+        <dl class="mono">
+          {bay.gains.agent !== "—" && <div><dt>agent</dt><dd>{bay.gains.agent}</dd></div>}
+          <div><dt>you</dt><dd>{bay.gains.you}</dd></div>
+        </dl>
+        <span class="go mono">{bay.status} →</span>
+      </a>
+    ))}
+  </div>
+</section>
+
+<style>
+  .grid { margin-top: 36px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+  .card {
+    position: relative; padding: 26px 28px; text-decoration: none; color: inherit;
+    display: flex; flex-direction: column; transition: 0.15s ease;
+  }
+  .card:hover { border-color: var(--ck-accent); transform: translateY(-2px); }
+  .dot { position: absolute; top: 26px; right: 26px; width: 7px; height: 7px; border-radius: 50%; background: var(--ck-fg-3); }
+  .dot[data-state="live"] { background: var(--ck-accent); }
+  .dot[data-state="next"] { background: var(--ck-info); }
+  h3 { font-size: 21px; letter-spacing: -0.02em; }
+  .tag { margin-top: 4px; color: var(--ck-fg-3); font-size: 13.5px; }
+  dl { margin: 20px 0 0; display: grid; gap: 10px; font-size: 13px; }
+  dl div { display: grid; grid-template-columns: 52px 1fr; gap: 12px; }
+  dt { color: var(--ck-fg-3); text-transform: uppercase; letter-spacing: 0.08em; font-size: 11.5px; padding-top: 1px; }
+  dd { margin: 0; color: var(--ck-fg-2); }
+  .go { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--ck-line); color: var(--ck-accent); font-size: 12.5px; }
+</style>
