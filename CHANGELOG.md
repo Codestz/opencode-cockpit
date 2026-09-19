@@ -20,18 +20,12 @@ All notable changes to this project are documented here. The format follows
 - **Segments written in TypeScript**, against `@opencode-cockpit/status/segment`. A module is handed
   the same snapshot the built-ins get and touches no OpenCode api, so a custom segment is as
   testable as a built-in — and because it is loaded once and called on every repaint, it can keep
-  history, which is what makes a sparkline or a rate possible.
-
-### Fixed
-
-- **Cost matched the session, not the messages still on screen.** The bay summed the messages it
-  could see, which under-reports twice over: a turn still streaming has not booked its cost, and
-  revert or compaction takes spent history out of the list. Against a proxy it read $0.30 where
-  OpenCode's own sidebar read $0.56. It now reads the session's running total.
-- **A statusline module no longer has to live inside a project.** `~/.config/opencode-cockpit/` is
-  the natural home for one, and nothing is installed beside it there — so the authoring import
-  failed and every segment the module defined vanished from the line. The import is now resolved
-  against the installed bay.
+  history, which is what makes a sparkline or a rate possible. A module can live in your config
+  directory rather than inside a project; nothing needs installing beside it.
+- **Honest behind a proxy.** Tokens always work. Cost and the context percentage are computed from
+  your model catalogue, so behind LiteLLM or a gateway they need declaring in `provider.<id>.models`
+  — and where they are not declared, those segments stay silent rather than reporting `$0.00` and
+  `0%`. The same rule runs through the bay: a segment with nothing to say says nothing.
 
 ### Changed
 
