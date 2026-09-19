@@ -6,12 +6,12 @@
     "packages/*"
   ],
   "scripts": {
-    "test": "bun run build && bun test",
+    "test": "bun run build && bun test --conditions browser",
     "typecheck": "tsc -b",
     "lint": "biome check .",
     "format": "biome format --write .",
     "lint:fix": "biome check --write .",
-    "check": "bun run build && bun run lint && bun run typecheck && bun test",
+    "check": "bun run build && bun run lint && bun run typecheck && bun test --conditions browser",
     "pack:check": "bun scripts/pack-check.ts",
     "version:set": "bun scripts/set-version.ts",
     "build": "bun scripts/build.ts",

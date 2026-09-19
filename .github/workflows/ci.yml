@@ -35,6 +35,6 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
       - name: Test
-        run: bun test
+        run: bun test --conditions browser
       - name: Pack and install check
         run: bun run pack:check

@@ -7,6 +7,7 @@
  *   bun scripts/release.ts 1.0.0-rc.1     # explicit
  *   bun scripts/release.ts patch --push   # also push main and the tag
  *   bun scripts/release.ts patch --dry-run
+ *   bun scripts/release.ts patch --skip-smoke  # no OpenCode binary to drive the panel with
  */
 import { join } from "node:path"
 
@@ -14,11 +15,13 @@ const root = join(import.meta.dir, "..")
 const args = process.argv.slice(2)
 const dryRun = args.includes("--dry-run")
 const push = args.includes("--push")
+/** The TUI smoke test drives a real OpenCode; without the binary there is nothing to drive. */
+const skipSmoke = args.includes("--skip-smoke")
 const target = args.find((a) => !a.startsWith("--"))
 const REPO = "https://github.com/Codestz/opencode-cockpit"
 
 if (!target) {
-  console.error("usage: bun scripts/release.ts <patch|minor|major|x.y.z> [--push] [--dry-run]")
+  console.error("usage: bun scripts/release.ts <patch|minor|major|x.y.z> [--push] [--dry-run] [--skip-smoke]")
   process.exit(1)
 }
 
@@ -88,6 +91,21 @@ await promoteChangelog(next)
 run(["bun", "run", "build"])
 run(["bun", "run", "check"])
 run(["bun", "run", "pack:check"])
+
+/**
+ * pack:check proves the tarballs install and the daemon answers. It cannot prove the panel still
+ * draws: 0.1.3 and 0.1.4 both installed cleanly and rendered exactly one frozen frame, because
+ * OpenCode only Solid-compiles JSX outside node_modules. Only a real OpenCode catches that, so
+ * this gate lives in the release script rather than in CI, which has no binary to drive.
+ */
+if (skipSmoke) {
+  console.log("⚠ skipping the TUI smoke test — the panel is unverified for this release")
+} else if (!Bun.which("opencode")) {
+  fail("opencode is not on PATH, so the panel cannot be verified; install it or pass --skip-smoke")
+} else {
+  run(["bun", "run", "smoke:tui"])
+}
+
 run(["git", "add", "-A"])
 // The version bump may be a no-op when a release is re-cut from an already prepared tree.
 if (dryRun || run(["git", "status", "--porcelain"]).length > 0) {

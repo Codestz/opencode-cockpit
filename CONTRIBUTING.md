@@ -192,8 +192,15 @@ rather than mocking the process layer.
 
 - `packages/daemon/test`: output pipeline and process registry
 - `packages/client/test`: protocol acceptance, lifecycle, reuse, build mismatch
-- `packages/shell/test`: agent tools (including OpenCode's raw argument quirks) and view logic
+- `packages/shell/test`: agent tools (including OpenCode's raw argument quirks), the panel's view
+  helpers, and the store that decides which shells the panel is about
 - `packages/opencode/test`: hook composition, feature options, duplicate-load guard
+
+Run them with `bun run test`, not a bare `bun test`. solid-js resolves to its SSR build under Bun's
+default `node` condition, and in that build signals never propagate: every memo is frozen at its
+first value, so the store tests see a panel that is permanently empty. The scripts and CI pass
+`--conditions browser`, which is the build the TUI actually runs. A bare `bun test` fails with a
+message saying so rather than a page of puzzling diffs.
 
 Bug fixes come with a test that fails before the fix.
 
@@ -206,9 +213,14 @@ Bug fixes come with a test that fails before the fix.
 ## Releasing (maintainers)
 
 `bun run release <patch|minor|major|x.y.z> [--push]` checks the tree **before** it edits anything,
-then bumps, promotes the changelog, re-verifies and tags. If a step fails after it has started
-writing, it puts the version bump and the changelog back — a half-prepared release makes the next
-attempt fail for reasons that have nothing to do with the original problem.
+then bumps, promotes the changelog, re-verifies, drives the TUI smoke test and tags. That last gate
+is why releases are cut locally: `pack:check` proves the tarballs install, but only a real OpenCode
+proves the panel still draws — 0.1.3 and 0.1.4 both installed cleanly and rendered one frozen
+frame. Without the `opencode` binary the release stops; `--skip-smoke` ships it unverified.
+
+If a step fails after it has started writing, it puts the version bump and the changelog back — a
+half-prepared release makes the next attempt fail for reasons that have nothing to do with the
+original problem.
 
 ```sh
 bun run version:set 0.2.0     # every package

@@ -46,7 +46,7 @@ jobs:
           bun run build
           bun run lint
           bun run typecheck
-          bun test
+          bun test --conditions browser
           bun run pack:check
 
       - name: Publish to npm
