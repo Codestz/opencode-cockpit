@@ -180,6 +180,13 @@ stops updating.
 
 ## Tests
 
+`bun run pack:check` packs every package and installs **each way a person can get this** — the
+bundle, and a single bay on its own — into its own project, then loads the plugin and runs a shell
+through the installed daemon. Separate projects matter: when they shared one, the bundle's
+dependencies satisfied the standalone package, and the install the docs recommend for a single bay
+was never really tested.
+
+
 Tests run real PTYs against a real daemon in a temporary `COCKPIT_HOME`; please keep it that way
 rather than mocking the process layer.
 

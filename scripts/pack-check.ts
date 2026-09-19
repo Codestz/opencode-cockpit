@@ -1,10 +1,14 @@
 /**
- * Verifies what users would install: packs every package, installs the tarballs into a clean
- * project, then loads the plugin and runs a shell through the installed daemon.
+ * Verifies what users would install: packs every package, then installs each way a person can get
+ * this — the bundle, and a single bay on its own — into its own clean project, loads the plugin and
+ * runs a shell through the installed daemon.
+ *
+ * Separate projects on purpose: sharing one let the bundle's dependencies satisfy the standalone
+ * package, which is the install the docs recommend for a single bay.
  *
  *   bun scripts/pack-check.ts
  */
-import { existsSync, mkdtempSync, readdirSync, rmSync } from "node:fs"
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 
@@ -13,7 +17,6 @@ const root = join(import.meta.dir, "..")
 const PACKAGES = ["protocol", "daemon", "client", "shell", "opencode"]
 const work = mkdtempSync(join(tmpdir(), "cockpit-pack-"))
 const tarballs = join(work, "tarballs")
-const project = join(work, "project")
 // Short: unix socket paths are limited to 104 bytes on macOS.
 const home = mkdtempSync("/tmp/ck-pack-")
 
@@ -68,87 +71,114 @@ try {
 
   // Internal packages are not on the registry yet: point every reference at its tarball.
   const overrides = Object.fromEntries(Object.keys(names).map((n) => [n, tarball(n)]))
-  await Bun.write(
-    join(project, "package.json"),
-    JSON.stringify(
-      {
-        name: "pack-check",
-        private: true,
-        type: "module",
-        // The bundle and a standalone feature, as users can install either or both.
-        dependencies: {
-          "opencode-cockpit": tarball("opencode-cockpit"),
-          "@opencode-cockpit/shell": tarball("@opencode-cockpit/shell"),
+  /**
+   * Both ways a person can install this, each in its own project.
+   *
+   * They used to share one, which meant the bundle's dependencies could satisfy the standalone
+   * package and hide a missing one — exactly the install the docs recommend for a single bay.
+   */
+  const installs = [
+    { name: "bundle", packages: ["opencode-cockpit"] },
+    { name: "shell alone", packages: ["@opencode-cockpit/shell"] },
+  ]
+
+  for (const install of installs) {
+    const dir = join(work, install.name.replace(/\s+/g, "-"))
+    mkdirSync(dir, { recursive: true })
+    await Bun.write(
+      join(dir, "package.json"),
+      JSON.stringify(
+        {
+          name: `pack-check-${install.name.replace(/\s+/g, "-")}`,
+          private: true,
+          type: "module",
+          dependencies: Object.fromEntries(install.packages.map((p) => [p, tarball(p)])),
+          overrides,
         },
-        overrides,
-      },
-      null,
-      2,
-    ),
-  )
-  run(["bun", "install"], project)
-
-  // OpenCode compiles plugin JSX with OpenTUI's Solid transform, whose Bun plugin skips every file
-  // under node_modules, where published plugins always live. Raw JSX there renders once and never
-  // updates (the 0.1.3/0.1.4 frozen-panel bug), so the published entry must already be compiled.
-  // Bare solid-js / @opentui imports stay: the host rewrites those to its own instances.
-  for (const pkg of ["@opencode-cockpit/shell", "opencode-cockpit"]) {
-    const entry = Bun.resolveSync(`${pkg}/tui`, project)
-    if (!entry.endsWith(".js")) throw new Error(`${pkg}/tui must publish compiled JS, got ${entry}`)
-  }
-  // Solid's transform turns JSX into createComponent/insert calls; their absence means the panel
-  // would render once and freeze.
-  const shellTui = Bun.resolveSync("@opencode-cockpit/shell/tui", project)
-  const compiled = await Bun.file(shellTui).text()
-  const bundleTui = await Bun.file(Bun.resolveSync("opencode-cockpit/tui", project)).text()
-  if (!bundleTui.includes("@opencode-cockpit/shell/tui")) {
-    throw new Error("the bundle's tui entry should load the shell feature's compiled entry")
-  }
-  for (const marker of ['from "@opentui/solid"', "createComponent"]) {
-    if (!compiled.includes(marker)) {
-      throw new Error(`${shellTui} is not Solid-compiled output (missing ${marker})`)
-    }
-  }
-  if (!compiled.includes('from "solid-js"')) {
-    throw new Error("shell/tui should import solid-js by name so OpenCode can rewrite it to its own instance")
-  }
-  for (const bundled of ["solid-js", "@opentui/core", "@opentui/solid"]) {
-    if (existsSync(join(project, "node_modules", bundled))) {
-      throw new Error(`${bundled} was installed with the plugin; the host's instance must be used instead`)
-    }
+        null,
+        2,
+      ),
+    )
+    run(["bun", "install"], dir)
+    await verifyInstall(dir, install)
   }
 
-  await Bun.write(
-    join(project, "check.ts"),
-    `
-import bundle from "opencode-cockpit/server"
-import shell from "@opencode-cockpit/shell/server"
+  /**
+   * Everything that must hold for one installed project: the interface entry is compiled, the host's
+   * own solid/@opentui are used rather than bundled copies, the server entry exports a plugin, the
+   * daemon resolves from this project alone, and a shell actually runs.
+   */
+  async function verifyInstall(dir: string, install: { name: string; packages: string[] }) {
+    // OpenCode compiles plugin JSX with OpenTUI's Solid transform, whose Bun plugin skips every file
+    // under node_modules, where published plugins always live. Raw JSX there renders once and never
+    // updates (the 0.1.3/0.1.4 frozen-panel bug), so the published entry must already be compiled.
+    for (const pkg of install.packages) {
+      const entry = Bun.resolveSync(`${pkg}/tui`, dir)
+      if (!entry.endsWith(".js"))
+        throw new Error(`${install.name}: ${pkg}/tui must publish compiled JS, got ${entry}`)
+    }
+
+    const shellTui = Bun.resolveSync("@opencode-cockpit/shell/tui", dir)
+    const compiled = await Bun.file(shellTui).text()
+    for (const marker of ['from "@opentui/solid"', "createComponent"]) {
+      if (!compiled.includes(marker)) {
+        throw new Error(`${install.name}: ${shellTui} is not Solid-compiled output (missing ${marker})`)
+      }
+    }
+    if (!compiled.includes('from "solid-js"')) {
+      throw new Error(`${install.name}: shell/tui should import solid-js by name, for OpenCode to rewrite`)
+    }
+    if (install.packages.includes("opencode-cockpit")) {
+      const bundleTui = await Bun.file(Bun.resolveSync("opencode-cockpit/tui", dir)).text()
+      if (!bundleTui.includes("@opencode-cockpit/shell/tui")) {
+        throw new Error("the bundle's tui entry should load the shell feature's compiled entry")
+      }
+    }
+    for (const bundled of ["solid-js", "@opentui/core", "@opentui/solid"]) {
+      if (existsSync(join(dir, "node_modules", bundled))) {
+        throw new Error(
+          `${install.name}: ${bundled} was installed with the plugin; the host's instance must be used`,
+        )
+      }
+    }
+
+    const servers = install.packages.map((pkg) =>
+      pkg === "opencode-cockpit"
+        ? `import bundle from "opencode-cockpit/server"\nif (bundle.id !== "opencode-cockpit" || typeof bundle.server !== "function") throw new Error("bad bundle server export")`
+        : `import shell from "@opencode-cockpit/shell/server"\nif (shell.id !== "opencode-cockpit.shell" || typeof shell.server !== "function") throw new Error("bad shell server export")`,
+    )
+
+    await Bun.write(
+      join(dir, "check.ts"),
+      `
+${servers.join("\n")}
 import { CockpitClient } from "@opencode-cockpit/client"
 import { resolvePaths } from "@opencode-cockpit/protocol"
 import { daemonEntry } from "@opencode-cockpit/shell/connect"
 
-if (bundle.id !== "opencode-cockpit" || typeof bundle.server !== "function") throw new Error("bad bundle server export")
-if (shell.id !== "opencode-cockpit.shell" || typeof shell.server !== "function") throw new Error("bad shell server export")
 // The TUI entries are checked statically instead: their solid-js / @opentui imports only resolve
 // inside OpenCode, which rewrites them to its own instances (#6, #8).
 const entry = daemonEntry()
-if (!entry.includes("node_modules/@opencode-cockpit/daemon/dist/main.js")) throw new Error("daemon entry not resolved from node_modules: " + entry)
+// realpath both sides: on macOS /var is a symlink to /private/var.
+if (!entry.startsWith(${JSON.stringify(realpathSync(dir))})) throw new Error("daemon must resolve from this install: " + entry)
 
 const client = new CockpitClient({
   client: { name: "pack-check", version: "0" },
-  paths: resolvePaths({ COCKPIT_HOME: ${JSON.stringify(home)} }),
+  paths: resolvePaths({ COCKPIT_HOME: ${JSON.stringify(join(home, install.name.replace(/\s+/g, "-")))} }),
   spawn: { entry, env: { COCKPIT_IDLE_TIMEOUT_MS: "0" } },
 })
-const info = await client.call("shell.start", { command: "sh", args: ["-c", "printf 'packed ok\\\\n'"], cwd: process.cwd(), owner: { project: process.cwd() } })
+const info = await client.call("shell.start", { command: "sh", args: ["-c", "printf 'packed ok\\n'"], cwd: process.cwd(), owner: { project: process.cwd() } })
 await client.call("shell.wait", { id: info.id, until: { exit: true }, timeoutMs: 5000 })
 const page = await client.call("shell.read", { id: info.id, after: 0 })
 if (page.lines[0]?.text !== "packed ok") throw new Error("unexpected output: " + JSON.stringify(page.lines))
 await client.call("daemon.shutdown", { force: true })
 client.close()
-console.log("installed bundle and shell load, daemon spawns from node_modules, shell runs")
 `,
-  )
-  console.log(run(["bun", "check.ts"], project).trim())
+    )
+    run(["bun", "check.ts"], dir)
+    console.log(`  ${install.name}: loads, daemon spawns from its own node_modules, shell runs`)
+  }
+
   console.log(`pack check passed: ${files.join(", ")}`)
 } finally {
   rmSync(work, { recursive: true, force: true })

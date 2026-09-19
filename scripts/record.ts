@@ -34,6 +34,8 @@ export interface Tape {
   config?: unknown
   /** Seconds to wait for OpenCode to start and load plugins before recording begins. */
   startupMs?: number
+  /** Plugin spec to load. Defaults to this checkout; an npm spec tests what users actually get. */
+  plugin?: string
   /** Driven before recording starts: setup nobody needs to watch (starting the shells, say). */
   warmup?: Step[]
   steps: Step[]
@@ -77,7 +79,7 @@ async function record(tape: Tape): Promise<string> {
   const realAuth = join(process.env.HOME ?? "", ".local/share/opencode/auth.json")
   if (existsSync(realAuth)) copyFileSync(realAuth, join(data, "auth.json"))
 
-  const plugin = join(root, "packages", "opencode")
+  const plugin = tape.plugin ?? join(root, "packages", "opencode")
   writeFileSync(join(config, "opencode.json"), JSON.stringify({ plugin: [plugin] }))
   writeFileSync(join(config, "tui.json"), JSON.stringify({ plugin: [plugin] }))
   if (tape.config) writeFileSync(join(project, ".cockpit.json"), JSON.stringify(tape.config, null, 2))
