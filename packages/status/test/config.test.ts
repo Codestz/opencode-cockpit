@@ -1,0 +1,135 @@
+import { afterEach, describe, expect, test } from "bun:test"
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { join } from "node:path"
+import {
+  asSegmentConfig,
+  asStatusConfig,
+  DEFAULT_SEGMENTS,
+  DEFAULT_SEPARATOR,
+  globalConfigPath,
+  loadStatusConfig,
+  mergeStatus,
+  PROJECT_FILE,
+  readStatusFile,
+  resolveLines,
+} from "../src/core/config.ts"
+
+const dirs: string[] = []
+const tmp = () => {
+  const dir = mkdtempSync("/tmp/ck-status-")
+  dirs.push(dir)
+  return dir
+}
+afterEach(() => {
+  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
+})
+
+describe("reading the config", () => {
+  test("a missing file is simply no settings", () => {
+    expect(readStatusFile("/nowhere/at/all.json")).toEqual({})
+  })
+
+  // A typo in a config should cost you your settings, never the interface.
+  test("a broken file is ignored rather than fatal", () => {
+    const dir = tmp()
+    const file = join(dir, "broken.json")
+    writeFileSync(file, "{ not json")
+    expect(readStatusFile(file)).toEqual({})
+  })
+
+  test("reads the statusline section out of a whole cockpit config", () => {
+    const dir = tmp()
+    const file = join(dir, PROJECT_FILE)
+    writeFileSync(file, JSON.stringify({ watch: { auto: true }, statusline: { separator: " | " } }))
+    expect(readStatusFile(file)).toEqual({ separator: " | " })
+  })
+
+  test("plugin-entry options are accepted as the section itself", () => {
+    expect(asStatusConfig({ separator: " | ", segments: ["cwd"] })).toEqual({
+      separator: " | ",
+      segments: ["cwd"],
+    })
+  })
+
+  test("anything that is not an object is no settings", () => {
+    expect(asStatusConfig(undefined)).toEqual({})
+    expect(asStatusConfig("nonsense")).toEqual({})
+    expect(asStatusConfig(null)).toEqual({})
+  })
+
+  test("the global path follows XDG when it is set", () => {
+    expect(globalConfigPath({ XDG_CONFIG_HOME: "/cfg" })).toBe("/cfg/opencode-cockpit/config.json")
+    expect(globalConfigPath({ HOME: "/home/u" })).toBe("/home/u/.config/opencode-cockpit/config.json")
+  })
+})
+
+describe("precedence", () => {
+  test("the project file beats the global one, and plugin options beat both", () => {
+    const config = tmp()
+    const project = tmp()
+    const env = { XDG_CONFIG_HOME: config }
+    mkdirSync(join(config, "opencode-cockpit"), { recursive: true })
+    writeFileSync(
+      globalConfigPath(env),
+      JSON.stringify({ statusline: { separator: " ~ ", segments: ["version"] } }),
+    )
+
+    // Global alone.
+    expect(loadStatusConfig(project, undefined, env).separator).toBe(" ~ ")
+
+    // The project overrides what it names and inherits what it does not.
+    writeFileSync(join(project, PROJECT_FILE), JSON.stringify({ statusline: { separator: " | " } }))
+    const merged = loadStatusConfig(project, undefined, env)
+    expect(merged.separator).toBe(" | ")
+    expect(merged.segments).toEqual(["version"])
+
+    // The plugin entry wins over both.
+    expect(loadStatusConfig(project, { separator: " / " }, env).separator).toBe(" / ")
+  })
+
+  // Listing segments in a project means "this line", not "these as well as the global ones".
+  test("segments are replaced, not concatenated", () => {
+    const merged = mergeStatus({ segments: ["cwd", "cost"] }, { segments: ["model"] })
+    expect(merged.segments).toEqual(["model"])
+  })
+
+  test("commands from both sources are kept", () => {
+    const merged = mergeStatus({ commands: { budget: { run: "a" } } }, { commands: { pods: { run: "b" } } })
+    expect(Object.keys(merged.commands ?? {}).sort()).toEqual(["budget", "pods"])
+  })
+})
+
+describe("resolving lines", () => {
+  test("writing nothing gives the default line at the bottom", () => {
+    const [line] = resolveLines({})
+    expect(line?.surface).toBe("bottom")
+    expect(line?.segments).toEqual(DEFAULT_SEGMENTS)
+    expect(line?.separator).toBe(DEFAULT_SEPARATOR)
+  })
+
+  test("the simple form is one line on the chosen surface", () => {
+    const [line] = resolveLines({ surface: "promptRight", segments: ["cwd"], separator: " " })
+    expect(line).toEqual({ surface: "promptRight", segments: ["cwd"], separator: " " })
+  })
+
+  test("several lines each pick up the shared defaults they did not set", () => {
+    const lines = resolveLines({
+      separator: " | ",
+      segments: ["cwd"],
+      lines: [{ surface: "bottom" }, { surface: "sidebar", segments: ["cost"] }],
+    })
+    expect(lines).toEqual([
+      { surface: "bottom", segments: ["cwd"], separator: " | " },
+      { surface: "sidebar", segments: ["cost"], separator: " | " },
+    ])
+  })
+
+  test("an empty lines array falls back rather than drawing nothing", () => {
+    expect(resolveLines({ lines: [] })).toHaveLength(1)
+  })
+
+  test("a bare string is that built-in with no settings", () => {
+    expect(asSegmentConfig("cwd")).toEqual({ type: "cwd" })
+    expect(asSegmentConfig({ type: "cwd", priority: 5 })).toEqual({ type: "cwd", priority: 5 })
+  })
+})

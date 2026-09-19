@@ -1,38 +1,36 @@
 {
-  "name": "opencode-cockpit",
+  "name": "@opencode-cockpit/status",
   "version": "0.2.2",
-  "description": "OpenCode superpowers, all in one: installs every opencode-cockpit feature (Shell today), each can be switched off",
+  "description": "A statusline for OpenCode you can actually configure: declarative segments, a typed module, or your existing Claude Code statusline command",
   "type": "module",
   "license": "MIT",
   "author": "Codestz",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Codestz/opencode-cockpit.git",
-    "directory": "packages/opencode"
+    "directory": "packages/status"
   },
   "homepage": "https://github.com/Codestz/opencode-cockpit#readme",
   "bugs": {
     "url": "https://github.com/Codestz/opencode-cockpit/issues"
   },
   "keywords": [
-    "agents",
-    "background",
     "opencode",
     "opencode-plugin",
-    "pty",
-    "shell",
     "statusline",
+    "status-line",
+    "tui",
     "terminal",
-    "tui"
+    "prompt"
   ],
   "exports": {
-    "./server": {
-      "types": "./types/server.d.ts",
-      "default": "./dist/server.js"
-    },
     "./tui": {
-      "types": "./types/tui.d.ts",
-      "default": "./dist/tui.js"
+      "types": "./types/tui/index.d.ts",
+      "default": "./dist/tui/index.js"
+    },
+    "./config": {
+      "types": "./types/core/config.d.ts",
+      "default": "./dist/core/config.js"
     }
   },
   "engines": {
@@ -49,11 +47,13 @@
     "access": "public"
   },
   "dependencies": {
-    "@opencode-cockpit/shell": "workspace:*",
-    "@opencode-ai/plugin": "1.18.31",
-    "@opencode-cockpit/status": "workspace:*"
+    "@opencode-cockpit/client": "workspace:*",
+    "@opencode-ai/plugin": "1.18.31"
   },
   "devDependencies": {
-    "@opencode-cockpit/client": "workspace:*"
+    "@opentui/core": "0.4.5",
+    "@opentui/keymap": "0.4.5",
+    "@opentui/solid": "0.4.5",
+    "solid-js": "1.9.12"
   }
 }
