@@ -1,5 +1,6 @@
 /** How the session is going: work outstanding, work in progress, time spent. */
 
+import type { SegmentConfig } from "../config.ts"
 import { todoRemaining } from "../context.ts"
 import { duration, preciseDuration } from "../format.ts"
 import type { SegmentDef } from "../types.ts"
@@ -9,10 +10,16 @@ export const SEGMENTS: SegmentDef[] = [
     name: "todo",
     icon: "▤",
     priority: 55,
-    render(ctx) {
+    render(ctx, config: SegmentConfig) {
       const todo = ctx.session?.todo
       if (!todo || todo.total === 0) return undefined
       const left = todoRemaining(ctx.session)
+      /**
+       * A finished list has nothing left to act on, and todos live for the whole session -- so
+       * "5/5 todo" would sit there for the rest of it, saying only that you already finished.
+       * `showComplete` keeps it for anyone who wants the confirmation.
+       */
+      if (left === 0 && config.showComplete !== true) return undefined
       return {
         text: `${todo.completed}/${todo.total} todo`,
         tone: left === 0 ? "success" : "muted",

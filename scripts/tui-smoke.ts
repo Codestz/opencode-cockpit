@@ -48,7 +48,7 @@ const screen = async () => {
 try {
   run(["bun", "run", "build"], root)
   const tarballs = join(work, "tarballs")
-  for (const dir of ["protocol", "daemon", "client", "shell", "opencode"]) {
+  for (const dir of ["protocol", "daemon", "client", "shell", "status", "opencode"]) {
     run(["bun", "pm", "pack", "--destination", tarballs], join(root, "packages", dir))
   }
   const names = [...new Bun.Glob("*.tgz").scanSync(tarballs)]
@@ -58,7 +58,10 @@ try {
     JSON.stringify({
       name: "smoke",
       private: true,
-      dependencies: { "@opencode-cockpit/shell": file("opencode-cockpit-shell-") },
+      dependencies: {
+        "@opencode-cockpit/shell": file("opencode-cockpit-shell-"),
+        "@opencode-cockpit/status": file("opencode-cockpit-status-"),
+      },
       overrides: {
         "@opencode-cockpit/protocol": file("opencode-cockpit-protocol-"),
         "@opencode-cockpit/daemon": file("opencode-cockpit-daemon-"),
@@ -68,18 +71,32 @@ try {
   )
   run(["npm", "install"], install)
 
-  // The plugin must live under node_modules: that is what disables OpenCode's Solid transform.
-  const plugin = join(install, "node_modules", "@opencode-cockpit", "shell")
-  for (const [name, schema] of [
-    ["opencode.json", "https://opencode.ai/config.json"],
-    ["tui.json", "https://opencode.ai/tui.json"],
-  ]) {
-    await Bun.write(
-      join(config, "opencode", name as string),
-      JSON.stringify({ $schema: schema, plugin: [plugin] }),
-    )
+  // The plugins must live under node_modules: that is what disables OpenCode's Solid transform.
+  const bay = (name: string) => join(install, "node_modules", "@opencode-cockpit", name)
+  for (const [name, schema, plugins] of [
+    ["opencode.json", "https://opencode.ai/config.json", [bay("shell")]],
+    ["tui.json", "https://opencode.ai/tui.json", [bay("shell"), bay("status")]],
+  ] as const) {
+    await Bun.write(join(config, "opencode", name), JSON.stringify({ $schema: schema, plugin: plugins }))
   }
-  await Bun.write(join(project, ".keep"), "")
+  /**
+   * A statusline whose value has to come from somewhere the plugin cannot fake: a literal marker
+   * proves the line drew at all, and a command segment proves the whole pipeline -- spawn, parse,
+   * repaint -- works from a published build.
+   */
+  await Bun.write(
+    join(project, ".cockpit.json"),
+    JSON.stringify({
+      statusline: {
+        surface: "bottom",
+        segments: [
+          { type: "text", value: "STATUSLINE-DREW" },
+          { type: "command", name: "smoke" },
+        ],
+        commands: { smoke: { run: "printf 'COMMAND-RAN'", intervalMs: 250 } },
+      },
+    }),
+  )
 
   const proc = Bun.spawn([opencode], {
     cwd: project,
@@ -109,6 +126,19 @@ try {
   const second = await screen()
   proc.kill("SIGKILL")
 
+  /**
+   * The statusline half. It shares this run rather than having its own, because what is being
+   * proved is the same thing for both bays: that published, pre-compiled JSX actually renders
+   * inside OpenCode. A statusline that never drew would otherwise reach users exactly the way the
+   * frozen shell panel did in 0.1.3.
+   */
+  for (const [what, marker] of [
+    ["the statusline never drew", "STATUSLINE-DREW"],
+    ["the statusline's command segment never ran", "COMMAND-RAN"],
+  ] as const) {
+    if (!second.includes(marker)) throw new Error(`${what}:\n${second}`)
+  }
+
   const ticks = (text: string) => [...text.matchAll(/tick (\d+)/g)].map((m) => Number(m[1]))
   const firstMax = Math.max(0, ...ticks(first))
   const secondMax = Math.max(0, ...ticks(second))
@@ -118,7 +148,7 @@ try {
       `the panel froze: still at tick ${firstMax} after 4s (published JSX not Solid-compiled?)\n${second}`,
     )
   }
-  console.log(`tui smoke passed: panel live, tick ${firstMax} → ${secondMax}`)
+  console.log(`tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; statusline drew`)
 } finally {
   rmSync(work, { recursive: true, force: true })
 }

@@ -15,6 +15,17 @@ shell, log search, limits and log files. See [Shell](/opencode-cockpit/shell/ove
 opencode plugin @opencode-cockpit/shell --global
 ```
 
+## Statusline — available
+
+A line of live session state under the conversation, or a column of it in the sidebar. Fourteen
+segments, two surfaces, and three ways to configure it — including running the statusline script you
+already wrote for Claude Code, colours and all. See
+[Statusline](/opencode-cockpit/status/overview/).
+
+```sh
+opencode plugin @opencode-cockpit/status --global
+```
+
 ## Agents — next
 
 OpenCode can run subagents, but watching one means clicking into a panel that replaces your

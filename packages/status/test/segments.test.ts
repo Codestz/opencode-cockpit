@@ -196,12 +196,21 @@ describe("the rest of the built-ins", () => {
     expect(drawn?.runs.find((run) => run.text === "-3")?.tone).toBe("error")
   })
 
-  test("todo counts down and turns green when it is done", () => {
+  test("todo counts what is left to do", () => {
     const busy = ctx({ session: session({ todo: { total: 7, completed: 3 } }) })
-    const done = ctx({ session: session({ todo: { total: 7, completed: 7 } }) })
     expect(render("todo", busy)?.text).toBe("3/7 todo")
     expect(render("todo", busy)?.tone).toBe("muted")
-    expect(render("todo", done)?.tone).toBe("success")
+  })
+
+  /**
+   * Todos live for the whole session, so a finished list would otherwise report "7/7 todo" for
+   * the rest of it -- a permanent reminder that you already finished.
+   */
+  test("a finished list goes quiet, unless you ask to keep it", () => {
+    const done = ctx({ session: session({ todo: { total: 7, completed: 7 } }) })
+    expect(render("todo", done)).toBeUndefined()
+    expect(render("todo", done, { showComplete: true })?.text).toBe("7/7 todo")
+    expect(render("todo", done, { showComplete: true })?.tone).toBe("success")
   })
 
   // A session that is retrying looks identical to a slow one in OpenCode today.
