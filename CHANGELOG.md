@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-19
+
 ### Added
 
 - **Statusline, bay 02.** A line of live session state under the conversation, or a column of it in
@@ -243,7 +245,8 @@ All notable changes to this project are documented here. The format follows
 - Daemon lifecycle: on-demand start, single instance under concurrent starts, idle shutdown,
   replacement of outdated idle daemons, orphan reaping after crashes.
 
-[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/Codestz/opencode-cockpit/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/Codestz/opencode-cockpit/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/Codestz/opencode-cockpit/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/Codestz/opencode-cockpit/compare/v0.1.5...v0.2.0
