@@ -9,7 +9,7 @@ import { buildSegments, type Segment, segmentText, segmentWidth } from "../src/c
  * run is worse than no example, and this is the only thing that catches one.
  */
 
-const EXAMPLES = ["bottom", "prompt-right", "sidebar"] as const
+const EXAMPLES = ["bottom", "sidebar"] as const
 
 const session = (over: Partial<SessionSnapshot> = {}): SessionSnapshot => ({
   id: "ses_1",
@@ -104,36 +104,10 @@ describe("the bottom example", () => {
     const first = draw("bottom", "trend", ctx({ now: 1000, session: working() }))
     expect(first).toBeUndefined()
   })
-})
 
-describe("the prompt-right example", () => {
-  test("the state pill is silent while idle and filled while working", () => {
-    expect(draw("prompt-right", "state", ctx({ session: session() }))).toBeUndefined()
-    const busy = draw("prompt-right", "state", ctx({ session: working() }))
-    expect(segmentText(busy as Segment)).toContain("WORKING")
-    expect(busy?.runs.find((run) => run.bgTone)?.tone).toBe("background")
-  })
-
-  /** A six-cell meter that only draws whole cells reports in jumps of seventeen per cent. */
-  test("the meter resolves a partial cell, so a short bar is still honest", () => {
-    const low = draw("prompt-right", "meter", ctx({ session: working(0.05) }))
-    expect(segmentText(low as Segment)).toContain("5%")
-    // 5% of six cells is well under one: it must still show something other than empty.
-    expect(segmentText(low as Segment)).not.toMatch(/^·{6}/)
-  })
-
-  test("attention says nothing until something actually needs you", () => {
-    expect(draw("prompt-right", "attention", ctx({ session: working(0.5) }))).toBeUndefined()
-
-    const full = draw("prompt-right", "attention", ctx({ session: working(0.95) }))
-    expect(segmentText(full as Segment)).toContain("context nearly full")
-
-    const broken = draw(
-      "prompt-right",
-      "attention",
-      ctx({ session: working(0.5), mcp: [{ name: "github", status: "failed" }] }),
-    )
-    expect(segmentText(broken as Segment)).toContain("github")
+  test("cache reports the share of the window it did not have to re-send", () => {
+    const drawn = draw("bottom", "cache", ctx({ session: working(0.5) }))
+    expect(segmentText(drawn as Segment)).toBe("▌50% cached")
   })
 })
 
@@ -144,26 +118,16 @@ describe("the sidebar example", () => {
     expect(segmentText(drawn as Segment)).toBe("diff 3f +120 -18")
   })
 
-  // The rule the whole bay is built on, applied where it is easiest to get wrong.
-  test("spend reports tokens instead of a made-up cost on an unpriced model", () => {
-    const unpriced = ctx({
-      session: session({
-        priced: false,
-        model: { providerID: "p", modelID: "m", contextLimit: 100 },
-        tokens: { input: 40, output: 10, reasoning: 0, cache: { read: 0, write: 0 } },
-      }),
-    })
-    const drawn = draw("sidebar", "spend", unpriced)
-    expect(segmentText(drawn as Segment)).toBe("used 50 tokens")
-    expect(segmentText(drawn as Segment)).not.toContain("$")
+  test("the bar is exactly the width asked for, with its figure beside it", () => {
+    const drawn = buildSegments(ctx({ session: working(0.5) }), [{ type: "bar", width: 10 }], {
+      custom: loaded.sidebar.segments,
+      icons: false,
+    })[0]
+    expect(segmentText(drawn as Segment)).toMatch(/^[█░]{10} 50%$/)
   })
 
-  test("spend reports money once prices exist", () => {
-    expect(segmentText(draw("sidebar", "spend", ctx({ session: working() })) as Segment)).toContain("$1.25")
-  })
-
-  test("the composition chips always add up to the whole window", () => {
-    const drawn = draw("sidebar", "composition", ctx({ session: working() }))
+  test("the split parts always add up to the whole window", () => {
+    const drawn = draw("sidebar", "split", ctx({ session: working() }))
     const shares = [...segmentText(drawn as Segment).matchAll(/(\d+)%/g)].map((m) => Number(m[1]))
     expect(shares.reduce((a, b) => a + b, 0)).toBe(100)
   })

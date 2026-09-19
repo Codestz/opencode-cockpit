@@ -14,8 +14,14 @@ import { join } from "node:path"
 export const CONFIG_FILE = "config.json"
 export const PROJECT_FILE = ".cockpit.json"
 
-/** Where a line is drawn. `bottom` is the full-width line under the prompt. */
-export type Surface = "bottom" | "promptRight" | "sidebar"
+/**
+ * Where a line is drawn.
+ *
+ * Two surfaces, deliberately. A third sat inside the prompt box, which is both the narrowest place
+ * in the window and the one OpenCode already fills with the agent, the model and the elapsed time:
+ * a line there had almost no room and almost nothing left to say.
+ */
+export type Surface = "bottom" | "sidebar"
 
 /**
  * A segment is either a built-in named by string ("cwd"), or that name with settings. `when` and
@@ -66,6 +72,15 @@ export interface LineConfig {
   icons?: boolean
   /** Vertical only: rows to draw at most. Lowest priority goes first. Defaults to 8. */
   maxRows?: number
+  /**
+   * Columns of space either side. The defaults line each surface up with OpenCode's own
+   * furniture -- its footer indents three, its prompt keeps two clear on the right -- so the line
+   * reads as part of the interface rather than as something bolted underneath it.
+   */
+  paddingLeft?: number
+  paddingRight?: number
+  paddingTop?: number
+  paddingBottom?: number
 }
 
 export interface StatusConfig {
@@ -155,16 +170,23 @@ export function asStatusConfig(input: unknown): StatusConfig {
   return own
 }
 
-/** The default line: what someone who writes nothing at all should see. */
+/**
+ * The default line: what someone who writes nothing at all should see.
+ *
+ * Deliberately none of what OpenCode already puts on screen. Its footer carries the path, the
+ * branch and the token count; its sidebar carries the context percentage and the spend; its prompt
+ * carries the agent and the model. Repeating those buys a second copy of something you are already
+ * looking at -- on one screen the context percentage can end up drawn five times.
+ *
+ * So the default is what the host does not say: what the session has changed, what it still has to
+ * do, whether it is stuck, and whether anything is broken. Every one of those is available as a
+ * segment if you do want it twice.
+ */
 export const DEFAULT_SEGMENTS: (string | SegmentConfig)[] = [
-  "cwd",
-  "git.branch",
-  "git.diff",
-  "model",
-  "context",
-  "cost",
-  "todo",
   "session.status",
+  "git.diff",
+  "todo",
+  "session.time",
   "diagnostics",
 ]
 
@@ -177,6 +199,19 @@ export interface ResolvedLine {
   stack: Stack
   maxRows: number
   icons: boolean
+  paddingLeft: number
+  paddingRight: number
+  paddingTop: number
+  paddingBottom: number
+}
+
+/** What each surface needs to sit level with the host's own content. */
+const PADDING: Record<Surface, { left: number; right: number; top: number; bottom: number }> = {
+  // OpenCode's footer indents three columns, and a line hard against the bottom of the window
+  // reads as clipped, so this one keeps a row clear underneath it.
+  bottom: { left: 3, right: 2, top: 0, bottom: 1 },
+  // Flush with the sidebar's own content, which the shell bay draws with no padding at all.
+  sidebar: { left: 0, right: 0, top: 0, bottom: 0 },
 }
 
 /** Normalises whatever the config said into the lines the renderer draws. */
@@ -203,6 +238,10 @@ export function resolveLines(config: StatusConfig): ResolvedLine[] {
       stack,
       maxRows: line.maxRows ?? 8,
       icons: line.icons ?? config.icons ?? true,
+      paddingLeft: line.paddingLeft ?? PADDING[surface].left,
+      paddingRight: line.paddingRight ?? PADDING[surface].right,
+      paddingTop: line.paddingTop ?? PADDING[surface].top,
+      paddingBottom: line.paddingBottom ?? PADDING[surface].bottom,
     }
   })
 }

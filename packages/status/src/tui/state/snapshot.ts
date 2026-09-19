@@ -7,6 +7,11 @@ import type { SessionSnapshot, StatusContext, TokenCounts } from "../../core/con
  * the plugin api lives here, so every built-in stays a pure function of its input.
  */
 
+/** Everything a usage reading accounts for; zero means the message has not reported yet. */
+function counted(tokens: TokenCounts): number {
+  return tokens.input + tokens.output + tokens.reasoning + tokens.cache.read + tokens.cache.write
+}
+
 /** The session the interface is showing, when it is showing one. */
 export function currentSession(api: TuiPluginApi): string | undefined {
   const route = api.route.current
@@ -25,8 +30,13 @@ export function sessionSnapshot(api: TuiPluginApi, id: string, now: number): Ses
   for (const message of messages) {
     if (message.role !== "assistant") continue
     cost += message.cost ?? 0
-    // The newest assistant message is what currently occupies the window; earlier ones are history.
-    tokens = message.tokens ?? tokens
+    /**
+     * The newest assistant message is what currently occupies the window -- but only once it has
+     * reported its usage. A message that is still streaming carries zeroes, and taking those would
+     * blank every token-based segment for the length of the turn, which reads as the line breaking
+     * exactly when you are watching it.
+     */
+    if (message.tokens && counted(message.tokens) > 0) tokens = message.tokens
     modelID = message.modelID
     providerID = message.providerID
   }

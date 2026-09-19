@@ -41,7 +41,8 @@ export function SidebarShells(props: SidebarProps) {
   return (
     <Show when={props.store.shells().length > 0}>
       <box>
-        <text fg={theme().text} wrapMode="none">
+        {/* A row of air under the heading, so the title reads as a heading and not as a list item. */}
+        <text fg={theme().text} wrapMode="none" marginBottom={1}>
           <b>Shells</b>
           <span style={{ fg: theme().textMuted }}> {counts()}</span>
         </text>

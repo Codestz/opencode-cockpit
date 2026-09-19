@@ -107,9 +107,22 @@ describe("resolving lines", () => {
     expect(line?.separator).toBe(DEFAULT_SEPARATOR)
   })
 
+  /**
+   * OpenCode's own footer, sidebar and prompt already carry the path, branch, tokens, context
+   * percentage, spend and model. A default that repeated them would draw the same figure several
+   * times on one screen, which is exactly what it looked like before this rule.
+   */
+  test("the default line says nothing the host already says", () => {
+    const host = ["cwd", "git.branch", "model", "context", "tokens", "cost"]
+    for (const duplicated of host) {
+      expect(DEFAULT_SEGMENTS).not.toContain(duplicated)
+    }
+    expect(DEFAULT_SEGMENTS.length).toBeGreaterThan(0)
+  })
+
   test("the simple form is one line on the chosen surface", () => {
-    const [line] = resolveLines({ surface: "promptRight", segments: ["cwd"], separator: " " })
-    expect(line).toMatchObject({ surface: "promptRight", segments: ["cwd"], separator: " " })
+    const [line] = resolveLines({ surface: "sidebar", segments: ["cwd"], separator: " " })
+    expect(line).toMatchObject({ surface: "sidebar", segments: ["cwd"], separator: " " })
   })
 
   test("several lines each pick up the shared defaults they did not set", () => {
@@ -134,9 +147,9 @@ describe("resolving lines", () => {
     expect(side?.stack).toBe("vertical")
     expect(side?.separator).toBe("")
 
-    const [prompt] = resolveLines({ surface: "promptRight" })
-    expect(prompt?.stack).toBe("horizontal")
-    expect(prompt?.separator).toBe(DEFAULT_SEPARATOR)
+    const [line] = resolveLines({ surface: "bottom" })
+    expect(line?.stack).toBe("horizontal")
+    expect(line?.separator).toBe(DEFAULT_SEPARATOR)
   })
 
   test("an explicit stack wins over the surface's default", () => {
@@ -155,6 +168,18 @@ describe("resolving lines", () => {
     expect(resolveLines({})[0]?.icons).toBe(true)
     expect(resolveLines({ icons: false })[0]?.icons).toBe(false)
     expect(resolveLines({ icons: false, lines: [{ icons: true }] })[0]?.icons).toBe(true)
+  })
+
+  // The line should sit level with OpenCode's own furniture, not one column off it.
+  test("each surface is padded to line up with the host, and can be overridden", () => {
+    const [bottom] = resolveLines({ surface: "bottom" })
+    expect(bottom?.paddingLeft).toBe(3) // OpenCode's footer indents three
+    // A line hard against the bottom of the window reads as clipped.
+    expect(bottom?.paddingBottom).toBe(1)
+    const [side] = resolveLines({ surface: "sidebar" })
+    expect(side?.paddingLeft).toBe(0) // flush with the shell bay's sidebar content
+    const [own] = resolveLines({ surface: "bottom", lines: [{ paddingLeft: 0 }] })
+    expect(own?.paddingLeft).toBe(0)
   })
 
   test("a bare string is that built-in with no settings", () => {

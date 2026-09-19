@@ -54,13 +54,24 @@ export interface StatusLineProps {
   separator: string
   /** Across the window, or down a column. */
   stack?: "horizontal" | "vertical"
+  paddingLeft?: number
+  paddingRight?: number
+  paddingTop?: number
+  paddingBottom?: number
 }
 
 export function StatusLine(props: StatusLineProps) {
   const theme = () => props.api.theme.current
   const down = () => props.stack === "vertical"
   return (
-    <box flexDirection={down() ? "column" : "row"} flexShrink={0} paddingLeft={1} paddingRight={1}>
+    <box
+      flexDirection={down() ? "column" : "row"}
+      flexShrink={0}
+      paddingLeft={props.paddingLeft ?? 1}
+      paddingRight={props.paddingRight ?? 1}
+      paddingTop={props.paddingTop ?? 0}
+      paddingBottom={props.paddingBottom ?? 0}
+    >
       <For each={props.segments()}>
         {(segment, index) => (
           <>

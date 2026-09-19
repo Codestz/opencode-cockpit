@@ -1,55 +1,41 @@
 /**
- * A vertical dashboard for the sidebar.
+ * A small, quiet sidebar: a coloured context bar and the two figures behind it.
  *
- * The sidebar is a narrow column with vertical room to spare, which is the opposite trade from
- * every other surface: nothing here has to fit on one line, so each segment gets a labelled row
- * and can say its piece properly.
+ * The sidebar sits beside OpenCode's own Context block, which already gives you the token count,
+ * the percentage and the spend. So this one does not repeat them -- it draws the bar those numbers
+ * describe, and adds the two things the host leaves out: how the window is being used, and what
+ * the session has changed.
  *
  *   {
  *     "statusline": {
  *       "modules": ["<this file>"],
  *       "surface": "sidebar",
- *       "segments": ["heading", "window", "composition", "sparkline", "spend", "changes"]
+ *       "segments": ["bar", "split", "changes"]
  *     }
  *   }
  *
- * `stack` defaults to vertical on this surface, so it does not need to be written.
+ * `stack` defaults to vertical here, so it does not need to be written.
  */
 
 import type { CustomModule, Run, StatusContext } from "@opencode-cockpit/status/segment"
-import {
-  compact,
-  contextRatio,
-  contextUsed,
-  gradient,
-  money,
-  shortModel,
-} from "@opencode-cockpit/status/segment"
+import { compact, contextRatio, contextUsed, gradient } from "@opencode-cockpit/status/segment"
 
-const SPARK = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"]
-const samples: number[] = []
-
-/** A row with a quiet label and a value, so a column of them lines up as a table would. */
+/** A row with a quiet label, so a column of them lines up as a table would. */
 function row(label: string, value: Run[]): { runs: Run[] } {
   return { runs: [{ text: `${label} `, tone: "muted", dim: true }, ...value] }
 }
 
 export default {
   segments: {
-    /** Which model, stated once at the top rather than repeated in every row. */
-    heading(ctx: StatusContext) {
-      const model = ctx.session?.model
-      if (!model) return undefined
-      return {
-        runs: [{ text: shortModel(model.modelID), tone: "accent" as const, bold: true }],
-      }
-    },
-
-    /** How full the window is, as a bar the column is wide enough to draw properly. */
-    window(ctx: StatusContext, config) {
+    /**
+     * The context window, coloured cell by cell. The figure beside it is the host's own, so this
+     * is the one place the bay repeats something -- a bar with no number is hard to read at a
+     * glance, and the percentage is two characters.
+     */
+    bar(ctx: StatusContext, config) {
       const ratio = contextRatio(ctx.session)
       if (ratio === undefined) return undefined
-      const width = typeof config.width === "number" ? config.width : 12
+      const width = typeof config.width === "number" ? config.width : 14
       const filled = Math.round(ratio * width)
       const runs: Run[] = []
       for (let cell = 0; cell < width; cell++) {
@@ -63,53 +49,26 @@ export default {
       return { runs }
     },
 
-    /** Where the window went. Three labelled rows would be three lines; three chips are one. */
-    composition(ctx: StatusContext) {
+    /**
+     * What the window is made of: cache, fresh input, output. A coloured rule per part rather
+     * than a filled chip, so a share of nothing is a mark rather than an empty box.
+     */
+    split(ctx: StatusContext) {
       const tokens = ctx.session?.tokens
       const total = contextUsed(tokens)
       if (!tokens || total === 0) return undefined
       const share = (n: number) => `${Math.round((n / total) * 100)}%`
-      return row("use", [
-        { text: ` ${share(tokens.cache.read + tokens.cache.write)} `, tone: "background", bgTone: "success" },
-        { text: " " },
-        { text: ` ${share(tokens.input)} `, tone: "background", bgTone: "info" },
-        { text: " " },
-        { text: ` ${share(tokens.output + tokens.reasoning)} `, tone: "background", bgTone: "accent" },
+      return row("split", [
+        { text: "▌", tone: "success" },
+        { text: share(tokens.cache.read + tokens.cache.write), tone: "muted" },
+        { text: " ▌", tone: "info" },
+        { text: share(tokens.input), tone: "muted" },
+        { text: " ▌", tone: "accent" },
+        { text: share(tokens.output + tokens.reasoning), tone: "muted" },
       ])
     },
 
-    /** The shape of the session over time, which no single reading can show. */
-    sparkline(ctx: StatusContext) {
-      const ratio = contextRatio(ctx.session)
-      if (ratio === undefined) return undefined
-      samples.push(ratio)
-      if (samples.length > 16) samples.shift()
-      if (samples.length < 2) return undefined
-      return row(
-        "over",
-        samples.map((value) => ({
-          text: SPARK[Math.min(7, Math.floor(value * 8))] as string,
-          color: gradient(value),
-        })),
-      )
-    },
-
-    /** Spend, and the tokens behind it. Silent where nobody declared prices. */
-    spend(ctx: StatusContext) {
-      const session = ctx.session
-      if (!session) return undefined
-      const used = contextUsed(session.tokens)
-      if (!session.priced) {
-        // No prices declared: report what is measurable instead of a cost that would be a guess.
-        return used > 0 ? row("used", [{ text: `${compact(used)} tokens`, tone: "muted" }]) : undefined
-      }
-      return row("cost", [
-        { text: money(session.cost), tone: "warning" },
-        { text: ` · ${compact(used)}`, tone: "muted", dim: true },
-      ])
-    },
-
-    /** What the session has done to the working tree. */
+    /** What the session has done to the working tree, which the host never mentions. */
     changes(ctx: StatusContext) {
       const diff = ctx.session?.diff
       if (!diff || diff.files === 0) return undefined

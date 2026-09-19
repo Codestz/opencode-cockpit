@@ -60,24 +60,34 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
           ? fitColumn(built, width(), spec.maxRows).segments
           : fit(built, width(), spec.separator).segments
       })
-      return <StatusLine api={api} segments={segments} separator={spec.separator} stack={spec.stack} />
+      return (
+        <StatusLine
+          api={api}
+          segments={segments}
+          separator={spec.separator}
+          stack={spec.stack}
+          paddingLeft={spec.paddingLeft}
+          paddingRight={spec.paddingRight}
+          paddingTop={spec.paddingTop}
+          paddingBottom={spec.paddingBottom}
+        />
+      )
     }
 
     const on = (surface: string) => lines.filter((spec) => spec.surface === surface)
     const bottom = on("bottom")
-    const promptRight = on("promptRight")
     const sidebar = on("sidebar")
 
     api.slots.register({
       // After the shell dock (150), so the line sits at the very bottom of the window.
       order: 200,
       slots: {
-        app_bottom: () => <>{bottom.map((spec) => line(spec, () => api.renderer.width - 2))}</>,
-        // The prompt's right-hand side is narrow; a third of the window is as much as it can take.
-        // Session route only: on the home screen there is no session, so the line would be mostly
-        // empty and the two things it could still say are already on OpenCode's own footer.
-        session_prompt_right: () => (
-          <>{promptRight.map((spec) => line(spec, () => Math.floor(api.renderer.width / 3)))}</>
+        app_bottom: () => (
+          <>
+            {bottom.map((spec) =>
+              line(spec, () => api.renderer.width - spec.paddingLeft - spec.paddingRight),
+            )}
+          </>
         ),
         // sidebar_content, not sidebar_footer: the host does not draw plugin content in the footer.
         sidebar_content: () => (

@@ -1,36 +1,48 @@
 /**
- * A wide statusline for the full-width line under the prompt.
+ * Everything on one line, for a window with no sidebar open.
  *
- * Two rows: what the model is doing on top, what the repository looks like underneath. Width is
- * the one thing this surface has, so it spends it on figures that deserve the room and lets the
- * priority collapse drop the decorations when the terminal narrows.
+ * This is the whole statusline for someone who lives in the bottom line: how full the context is,
+ * which way it is going, what the session has changed, and whether anything needs them. It is the
+ * densest of the examples on purpose -- the bottom line is the only surface with real width.
  *
  *   {
  *     "statusline": {
  *       "modules": ["<this file>"],
  *       "lines": [
  *         { "surface": "bottom", "separator": " │ ",
- *           "segments": ["model", "capacity", "cost", "session.time", "trend"] },
- *         { "surface": "bottom", "separator": " │ ",
- *           "segments": ["git.branch", "git.diff", "cwd", "diagnostics"] }
+ *           "segments": ["capacity", "trend", "burn", "git.diff", "todo", "session.time",
+ *                        "diagnostics"] }
  *       ]
  *     }
  *   }
  *
- * Two lines on the same surface stack, which is how a two-row statusline is written.
+ * Two lines on the same surface stack, if you would rather split it in two rows.
  */
 
 import type { CustomModule, Run, StatusContext } from "@opencode-cockpit/status/segment"
-import { contextRatio, gradient } from "@opencode-cockpit/status/segment"
+import { compact, contextRatio, contextUsed, gradient } from "@opencode-cockpit/status/segment"
 
-/** Samples kept between ticks, so `trend` can say which way the session is going. */
-const history: { at: number; cost: number }[] = []
+/** Samples kept between ticks: the shape of a session is not visible in any single reading. */
+const samples: { at: number; ratio: number; cost: number }[] = []
+const SPARK = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"]
+
+function sample(ctx: StatusContext): void {
+  const last = samples[samples.length - 1]
+  if (last && ctx.now - last.at < 1000) return
+  samples.push({
+    at: ctx.now,
+    ratio: contextRatio(ctx.session) ?? 0,
+    cost: ctx.session?.cost ?? 0,
+  })
+  if (samples.length > 30) samples.shift()
+}
 
 export default {
   segments: {
     /**
-     * A capacity bar with room for a real scale: ticks every quarter, so the bar can be read
-     * against something rather than eyeballed.
+     * The context window as a bar with a scale: every cell carries the colour of the level it
+     * stands for, and a quarter tick marks the empty half so the bar can be read against
+     * something rather than eyeballed.
      */
     capacity(ctx: StatusContext, config) {
       const ratio = contextRatio(ctx.session)
@@ -42,28 +54,50 @@ export default {
         if (cell < filled) {
           runs.push({ text: "█", color: gradient((cell + 1) / width) })
         } else {
-          // A quarter tick every 25%, so the empty half of the bar still carries a scale.
           const tick = cell > 0 && Math.abs(((cell + 1) / width) % 0.25) < 1 / width
           runs.push({ text: tick ? "┊" : "░", tone: "border" })
         }
       }
       runs.push({ text: "▏", tone: "border" })
-      runs.push({ text: ` ${Math.round(ratio * 100)}%`, color: gradient(ratio), bold: ratio >= 0.85 })
+      runs.push({
+        text: ` ${Math.round(ratio * 100)}%`,
+        color: gradient(ratio),
+        bold: ratio >= 0.85,
+      })
       return { runs }
     },
 
-    /** Which way spend is going, from what this module has watched rather than one reading. */
+    /**
+     * Where the context has been heading, scaled to what this session has actually seen rather
+     * than to the whole window -- against 0-100 a steady session draws a flat wall of blocks.
+     */
     trend(ctx: StatusContext) {
-      const session = ctx.session
-      if (!session?.priced) return undefined
-      const last = history[history.length - 1]
-      if (!last || ctx.now - last.at >= 1000) history.push({ at: ctx.now, cost: session.cost })
-      if (history.length > 30) history.shift()
+      sample(ctx)
+      const seen = samples.filter((entry) => entry.ratio > 0)
+      if (seen.length < 2) return undefined
+      const low = Math.min(...seen.map((entry) => entry.ratio))
+      const high = Math.max(...seen.map((entry) => entry.ratio))
+      const span = high - low
+      return {
+        runs: seen.slice(-12).map((entry) => {
+          const height = span < 0.005 ? 0.5 : (entry.ratio - low) / span
+          return {
+            text: SPARK[Math.min(7, Math.floor(height * 8))] as string,
+            color: gradient(entry.ratio),
+          }
+        }),
+      }
+    },
 
-      const first = history[0]
-      const latest = history[history.length - 1]
-      if (!first || !latest || latest.at === first.at || latest.cost <= 0) return undefined
-      const perMinute = ((latest.cost - first.cost) / (latest.at - first.at)) * 60_000
+    /** Spend per minute with a direction. Silent where nobody declared prices. */
+    burn(ctx: StatusContext) {
+      sample(ctx)
+      const session = ctx.session
+      if (!session?.priced || session.cost <= 0) return undefined
+      const first = samples[0]
+      const last = samples[samples.length - 1]
+      if (!first || !last || last.at === first.at) return undefined
+      const perMinute = ((last.cost - first.cost) / (last.at - first.at)) * 60_000
       if (perMinute < 0.005) return undefined
       return {
         runs: [
@@ -71,6 +105,29 @@ export default {
           { text: ` $${perMinute.toFixed(2)}/min`, tone: "muted" },
         ],
       }
+    },
+
+    /**
+     * How much of the window is cache rather than fresh input. High is cheap and fast; low means
+     * the session keeps re-sending what it already sent.
+     */
+    cache(ctx: StatusContext) {
+      const tokens = ctx.session?.tokens
+      const total = contextUsed(tokens)
+      if (!tokens || total === 0) return undefined
+      const share = tokens.cache.read / total
+      return {
+        runs: [
+          { text: "▌", tone: share > 0.5 ? "success" : "muted" },
+          { text: `${Math.round(share * 100)}% cached`, tone: "muted" },
+        ],
+      }
+    },
+
+    /** The session's own size, for when a window has quietly filled up with one long turn. */
+    weight(ctx: StatusContext) {
+      const used = contextUsed(ctx.session?.tokens)
+      return used > 0 ? { text: `${compact(used)} tok`, tone: "muted" as const } : undefined
     },
   },
 } satisfies CustomModule
