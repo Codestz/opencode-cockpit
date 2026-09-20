@@ -65,6 +65,17 @@ export function cardRows(thread: Thread, size: CardSize, drifted = false, style:
     runs: clipRuns([{ text: `${BAR} `, tone, bold: true, fill }, ...runs], width, fill),
   })
 
+  /**
+   * A quoted blank line opens and closes the thread.
+   *
+   * The bar runs through it, so the mark down the left is one continuous line rather than three
+   * pieces with gaps at each end — and the comment gains a row of air at top and bottom without
+   * that air looking like a hole in the quote.
+   */
+  const air = () => bar([{ text: " ".repeat(Math.max(0, width - 2)), fill }])
+
+  rows.push(air())
+
   /** What it is about on the left, where it stands on the right. Nothing in between. */
   const statusText = statusWord(thread, drifted)
   const full = style.inline ? threadWhere(thread) : `${thread.file} · ${threadWhere(thread)}`
@@ -112,5 +123,6 @@ export function cardRows(thread: Thread, size: CardSize, drifted = false, style:
       ]),
     )
   }
+  rows.push(air())
   return rows
 }

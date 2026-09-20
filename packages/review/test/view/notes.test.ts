@@ -198,22 +198,21 @@ describe("room around a comment", () => {
    * the next, leaving the eye to find the boundary by colour alone — hard work on a screen that is
    * already green.
    */
-  test("a blank row of its own surface sits above and below", () => {
+  test("a quoted blank row sits above and below, with the bar running through it", () => {
     const review = open(emptyReview(), { file: "a.ts", line: 2 }, "why?")
     const rows = diffRows(file, review, { context: 3 }, 60)
     const first = rows.findIndex((row) => row.runs.some((run) => run.text.includes("line 2")))
     const last = rows.findIndex((row) => row.runs.some((run) => run.text.includes("why?")))
 
-    const above = rows[first - 1]
-    const below = rows[last + 1]
-    for (const row of [above, below]) {
+    for (const row of [rows[first - 1], rows[last + 1]]) {
       expect(row?.runs.every((run) => run.fill === "comment")).toBe(true)
+      /** The bar and nothing else: the mark down the left is one line, not three with gaps in it. */
       expect(
         row?.runs
           .map((run) => run.text)
           .join("")
           .trim(),
-      ).toBe("")
+      ).toBe("▎")
     }
   })
 

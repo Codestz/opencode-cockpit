@@ -342,17 +342,11 @@ const INDENT = NUMBER_COLUMNS * 2 + 2
  * starts on the line immediately after the code and ends immediately before the next, and the eye
  * has to find the boundary by colour alone — which is hard work on a screen that is already green.
  */
-const indent = (rows: readonly Row[], id: string, width: number): Row[] => {
-  const blank: Row = { target: id, runs: [{ text: " ".repeat(width), fill: "comment" }] }
-  return [
-    blank,
-    ...rows.map((row) => ({
-      target: id,
-      runs: [{ text: " ".repeat(INDENT), fill: "comment" as Fill }, ...row.runs],
-    })),
-    blank,
-  ]
-}
+const indent = (rows: readonly Row[], id: string): Row[] =>
+  rows.map((row) => ({
+    target: id,
+    runs: [{ text: " ".repeat(INDENT), fill: "comment" as Fill }, ...row.runs],
+  }))
 
 /** `@@ -60,7 +60,9 @@` — the real numbers, because a note citing the wrong line is worse than none. */
 export function hunkHeader(hunk: Hunk, width: number): Row {
@@ -402,7 +396,6 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
           focused: each.id === state.thread,
         }),
         each.id,
-        width,
       ),
     )
   }
@@ -525,7 +518,6 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
                 focused: each.id === state.thread,
               }),
               each.id,
-              width,
             ),
           )
         }

@@ -31,6 +31,9 @@ const answered = thread({
 })
 
 const text = (rows: { runs: { text: string }[] }[]) => rows.map((row) => row.runs.map((r) => r.text).join(""))
+/** The first row that says something: a thread opens with a quoted blank line for air. */
+const heading = (rows: { runs: { text: string }[] }[]) =>
+  text(rows).find((row) => row.replace(/▎/g, "").trim().length > 0) as string
 const prose = (rows: { runs: { text: string }[] }[]) =>
   text(rows).join(" ").replace(/▎/g, " ").replace(/\s+/g, " ")
 
@@ -40,29 +43,25 @@ describe("what a thread says", () => {
   })
 
   test("what it is about on the left, where it stands on the right", () => {
-    const first = text(
-      cardRows(thread({ line: 41 }), { width: 70, height: 20 }, false, { inline: true }),
-    )[0] as string
+    const first = heading(cardRows(thread({ line: 41 }), { width: 70, height: 20 }, false, { inline: true }))
     expect(first).toContain("line 41")
     expect(first).toContain("waiting")
   })
 
   test("inline it does not repeat the file it is already inside", () => {
-    const first = text(
-      cardRows(thread({ line: 41 }), { width: 70, height: 20 }, false, { inline: true }),
-    )[0] as string
+    const first = heading(cardRows(thread({ line: 41 }), { width: 70, height: 20 }, false, { inline: true }))
     expect(first).not.toContain("LICENSE")
   })
 
   test("a thread the agent answered is your turn; a resolved one says so", () => {
-    expect(text(cardRows(thread({ status: "answered" }), { width: 70, height: 20 }))[0]).toContain(
+    expect(heading(cardRows(thread({ status: "answered" }), { width: 70, height: 20 }))).toContain(
       "your turn",
     )
-    expect(text(cardRows(answered, { width: 70, height: 20 }))[0]).toContain("resolved")
+    expect(heading(cardRows(answered, { width: 70, height: 20 }))).toContain("resolved")
   })
 
   test("a thread whose code has moved says so", () => {
-    expect(text(cardRows(thread(), { width: 70, height: 20 }, true))[0]).toContain("moved")
+    expect(heading(cardRows(thread(), { width: 70, height: 20 }, true))).toContain("moved")
   })
 
   test("shows both sides of the conversation, in full", () => {
@@ -75,9 +74,8 @@ describe("what a thread says", () => {
 
   /** An author on a line of its own doubles the height of a two-sentence thread. */
   test("the author sits beside its first line, not above it", () => {
-    const rows = text(cardRows(thread(), { width: 70, height: 20 }))
-    expect(rows[1]).toContain("you")
-    expect(rows[1]).toContain("is this licence complete?")
+    const said = text(cardRows(thread(), { width: 70, height: 20 })).find((row) => row.includes("you"))
+    expect(said).toContain("is this licence complete?")
   })
 
   test("only the thread under the cursor says what you can do to it", () => {
@@ -90,7 +88,8 @@ describe("what a thread says", () => {
 
 describe("in the room it has", () => {
   test("is as tall as its conversation, and no taller", () => {
-    expect(cardHeight(thread(), { width: 70, height: 40 })).toBe(2)
+    /** Two rows of air, a heading and one line of prose. */
+    expect(cardHeight(thread(), { width: 70, height: 40 })).toBe(4)
     expect(cardHeight(answered, { width: 70, height: 40 })).toBeGreaterThan(3)
   })
 
