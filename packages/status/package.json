@@ -1,6 +1,6 @@
 {
   "name": "@opencode-cockpit/status",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A statusline for OpenCode you can actually configure: declarative segments, a typed module, or your existing Claude Code statusline command",
   "type": "module",
   "license": "MIT",
