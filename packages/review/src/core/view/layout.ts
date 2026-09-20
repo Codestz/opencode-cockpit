@@ -218,87 +218,54 @@ export function headerRows(
 
 /** The keys, on screen, because a surface whose keys are undiscoverable has none. */
 export function footerRows(width: number, _columns: Columns, state: ViewState = {}): Row[] {
-  /** The hints say what the keys do *here*, because `j` means two different things in two panes. */
   const inDiff = state.pane === "diff"
   const selecting = inDiff && state.anchor !== undefined
-
-  /** While a selection is live, say what `c` would capture rather than what it usually does. */
   const lines =
     selecting && state.line !== undefined && state.anchor !== undefined
       ? Math.abs(state.line - state.anchor) + 1
       : 0
 
-  const selected: Run[] = [
-    { text: " ", tone: "muted" },
-    { text: `${lines} line${lines === 1 ? "" : "s"} selected  `, tone: "accent", bold: true },
-    { text: "j/k", tone: "accent", bold: true },
-    { text: " extend  ", tone: "muted" },
-    { text: "c", tone: "accent", bold: true },
-    { text: " note them  ", tone: "muted" },
-    { text: "v", tone: "accent", bold: true },
-    { text: " cancel", tone: "muted" },
+  const key = (text: string): Run => ({ text, tone: "accent", bold: true })
+  const says = (text: string): Run => ({ text, tone: "muted" })
+
+  /**
+   * The keys you always have, then the ones this moment adds.
+   *
+   * An earlier version replaced the whole line whenever the cursor was near a thread, so moving and
+   * selecting — the things you do constantly — disappeared behind two keys you use occasionally. A
+   * hint that hides the basics to advertise the extras has it backwards.
+   */
+  const moving: Run[] = [
+    { text: " " },
+    key("tab"),
+    says(inDiff ? " files  " : " diff  "),
+    key("j/k"),
+    says(inDiff ? " line  " : " file  "),
+    ...(inDiff ? [key("v"), says(" select  ")] : []),
+    key("c"),
+    says(inDiff ? " note line  " : " note file  "),
   ]
 
-  const normal: Run[] = [
-    { text: " tab", tone: "accent", bold: true },
-    { text: inDiff ? " files  " : " diff  ", tone: "muted" },
-    { text: "j/k", tone: "accent", bold: true },
-    { text: inDiff ? " line  " : " file  ", tone: "muted" },
-    ...(inDiff
+  const extra: Run[] = state.reading
+    ? [key("r"), says(" reply  "), key("x"), says(" remove  "), key("esc"), says(" close card  ")]
+    : selecting
       ? [
-          { text: "v", tone: "accent" as const, bold: true },
-          { text: " select  ", tone: "muted" as const },
-          { text: "c", tone: "accent" as const, bold: true },
-          { text: " note line  ", tone: "muted" as const },
+          { text: `${lines} line${lines === 1 ? "" : "s"}  `, tone: "accent", bold: true },
+          key("c"),
+          says(" note them  "),
+          key("v"),
+          says(" cancel  "),
         ]
-      : [
-          { text: "c", tone: "accent" as const, bold: true },
-          { text: " note file  ", tone: "muted" as const },
-        ]),
-    { text: "f", tone: "accent", bold: true },
-    { text: " note file  ", tone: "muted" },
-    { text: "x", tone: "accent", bold: true },
-    { text: " unnote  ", tone: "muted" },
-    { text: "space", tone: "accent", bold: true },
-    { text: " read  ", tone: "muted" },
-    { text: "s", tone: "accent", bold: true },
-    { text: " source  ", tone: "muted" },
-    { text: "w", tone: "accent", bold: true },
-    { text: " width  ", tone: "muted" },
-    { text: "q", tone: "accent", bold: true },
-    { text: " close", tone: "muted" },
-  ]
+      : state.thread
+        ? [key("enter"), says(" read  "), key("r"), says(" reply  "), key("x"), says(" remove  ")]
+        : [key("f"), says(" note file  "), key("space"), says(" read  ")]
 
-  /** Standing on a thread changes what the keys mean, so it changes what the footer says. */
-  const onThread: Run[] = [
-    { text: " r", tone: "accent", bold: true },
-    { text: " reply  ", tone: "muted" },
-    { text: "o", tone: "accent", bold: true },
-    { text: " open/fold  ", tone: "muted" },
-    { text: "x", tone: "accent", bold: true },
-    { text: " remove  ", tone: "muted" },
-    { text: "j/k", tone: "accent", bold: true },
-    { text: " line  ", tone: "muted" },
-    { text: "h", tone: "accent", bold: true },
-    { text: " files  ", tone: "muted" },
-    { text: "q", tone: "accent", bold: true },
-    { text: " close", tone: "muted" },
-  ]
+  const tail: Run[] = [key("s"), says(" source  "), key("w"), says(" width  "), key("q"), says(" close")]
 
-  /** Reading a card, the only keys that matter are the card's. */
-  const reading: Run[] = [
-    { text: " r", tone: "accent", bold: true },
-    { text: " reply  ", tone: "muted" },
-    { text: "x", tone: "accent", bold: true },
-    { text: " remove  ", tone: "muted" },
-    { text: "esc", tone: "accent", bold: true },
-    { text: " close the card  ", tone: "muted" },
-    { text: "j/k", tone: "accent", bold: true },
-    { text: " next line", tone: "muted" },
+  return [
+    { runs: [{ text: "─".repeat(width), tone: "border" }] },
+    { runs: clipRuns([...moving, ...extra, ...tail], width, "none") },
   ]
-
-  const hint = state.reading ? reading : selecting ? selected : state.thread ? onThread : normal
-  return [{ runs: [{ text: "─".repeat(width), tone: "border" }] }, { runs: clipRuns(hint, width, "none") }]
 }
 
 /** One row per tree entry: folders with a count, files with their basename and tally. */
@@ -381,31 +348,23 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
   const rows: Row[] = []
   const focused = state.pane === "diff"
 
+  /** The file's own thread is announced here, so the heading is built with room for it. */
+  const whole = threadsFor(review, file.path).filter((each) => each.line === undefined)
+  const badge = whole.length > 0 ? ` ${MARK} ${whole.length} ` : ""
+
   const tally = tallyOf(file)
-  const room = Math.max(1, width - tally.length - 9)
+  const room = Math.max(1, width - tally.length - 9 - badge.length)
   rows.push({
-    target: file.path,
+    ...(whole[0] ? { target: whole[0].id } : {}),
     runs: [
       { text: " ", fill: "panel" },
       { text: cell(elidePath(file.path, room), room), tone: "text", bold: true, fill: "panel" },
       { text: ` ${tally} `, tone: "muted", fill: "panel" },
       ...ratioBar(file),
       { text: " ", fill: "panel" },
+      ...(badge ? [{ text: badge, tone: "accent" as Tone, bold: true, fill: "panel" as Fill }] : []),
     ],
   })
-
-  /** A thread about the whole file is announced on its heading; the card is where it is read. */
-  const whole = threadsFor(review, file.path).filter((each) => each.line === undefined)
-  if (whole.length > 0 && rows[0]) {
-    rows[0] = {
-      ...rows[0],
-      ...(whole[0] ? { target: whole[0].id } : {}),
-      runs: [
-        ...rows[0].runs.slice(0, -1),
-        { text: ` ${MARK} ${whole.length} `, tone: "accent", bold: true, fill: "panel" },
-      ],
-    }
-  }
 
   const language = languageOf(file.path)
   const body = Math.max(0, width - NUMBER_COLUMNS * 2 - 2)
@@ -476,15 +435,24 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
        * the card is where it is read.
        */
       const onLine = line.after === undefined ? [] : threadsOnLine(review, file.path, line.after)
-      if (onLine[0]) {
+      const thread = onLine[0]
+      if (thread) {
         const at = rows.at(-1)
         if (at) {
+          /**
+           * Marked *and* named. One glyph in a column of diff is not a signal — you have to already
+           * know to look for it. The count at the end of the line is what makes a thread findable by
+           * scrolling past it, which is how anyone finds one.
+           */
+          const tone: Tone = thread.status === "resolved" ? "success" : "accent"
+          const badge = ` ${MARK} ${onLine.length === 1 ? "note" : `${onLine.length} notes`} `
           rows[rows.length - 1] = {
             ...at,
-            target: onLine[0].id,
+            target: thread.id,
             runs: [
-              { text: MARK, tone: onLine[0].status === "resolved" ? "success" : "accent", fill },
-              ...at.runs.slice(1),
+              { text: MARK, tone, bold: true, fill },
+              ...clipRuns(at.runs.slice(1), Math.max(0, width - 1 - badge.length), fill),
+              { text: badge, tone, bold: true, fill },
             ],
           }
         }

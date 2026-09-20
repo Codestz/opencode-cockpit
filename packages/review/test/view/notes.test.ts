@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { emptyReview, open } from "../../src/core/model/review.ts"
 import { diffRows, layout } from "../../src/core/view/layout.ts"
+import { rowWidth } from "../../src/core/view/rows.ts"
 
 /**
  * Threads used to be drawn between the lines they were about, which pushed the code around as a
@@ -96,5 +97,42 @@ describe("reading one", () => {
     const { review } = withThread()
     const rows = layout(changes, review, { file: "a.ts", reading: "rv_gone" }, { width: 100, height: 20 })
     expect(rows.length).toBeGreaterThan(0)
+  })
+})
+
+describe("finding a thread by looking", () => {
+  /**
+   * A single glyph in a column of diff is not a signal — you have to already know to look for it.
+   * The word is what makes a thread findable by scrolling past it, which is how anyone finds one.
+   */
+  test("a commented line says so in words, not just a mark", () => {
+    const review = open(emptyReview(), { file: "a.ts", line: 2 }, "why?")
+    const rows = text(diffRows(file, review, { context: 3 }, 80))
+    expect(rows.find((row) => row.includes("TWO"))).toContain("note")
+  })
+
+  test("two threads on a line are counted", () => {
+    let review = open(emptyReview(), { file: "a.ts", line: 2 }, "one")
+    review = { ...review, threads: [...review.threads, { ...(review.threads[0] as never), id: "rv_2" }] }
+    expect(text(diffRows(file, review, { context: 3 }, 80)).find((row) => row.includes("TWO"))).toContain(
+      "2 notes",
+    )
+  })
+
+  test("the badge never pushes a row past its width", () => {
+    const review = open(emptyReview(), { file: "a.ts", line: 2 }, "why?")
+    for (const width of [40, 60, 80, 120]) {
+      for (const row of diffRows(file, review, { context: 3 }, width)) {
+        expect(rowWidth(row)).toBeLessThanOrEqual(width)
+      }
+    }
+  })
+
+  test("a file with its own thread is counted on its heading, without losing the ratio bar", () => {
+    const review = open(emptyReview(), { file: "a.ts" }, "about all of it")
+    const heading = text(diffRows(file, review, { context: 3 }, 90))[0] as string
+    expect(heading).toContain("▐ 1")
+    expect(heading).toContain("■")
+    expect(heading).not.toContain("…")
   })
 })

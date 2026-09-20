@@ -157,19 +157,29 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
      * Derived from the line rather than navigated to: a thread lives on a line, so standing on the
      * line is standing on the thread, and a second cursor would be a second thing to explain.
      */
+    /**
+     * The thread the cursor is genuinely on: one attached to this line, or one picked by clicking it.
+     *
+     * Deliberately *not* falling back to the file's own thread. That fallback made every line in a
+     * file with a file-level note look like it had a thread, which turned the footer into the
+     * thread's keys for the whole file and hid moving and selecting behind them.
+     */
     const hereThreadId = (): string | undefined => {
       if (!view.file) return undefined
-      /** Picked by hand — clicking a thread's box — outranks whatever the line cursor implies. */
       if (view.thread && review.threads.some((each) => each.id === view.thread)) return view.thread
-      const onLine =
-        view.pane === "diff" && view.line !== undefined
-          ? threadsOnLine(review, view.file, view.line)[0]?.id
-          : undefined
-      /**
-       * Falling back to the file's own thread, which lives on no line and so can never be under the
-       * cursor. Without this it could be written and then never opened again.
-       */
-      return onLine ?? threadsFor(review, view.file).find((each) => each.line === undefined)?.id
+      if (view.pane !== "diff" || view.line === undefined) return undefined
+      return threadsOnLine(review, view.file, view.line)[0]?.id
+    }
+
+    /**
+     * What an action reaches, which is more than what the cursor is on.
+     *
+     * A thread about the whole file sits on no line, so it can never be under a cursor — but `f`,
+     * `enter` on the file list, and a click on the heading all mean it.
+     */
+    const reachableThreadId = (): string | undefined => {
+      if (!view.file) return undefined
+      return hereThreadId() ?? threadsFor(review, view.file).find((each) => each.line === undefined)?.id
     }
 
     /**

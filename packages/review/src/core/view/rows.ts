@@ -95,8 +95,16 @@ export function clipRuns(runs: readonly Run[], width: number, fill: Fill = "none
       used += run.text.length
       continue
     }
-    /** The last run standing gets an ellipsis, so a clipped line never pretends to be whole. */
-    out.push({ ...run, text: room > 1 ? `${run.text.slice(0, room - 1)}…` : "…" })
+    /**
+     * The last run standing gets an ellipsis, so a clipped line never pretends to be whole — unless
+     * all that was cut is padding, which is not something anyone wanted to read.
+     */
+    const dropped = run.text.slice(room)
+    out.push(
+      dropped.trim().length === 0
+        ? { ...run, text: run.text.slice(0, room) }
+        : { ...run, text: room > 1 ? `${run.text.slice(0, room - 1)}…` : "…" },
+    )
     used = width
   }
   if (used < width) out.push({ text: " ".repeat(width - used), fill })
