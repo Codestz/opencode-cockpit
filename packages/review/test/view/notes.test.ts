@@ -191,3 +191,37 @@ describe("the comment band", () => {
     }
   })
 })
+
+describe("room around a comment", () => {
+  /**
+   * Without it a comment starts on the line immediately after the code and ends immediately before
+   * the next, leaving the eye to find the boundary by colour alone — hard work on a screen that is
+   * already green.
+   */
+  test("a blank row of its own surface sits above and below", () => {
+    const review = open(emptyReview(), { file: "a.ts", line: 2 }, "why?")
+    const rows = diffRows(file, review, { context: 3 }, 60)
+    const first = rows.findIndex((row) => row.runs.some((run) => run.text.includes("line 2")))
+    const last = rows.findIndex((row) => row.runs.some((run) => run.text.includes("why?")))
+
+    const above = rows[first - 1]
+    const below = rows[last + 1]
+    for (const row of [above, below]) {
+      expect(row?.runs.every((run) => run.fill === "comment")).toBe(true)
+      expect(
+        row?.runs
+          .map((run) => run.text)
+          .join("")
+          .trim(),
+      ).toBe("")
+    }
+  })
+
+  test("the padding belongs to its thread, so clicking it lands on the thread", () => {
+    const review = open(emptyReview(), { file: "a.ts", line: 2 }, "why?")
+    const id = review.threads[0]?.id
+    const rows = diffRows(file, review, { context: 3 }, 60)
+    const first = rows.findIndex((row) => row.runs.some((run) => run.text.includes("line 2")))
+    expect(rows[first - 1]?.target).toBe(id as string)
+  })
+})

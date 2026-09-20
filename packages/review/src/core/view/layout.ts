@@ -332,17 +332,27 @@ const NUMBER_COLUMNS = 5
 const INDENT = NUMBER_COLUMNS * 2 + 2
 
 /**
- * Moves a thread's rows in from the margin, and tags each with the thread it belongs to.
+ * Moves a thread's rows in from the margin, pads the band, and tags each row with its thread.
  *
  * The indent carries the comment's own surface rather than being left blank. Unfilled, it punched a
  * black hole through the tinted diff on the left of every conversation — the band has to reach the
  * edge to read as one surface instead of a gap with text beside it.
+ *
+ * A blank row of that surface above and below gives the band room to breathe. Without it a comment
+ * starts on the line immediately after the code and ends immediately before the next, and the eye
+ * has to find the boundary by colour alone — which is hard work on a screen that is already green.
  */
-const indent = (rows: readonly Row[], id: string): Row[] =>
-  rows.map((row) => ({
-    target: id,
-    runs: [{ text: " ".repeat(INDENT), fill: "comment" as Fill }, ...row.runs],
-  }))
+const indent = (rows: readonly Row[], id: string, width: number): Row[] => {
+  const blank: Row = { target: id, runs: [{ text: " ".repeat(width), fill: "comment" }] }
+  return [
+    blank,
+    ...rows.map((row) => ({
+      target: id,
+      runs: [{ text: " ".repeat(INDENT), fill: "comment" as Fill }, ...row.runs],
+    })),
+    blank,
+  ]
+}
 
 /** `@@ -60,7 +60,9 @@` — the real numbers, because a note citing the wrong line is worse than none. */
 export function hunkHeader(hunk: Hunk, width: number): Row {
@@ -392,6 +402,7 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
           focused: each.id === state.thread,
         }),
         each.id,
+        width,
       ),
     )
   }
@@ -514,6 +525,7 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
                 focused: each.id === state.thread,
               }),
               each.id,
+              width,
             ),
           )
         }
