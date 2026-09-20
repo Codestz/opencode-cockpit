@@ -52,12 +52,14 @@ export interface ViewState {
   /** The thread the cursor is on, drawn heavier and showing its keys. */
   thread?: string
   /**
-   * Threads opened back up by hand.
+   * Threads you have opened or folded by hand, which outranks the default either way.
    *
-   * A resolved thread collapses so a finished review reads as quiet — but the answer is still in
-   * there, and a line of it is not the answer. This is how you get the rest back.
+   * A resolved thread folds so a finished review reads as quiet, and the thread under the cursor
+   * opens because you are looking at it — but both are guesses about what you want, and a key that
+   * says otherwise has to win. An earlier version kept only the opened ones, which made `o` do
+   * nothing at all: the thread it acts on is the focused one, and focus already forced it open.
    */
-  expanded?: ReadonlySet<string>
+  unfolded?: ReadonlyMap<string, boolean>
   /**
    * Real highlighting for the file on screen, when a parser has produced some.
    *
@@ -350,10 +352,11 @@ export function fileRows(changes: ChangeSet, review: Review, state: ViewState, w
  */
 function noteStyle(thread: Thread, file: FileChange, state: ViewState): NoteStyle {
   const focused = thread.id === state.thread
+  const chosen = state.unfolded?.get(thread.id)
   return {
     drifted: threadDrifted(thread, file),
     focused,
-    collapsed: !focused && thread.status === "resolved" && !state.expanded?.has(thread.id),
+    collapsed: chosen === undefined ? !focused && thread.status === "resolved" : !chosen,
   }
 }
 

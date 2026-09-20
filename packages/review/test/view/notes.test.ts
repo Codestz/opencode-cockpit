@@ -157,3 +157,63 @@ describe("a thread about the whole file", () => {
     expect(rows.some((row) => row.target === id)).toBe(true)
   })
 })
+
+describe("folding", () => {
+  /** `noteRows` is told whether to fold; deciding is the caller's job, and it is tested there. */
+  test("a resolved thread folds unless it is told not to", () => {
+    const resolved = thread({ status: "resolved" })
+    expect(noteRows(resolved, 80)).toHaveLength(1)
+    expect(noteRows(resolved, 80, { collapsed: false }).length).toBeGreaterThan(1)
+  })
+
+  test("an unfinished thread is open unless it is told to fold", () => {
+    const answered = thread({ status: "answered" })
+    expect(noteRows(answered, 80).length).toBeGreaterThan(1)
+    expect(noteRows(answered, 80, { collapsed: true })).toHaveLength(1)
+  })
+})
+
+describe("what the diff decides about folding", () => {
+  const resolved = () => {
+    const review = open(emptyReview(), { file: "a.ts", line: 2 }, "is this right?")
+    const id = review.threads[0]?.id as string
+    return {
+      review: { ...review, threads: [{ ...(review.threads[0] as never), status: "resolved" as const }] },
+      id,
+    }
+  }
+
+  test("a resolved thread folds away, so a finished review reads as quiet", () => {
+    const { review } = resolved()
+    expect(text(diffRows(file, review, { context: 3 }, 80)).some((row) => row.includes("o opens"))).toBe(true)
+  })
+
+  test("the thread under the cursor is open, because you are looking at it", () => {
+    const { review, id } = resolved()
+    const rows = text(diffRows(file, review, { context: 3, thread: id }, 80))
+    expect(rows.some((row) => row.includes("is this right?"))).toBe(true)
+  })
+
+  /**
+   * The rule that broke `o`: it acts on the focused thread, and focus already forced that one open,
+   * so a set of "opened" threads could never change anything. An explicit choice has to win.
+   */
+  test("folding it by hand wins over the focus that opened it", () => {
+    const { review, id } = resolved()
+    const rows = text(
+      diffRows(file, review, { context: 3, thread: id, unfolded: new Map([[id, false]]) }, 80),
+    )
+    /**
+     * Folded means one line carrying a preview of what was said, not the absence of the words — so
+     * the box is what to look for, and a folded thread has none.
+     */
+    expect(rows.some((row) => row.includes("╭") || row.includes("┏"))).toBe(false)
+    expect(rows.some((row) => row.includes("o opens"))).toBe(true)
+  })
+
+  test("opening one by hand wins over the fold that hid it", () => {
+    const { review, id } = resolved()
+    const rows = text(diffRows(file, review, { context: 3, unfolded: new Map([[id, true]]) }, 80))
+    expect(rows.some((row) => row.includes("is this right?"))).toBe(true)
+  })
+})

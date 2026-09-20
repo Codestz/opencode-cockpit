@@ -520,14 +520,20 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
         return view.line === undefined ? undefined : threadsOnLine(review, view.file, view.line)[0]
       }
 
-      /** Opens a folded thread back up, or folds an open one away. */
+      /**
+       * Opens a folded thread back up, or folds an open one away.
+       *
+       * The choice is remembered per thread and beats the default, which is the only way this key can
+       * do anything: it acts on the thread under the cursor, and that one is open by default.
+       */
       const expand = () => {
         const thread = hereThread()
         if (!thread) return
-        const expanded = new Set(view.expanded ?? [])
-        if (expanded.has(thread.id)) expanded.delete(thread.id)
-        else expanded.add(thread.id)
-        view = { ...view, expanded }
+        const unfolded = new Map(view.unfolded ?? [])
+        /** It is open unless told otherwise: this acts on the focused thread, and focus opens it. */
+        const showing = unfolded.get(thread.id) ?? true
+        unfolded.set(thread.id, !showing)
+        view = { ...view, unfolded }
         draw()
       }
 
