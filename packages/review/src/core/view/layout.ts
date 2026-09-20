@@ -238,15 +238,19 @@ export function headerRows(
     { text: `−${seen.deletions}`, tone: "removed" },
   ]
   /**
-   * Which highlighter is colouring the code, said out loud.
+   * Silence when the parser is doing its job, and a word when it is not.
    *
-   * The real parser and the built-in tokenizer agree on most of an import line and disagree exactly
-   * where it matters, so "is this tree-sitter?" cannot be answered by looking at the code — only by
-   * the view admitting which one it used.
+   * Announcing "tree-sitter" on every screen is a status light for a thing that is simply working —
+   * noise. A *failure* must always speak, though: code coloured by the fallback looks plausible and is
+   * only approximately right, so that case says so.
    */
   const right: Run[] = [
-    { text: `${syntax ?? "basic"} `, tone: syntax === "tree-sitter" ? "success" : "muted" },
-    { text: "· ", tone: "border" },
+    ...(syntax === "basic"
+      ? [
+          { text: "basic syntax ", tone: "warning" as const },
+          { text: "· ", tone: "border" as const },
+        ]
+      : []),
     { text: `${seen.read}/${seen.files} read `, tone: "muted" },
     { text: "· ", tone: "border" },
     { text: `${seen.notes} notes `, tone: seen.notes > 0 ? "accent" : "muted" },
