@@ -11,7 +11,7 @@
  * the rest of OpenCode colors it.
  */
 
-import type { Run, Tone } from "./layout.ts"
+import type { Run, Tone } from "./rows.ts"
 
 export type Language = "ts" | "json" | "markdown" | "shell" | "plain"
 

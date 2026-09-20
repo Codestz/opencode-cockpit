@@ -15,14 +15,15 @@ import {
   type ChangeSet,
   type FileChange,
   isRead,
-  type Note,
-  noteIsStale,
-  notesFor,
-  notesOnLine,
   progress,
   type Review,
+  threadDrifted,
+  threadsFor,
+  threadsOnLine,
 } from "../model/review.ts"
 import type { HighlightedLine } from "./highlight.ts"
+import { noteRows } from "./note.ts"
+import { cell, clipRuns, elidePath, type Fill, type Row, type Run, type Tone } from "./rows.ts"
 import { languageOf, type SyntaxState, tokenize } from "./syntax.ts"
 import { type TreeRow, treeRows } from "./tree.ts"
 
@@ -31,56 +32,6 @@ import { type TreeRow, treeRows } from "./tree.ts"
  * OpenCode already ships (`diffAdded`, `diffRemovedBg`, `diffLineNumber`, `diffHunkHeader`…), so a
  * review looks like the host's own diff rather than a second opinion about what green means.
  */
-export type Tone =
-  | "text"
-  | "muted"
-  | "accent"
-  | "border"
-  | "added"
-  | "removed"
-  | "hunk"
-  | "lineNumber"
-  | "success"
-  | "warning"
-  // Code, coloured from the theme's own syntax palette rather than a second opinion about what a
-  // keyword looks like.
-  | "keyword"
-  | "string"
-  | "number"
-  | "comment"
-  | "type"
-  | "function"
-  | "variable"
-  | "operator"
-  | "punct"
-
-/** Backgrounds are separate: a changed line is tinted across its whole width, text or not. */
-export type Fill = "none" | "added" | "removed" | "selected" | "panel"
-
-export interface Run {
-  text: string
-  tone?: Tone
-  fill?: Fill
-  bold?: boolean
-  /**
-   * An exact colour, when something knows better than a tone does.
-   *
-   * A real highlighter returns colours, not categories — so it sets this and the renderers prefer it
-   * over `tone`. Untyped because this file is pure: it is the terminal library's own colour object,
-   * carried through untouched.
-   */
-  color?: unknown
-  italic?: boolean
-}
-
-export interface Row {
-  runs: Run[]
-  /** Set on a row that is a line of the new file, so notes can attach to it. */
-  line?: number
-  /** The tree row this screen row stands for, so a click knows what it landed on. */
-  target?: string
-}
-
 export interface Viewport {
   width: number
   height: number
@@ -97,6 +48,8 @@ export interface ViewState {
   context?: number
   /** Folders whose contents are hidden, by path so toggling one cannot shift another. */
   collapsed?: ReadonlySet<string>
+  /** The thread the cursor is on, drawn heavier and showing its keys. */
+  thread?: string
   /**
    * Real highlighting for the file on screen, when a parser has produced some.
    *
@@ -162,20 +115,6 @@ export function splitColumns(width: number): Columns {
   const diff = inner - list - 1
   if (diff < MIN_DIFF_COLUMNS) return { list: 0, diff: inner }
   return { list, diff }
-}
-
-/** Pads or cuts to exactly `width` cells, so a column can never bleed into its neighbour. */
-export function cell(text: string, width: number): string {
-  if (width <= 0) return ""
-  if (text.length === width) return text
-  return text.length > width ? `${text.slice(0, Math.max(0, width - 1))}…` : text.padEnd(width)
-}
-
-/** Elides from the left: the filename identifies a file, the directories are context. */
-export function elidePath(path: string, width: number): string {
-  if (width <= 1) return ""
-  if (path.length <= width) return path
-  return `…${path.slice(path.length - width + 1)}`
 }
 
 /**
@@ -253,7 +192,13 @@ export function headerRows(
       : []),
     { text: `${seen.read}/${seen.files} read `, tone: "muted" },
     { text: "· ", tone: "border" },
-    { text: `${seen.notes} notes `, tone: seen.notes > 0 ? "accent" : "muted" },
+    { text: `${seen.open} open `, tone: seen.open > 0 ? "accent" : "muted" },
+    ...(seen.threads > seen.open
+      ? [
+          { text: "· ", tone: "border" as const },
+          { text: `${seen.threads - seen.open} resolved `, tone: "muted" as const },
+        ]
+      : []),
   ]
   const used = left.reduce((sum, run) => sum + run.text.length, 0)
   const tail = right.reduce((sum, run) => sum + run.text.length, 0)
@@ -392,110 +337,6 @@ const NUMBER_COLUMNS = 5
  * what it meant, but the number no longer points at what the author was looking at — and a review that
  * silently cites the wrong line is worse than one that admits it.
  */
-/**
- * A note, drawn as a block under the line it is about.
- *
- * A single indented line read as part of the diff — the eye went straight past it. A bordered block in
- * the panel tint is unmistakably *not* code, which is the whole job: a review is a conversation laid
- * over a file, and the two have to be told apart at a glance.
- *
- * Marked when it has drifted: a note written against a line a later turn has moved still means what it
- * meant, but the number no longer points at what the author was looking at — and a review that
- * silently cites the wrong line is worse than one that admits it.
- */
-export function noteRows(note: Note, file: FileChange, width: number): Row[] {
-  const stale = noteIsStale(note, file)
-  const indent = "  "
-  const box = Math.max(12, width - indent.length)
-  const inner = box - 2
-
-  const where =
-    note.line === undefined
-      ? "whole file"
-      : note.through && note.through > note.line
-        ? `lines ${note.line}–${note.through}`
-        : `line ${note.line}`
-  const title = ` note · ${where}${stale ? " · moved" : ""} `
-  const tone: Tone = stale ? "warning" : "accent"
-
-  const rows: Row[] = [
-    {
-      runs: [
-        { text: indent },
-        { text: "╭", tone, fill: "panel" },
-        { text: title, tone, bold: true, fill: "panel" },
-        { text: "─".repeat(Math.max(0, inner - title.length)), tone, fill: "panel" },
-        { text: "╮", tone, fill: "panel" },
-      ],
-    },
-  ]
-
-  /** Wrapped to the box, because a note is prose and prose does not fit in one line of a diff. */
-  const words = note.body.split(/\s+/).filter(Boolean)
-  // indent + "│ " + room + "│" has to come to the same width as indent + "╭" + inner + "╮".
-  const room = inner - 1
-  const wrapped: string[] = []
-  let line = ""
-  for (const word of words) {
-    if (line && line.length + word.length + 1 > room) {
-      wrapped.push(line)
-      line = word
-    } else {
-      line = line ? `${line} ${word}` : word
-    }
-  }
-  if (line || wrapped.length === 0) wrapped.push(line)
-
-  for (const text of wrapped) {
-    rows.push({
-      runs: [
-        { text: indent },
-        { text: "│ ", tone, fill: "panel" },
-        { text: cell(text, room), tone: "text", fill: "panel" },
-        { text: "│", tone, fill: "panel" },
-      ],
-    })
-  }
-
-  rows.push({
-    runs: [
-      { text: indent },
-      { text: "╰", tone, fill: "panel" },
-      { text: "─".repeat(inner), tone, fill: "panel" },
-      { text: "╯", tone, fill: "panel" },
-    ],
-  })
-  return rows
-}
-
-/**
- * Clips a line's runs to `width`, keeping their colours, and pads what is left.
- *
- * The first version swapped the whole line for one uncoloured string whenever it did not fit, which
- * is why a half-width pane looked unhighlighted: in a narrow column almost every line needs clipping,
- * so almost every line lost its colours. Truncation is a question about width and has nothing to say
- * about colour.
- */
-export function clipRuns(runs: readonly Run[], width: number, fill: Fill): Run[] {
-  if (width <= 0) return []
-  const out: Run[] = []
-  let used = 0
-  for (const run of runs) {
-    if (used >= width) break
-    const room = width - used
-    if (run.text.length <= room) {
-      out.push(run)
-      used += run.text.length
-      continue
-    }
-    /** The last run standing gets an ellipsis, so a clipped line never pretends to be whole. */
-    out.push({ ...run, text: room > 1 ? `${run.text.slice(0, room - 1)}…` : "…" })
-    used = width
-  }
-  if (used < width) out.push({ text: " ".repeat(width - used), fill })
-  return out
-}
-
 export function diffRows(file: FileChange, review: Review, state: ViewState, width: number): Row[] {
   if (width <= 0) return []
   const rows: Row[] = []
@@ -514,9 +355,14 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
     ],
   })
 
-  /** A note about the file as a whole belongs under its header, before any line of it. */
-  for (const note of notesFor(review, file.path).filter((each) => each.line === undefined)) {
-    rows.push(...noteRows(note, file, width))
+  /** A thread about the file as a whole belongs under its header, before any line of it. */
+  for (const thread of threadsFor(review, file.path).filter((each) => each.line === undefined)) {
+    rows.push(
+      ...noteRows(thread, width, {
+        drifted: threadDrifted(thread, file),
+        focused: thread.id === state.thread,
+      }),
+    )
   }
 
   const language = languageOf(file.path)
@@ -580,10 +426,15 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
         ],
       })
 
-      /** Notes sit under the line they are about, the way a review reads. */
+      /** Threads sit under the lines they are about, the way a review reads. */
       if (line.after !== undefined) {
-        for (const note of notesOnLine(review, file.path, line.after)) {
-          rows.push(...noteRows(note, file, width))
+        for (const thread of threadsOnLine(review, file.path, line.after)) {
+          rows.push(
+            ...noteRows(thread, width, {
+              drifted: threadDrifted(thread, file),
+              focused: thread.id === state.thread,
+            }),
+          )
         }
       }
     }

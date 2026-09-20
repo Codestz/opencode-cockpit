@@ -4,16 +4,18 @@ import { createBindingLookup, type TuiPlugin, type TuiPluginModule } from "@open
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
 import type { BoxRenderable } from "@opentui/core"
 import {
-  addNote,
+  drop,
   emptyReview,
   isRead,
   nextUnread,
-  notesFor,
+  open as openThread,
   type Review,
-  removeNote,
   type Source,
+  say,
+  threadOn,
   toggleRead,
 } from "../core/model/review.ts"
+import { threadWhere } from "../core/model/thread.ts"
 import { frameBounds, VARIANTS, type Variant } from "../core/view/frame.ts"
 import {
   diffRows,
@@ -390,7 +392,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
         const onFile = whole || view.pane === "files"
         const from = onFile ? undefined : Math.min(view.anchor ?? view.line ?? 0, view.line ?? 0)
         const to = onFile ? undefined : Math.max(view.anchor ?? view.line ?? 0, view.line ?? 0)
-        const existing = notesFor(review, file).find((note) => note.line === from)
+        const existing = threadOn(review, file, from, to)
 
         /**
          * The review's keys are a *global* layer, so they are still live while a dialog is open — which
@@ -402,27 +404,35 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
         askForNote(
           api,
           {
-            title:
-              from === undefined
+            title: existing
+              ? `Reply · ${file}:${threadWhere(existing)}`
+              : from === undefined
                 ? `Note on ${file}`
                 : to !== undefined && to > from
                   ? `Note on ${file}:${from}-${to}`
                   : `Note on ${file}:${from}`,
-            description:
-              from === undefined
+            description: existing
+              ? "Continues the thread. Nothing is sent until you submit."
+              : from === undefined
                 ? "About the file as a whole. Nothing is sent until you submit."
                 : "Nothing is sent until you submit the review.",
-            ...(existing ? { value: existing.body } : {}),
           },
           (body) => {
-            const quoted = quoteOf(file, from, to)
-            review = addNote(review, {
-              file,
-              ...(from === undefined ? {} : { line: from }),
-              ...(to !== undefined && from !== undefined && to > from ? { through: to } : {}),
-              body,
-              ...(quoted ? { quoted } : {}),
-            })
+            const at = Date.now()
+            review = existing
+              ? say(review, existing.id, { author: "you", body, at })
+              : openThread(
+                  review,
+                  {
+                    file,
+                    ...(from === undefined ? {} : { line: from }),
+                    ...(to !== undefined && from !== undefined && to > from ? { through: to } : {}),
+                    ...(quoteOf(file, from, to) ? { quoted: quoteOf(file, from, to) } : {}),
+                  },
+                  body,
+                  "you",
+                  at,
+                )
             view = { ...view, anchor: undefined }
             draw()
           },
@@ -440,10 +450,12 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
         draw()
       }
 
-      /** A second thought can also be no thought at all. */
+      /** Throws a thread away. Resolving is what the agent does; this is what you do to a mistake. */
       const uncomment = () => {
         if (!view.file) return
-        review = removeNote(review, view.file, view.pane === "diff" ? view.line : undefined)
+        const from = view.pane === "diff" ? view.line : undefined
+        const thread = threadOn(review, view.file, from, from)
+        if (thread) review = drop(review, thread.id)
         draw()
       }
 

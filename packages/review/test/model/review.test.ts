@@ -1,27 +1,23 @@
 import { describe, expect, test } from "bun:test"
 import {
-  addNote,
   type ChangeSet,
+  drop,
   emptyReview,
-  type FileChange,
   hasSomethingToSay,
   isRead,
-  type Note,
   nextUnread,
-  noteIsStale,
-  noteRange,
-  notesFor,
-  notesOnLine,
+  open,
   progress,
-  type Review,
-  removeNote,
+  put,
+  say,
+  threadById,
+  threadDrifted,
+  threadOn,
+  threadsFor,
+  threadsOnLine,
   toggleRead,
 } from "../../src/core/model/review.ts"
-
-/**
- * The rules a reviewer feels but never sees: that a second thought replaces the first, that marking
- * a file read moves you on, that a note whose code has moved says so rather than lying about a line.
- */
+import { resolve } from "../../src/core/model/thread.ts"
 
 const changes: ChangeSet = {
   source: "session",
@@ -32,104 +28,84 @@ const changes: ChangeSet = {
   ],
 }
 
-const note = (over: Partial<Note> = {}): Note => ({ file: "a.ts", line: 2, body: "why?", ...over })
+const a = () => changes.files[0]
 
-describe("where a note attaches", () => {
-  test("one line is a range of one", () => {
-    expect(noteRange(note())).toEqual({ from: 2, to: 2 })
-  })
-
-  test("a range covers what it was given, and never runs backwards", () => {
-    expect(noteRange(note({ line: 2, through: 5 }))).toEqual({ from: 2, to: 5 })
-    expect(noteRange(note({ line: 5, through: 2 }))).toEqual({ from: 5, to: 5 })
-  })
-
-  test("a note about the whole file has no range", () => {
-    expect(noteRange(note({ line: undefined }))).toBeUndefined()
-  })
-})
-
-describe("adding and removing notes", () => {
-  test("a second note on the same line replaces the first", () => {
+describe("opening and continuing threads", () => {
+  test("a second thought about the same lines continues the thread rather than starting a rival", () => {
     // Otherwise a corrected thought is submitted alongside the thought it corrected.
-    const once = addNote(emptyReview(), note({ body: "first" }))
-    const twice = addNote(once, note({ body: "second" }))
-    expect(twice.notes).toHaveLength(1)
-    expect(twice.notes[0]?.body).toBe("second")
+    const once = open(emptyReview(), { file: "a.ts", line: 2 }, "first", "you", 1)
+    const twice = open(once, { file: "a.ts", line: 2 }, "second", "you", 2)
+    expect(twice.threads).toHaveLength(1)
+    expect(twice.threads[0]?.entries.map((entry) => entry.body)).toEqual(["first", "second"])
   })
 
-  test("a note on a different line is kept alongside", () => {
-    const review = addNote(addNote(emptyReview(), note({ line: 2 })), note({ line: 3 }))
-    expect(review.notes).toHaveLength(2)
+  test("a different line is a different thread", () => {
+    const review = open(open(emptyReview(), { file: "a.ts", line: 2 }, "x"), { file: "a.ts", line: 3 }, "y")
+    expect(review.threads).toHaveLength(2)
   })
 
-  test("the same line in a different file is a different note", () => {
-    const review = addNote(addNote(emptyReview(), note()), note({ file: "b.ts" }))
-    expect(review.notes).toHaveLength(2)
+  test("the same line in a different file is a different thread", () => {
+    const review = open(open(emptyReview(), { file: "a.ts", line: 2 }, "x"), { file: "b.ts", line: 2 }, "y")
+    expect(review.threads).toHaveLength(2)
   })
 
-  test("a range note and a single-line note starting there are different notes", () => {
-    const review = addNote(addNote(emptyReview(), note({ line: 2 })), note({ line: 2, through: 4 }))
-    expect(review.notes).toHaveLength(2)
-  })
-
-  test("a file-level note replaces another file-level note on the same file", () => {
-    const review = addNote(
-      addNote(emptyReview(), note({ line: undefined, body: "one" })),
-      note({ line: undefined, body: "two" }),
+  test("a range and a single line starting there are different threads", () => {
+    const review = open(
+      open(emptyReview(), { file: "a.ts", line: 2 }, "x"),
+      { file: "a.ts", line: 2, through: 4 },
+      "y",
     )
-    expect(review.notes).toHaveLength(1)
-    expect(review.notes[0]?.body).toBe("two")
+    expect(review.threads).toHaveLength(2)
   })
 
-  test("removing takes only the note asked for", () => {
-    const review = addNote(addNote(emptyReview(), note({ line: 2 })), note({ line: 3 }))
-    expect(removeNote(review, "a.ts", 2).notes.map((n) => n.line)).toEqual([3])
+  test("threads come back in line order however they were opened", () => {
+    let review = open(emptyReview(), { file: "a.ts", line: 9 }, "c")
+    review = open(review, { file: "a.ts", line: 2 }, "a")
+    review = open(review, { file: "a.ts", line: 5 }, "b")
+    expect(threadsFor(review, "a.ts").map((thread) => thread.line)).toEqual([2, 5, 9])
   })
 
-  test("notes come back in line order however they were added", () => {
-    const review = addNote(
-      addNote(addNote(emptyReview(), note({ line: 9 })), note({ line: 2 })),
-      note({ line: 5 }),
-    )
-    expect(notesFor(review, "a.ts").map((n) => n.line)).toEqual([2, 5, 9])
+  test("dropping takes only the thread asked for", () => {
+    const review = open(open(emptyReview(), { file: "a.ts", line: 2 }, "x"), { file: "a.ts", line: 3 }, "y")
+    const id = threadOn(review, "a.ts", 2, 2)?.id as string
+    expect(drop(review, id).threads.map((thread) => thread.line)).toEqual([3])
   })
 
-  /**
-   * Changed deliberately: a note about a range reads *after* the lines it covers, which is where a
-   * pull request puts it and where the eye goes looking. Drawing it under the first line put it in
-   * the middle of the code it was talking about.
-   */
-  test("a note is found under the last line of its range, not the first", () => {
-    const review = addNote(emptyReview(), note({ line: 2, through: 6 }))
-    expect(notesOnLine(review, "a.ts", 6)).toHaveLength(1)
-    expect(notesOnLine(review, "a.ts", 2)).toHaveLength(0)
+  test("saying something on a thread keeps its id and appends", () => {
+    const review = open(emptyReview(), { file: "a.ts", line: 2 }, "why?")
+    const id = review.threads[0]?.id as string
+    const answered = say(review, id, { author: "agent", body: "because", at: 2 })
+    expect(threadById(answered, id)?.entries).toHaveLength(2)
+    expect(threadById(answered, id)?.status).toBe("answered")
   })
 })
 
-describe("a note whose code has moved", () => {
-  const file = changes.files[0] as FileChange
+describe("where a thread is drawn", () => {
+  /**
+   * A thread about a range reads *after* the lines it covers, which is where a pull request puts it
+   * and where the eye goes looking. Under the first line it sits in the middle of its own subject.
+   */
+  test("a range thread is found under its last line, not its first", () => {
+    const review = open(emptyReview(), { file: "a.ts", line: 2, through: 6 }, "all of it")
+    expect(threadsOnLine(review, "a.ts", 6)).toHaveLength(1)
+    expect(threadsOnLine(review, "a.ts", 2)).toHaveLength(0)
+  })
+})
 
-  test("is stale when the quoted line no longer reads that way", () => {
-    expect(noteIsStale(note({ line: 2, quoted: ["something else"] }), file)).toBe(true)
+describe("drift", () => {
+  test("a thread whose quoted line no longer reads that way has drifted", () => {
+    const review = open(emptyReview(), { file: "a.ts", line: 2, quoted: ["something else"] }, "x")
+    expect(threadDrifted(review.threads[0] as never, a())).toBe(true)
   })
 
-  test("is not stale when it still matches", () => {
-    expect(noteIsStale(note({ line: 2, quoted: ["TWO"] }), file)).toBe(false)
+  test("one that still matches has not", () => {
+    const review = open(emptyReview(), { file: "a.ts", line: 2, quoted: ["TWO"] }, "x")
+    expect(threadDrifted(review.threads[0] as never, a())).toBe(false)
   })
 
-  test("a note that quoted nothing cannot be stale", () => {
-    // Nothing to compare against is not evidence of a move, and a false mark costs trust.
-    expect(noteIsStale(note({ line: 2 }), file)).toBe(false)
-  })
-
-  test("a multi-line quote has to match all the way down", () => {
-    expect(noteIsStale(note({ line: 1, through: 2, quoted: ["one", "TWO"] }), file)).toBe(false)
-    expect(noteIsStale(note({ line: 1, through: 2, quoted: ["one", "two"] }), file)).toBe(true)
-  })
-
-  test("a file that is no longer in the change set is not called stale", () => {
-    expect(noteIsStale(note({ quoted: ["TWO"] }), undefined)).toBe(false)
+  test("a file no longer in the change set is not called drifted", () => {
+    const review = open(emptyReview(), { file: "a.ts", line: 2, quoted: ["TWO"] }, "x")
+    expect(threadDrifted(review.threads[0] as never, undefined)).toBe(false)
   })
 })
 
@@ -145,13 +121,11 @@ describe("read state", () => {
   })
 
   test("it wraps to the top rather than stopping at the end", () => {
-    const review = toggleRead(emptyReview(), "c.ts")
-    expect(nextUnread(changes, review, "c.ts")).toBe("a.ts")
+    expect(nextUnread(changes, toggleRead(emptyReview(), "c.ts"), "c.ts")).toBe("a.ts")
   })
 
   test("it skips files already read", () => {
-    const review = toggleRead(emptyReview(), "b.ts")
-    expect(nextUnread(changes, review, "a.ts")).toBe("c.ts")
+    expect(nextUnread(changes, toggleRead(emptyReview(), "b.ts"), "a.ts")).toBe("c.ts")
   })
 
   test("everything read means there is nowhere to go", () => {
@@ -161,12 +135,18 @@ describe("read state", () => {
 })
 
 describe("progress", () => {
-  test("counts files, reads, notes and the totals", () => {
-    const review = addNote(toggleRead(emptyReview(), "a.ts"), note())
+  test("counts files, reads, threads and what is still open", () => {
+    let review = toggleRead(emptyReview(), "a.ts")
+    review = open(review, { file: "a.ts", line: 2, quoted: ["TWO"] }, "one")
+    review = open(review, { file: "b.ts", line: 1, quoted: ["new"] }, "two")
+    const done = resolve(review.threads[0] as never, { author: "agent", body: "fixed", at: 9 }, "changed\n")
+    review = put(review, done)
+
     expect(progress(changes, review)).toEqual({
       files: 3,
       read: 1,
-      notes: 1,
+      threads: 2,
+      open: 1,
       additions: 2,
       deletions: 2,
     })
@@ -179,7 +159,7 @@ describe("progress", () => {
 
 describe("whether there is anything to send", () => {
   /** An empty review posted to the chat is exactly the interruption this bay exists to prevent. */
-  test("a review with no notes and no summary has nothing to say", () => {
+  test("no threads and no summary means nothing to say", () => {
     expect(hasSomethingToSay(emptyReview())).toBe(false)
   })
 
@@ -187,12 +167,11 @@ describe("whether there is anything to send", () => {
     expect(hasSomethingToSay({ ...emptyReview(), summary: "   \n " })).toBe(false)
   })
 
-  test("one note is enough", () => {
-    expect(hasSomethingToSay(addNote(emptyReview(), note()))).toBe(true)
+  test("one thread is enough", () => {
+    expect(hasSomethingToSay(open(emptyReview(), { file: "a.ts", line: 1 }, "x"))).toBe(true)
   })
 
-  test("a summary on its own is enough — approving without comments is a review", () => {
-    const review: Review = { ...emptyReview(), summary: "looks right, ship it" }
-    expect(hasSomethingToSay(review)).toBe(true)
+  test("a summary alone is enough — approving without comments is a review", () => {
+    expect(hasSomethingToSay({ ...emptyReview(), summary: "looks right, ship it" })).toBe(true)
   })
 })

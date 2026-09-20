@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { clipRuns } from "../../src/core/view/layout.ts"
+import { clipRuns } from "../../src/core/view/rows.ts"
 import { treeRows } from "../../src/core/view/tree.ts"
 
 describe("treeRows", () => {

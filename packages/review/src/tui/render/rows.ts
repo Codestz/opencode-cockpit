@@ -18,7 +18,7 @@
 
 import type { TuiThemeCurrent } from "@opencode-ai/plugin/tui"
 import type { RGBA, TextChunk, TextRenderable } from "@opentui/core"
-import type { Fill, Row, Tone } from "../../core/view/layout.ts"
+import type { Fill, Row, Tone } from "../../core/view/rows.ts"
 
 /** Tones are named for meaning; the theme decides what they look like. */
 const toneColour = (theme: TuiThemeCurrent, tone: Tone | undefined): RGBA => {
