@@ -26,8 +26,10 @@ import {
   splitColumns,
   type ViewState,
 } from "../core/view/layout.ts"
+import { languageOf } from "../core/view/syntax.ts"
 import { Overlay } from "./components/overlay.tsx"
 import { askForNote } from "./dialogs.tsx"
+import { createHighlighter } from "./render/highlighter.ts"
 import { createRowPool, type RowPool } from "./render/rows.ts"
 import { createStore } from "./state/store.ts"
 
@@ -71,6 +73,12 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
     const options = (rawOptions ?? {}) as ReviewTuiOptions
     const keys = createBindingLookup({ ...DEFAULT_KEYS, ...options.keybinds })
     const store = createStore(api, options.source ?? "branch")
+    /**
+     * A real parse when the host's tree-sitter client will do one, and the built-in tokenizer until
+     * then — or for ever, if the client misbehaves once. Probing it outside a renderer showed it
+     * hanging rather than failing, so it is never awaited on the draw path.
+     */
+    const highlighter = createHighlighter(() => api.theme.current)
 
     /**
      * Plain variables, not signals. Nothing inside a slot's tree is reactive, so state that the panel
@@ -143,10 +151,27 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       if (!open) {
         pool?.clear()
       } else {
+        /**
+         * Ask for a real parse of the file on screen — both sides of it — and draw with whatever has
+         * arrived. Requests are no-ops once a file is cached, so this costs nothing per frame, and
+         * nothing here is awaited: highlighting lands when it lands and the next draw picks it up.
+         */
+        const showing = files().find((candidate) => candidate.path === view.file)
+        let highlighted: ViewState["highlighted"]
+        if (showing) {
+          const language = languageOf(showing.path)
+          const oldSide = `${showing.path}#before`
+          highlighter.request(showing.path, showing.after, language, draw)
+          highlighter.request(oldSide, showing.before, language, draw)
+          const after = highlighter.lines(showing.path, showing.after)
+          const before = highlighter.lines(oldSide, showing.before)
+          if (after || before) highlighted = { ...(after ? { after } : {}), ...(before ? { before } : {}) }
+        }
+
         const rows = layout(
           store.current().changes,
           review,
-          { ...view, label: label() },
+          { ...view, label: label(), ...(highlighted ? { highlighted } : {}) },
           {
             width: frame.width,
             height: screen.height - 2,
