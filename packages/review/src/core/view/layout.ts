@@ -22,7 +22,7 @@ import {
   threadsOnLine,
 } from "../model/review.ts"
 import type { Thread } from "../model/thread.ts"
-import { cardRows, floatOver } from "./card.ts"
+import { cardRows } from "./card.ts"
 import type { HighlightedLine } from "./highlight.ts"
 import { cell, clipRuns, elidePath, type Fill, type Row, type Run, type Tone } from "./rows.ts"
 import { languageOf, type SyntaxState, tokenize } from "./syntax.ts"
@@ -51,13 +51,6 @@ export interface ViewState {
   collapsed?: ReadonlySet<string>
   /** The thread the cursor is on, drawn heavier and showing its keys. */
   thread?: string
-  /**
-   * The thread being read, floating over the diff.
-   *
-   * One at a time and by choice: a card is a thing you open and close, which is a rule with no edge
-   * cases — unlike "which of these inline boxes is folded", which had several.
-   */
-  reading?: string
   /**
    * Real highlighting for the file on screen, when a parser has produced some.
    *
@@ -246,19 +239,17 @@ export function footerRows(width: number, _columns: Columns, state: ViewState = 
     says(inDiff ? " note line  " : " note file  "),
   ]
 
-  const extra: Run[] = state.reading
-    ? [key("r"), says(" reply  "), key("x"), says(" remove  "), key("esc"), says(" close card  ")]
-    : selecting
-      ? [
-          { text: `${lines} line${lines === 1 ? "" : "s"}  `, tone: "accent", bold: true },
-          key("c"),
-          says(" note them  "),
-          key("v"),
-          says(" cancel  "),
-        ]
-      : state.thread
-        ? [key("enter"), says(" read  "), key("r"), says(" reply  "), key("x"), says(" remove  ")]
-        : [key("f"), says(" note file  "), key("space"), says(" read  ")]
+  const extra: Run[] = selecting
+    ? [
+        { text: `${lines} line${lines === 1 ? "" : "s"}  `, tone: "accent", bold: true },
+        key("c"),
+        says(" note them  "),
+        key("v"),
+        says(" cancel  "),
+      ]
+    : state.thread
+      ? [key("r"), says(" reply  "), key("x"), says(" remove  ")]
+      : [key("f"), says(" note file  "), key("space"), says(" read  ")]
 
   const tail: Run[] = [key("s"), says(" source  "), key("w"), says(" width  "), key("q"), says(" close")]
 
@@ -324,6 +315,13 @@ export function fileRows(changes: ChangeSet, review: Review, state: ViewState, w
 /** The mark in a line's first column that says a thread is attached to it. */
 const MARK = "▐"
 
+/** How far a thread sits in from the code it is about. */
+const INDENT = 4
+
+/** Moves a thread's rows in from the margin, and tags each with the thread it belongs to. */
+const indent = (rows: readonly Row[], id: string): Row[] =>
+  rows.map((row) => ({ target: id, runs: [{ text: " ".repeat(INDENT) }, ...row.runs] }))
+
 /** `@@ -60,7 +60,9 @@` — the real numbers, because a note citing the wrong line is worse than none. */
 export function hunkHeader(hunk: Hunk, width: number): Row {
   const removed = hunk.lines.filter((line) => line.kind !== "add").length
@@ -365,6 +363,16 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
       ...(badge ? [{ text: badge, tone: "accent" as Tone, bold: true, fill: "panel" as Fill }] : []),
     ],
   })
+
+  /** The file's own thread reads first, before any line of it. */
+  for (const each of whole) {
+    rows.push(
+      ...indent(
+        cardRows(each, { width: width - INDENT, height: 40 }, threadDrifted(each, file), { inline: true }),
+        each.id,
+      ),
+    )
+  }
 
   const language = languageOf(file.path)
   const body = Math.max(0, width - NUMBER_COLUMNS * 2 - 2)
@@ -439,22 +447,28 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
       if (thread) {
         const at = rows.at(-1)
         if (at) {
-          /**
-           * Marked *and* named. One glyph in a column of diff is not a signal — you have to already
-           * know to look for it. The count at the end of the line is what makes a thread findable by
-           * scrolling past it, which is how anyone finds one.
-           */
           const tone: Tone = thread.status === "resolved" ? "success" : "accent"
-          const badge = ` ${MARK} ${onLine.length === 1 ? "note" : `${onLine.length} notes`} `
           rows[rows.length - 1] = {
             ...at,
             target: thread.id,
-            runs: [
-              { text: MARK, tone, bold: true, fill },
-              ...clipRuns(at.runs.slice(1), Math.max(0, width - 1 - badge.length), fill),
-              { text: badge, tone, bold: true, fill },
-            ],
+            runs: [{ text: MARK, tone, bold: true, fill }, ...at.runs.slice(1)],
           }
+        }
+        /**
+         * Under the line, indented, with the code carrying on beneath it — which is where a pull
+         * request puts a comment and where the eye expects to find one. It was briefly a card
+         * floating over the diff; that hid the code it was about, and made "is this one open" a
+         * question with answers.
+         */
+        for (const each of onLine) {
+          rows.push(
+            ...indent(
+              cardRows(each, { width: width - INDENT, height: 40 }, threadDrifted(each, file), {
+                inline: true,
+              }),
+              each.id,
+            ),
+          )
         }
       }
     }
@@ -475,7 +489,7 @@ export function layout(changes: ChangeSet, review: Review, state: ViewState, vie
     rows.push({ runs: [{ text: cell("  Nothing has changed here.", inner), tone: "muted" }] })
     for (let index = 1; index < body; index++) rows.push({ runs: [{ text: " ".repeat(inner) }] })
     rows.push(...footerRows(inner, columns, state))
-    return withCard(rows, changes, review, state, columns, inner)
+    return rows
   }
 
   /** One column: the list, or the diff, never both squeezed into something unreadable. */
@@ -486,7 +500,7 @@ export function layout(changes: ChangeSet, review: Review, state: ViewState, vie
       rows.push(shown[index] ?? { runs: [{ text: " ".repeat(inner) }] })
     }
     rows.push(...footerRows(inner, columns, state))
-    return withCard(rows, changes, review, state, columns, inner)
+    return rows
   }
 
   const list = window(fileRows(changes, review, state, columns.list), listScroll(changes, state, body), body)
@@ -502,48 +516,7 @@ export function layout(changes: ChangeSet, review: Review, state: ViewState, vie
     })
   }
   rows.push(...footerRows(inner, columns, state))
-  return withCard(rows, changes, review, state, columns, inner)
-}
-
-/**
- * Floats the thread being read over the diff.
- *
- * Applied last, over the finished screen, so opening a card never changes what is underneath it —
- * the diff keeps its scroll, the list keeps its place, and closing the card puts you back exactly
- * where you were.
- */
-function withCard(
-  rows: Row[],
-  changes: ChangeSet,
-  review: Review,
-  state: ViewState,
-  columns: Columns,
-  inner: number,
-): Row[] {
-  if (!state.reading) return rows
-  const thread = review.threads.find((each) => each.id === state.reading)
-  if (!thread) return rows
-
-  const body = rows.slice(HEADER_ROWS, rows.length - FOOTER_ROWS)
-  const width = columns.list === 0 ? inner : columns.diff
-  const file = changes.files.find((each) => each.path === thread.file)
-  const card = cardRows(thread, { width, height: body.length }, threadDrifted(thread, file))
-
-  /** Over the diff column only: the file list stays put, so you can see where you are. */
-  const floated = floatOver(
-    body.map((row) => ({ runs: row.runs.slice(columns.list === 0 ? 0 : columns.list + 1) })),
-    card,
-    width,
-  )
-  const merged = body.map((row, index) => ({
-    ...row,
-    runs:
-      columns.list === 0
-        ? (floated[index]?.runs ?? row.runs)
-        : [...row.runs.slice(0, columns.list + 1), ...(floated[index]?.runs ?? [])],
-  }))
-
-  return [...rows.slice(0, HEADER_ROWS), ...merged, ...rows.slice(rows.length - FOOTER_ROWS)]
+  return rows
 }
 
 /**

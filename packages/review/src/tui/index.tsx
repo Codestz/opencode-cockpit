@@ -252,7 +252,6 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
             ...view,
             label: label(),
             ...(hereThreadId() ? { thread: hereThreadId() } : {}),
-            ...(view.reading ? { reading: view.reading } : {}),
             syntax: highlighted ? "tree-sitter" : "basic",
             ...(highlighted ? { highlighted } : {}),
           },
@@ -331,8 +330,6 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
         ...view,
         pane: "diff",
         thread: picked,
-        /** Clicking a marked line opens its thread, the way clicking a comment marker does anywhere. */
-        ...(picked ? { reading: picked } : {}),
         ...(line === undefined ? {} : { line, ...(keepAnchor ? {} : { anchor: undefined }) }),
       }
       draw()
@@ -434,15 +431,6 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
 
       /** Enter on a folder folds it; on a file it opens it and moves you into the diff. */
       const enter = () => {
-        /** In the diff, enter is "read this thread" when there is one to read. */
-        if (view.pane === "diff") {
-          const thread = hereThread()
-          if (thread) {
-            view = { ...view, reading: thread.id }
-            draw()
-          }
-          return
-        }
         const rows = navigableRows(store.current().changes, view)
         const row = rows.find((candidate) => candidate.path === view.cursor)
         if (!row) return
@@ -543,25 +531,6 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       }
 
       /**
-       * Opens the thread under the cursor as a card, or closes the one that is open.
-       *
-       * One thread at a time, because a card is a thing you open and close — a rule with no edge
-       * cases, unlike "which of these inline boxes is folded", which had several and cost a key that
-       * appeared to do nothing.
-       */
-      const expand = () => {
-        if (view.reading) {
-          view = { ...view, reading: undefined }
-          draw()
-          return
-        }
-        const thread = hereThread()
-        if (!thread) return
-        view = { ...view, reading: thread.id }
-        draw()
-      }
-
-      /**
        * Answering back.
        *
        * Saying something on a resolved thread reopens it, which is the honest meaning of a reply: you
@@ -630,7 +599,6 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
           { name: "cockpit.review.pane.select", title: "Select lines", run: () => selectRange() },
           { name: "cockpit.review.pane.uncomment", title: "Remove the thread here", run: () => uncomment() },
           { name: "cockpit.review.pane.reply", title: "Reply to the thread here", run: () => replyHere() },
-          { name: "cockpit.review.pane.expand", title: "Open or fold the thread here", run: () => expand() },
           { name: "cockpit.review.pane.files", title: "Back to the file list", run: () => toFiles() },
           {
             name: "cockpit.review.pane.read",
@@ -659,20 +627,13 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
           { name: "cockpit.review.pane.cycle", title: "Right pane or full screen", run: () => cycle() },
           {
             name: "cockpit.review.pane.quit",
-            title: "Close the card, or the review",
+            title: "Close the review",
             /**
              * Escape closes the nearest thing first. A key that shuts the whole review when you meant
              * to put a comment away is a key you stop trusting.
              */
-            run: () => {
-              if (view.reading) {
-                view = { ...view, reading: undefined }
-                draw()
-                return
-              }
-              /** Deferred: closing disposes the layer this handler is dispatching through. */
-              setTimeout(() => close(), 0)
-            },
+            /** Deferred: closing disposes the layer this handler is dispatching through. */
+            run: () => setTimeout(() => close(), 0),
           },
         ],
         bindings: [
@@ -688,7 +649,6 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
           { key: "h,left", cmd: "cockpit.review.pane.files", desc: "Back to the files" },
           { key: "x", cmd: "cockpit.review.pane.uncomment", desc: "Remove thread" },
           { key: "r", cmd: "cockpit.review.pane.reply", desc: "Reply" },
-          { key: "o", cmd: "cockpit.review.pane.expand", desc: "Open or fold" },
           { key: "space,m", cmd: "cockpit.review.pane.read", desc: "Mark read" },
           { key: "s", cmd: "cockpit.review.pane.source", desc: "Next source" },
           { key: "g", cmd: "cockpit.review.pane.reload", desc: "Reload" },

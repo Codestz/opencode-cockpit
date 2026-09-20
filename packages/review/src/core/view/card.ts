@@ -19,6 +19,16 @@ export interface CardSize {
   height: number
 }
 
+export interface CardStyle {
+  /**
+   * Drawn inside the file it belongs to, which changes what is worth saying.
+   *
+   * A card sitting under line 41 of a file does not need to name that file, and the keys on it are
+   * the ones that work where it is — repeating either is noise in the place you can least afford it.
+   */
+  inline?: boolean
+}
+
 const toneFor = (thread: Thread, drifted: boolean): Tone => {
   if (drifted) return "warning"
   if (thread.status === "resolved") return "success"
@@ -53,13 +63,13 @@ export function cardHeight(thread: Thread, size: CardSize): number {
  * Returned as its own block rather than drawn into the diff, so whoever is arranging the screen
  * decides where it floats.
  */
-export function cardRows(thread: Thread, size: CardSize, drifted = false): Row[] {
+export function cardRows(thread: Thread, size: CardSize, drifted = false, style: CardStyle = {}): Row[] {
   const width = Math.max(24, size.width)
   const inner = width - 2
   const tone = toneFor(thread, drifted)
   const rows: Row[] = []
 
-  const title = ` ${thread.file} · ${threadWhere(thread)} `
+  const title = style.inline ? ` ${threadWhere(thread)} ` : ` ${thread.file} · ${threadWhere(thread)} `
   const status = ` ${statusWord(thread, drifted)} `
   rows.push({
     runs: clipRuns(
@@ -122,8 +132,8 @@ export function cardRows(thread: Thread, size: CardSize, drifted = false): Row[]
   }
   rows.push(...shown)
 
-  const keys =
-    thread.status === "resolved" ? " r reply · x remove · esc close " : " r reply · x remove · esc close "
+  /** The keys that work where this card is: inline there is nothing to close but the review itself. */
+  const keys = style.inline ? " r reply · x remove " : " r reply · x remove · esc close "
   rows.push({
     runs: clipRuns(
       [
