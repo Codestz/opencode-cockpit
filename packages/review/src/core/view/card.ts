@@ -11,7 +11,7 @@
  */
 
 import { type Thread, threadWhere, waitingOn } from "../model/thread.ts"
-import { cell, clipRuns, type Row, type Run, type Tone, wrapText } from "./rows.ts"
+import { cell, clipRuns, type Fill, type Row, type Run, type Tone, wrapText } from "./rows.ts"
 
 export interface CardSize {
   width: number
@@ -23,6 +23,13 @@ export interface CardStyle {
   inline?: boolean
   /** The thread the cursor is on: the only one that shows what you can do to it. */
   focused?: boolean
+  /**
+   * The tint of the line it is attached to.
+   *
+   * An added line is tinted and a comment on it was not, so the comment read as a layer laid over the
+   * diff rather than as part of it. Sharing the tint is what makes it look attached.
+   */
+  fill?: Fill
 }
 
 const toneFor = (thread: Thread, drifted: boolean): Tone => {
@@ -49,7 +56,7 @@ export function cardHeight(thread: Thread, size: CardSize): number {
 export function cardRows(thread: Thread, size: CardSize, drifted = false, style: CardStyle = {}): Row[] {
   const width = Math.max(20, size.width)
   const tone = toneFor(thread, drifted)
-  const fill = "panel" as const
+  const fill: Fill = style.fill ?? "panel"
   const rows: Row[] = []
 
   /** Everything is quoted, and nothing is allowed wider than the column it is quoted into. */
@@ -62,14 +69,17 @@ export function cardRows(thread: Thread, size: CardSize, drifted = false, style:
   const full = style.inline ? threadWhere(thread) : `${thread.file} · ${threadWhere(thread)}`
   /** In a narrow column the path gives way: the lines are what identify a thread there. */
   const where = full.length > width - 4 - statusText.length ? threadWhere(thread) : full
-  /** A word touching the edge of the pane reads as a word that was cut off. */
-  const gap = Math.max(1, width - 3 - where.length - statusText.length)
+  /**
+   * Label and status together, not one at each end of the pane.
+   *
+   * Right-aligning the status left a void across the middle of every thread and made the eye travel
+   * the width of the screen to learn one word. They belong to each other; they read as one phrase.
+   */
   rows.push(
     bar([
       { text: where, tone: "text", bold: true, fill },
-      { text: " ".repeat(gap), fill },
+      { text: " · ", tone: "border", fill },
       { text: statusText, tone, fill },
-      { text: " ", fill },
     ]),
   )
 

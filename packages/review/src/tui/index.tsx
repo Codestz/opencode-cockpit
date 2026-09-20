@@ -481,6 +481,9 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
               : from === undefined
                 ? "About the file as a whole. Nothing is sent until you submit."
                 : "Nothing is sent until you submit the review.",
+            ...(existing ? { thread: existing } : {}),
+            /** The lines being commented on, so a note is not written blind either. */
+            ...(quoteOf(file, from, to) ? { quoted: quoteOf(file, from, to) } : {}),
           },
           (body) => {
             const at = Date.now()
@@ -544,11 +547,13 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
         askForNote(
           api,
           {
-            title: `Reply · ${thread.file}:${threadWhere(thread)}`,
+            title: `Reply · ${thread.file}`,
             description:
               thread.status === "resolved"
                 ? "Replying reopens this thread, so the agent sees it again."
                 : "Continues the thread. Nothing is sent until you submit.",
+            thread,
+            ...(thread.quoted ? { quoted: thread.quoted } : {}),
           },
           (body) => {
             review = say(review, thread.id, { author: "you", body, at: Date.now() })

@@ -315,8 +315,17 @@ export function fileRows(changes: ChangeSet, review: Review, state: ViewState, w
 /** The mark in a line's first column that says a thread is attached to it. */
 const MARK = "▐"
 
-/** How far a thread sits in from the code it is about. */
-const INDENT = 4
+/** Width of each line-number gutter. Two of them, old and new, the way a pull request shows it. */
+const NUMBER_COLUMNS = 5
+
+/**
+ * How far a thread sits in: level with the code, past both line-number gutters and the sign column.
+ *
+ * At the margin a thread lined up with nothing on the screen and read as a separate layer laid over
+ * the diff. Level with the code it is about, it reads as belonging to that line — which is what a
+ * pull request does, and the reason its comments look attached rather than dropped on top.
+ */
+const INDENT = NUMBER_COLUMNS * 2 + 2
 
 /** Moves a thread's rows in from the margin, and tags each with the thread it belongs to. */
 const indent = (rows: readonly Row[], id: string): Row[] =>
@@ -329,9 +338,6 @@ export function hunkHeader(hunk: Hunk, width: number): Row {
   const text = `@@ -${hunk.beforeStart},${removed} +${hunk.afterStart},${added} @@`
   return { runs: [{ text: cell(text, width), tone: "hunk", fill: "panel" }] }
 }
-
-/** Width of each line-number gutter. Two of them, old and new, the way a pull request shows it. */
-const NUMBER_COLUMNS = 5
 
 /** One file's diff: a header, then its hunks. */
 /**
@@ -469,6 +475,7 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
               cardRows(each, { width: width - INDENT, height: 40 }, threadDrifted(each, file), {
                 inline: true,
                 focused: each.id === state.thread,
+                fill,
               }),
               each.id,
             ),
