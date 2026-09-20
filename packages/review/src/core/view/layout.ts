@@ -368,7 +368,10 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
   for (const each of whole) {
     rows.push(
       ...indent(
-        cardRows(each, { width: width - INDENT, height: 40 }, threadDrifted(each, file), { inline: true }),
+        cardRows(each, { width: width - INDENT, height: 40 }, threadDrifted(each, file), {
+          inline: true,
+          focused: each.id === state.thread,
+        }),
         each.id,
       ),
     )
@@ -465,6 +468,7 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
             ...indent(
               cardRows(each, { width: width - INDENT, height: 40 }, threadDrifted(each, file), {
                 inline: true,
+                focused: each.id === state.thread,
               }),
               each.id,
             ),

@@ -1,7 +1,14 @@
 import { describe, expect, test } from "bun:test"
 import type { Thread } from "../../src/core/model/thread.ts"
-import { cardHeight, cardRows, floatOver } from "../../src/core/view/card.ts"
+import { cardHeight, cardRows } from "../../src/core/view/card.ts"
 import { rowWidth } from "../../src/core/view/rows.ts"
+
+/**
+ * Quoted, not boxed. A bordered box spends four glyphs and two columns per line saying "this is a
+ * comment", leaves long empty rules across the screen, and has corners that line up with nothing in
+ * a diff. A bar down the left says the same in one column, and a terminal already reads it as
+ * quotation.
+ */
 
 const thread = (over: Partial<Thread> = {}): Thread => ({
   id: "rv_1",
@@ -17,7 +24,7 @@ const answered = thread({
     { author: "you", body: "is this licence complete?", at: 1 },
     {
       author: "agent",
-      body: "Yes, the MIT license is complete and correct. It includes the copyright line, the permission grant, the conditions, the warranty disclaimer and the limitation of liability.",
+      body: "Yes, the MIT license is complete and correct. It includes the copyright line, the permission grant, the conditions and the warranty disclaimer.",
       at: 2,
     },
   ],
@@ -25,88 +32,79 @@ const answered = thread({
 
 const text = (rows: { runs: { text: string }[] }[]) => rows.map((row) => row.runs.map((r) => r.text).join(""))
 const prose = (rows: { runs: { text: string }[] }[]) =>
-  text(rows)
-    .map((row) => row.replace(/[│╭╮╰╯·─]/g, " "))
-    .join(" ")
-    .replace(/\s+/g, " ")
+  text(rows).join(" ").replace(/▎/g, " ").replace(/\s+/g, " ")
 
-describe("what a card says", () => {
-  test("names the file and the lines, and who it is waiting on", () => {
-    const rows = text(cardRows(thread({ line: 41 }), { width: 70, height: 20 }))
-    expect(rows[0]).toContain("LICENSE")
-    expect(rows[0]).toContain("line 41")
-    expect(rows[0]).toContain("waiting")
+describe("what a thread says", () => {
+  test("every row is quoted, so it is never mistaken for code", () => {
+    expect(text(cardRows(thread(), { width: 70, height: 20 })).every((row) => row.startsWith("▎"))).toBe(true)
   })
 
-  test("a thread the agent answered is your turn", () => {
-    const rows = text(cardRows(thread({ status: "answered" }), { width: 70, height: 20 }))
-    expect(rows[0]).toContain("your turn")
+  test("what it is about on the left, where it stands on the right", () => {
+    const first = text(
+      cardRows(thread({ line: 41 }), { width: 70, height: 20 }, false, { inline: true }),
+    )[0] as string
+    expect(first).toContain("line 41")
+    expect(first).toContain("waiting")
   })
 
-  /** The whole reason for a card: the answer is readable, not a line of it. */
-  test("shows the whole conversation, both sides", () => {
+  test("inline it does not repeat the file it is already inside", () => {
+    const first = text(
+      cardRows(thread({ line: 41 }), { width: 70, height: 20 }, false, { inline: true }),
+    )[0] as string
+    expect(first).not.toContain("LICENSE")
+  })
+
+  test("a thread the agent answered is your turn; a resolved one says so", () => {
+    expect(text(cardRows(thread({ status: "answered" }), { width: 70, height: 20 }))[0]).toContain(
+      "your turn",
+    )
+    expect(text(cardRows(answered, { width: 70, height: 20 }))[0]).toContain("resolved")
+  })
+
+  test("a thread whose code has moved says so", () => {
+    expect(text(cardRows(thread(), { width: 70, height: 20 }, true))[0]).toContain("moved")
+  })
+
+  test("shows both sides of the conversation, in full", () => {
     const said = prose(cardRows(answered, { width: 70, height: 20 }))
     expect(said).toContain("is this licence complete?")
-    expect(said).toContain("limitation of liability")
+    expect(said).toContain("warranty disclaimer")
     expect(said).toContain("you")
     expect(said).toContain("agent")
   })
 
-  test("says what you can do about it", () => {
-    expect(prose(cardRows(thread(), { width: 70, height: 20 }))).toContain("r reply")
-    expect(prose(cardRows(thread(), { width: 70, height: 20 }))).toContain("esc close")
+  /** An author on a line of its own doubles the height of a two-sentence thread. */
+  test("the author sits beside its first line, not above it", () => {
+    const rows = text(cardRows(thread(), { width: 70, height: 20 }))
+    expect(rows[1]).toContain("you")
+    expect(rows[1]).toContain("is this licence complete?")
   })
 
-  test("a thread whose code has moved says so", () => {
-    expect(text(cardRows(thread({ line: 4 }), { width: 70, height: 20 }, true))[0]).toContain("moved")
+  test("only the thread under the cursor says what you can do to it", () => {
+    expect(prose(cardRows(thread(), { width: 70, height: 20 }))).not.toContain("r reply")
+    expect(prose(cardRows(thread(), { width: 70, height: 20 }, false, { focused: true }))).toContain(
+      "r reply",
+    )
   })
 })
 
-describe("a card in the room it has", () => {
-  test("is as tall as its conversation, not as tall as the pane", () => {
-    expect(cardHeight(thread(), { width: 70, height: 40 })).toBeLessThan(10)
+describe("in the room it has", () => {
+  test("is as tall as its conversation, and no taller", () => {
+    expect(cardHeight(thread(), { width: 70, height: 40 })).toBe(2)
+    expect(cardHeight(answered, { width: 70, height: 40 })).toBeGreaterThan(3)
   })
 
-  test("never taller than what it was offered", () => {
-    expect(cardHeight(answered, { width: 40, height: 8 })).toBeLessThanOrEqual(8)
-  })
-
-  /** The last thing said is the thing you opened it to read, so the top is what gives way. */
-  test("a conversation too long for the room keeps its end, and says what it hid", () => {
-    const long = thread({
-      entries: Array.from({ length: 20 }, (_, index) => ({
-        author: "you" as const,
-        body: `thought number ${index}`,
-        at: index,
-      })),
-    })
-    const said = prose(cardRows(long, { width: 60, height: 10 }))
-    expect(said).toContain("thought number 19")
-    expect(said).toContain("earlier lines")
-  })
-
-  test("nothing draws wider than the card, at any size", () => {
+  test("nothing draws wider than the width it was given, at any size", () => {
     for (const width of [24, 40, 70, 120]) {
-      for (const row of cardRows(answered, { width, height: 12 })) {
+      for (const row of cardRows(answered, { width, height: 12 }, true, { focused: true })) {
         expect(rowWidth(row)).toBeLessThanOrEqual(width)
       }
     }
   })
-})
 
-describe("floating it over what is underneath", () => {
-  const base = Array.from({ length: 11 }, (_, index) => ({ runs: [{ text: `line ${index}`.padEnd(30) }] }))
-
-  test("sits in the middle, leaving what is above and below alone", () => {
-    const card = [{ runs: [{ text: "CARD" }] }]
-    const out = text(floatOver(base, card, 30))
-    expect(out[5]).toContain("CARD")
-    expect(out[0]).toContain("line 0")
-    expect(out.at(-1)).toContain("line 10")
-  })
-
-  test("a card as tall as the pane still fits inside it", () => {
-    const card = Array.from({ length: 11 }, () => ({ runs: [{ text: "CARD" }] }))
-    expect(floatOver(base, card, 30)).toHaveLength(11)
+  test("long prose wraps under its author rather than running off", () => {
+    const rows = text(cardRows(answered, { width: 60, height: 20 }))
+    expect(rows.length).toBeGreaterThan(4)
+    expect(rows.every((row) => row.length <= 60)).toBe(true)
   })
 })
