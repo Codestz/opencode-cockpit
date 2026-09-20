@@ -6,6 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **The line reports its own failures, on the line.** A module that would not load draws a `⚠` row
+  naming it, and a column that ran out of room draws a dim `↳ N more — raise maxRows`. Both used to
+  end as segments that were simply not there, which is indistinguishable from a segment that had
+  nothing to say — the one place this bay's silence rule is wrong. The overflow notice takes a row
+  of its own, and is the first thing dropped if the column is smaller still.
+
+### Changed
+
+- **`preview --module <path>` draws that module and nothing else**, every segment it declares, with
+  room for all of them. It used to be added to whatever the config already named while the config's
+  *segments* still decided what drew — so pointing the preview at a module whose segments the config
+  does not list produced a confident picture of somebody else's line. `--with-config` restores the
+  old behaviour, which is what you want once the module is finished and you want to see it in place.
+
 ## [0.3.2] - 2026-09-20
 
 ### Added

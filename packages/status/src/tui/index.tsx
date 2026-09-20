@@ -7,6 +7,7 @@ import pkg from "../../package.json" with { type: "json" }
 import { asSegmentConfig, loadStatusConfig, type ResolvedLine, resolveLines } from "../core/config.ts"
 import { loadCustomSegments } from "../core/custom.ts"
 import { statuslineBrief } from "../core/instructions.ts"
+import { moduleNotice, overflowNotice } from "../core/notices.ts"
 import { fit, fitColumn } from "../core/render.ts"
 import { buildReport } from "../core/report.ts"
 import { buildSegments, type SegmentDef } from "../core/segments.ts"
@@ -66,17 +67,37 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
     const store = createStatusStore(api, config, { version: pkg.version, build: buildContext })
     api.lifecycle.onDispose(() => store.dispose())
 
+    /**
+     * The line's own failures, drawn once rather than on every surface. A module that would not
+     * load has no segments to be missing from, so without a row of its own the only notice is a
+     * toast that is gone in ten seconds — and the log, which nobody reads while looking at a line
+     * that seems to have quietly done nothing.
+     */
+    const failure = moduleNotice(moduleErrors)
+    let noticeShown = false
+
     /** A line, fitted to the room its surface actually has. */
     const line = (spec: ResolvedLine, width: () => number) => {
+      const mine = failure && !noticeShown
+      if (mine) noticeShown = true
       const segments = createMemo(() => {
         const built = buildSegments(store.context(), spec.segments.map(asSegmentConfig), {
           custom,
           icons: spec.icons,
           debug: spec.debug,
         })
-        return spec.stack === "vertical"
-          ? fitColumn(built, width(), spec.maxRows).segments
-          : fit(built, width(), spec.separator).segments
+        if (mine && failure) built.unshift(failure)
+        if (spec.stack !== "vertical") return fit(built, width(), spec.separator).segments
+        /**
+         * Say how many rows did not fit. The preview has always printed `↳ N dropped`; the TUI
+         * left them out in silence, and a row that never appears reads as a broken segment. The
+         * notice takes a row of its own, so the fit is redone with one fewer to give it room.
+         */
+        const first = fitColumn(built, width(), spec.maxRows)
+        if (first.dropped === 0) return first.segments
+        const room = fitColumn(built, width(), Math.max(1, spec.maxRows - 1))
+        const overflow = overflowNotice(room.dropped)
+        return overflow ? [...room.segments, overflow] : room.segments
       })
       return (
         <StatusLine

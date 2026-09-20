@@ -85,8 +85,10 @@ empty box with no explanation.
 - **Returning `undefined` hides the segment.** Use it whenever the input is missing; a segment
   showing a confident wrong number is worse than one that is not there.
 - **A segment that throws loses only its own place.** The rest of the line draws.
-- **A module that will not load raises a toast naming the file** — its segments never disappear
-  silently.
+- **A module that will not load says so on the line itself**, as a `⚠` row naming the file, along
+  with a toast and an entry in OpenCode's log. Its segments never disappear silently.
+- **A column says how many rows did not fit**, as a dim `↳ N more — raise maxRows`. A row that
+  simply never appears reads as a broken segment, and is the more expensive thing to debug.
 
 ## Keeping history
 
@@ -131,3 +133,12 @@ Five ship with the package, every one loaded and asserted by the test suite so n
 - `examples/gallery.ts` — not a statusline: every technique the renderer can draw, labelled
 
 Copy one and cut it down. They are written to be edited, not run verbatim.
+
+```sh
+bunx @opencode-cockpit/status preview --module examples/gallery.ts   # that module, on its own
+bunx @opencode-cockpit/status preview --module mine.ts --with-config # and your configured line too
+```
+
+`--module` draws that module's segments and nothing else, with room for all of them. Pass
+`--with-config` to add the modules and segments your config already names — useful once the module
+is finished and you want to see it in place, misleading while you are still drawing it.

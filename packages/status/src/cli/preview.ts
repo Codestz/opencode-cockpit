@@ -32,7 +32,8 @@ if (has("help")) {
   preview — draw your statusline here, against sample sessions
 
     --config <path>   a config file (default: your global + project config)
-    --module <path>   load a module, in addition to any the config names
+    --module <path>   draw this module's segments, on their own
+    --with-config     ...and the config's modules and segments as well
     --state <name>    ${Object.keys(FIXTURES).join(" | ")} (default: every one)
     --width <n>       columns available to the line (default: the surface's own)
     --debug           mark segments that drew nothing, so silence and typos look different
@@ -47,7 +48,17 @@ const config = configPath
   ? ((await Bun.file(configPath).json()).statusline ?? {})
   : loadStatusConfig(directory)
 
-const modules = [...(config.modules ?? []), ...(flag("module") ? [flag("module") as string] : [])]
+/**
+ * `--module` draws that module and nothing else.
+ *
+ * It used to be added to whatever the config already named, which meant the config's *segments*
+ * still decided what drew: pointing the preview at a module whose segments the config does not
+ * list produced a confident, wrong picture of someone else's line. Looking at one module is the
+ * whole reason to pass a path, so that is the default; `--with-config` puts the old behaviour back.
+ */
+const only = flag("module")
+const isolate = only !== undefined && !has("with-config")
+const modules = [...(isolate ? [] : (config.modules ?? [])), ...(only ? [only] : [])]
 let custom: ReadonlyMap<string, SegmentDef> = new Map()
 if (modules.length > 0) {
   const loaded = await loadCustomSegments(modules, directory)
@@ -55,7 +66,25 @@ if (modules.length > 0) {
   for (const error of loaded.errors) console.error(`  module failed: ${error}`)
 }
 
-const lines = resolveLines(config)
+/**
+ * On its own, a module draws every segment it declares, in the order it declares them, with room
+ * for all of them — a column capped at the default eight silently hides the rest of a gallery.
+ */
+const lines = resolveLines(
+  isolate
+    ? {
+        surface: config.surface,
+        separator: config.separator,
+        stack: config.stack,
+        icons: config.icons,
+        debug: config.debug,
+        paddingLeft: config.paddingLeft,
+        paddingRight: config.paddingRight,
+        segments: [...custom.keys()],
+        maxRows: Math.max(config.maxRows ?? 0, custom.size),
+      }
+    : config,
+)
 const states = flag("state") ? [flag("state") as FixtureName] : (Object.keys(FIXTURES) as FixtureName[])
 const debug = has("debug") || config.debug === true
 

@@ -17,6 +17,7 @@ prose.
 bunx @opencode-cockpit/status preview --watch          # redraws on every save
 bunx @opencode-cockpit/status preview --state full     # one state
 bunx @opencode-cockpit/status preview --debug          # mark segments that drew nothing
+bunx @opencode-cockpit/status preview --module mine.ts # that module alone, every segment it has
 ```
 
 The preview draws the real segments against sample sessions, in this terminal, with no OpenCode
