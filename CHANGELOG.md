@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-09-20
+
 ### Added
 
 - **`/statusline`** hands the agent in your session a brief instead of drawing a panel: which config
@@ -334,7 +336,8 @@ All notable changes to this project are documented here. The format follows
 - Daemon lifecycle: on-demand start, single instance under concurrent starts, idle shutdown,
   replacement of outdated idle daemons, orphan reaping after crashes.
 
-[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/Codestz/opencode-cockpit/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/Codestz/opencode-cockpit/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Codestz/opencode-cockpit/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/Codestz/opencode-cockpit/compare/v0.2.1...v0.2.2
