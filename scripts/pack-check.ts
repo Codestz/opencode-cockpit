@@ -177,6 +177,51 @@ try {
           throw new Error(`${install.name}: status/segment must export ${name}() for modules to use`)
         }
       }
+
+      /**
+       * The preview command, exactly as every page here tells people to run it. Two ways it has
+       * been broken at once and in silence: the entry shipped without a shebang, so a shell read
+       * the JavaScript as a shell script; and `bunx <package>` looks for a bin named after the
+       * package's last segment, so with only `opencode-statusline` declared it exited 1 and
+       * printed nothing at all. Both are invisible from a checkout, where nobody runs the bin.
+       */
+      const manifest = await Bun.file(
+        join(dir, "node_modules", "@opencode-cockpit", "status", "package.json"),
+      ).json()
+      const bins = manifest.bin as Record<string, string>
+      if (!bins.status) {
+        throw new Error(
+          `${install.name}: status must declare a "status" bin, or \`bunx @opencode-cockpit/status preview\` prints nothing`,
+        )
+      }
+      for (const [name, file] of Object.entries(bins)) {
+        const path = join(dir, "node_modules", "@opencode-cockpit", "status", file)
+        const first = (await Bun.file(path).text()).split("\n", 1)[0] ?? ""
+        if (!first.startsWith("#!")) {
+          throw new Error(`${install.name}: the ${name} bin has no shebang, so a shell cannot run it`)
+        }
+      }
+
+      /**
+       * A module that lives beside the config rather than inside a project — the case the authoring
+       * fallback exists for, and the one that only ever worked from a checkout: the fallback asked
+       * for a `.ts` that a built copy does not have beside it, so every such module failed to load.
+       */
+      const outside = join(work, "outside-modules")
+      await Bun.write(
+        join(outside, "mod.ts"),
+        `import type { CustomModule } from "@opencode-cockpit/status/segment"\n` +
+          `export default { segments: { hi: () => ({ runs: [{ text: "hi" }] }) } } satisfies CustomModule\n`,
+      )
+      const { loadCustomSegments } = await import(
+        join(dir, "node_modules", "@opencode-cockpit", "status", "dist", "core", "custom.js")
+      )
+      const loaded = await loadCustomSegments([join(outside, "mod.ts")], outside)
+      if (loaded.errors.length > 0 || !loaded.segments.has("hi")) {
+        throw new Error(
+          `${install.name}: a module outside a project did not load: ${loaded.errors.join("; ") || "no segments"}`,
+        )
+      }
     }
     for (const bundled of ["solid-js", "@opentui/core", "@opentui/solid"]) {
       if (existsSync(join(dir, "node_modules", bundled))) {

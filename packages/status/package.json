@@ -67,6 +67,7 @@
     "solid-js": "1.9.12"
   },
   "bin": {
-    "opencode-statusline": "./dist/cli/preview.js"
+    "opencode-statusline": "./dist/cli/preview.js",
+    "status": "./dist/cli/preview.js"
   }
 }

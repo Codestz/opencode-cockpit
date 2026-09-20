@@ -6,6 +6,42 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`/statusline`** hands the agent in your session a brief instead of drawing a panel: which config
+  file this project reads, what is drawing now, your modules and any that failed to load, the preset
+  and segment names, and where the design skill lives. It ends by asking what you want it to show.
+  Customising a line is an editing job, and the agent is already sitting there.
+
+### Fixed
+
+- **`bunx @opencode-cockpit/status preview` works.** It was exiting 1 and printing nothing, for two
+  reasons at once: the published entry had no shebang, so a shell read the JavaScript as a shell
+  script, and `bunx <package>` looks for a bin named after the package's last segment, which was
+  never declared. Both are invisible from a checkout, where nobody runs the bin — so the command
+  every page here recommends had never once worked from npm.
+- **A statusline module outside a project loads again.** The fallback that makes
+  `~/.config/opencode-cockpit/modules/` work asked for `./authoring.ts`, which a built copy does not
+  have beside it, so it threw — and with it went every module belonging to the people that fallback
+  exists for. It worked only from a checkout, which is where the tests run.
+- **A missing `ps` no longer fails every shell.** The daemon recorded a process' start time by
+  spawning `ps` from PATH, on the path that starts a shell, so a daemon that inherited an editor's
+  slimmer PATH turned every `shell_start` into
+  `ENOENT: no such file or directory, posix_spawn 'ps'`. It is a best-effort guard against pid reuse
+  and now behaves like one.
+
+### Documentation
+
+- **The design skill contradicted itself about the empty half of a bar**, calling for `panel` in its
+  rules and warning two paragraphs later that `panel` is the colour of the panel the bar sits on, and
+  therefore invisible. The track is `border` — the same wrong tone was in the drawing page's examples.
+- **The six sample states are written down**, with what each one catches: the wall of zeroes on
+  `fresh`, the column widths only `full` reveals, the invented `$0.00` on `unpriced`, the rows that
+  vanish mid-turn on `retrying`.
+- **Two glyph rules the last design pass earned**: no end caps on a bar in a column, because `▕` and
+  `▏` are eighth-blocks whose ink sits against one cell edge and indent the row out of alignment;
+  and print a number once, because a bar and the labelled row below it were both reporting `43%`.
+
 ## [0.3.1] - 2026-09-20
 
 ### Added

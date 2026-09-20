@@ -32,14 +32,14 @@ bunx @opencode-cockpit/status preview --module examples/gallery.ts --state worki
 const runs = Array.from({ length: 16 }, (_, cell) =>
   cell < filled
     ? { text: "█", tone: "accent" as const }
-    : { text: "█", tone: "panel" as const },
+    : { text: "█", tone: "border" as const },
 )
 ```
 
 ```ts
 // background: nothing is drawn at all — the colour is the bar
 runs.push({ text: " ".repeat(filled), bgTone: "accent" })
-runs.push({ text: " ".repeat(width - filled), bgTone: "panel" })
+runs.push({ text: " ".repeat(width - filled), bgTone: "border" })
 ```
 
 **Avoid `░` and `─` as a track.** `░` reads as floating gaps on a dark theme and `─` reads as
@@ -110,9 +110,13 @@ find:
 
 ## Let an agent draw it
 
-The rules this bay learned the expensive way ship **as a skill** inside the package, at
-`skills/statusline-design/`. There is no slash command — point your coding agent at the file and it
-picks the rest up from there:
+Type **`/statusline`** in OpenCode. It draws nothing: it hands the agent already in your session a
+brief carrying what it cannot look up — which config file this project reads, what is drawing right
+now, your modules and any that failed to load, the preset and segment names — and ends by asking
+what you want it to show.
+
+The rules this bay learned the expensive way also ship **as a skill** inside the package, at
+`skills/statusline-design/`. Copy it in and the agent picks up the taste as well as the api:
 
 ```sh
 # Claude Code, for this project or for every project

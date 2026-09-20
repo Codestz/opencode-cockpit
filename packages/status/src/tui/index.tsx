@@ -6,7 +6,9 @@ import { createMemo } from "solid-js"
 import pkg from "../../package.json" with { type: "json" }
 import { asSegmentConfig, loadStatusConfig, type ResolvedLine, resolveLines } from "../core/config.ts"
 import { loadCustomSegments } from "../core/custom.ts"
+import { statuslineBrief } from "../core/instructions.ts"
 import { fit, fitColumn } from "../core/render.ts"
+import { buildReport } from "../core/report.ts"
 import { buildSegments, type SegmentDef } from "../core/segments.ts"
 import { StatusLine } from "./components/statusline.tsx"
 import { buildContext } from "./state/snapshot.ts"
@@ -36,6 +38,7 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
 
     // Your own segments, loaded before the first draw so they are never missing from frame one.
     let custom: ReadonlyMap<string, SegmentDef> = new Map()
+    const moduleErrors: string[] = []
     if (config.modules?.length) {
       const loaded = await loadCustomSegments(config.modules, directory)
       custom = loaded.segments
@@ -46,6 +49,7 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
        * — a whole session was once spent diagnosing an import that had already explained itself
        * and then disappeared.
        */
+      moduleErrors.push(...loaded.errors)
       for (const error of loaded.errors) {
         api.ui.toast({ variant: "error", title: "Statusline", message: error, duration: 10_000 })
         void api.client.app
@@ -87,6 +91,57 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
         />
       )
     }
+
+    /**
+     * `/statusline` draws nothing. Customising a line is an editing job in a file the TUI never
+     * names, so the useful thing is not a help panel the user then has to act on themselves — it is
+     * a brief handed to the agent already in the session, carrying what it cannot look up: which
+     * config file this project reads, what is in it now, and what would not load.
+     */
+    api.keymap.registerLayer({
+      commands: [
+        {
+          name: "cockpit.status.customise",
+          title: "Statusline: ask the agent to customise it",
+          category: "Statusline",
+          namespace: "palette",
+          slashName: "statusline",
+          run: () => {
+            const brief = statuslineBrief(
+              buildReport({
+                version: pkg.version,
+                directory,
+                lines,
+                modules: config.modules,
+                registered: custom.size,
+                errors: moduleErrors,
+              }),
+            )
+            /**
+             * Sent, not left in the prompt. The brief is forty lines; parked in the input it is a
+             * wall of text the user has to scroll past to type their own sentence, and it ends by
+             * asking what they want anyway — so the agent is the right place for it to land.
+             *
+             * On the next tick, because running a slash command clears the prompt it was typed
+             * into: writing during the command itself is wiped a moment later, which looks exactly
+             * like a command that did nothing.
+             */
+            setTimeout(() => {
+              void api.client.tui
+                .appendPrompt({ text: brief })
+                .then(() => api.client.tui.submitPrompt())
+                .catch(() =>
+                  api.ui.toast({
+                    variant: "error",
+                    title: "Statusline",
+                    message: "could not reach the prompt",
+                  }),
+                )
+            }, 0)
+          },
+        },
+      ],
+    })
 
     const on = (surface: string) => lines.filter((spec) => spec.surface === surface)
     const bottom = on("bottom")

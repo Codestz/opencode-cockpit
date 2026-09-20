@@ -36,14 +36,34 @@ look solid", and the two interpretations share no code.
 | **No walls of zeroes on a fresh session.** Check the `fresh` and `empty` fixtures. | Most designs look right mid-session and read as broken before the first reply. |
 | **Every number gets a word.** Colour may repeat the meaning, never carry it alone. | A row distinguished only by colour is unreadable: "I read `mix` and I don't understand the colours." |
 | **Labels in a fixed-width column, values after.** | Alignment is what makes a column read as designed rather than as output. |
-| **Bars are solid.** Filled cells `█` coloured by level; the empty track is `█` in `panel` tone. | `░` reads as floating gaps and `─` reads as `-----`. Both were rejected on sight. Swapping one rejected glyph for another is not iteration. |
+| **Bars are solid.** Filled cells `█` coloured by level; the empty track is `█` in **`border`** tone. | `░` reads as floating gaps and `─` reads as `-----`. Both were rejected on sight. Swapping one rejected glyph for another is not iteration. `panel` is the colour of the panel the bar sits on, so a track drawn in it is invisible. |
 | **Single-width glyphs only.** | An emoji is two cells in most terminals and one in a few — exactly what shears a fixed-width line. |
 | **Prefer a coloured rule `▌` to a filled pill.** | A filled block must be as wide as its text, so a short label leaves a slab of colour and an empty one leaves an empty box. |
 | **Prefer a figure to a moving picture.** | A sparkline redraws its shape every second; movement in peripheral vision is the one thing a statusline must not do. `+1.2%/min · 48m left` changes digits and nothing else. |
 | **No section headings above optional rows.** | A heading cannot know whether the rows under it will draw, so `SPEND` strands itself above nothing on an unpriced model. Self-label the rows instead. |
 | **Emphasis is a bonus, never the meaning.** Bold, italic and underline are `<b>`, `<i>`, `<u>` markup — and a terminal with no bold face draws bold identically to plain. | Colour and background always render; weight may not. There is no strikethrough or inverse at all. |
 | **Colours come from tones, not hexes.** `text muted accent success warning error info background panel border` | A literal ignores the user's theme, which is the first thing that makes a plugin look bolted on. Use a hex only where the exact colour *is* the meaning. |
+| **No end caps on a bar in a column.** `▕` and `▏` are eighth-blocks whose ink sits hard against one edge of the cell. | An opening cap indents the row by most of a column, and the bar stops lining up with the labels above and below it. Caps are fine on a line, where nothing has to align. |
+| **Print a number once.** A bar and the figure beside it are one row; the same percentage on the row below is a second copy. | In a column of ten rows the repeated figure is the thing the eye catches on. Let the bar be cells and let the labelled row carry the number. |
 | **Say what a number means in the word, not the docs.** `cache` is cache reads, `write` is cache writes, `in` is fresh prompt tokens, `out` is output plus reasoning. | Read and write are not in and out; a reader who has to learn your mapping will misread it. |
+
+## The six states, and what each one catches
+
+A design is judged mid-session and ships broken everywhere else. `--state <name>` draws one; with
+no flag the preview draws all six. Every one of these has caught something real:
+
+| State | What it is | What it catches |
+| --- | --- | --- |
+| `fresh` | a session before the first reply: no model, no tokens, no cost | the wall of zeroes, and `0%` against a window nobody has declared |
+| `working` | a few turns in, most of the window served from cache | the ordinary case — and that `cache` dwarfs `in` and `out`, which a layout has to survive |
+| `full` | nearly out of room, a long session | the widest every number gets: `191.6k`, `100%`, four-figure spend. Column widths that only fit `85.2k` shear here |
+| `unpriced` | behind a proxy, nothing declared in the catalogue | segments that invent `$0.00` rather than staying silent |
+| `retrying` | a stalled turn, retry pending | a status that reads "busy" forever, and rows that vanish mid-turn because a streaming message reports zeroes |
+| `empty` | no session at all — what a window shows at start-up | the half of the line that is mounted before anything exists |
+
+Two rules fall out of them: **check `fresh` and `empty` before you call anything done**, because
+they are what a new user sees first; and **size every column against `full`**, not against the
+state you happen to be looking at.
 
 ## The renderer's contract
 

@@ -64,13 +64,31 @@ export class ProcessRegistry {
   }
 }
 
+/**
+ * When a pid was started, used only to tell a reused pid from the one we registered.
+ *
+ * Best effort on purpose. It is reached from `add`, on the path that starts a shell, so anything
+ * thrown here fails the whole command the user asked for — and a daemon inherits whatever PATH the
+ * editor that spawned it had, which more than once has not included `ps`:
+ * `ENOENT: no such file or directory, posix_spawn 'ps'` turned every shell_start into an error.
+ * Look where `ps` actually lives before trusting PATH, and treat not finding it as "unknown".
+ */
+const PS = ["/bin/ps", "/usr/bin/ps", "ps"]
+
 export function processStartTime(pid: number): string | undefined {
-  const result = Bun.spawnSync(["ps", "-o", "lstart=", "-p", String(pid)], {
-    stdout: "pipe",
-    stderr: "ignore",
-  })
-  const text = result.stdout.toString().trim()
-  return result.exitCode === 0 && text ? text : undefined
+  for (const ps of PS) {
+    try {
+      const result = Bun.spawnSync([ps, "-o", "lstart=", "-p", String(pid)], {
+        stdout: "pipe",
+        stderr: "ignore",
+      })
+      const text = result.stdout.toString().trim()
+      if (result.exitCode === 0 && text) return text
+    } catch {
+      // not at this path; try the next
+    }
+  }
+  return undefined
 }
 
 function signalGroup(pid: number, signal: NodeJS.Signals): void {

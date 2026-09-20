@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 /**
  * Draw your statusline in this terminal, against sample sessions, without restarting OpenCode.
  *

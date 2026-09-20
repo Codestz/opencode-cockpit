@@ -73,8 +73,27 @@ const AUTHORING = "@opencode-cockpit/status/segment"
  * imports still work. Only on failure: a module inside a project that installed the bay never
  * takes this path.
  */
+/**
+ * This file's own authoring module, from a checkout or from a build.
+ *
+ * The specifier is a string argument rather than an import, so the build's `./x.ts` → `./x.js`
+ * rewrite never touched it: published copies asked for a `.ts` that is not beside them and threw,
+ * which took out the whole fallback and with it every module living outside a project. Ask for
+ * both, in the order that keeps a checkout resolving to its source.
+ */
+function authoringModule(): string {
+  for (const candidate of ["./authoring.ts", "./authoring.js"]) {
+    try {
+      return Bun.resolveSync(candidate, import.meta.dir)
+    } catch {
+      // try the other extension
+    }
+  }
+  throw new Error("cannot find the statusline authoring module beside this one")
+}
+
 async function importWithAuthoring(full: string): Promise<unknown> {
-  const resolved = Bun.resolveSync("./authoring.ts", import.meta.dir)
+  const resolved = authoringModule()
   const source = await Bun.file(full).text()
   const patched = source.replaceAll(AUTHORING, pathToFileURL(resolved).href)
   if (patched === source) throw new Error(`does not import ${AUTHORING}`)
