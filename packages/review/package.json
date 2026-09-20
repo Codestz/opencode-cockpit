@@ -24,6 +24,10 @@
     "terminal"
   ],
   "exports": {
+    "./server": {
+      "types": "./types/server.d.ts",
+      "default": "./dist/server.js"
+    },
     "./tui": {
       "types": "./types/tui/index.d.ts",
       "default": "./dist/tui/index.js"

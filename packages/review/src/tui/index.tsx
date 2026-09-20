@@ -17,6 +17,7 @@ import {
 } from "../core/model/review.ts"
 import { threadWhere } from "../core/model/thread.ts"
 import { reviewPaths } from "../core/store/paths.ts"
+import { createPersistence } from "../core/store/persist.ts"
 import { frameBounds, VARIANTS, type Variant } from "../core/view/frame.ts"
 import {
   diffRows,
@@ -35,7 +36,6 @@ import { Overlay } from "./components/overlay.tsx"
 import { askForNote } from "./dialogs.tsx"
 import { createHighlighter } from "./render/highlighter.ts"
 import { createRowPool, type RowPool } from "./render/rows.ts"
-import { createPersistence } from "./state/persist.ts"
 import { createStore } from "./state/store.ts"
 
 /** Global keys, leader-prefixed and few. `<leader>` is OpenCode's own prefix — `ctrl+x` by default. */
@@ -578,6 +578,8 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
 
     const close = () => {
       open = false
+      clearInterval(watching)
+      watching = undefined
       panel?.blur()
       dropKeys()
       draw()
@@ -587,12 +589,37 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       else api.renderer.setCursorPosition(0, 0, true)
     }
 
+    /**
+     * Re-read the threads from disk while the review is open.
+     *
+     * The agent answers through the server half, which writes the same files — so the panel has to
+     * find out somehow. Deliberately a re-read rather than a file watcher: a watcher can miss an
+     * event for a file written and replaced within a tick, and a review that silently lags is worse
+     * than one that costs a directory listing every second. Reconcile against what is on disk; never
+     * trust an event stream to be complete.
+     *
+     * **Nothing moves.** Threads change colour under you; the cursor and the scroll stay exactly
+     * where you left them. A panel that reorders itself while your eye is on a line is worse than one
+     * that is briefly stale.
+     */
+    let watching: ReturnType<typeof setInterval> | undefined
+    const reconcile = async () => {
+      const threads = await persistence.load().catch(() => undefined)
+      if (!threads) return
+      const before = JSON.stringify(review.threads)
+      if (JSON.stringify(threads) === before) return
+      review = { ...review, threads }
+      draw()
+    }
+
     const show = () => {
       open = true
       panel?.focus()
       takeKeys()
       draw()
       void refresh()
+      clearInterval(watching)
+      watching = setInterval(() => void reconcile(), 1_500)
     }
 
     const toggle = () => (open ? close() : show())

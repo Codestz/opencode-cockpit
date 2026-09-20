@@ -44,12 +44,20 @@ describe("configured twice in one OpenCode instance", () => {
     const standalone = await shell.server(input)
     const fromBundle = await bundle.server(input)
     expect(Object.keys(standalone.tool ?? {})).toContain("shell_start")
-    expect(fromBundle.tool).toBeUndefined()
-    await standalone.dispose?.()
+    /**
+     * The bundle still loads its *other* bays — what must not happen is a second copy of Shell's
+     * tools, because OpenCode does not deduplicate them and duplicate names fail the model request.
+     */
+    expect(Object.keys(fromBundle.tool ?? {}).filter((name) => name.startsWith("shell_"))).toEqual([])
   })
 
   test("features switched off load nothing; separate instances each get Shell", async () => {
-    expect(await bundle.server(fakeInput(), { features: { shell: false } })).toEqual({})
+    const off = await bundle.server(fakeInput(), { features: { shell: false, review: false } })
+    expect(off.tool).toBeUndefined()
+    /** One bay off leaves the others alone, which is the whole point of the switches. */
+    const shellOff = await bundle.server(fakeInput(), { features: { shell: false } })
+    expect(Object.keys(shellOff.tool ?? {}).filter((name) => name.startsWith("shell_"))).toEqual([])
+    expect(Object.keys(shellOff.tool ?? {})).toContain("review_list")
     const a = await bundle.server(fakeInput())
     const b = await bundle.server(fakeInput())
     expect(a.tool?.shell_start).toBeDefined()

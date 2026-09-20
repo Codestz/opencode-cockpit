@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { Thread } from "../../src/core/model/thread.ts"
 import { reviewPaths } from "../../src/core/store/paths.ts"
-import { createPersistence } from "../../src/tui/state/persist.ts"
+import { createPersistence } from "../../src/core/store/persist.ts"
 
 /**
  * Driven against a real directory rather than a mocked one. The thing under test is the filesystem's
