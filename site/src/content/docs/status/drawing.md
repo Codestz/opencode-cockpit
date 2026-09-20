@@ -94,3 +94,36 @@ function labelled(label: string, value: Run[]) {
   return { runs: [{ text: label.padEnd(11), tone: "muted", dim: true }, ...value] }
 }
 ```
+
+## Glyph traps
+
+Two block glyphs behave differently from how they read in prose, and both cost a design pass to
+find:
+
+- `▕` and `▏` are **eighth-blocks**, not brackets. Their ink sits hard against one edge of the cell,
+  so `▕████▏` as end caps indents the row by most of a column — the bar stops lining up with the
+  labels above and below it. Caps are worth it on a line, where nothing has to align; in a column,
+  leave them off and let the dark track show the bar's extent.
+- `░` and `▒` read as *floating gaps*, not as an empty track. A solid `█` in the `border` tone is
+  the track — and it must be `border`, because `panel` is the colour of the panel it sits on and
+  therefore invisible.
+
+## Let an agent draw it
+
+The rules this bay learned the expensive way ship **as a skill** inside the package, at
+`skills/statusline-design/`. There is no slash command — point your coding agent at the file and it
+picks the rest up from there:
+
+```sh
+# Claude Code, for this project or for every project
+mkdir -p .claude/skills
+cp -r node_modules/@opencode-cockpit/status/skills/statusline-design .claude/skills/
+```
+
+Its `description` fires on any request that mentions the statusline, a segment, or a module
+importing `@opencode-cockpit/status/segment`. What it carries is the taste, not the api: look at the
+thing before shipping it, `preview --watch` instead of restarting OpenCode, the six sample states a
+design gets wrong, the glyph traps above, and the rule that a number printed twice in one column is
+the thing the eye catches on.
+
+It is a plain Markdown file — worth reading yourself even if no agent ever loads it.

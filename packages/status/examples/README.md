@@ -30,6 +30,7 @@ name. Every one is loaded and asserted by the test suite, so none of them can ro
 | [`bottom.ts`](./bottom.ts) | the whole statusline on one line, no sidebar open | `bar` `filling` `rate` `cached` `tokens` |
 | [`sidebar.ts`](./sidebar.ts) | a small column **beside** OpenCode's Context block | `bar` `split` `changes` |
 | [`sidebar-full.ts`](./sidebar-full.ts) | a column that **replaces** that block — turn it off with `plugin_enabled` | `bar` `window` `cached` `spend` `elapsed` `changes` `todo` |
+| [`sidebar-budget.ts`](./sidebar-budget.ts) | a column as a **table**: fixed label gutter, one bar, a proxy's budget, the branch diff | `title` `bar` `tokens` `in` `out` `cache` `write` `sep` `spend` `avail` `git` |
 | [`gallery.ts`](./gallery.ts) | not a statusline — every technique the renderer can draw, labelled | all of them |
 
 ```jsonc

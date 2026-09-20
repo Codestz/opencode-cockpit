@@ -233,8 +233,10 @@ Returning `undefined` hides the segment. A segment that throws loses only its ow
 A module that will not load raises a toast naming the file, rather than silently dropping segments.
 
 **Worked examples** live in [`examples/`](./examples): `bottom.ts` is a complete line for a window
-with no sidebar; `sidebar.ts` is a quiet column beside OpenCode's own Context block. Both are loaded
-and asserted by the test suite, so neither can rot.
+with no sidebar; `sidebar.ts` is a quiet column beside OpenCode's own Context block;
+`sidebar-full.ts` replaces that block; `sidebar-budget.ts` is that column drawn as a table, with a
+budget from a proxy and the branch's diff; `gallery.ts` draws every technique at once. All of them
+are loaded and asserted by the test suite, so none of them can rot.
 
 ## Your Claude Code statusline
 

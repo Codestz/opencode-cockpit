@@ -119,10 +119,15 @@ session sitting at a steady 39% draws a flat wall of identical blocks.
 
 ## Worked examples
 
-Two ship with the package, both loaded and asserted by the test suite so neither can rot:
+Five ship with the package, every one loaded and asserted by the test suite so none of them can rot:
 
 - `examples/bottom.ts` — a complete line for a window with no sidebar: a capacity bar with a scale,
   a sparkline, spend per minute, cache share
-- `examples/sidebar.ts` — a quiet column beside OpenCode's own Context block
+- `examples/sidebar.ts` — a quiet column **beside** OpenCode's own Context block
+- `examples/sidebar-full.ts` — a column that **replaces** that block, so it carries the percentage,
+  the token total and the spend the block carried
+- `examples/sidebar-budget.ts` — the same column as a table: a fixed label gutter, one bar with no
+  figure beside it, a budget read from a proxy, and the branch's whole diff
+- `examples/gallery.ts` — not a statusline: every technique the renderer can draw, labelled
 
 Copy one and cut it down. They are written to be edited, not run verbatim.

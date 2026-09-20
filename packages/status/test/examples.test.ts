@@ -9,7 +9,7 @@ import { buildSegments, type Segment, segmentText, segmentWidth } from "../src/c
  * run is worse than no example, and this is the only thing that catches one.
  */
 
-const EXAMPLES = ["bottom", "sidebar", "sidebar-full"] as const
+const EXAMPLES = ["bottom", "sidebar", "sidebar-full", "sidebar-budget"] as const
 
 const session = (over: Partial<SessionSnapshot> = {}): SessionSnapshot => ({
   id: "ses_1",
@@ -191,5 +191,48 @@ describe("the sidebar example", () => {
     const drawn = draw("sidebar", "split", ctx({ session: working() }))
     const shares = [...segmentText(drawn as Segment).matchAll(/(\d+)%/g)].map((m) => Number(m[1]))
     expect(shares.reduce((a, b) => a + b, 0)).toBe(100)
+  })
+})
+
+/**
+ * The table sidebar. Its whole point is that a column of rows lines up, so the label gutter is
+ * worth asserting: a row that pads to a different width reads as a typo from across the room.
+ */
+describe("the budget sidebar example", () => {
+  const withSession = () => ctx({ session: working(0.4) })
+
+  test("every labelled row starts with the same six-column gutter", () => {
+    for (const type of ["tokens", "in", "out", "cache", "write"]) {
+      const drawn = draw("sidebar-budget", type, withSession())
+      expect(drawn?.runs[0]?.text).toHaveLength(6)
+    }
+  })
+
+  test("the token rows are shares of the window, and they add up to it", () => {
+    const shares = ["in", "out", "cache", "write"].map((type) => {
+      const text = segmentText(draw("sidebar-budget", type, withSession()) as Segment)
+      return Number(/(\d+)%$/.exec(text)?.[1] ?? 0)
+    })
+    expect(shares.reduce((a, b) => a + b, 0)).toBe(100)
+  })
+
+  /** The figure lives on the tokens row below; printing it twice is what the bar is spared. */
+  test("the bar is the full width of solid cells and nothing else", () => {
+    const text = segmentText(draw("sidebar-budget", "bar", withSession()) as Segment)
+    expect(text).toBe("█".repeat(16))
+  })
+
+  /** Without a proxy writing the file there is no budget, and a made-up one would be worse. */
+  test("the budget rows stay silent when nothing reports a spend", () => {
+    expect(draw("sidebar-budget", "spend", withSession())).toBeUndefined()
+    expect(draw("sidebar-budget", "avail", withSession())).toBeUndefined()
+  })
+
+  test("demo fills them in, so the layout can be looked at before a proxy exists", () => {
+    const drawn = buildSegments(withSession(), [{ type: "avail", demo: true }], {
+      custom: loaded["sidebar-budget"].segments,
+      icons: false,
+    })[0]
+    expect(segmentText(drawn as Segment)).toBe("avail ▪ $173.76 · 87%")
   })
 })

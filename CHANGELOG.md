@@ -30,6 +30,12 @@ All notable changes to this project are documented here. The format follows
 
 - **Presets** — a whole line by name, built-ins only: `minimal`, `default`, `detailed`, `sidebar`.
   Anything written beside one wins, so it is a starting point rather than a mode.
+- **`examples/sidebar-budget.ts`** — a sidebar drawn as a table, and the layout a user arrived at
+  after five rejected iterations: a fixed six-column label gutter so every value lines up, one bar
+  with no figure beside it, the tokens split into named rows, a budget read from whatever a proxy
+  writes to `~/.cache/opencode-litellm-iap/spend.json`, and the branch's whole diff against its
+  merge-base rather than what this session happened to touch. `"demo": true` fills in sample
+  figures for the budget rows, so the column can be looked at before a proxy exists.
 
 ### Fixed
 
@@ -39,6 +45,17 @@ All notable changes to this project are documented here. The format follows
 - **`maxRows` and the padding settings work at the top level of the config**, not only inside a
   `lines` entry. Writing them there is the natural guess, and being quietly ignored cost exactly
   the rows they were meant to keep.
+
+### Documentation
+
+- **The design skill is documented on the site**, at *What you can draw* — where it ships, how to
+  point an agent at it, and what it actually carries. It existed in the package and was mentioned
+  only in this file, which is no way to find anything.
+- **Two glyph traps written down**: `▕` and `▏` are eighth-blocks whose ink sits against one edge
+  of the cell, so end caps indent a column's bar out of alignment with its labels; and an empty
+  track wants a solid `█` in the `border` tone, because `░` reads as floating gaps and `panel` is
+  the colour of the panel it sits on.
+- **The worked-examples lists name all five modules.** They still said two.
 
 ## [0.3.0] - 2026-09-19
 
