@@ -388,28 +388,79 @@ const NUMBER_COLUMNS = 5
  * what it meant, but the number no longer points at what the author was looking at — and a review that
  * silently cites the wrong line is worse than one that admits it.
  */
+/**
+ * A note, drawn as a block under the line it is about.
+ *
+ * A single indented line read as part of the diff — the eye went straight past it. A bordered block in
+ * the panel tint is unmistakably *not* code, which is the whole job: a review is a conversation laid
+ * over a file, and the two have to be told apart at a glance.
+ *
+ * Marked when it has drifted: a note written against a line a later turn has moved still means what it
+ * meant, but the number no longer points at what the author was looking at — and a review that
+ * silently cites the wrong line is worse than one that admits it.
+ */
 export function noteRows(note: Note, file: FileChange, width: number): Row[] {
   const stale = noteIsStale(note, file)
-  const room = Math.max(8, width - 6)
-  const head: Run[] = [
-    { text: "   ▏", tone: "accent" },
-    { text: stale ? "note (moved) " : "note ", tone: stale ? "warning" : "accent", bold: true },
-  ]
-  const used = head.reduce((sum, run) => sum + run.text.length, 0)
+  const indent = "  "
+  const box = Math.max(12, width - indent.length)
+  const inner = box - 2
 
-  const rows: Row[] = []
+  const where =
+    note.line === undefined
+      ? "whole file"
+      : note.through && note.through > note.line
+        ? `lines ${note.line}–${note.through}`
+        : `line ${note.line}`
+  const title = ` note · ${where}${stale ? " · moved" : ""} `
+  const tone: Tone = stale ? "warning" : "accent"
+
+  const rows: Row[] = [
+    {
+      runs: [
+        { text: indent },
+        { text: "╭", tone, fill: "panel" },
+        { text: title, tone, bold: true, fill: "panel" },
+        { text: "─".repeat(Math.max(0, inner - title.length)), tone, fill: "panel" },
+        { text: "╮", tone, fill: "panel" },
+      ],
+    },
+  ]
+
+  /** Wrapped to the box, because a note is prose and prose does not fit in one line of a diff. */
   const words = note.body.split(/\s+/).filter(Boolean)
+  // indent + "│ " + room + "│" has to come to the same width as indent + "╭" + inner + "╮".
+  const room = inner - 1
+  const wrapped: string[] = []
   let line = ""
-  const flush = (runs: Run[]) => {
-    rows.push({ runs: [...runs, { text: cell(line, width - used), tone: "text", fill: "panel" }] })
-    line = ""
-  }
   for (const word of words) {
-    if (line.length + word.length + 1 > room)
-      flush(rows.length === 0 ? head : [{ text: "   ▏     ", tone: "accent" }])
-    line = line ? `${line} ${word}` : word
+    if (line && line.length + word.length + 1 > room) {
+      wrapped.push(line)
+      line = word
+    } else {
+      line = line ? `${line} ${word}` : word
+    }
   }
-  if (line || rows.length === 0) flush(rows.length === 0 ? head : [{ text: "   ▏     ", tone: "accent" }])
+  if (line || wrapped.length === 0) wrapped.push(line)
+
+  for (const text of wrapped) {
+    rows.push({
+      runs: [
+        { text: indent },
+        { text: "│ ", tone, fill: "panel" },
+        { text: cell(text, room), tone: "text", fill: "panel" },
+        { text: "│", tone, fill: "panel" },
+      ],
+    })
+  }
+
+  rows.push({
+    runs: [
+      { text: indent },
+      { text: "╰", tone, fill: "panel" },
+      { text: "─".repeat(inner), tone, fill: "panel" },
+      { text: "╯", tone, fill: "panel" },
+    ],
+  })
   return rows
 }
 

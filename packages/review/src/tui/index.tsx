@@ -161,6 +161,14 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
         pool?.clear()
       } else {
         /**
+         * Hide the terminal's own cursor while the review is up.
+         *
+         * That blue block sitting over the file list is the real cursor, still parked in the prompt
+         * underneath. A terminal draws its cursor itself, above every cell, so no z-index could have
+         * covered it — it has to be turned off and put back.
+         */
+        api.renderer.setCursorPosition(0, 0, false)
+        /**
          * Ask for a real parse of the file on screen — both sides of it — and draw with whatever has
          * arrived. Requests are no-ops once a file is cached, so this costs nothing per frame, and
          * nothing here is awaited: highlighting lands when it lands and the next draw picks it up.
@@ -518,6 +526,10 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       panel?.blur()
       dropKeys()
       draw()
+      /** The prompt wants its cursor back, exactly where the host had it. */
+      const at = api.renderer.getCursorState?.()
+      if (at) api.renderer.setCursorPosition(at.x, at.y, true)
+      else api.renderer.setCursorPosition(0, 0, true)
     }
 
     const show = () => {

@@ -11,7 +11,7 @@
  */
 
 import { FIXTURES, type FixtureName } from "../core/fixtures.ts"
-import { emptyReview, toggleRead } from "../core/model/review.ts"
+import { addNote, emptyReview, toggleRead } from "../core/model/review.ts"
 import { type Fill, layout, type Row, type Tone } from "../core/view/layout.ts"
 
 const args = process.argv.slice(2).filter((arg) => arg !== "preview")
@@ -86,7 +86,17 @@ if (!fixture) {
 
 const changes = fixture.changes
 /** A review part-way through: one file read, so the marks and the progress are not all one state. */
-const review = changes.files[0] ? toggleRead(emptyReview(), changes.files[0].path) : emptyReview()
+let review = changes.files[0] ? toggleRead(emptyReview(), changes.files[0].path) : emptyReview()
+/** A note on screen, because an empty review never shows what a review looks like. */
+const noted = changes.files[1] ?? changes.files[0]
+if (noted) {
+  review = addNote(review, {
+    file: noted.path,
+    line: 1,
+    body: "this swallows the parse error — say which file failed, and keep the original message",
+  })
+  review = addNote(review, { file: noted.path, body: "worth a test for the empty case" })
+}
 const file = flag("file") ?? changes.files[1]?.path ?? changes.files[0]?.path
 
 const rows = layout(changes, review, { file, cursor: file, context: 3 }, { width, height })
