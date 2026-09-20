@@ -22,8 +22,8 @@ import {
   threadsOnLine,
 } from "../model/review.ts"
 import type { Thread } from "../model/thread.ts"
+import { cardRows, floatOver } from "./card.ts"
 import type { HighlightedLine } from "./highlight.ts"
-import { type NoteStyle, noteRows } from "./note.ts"
 import { cell, clipRuns, elidePath, type Fill, type Row, type Run, type Tone } from "./rows.ts"
 import { languageOf, type SyntaxState, tokenize } from "./syntax.ts"
 import { type TreeRow, treeRows } from "./tree.ts"
@@ -52,14 +52,12 @@ export interface ViewState {
   /** The thread the cursor is on, drawn heavier and showing its keys. */
   thread?: string
   /**
-   * Threads you have opened or folded by hand, which outranks the default either way.
+   * The thread being read, floating over the diff.
    *
-   * A resolved thread folds so a finished review reads as quiet, and the thread under the cursor
-   * opens because you are looking at it — but both are guesses about what you want, and a key that
-   * says otherwise has to win. An earlier version kept only the opened ones, which made `o` do
-   * nothing at all: the thread it acts on is the focused one, and focus already forced it open.
+   * One at a time and by choice: a card is a thing you open and close, which is a rule with no edge
+   * cases — unlike "which of these inline boxes is folded", which had several.
    */
-  unfolded?: ReadonlyMap<string, boolean>
+  reading?: string
   /**
    * Real highlighting for the file on screen, when a parser has produced some.
    *
@@ -287,7 +285,19 @@ export function footerRows(width: number, _columns: Columns, state: ViewState = 
     { text: " close", tone: "muted" },
   ]
 
-  const hint = selecting ? selected : state.thread ? onThread : normal
+  /** Reading a card, the only keys that matter are the card's. */
+  const reading: Run[] = [
+    { text: " r", tone: "accent", bold: true },
+    { text: " reply  ", tone: "muted" },
+    { text: "x", tone: "accent", bold: true },
+    { text: " remove  ", tone: "muted" },
+    { text: "esc", tone: "accent", bold: true },
+    { text: " close the card  ", tone: "muted" },
+    { text: "j/k", tone: "accent", bold: true },
+    { text: " next line", tone: "muted" },
+  ]
+
+  const hint = state.reading ? reading : selecting ? selected : state.thread ? onThread : normal
   return [{ runs: [{ text: "─".repeat(width), tone: "border" }] }, { runs: clipRuns(hint, width, "none") }]
 }
 
@@ -344,21 +354,8 @@ export function fileRows(changes: ChangeSet, review: Review, state: ViewState, w
   })
 }
 
-/**
- * How a thread is drawn here: finished ones fold away, the one under the cursor is always open.
- *
- * Collapsing is the default for resolved threads because the point of resolving something is to stop
- * reading it — but a thread you have walked onto is one you are looking at, so it opens itself.
- */
-function noteStyle(thread: Thread, file: FileChange, state: ViewState): NoteStyle {
-  const focused = thread.id === state.thread
-  const chosen = state.unfolded?.get(thread.id)
-  return {
-    drifted: threadDrifted(thread, file),
-    focused,
-    collapsed: chosen === undefined ? !focused && thread.status === "resolved" : !chosen,
-  }
-}
+/** The mark in a line's first column that says a thread is attached to it. */
+const MARK = "▐"
 
 /** `@@ -60,7 +60,9 @@` — the real numbers, because a note citing the wrong line is worse than none. */
 export function hunkHeader(hunk: Hunk, width: number): Row {
@@ -397,14 +394,17 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
     ],
   })
 
-  /** A thread about the file as a whole belongs under its header, before any line of it. */
-  for (const thread of threadsFor(review, file.path).filter((each) => each.line === undefined)) {
-    rows.push(
-      ...noteRows(thread, width, {
-        drifted: threadDrifted(thread, file),
-        focused: thread.id === state.thread,
-      }),
-    )
+  /** A thread about the whole file is announced on its heading; the card is where it is read. */
+  const whole = threadsFor(review, file.path).filter((each) => each.line === undefined)
+  if (whole.length > 0 && rows[0]) {
+    rows[0] = {
+      ...rows[0],
+      ...(whole[0] ? { target: whole[0].id } : {}),
+      runs: [
+        ...rows[0].runs.slice(0, -1),
+        { text: ` ${MARK} ${whole.length} `, tone: "accent", bold: true, fill: "panel" },
+      ],
+    }
   }
 
   const language = languageOf(file.path)
@@ -468,10 +468,25 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
         ],
       })
 
-      /** Threads sit under the lines they are about, the way a review reads. */
-      if (line.after !== undefined) {
-        for (const thread of threadsOnLine(review, file.path, line.after)) {
-          rows.push(...noteRows(thread, width, noteStyle(thread, file, state)))
+      /**
+       * A commented line is marked, not interrupted.
+       *
+       * Threads used to be drawn between the lines they were about, which pushed the code around as
+       * the conversation grew and squeezed prose into a diff column. The mark says a thread is here;
+       * the card is where it is read.
+       */
+      const onLine = line.after === undefined ? [] : threadsOnLine(review, file.path, line.after)
+      if (onLine[0]) {
+        const at = rows.at(-1)
+        if (at) {
+          rows[rows.length - 1] = {
+            ...at,
+            target: onLine[0].id,
+            runs: [
+              { text: MARK, tone: onLine[0].status === "resolved" ? "success" : "accent", fill },
+              ...at.runs.slice(1),
+            ],
+          }
         }
       }
     }
@@ -492,7 +507,7 @@ export function layout(changes: ChangeSet, review: Review, state: ViewState, vie
     rows.push({ runs: [{ text: cell("  Nothing has changed here.", inner), tone: "muted" }] })
     for (let index = 1; index < body; index++) rows.push({ runs: [{ text: " ".repeat(inner) }] })
     rows.push(...footerRows(inner, columns, state))
-    return rows
+    return withCard(rows, changes, review, state, columns, inner)
   }
 
   /** One column: the list, or the diff, never both squeezed into something unreadable. */
@@ -503,7 +518,7 @@ export function layout(changes: ChangeSet, review: Review, state: ViewState, vie
       rows.push(shown[index] ?? { runs: [{ text: " ".repeat(inner) }] })
     }
     rows.push(...footerRows(inner, columns, state))
-    return rows
+    return withCard(rows, changes, review, state, columns, inner)
   }
 
   const list = window(fileRows(changes, review, state, columns.list), listScroll(changes, state, body), body)
@@ -519,7 +534,48 @@ export function layout(changes: ChangeSet, review: Review, state: ViewState, vie
     })
   }
   rows.push(...footerRows(inner, columns, state))
-  return rows
+  return withCard(rows, changes, review, state, columns, inner)
+}
+
+/**
+ * Floats the thread being read over the diff.
+ *
+ * Applied last, over the finished screen, so opening a card never changes what is underneath it —
+ * the diff keeps its scroll, the list keeps its place, and closing the card puts you back exactly
+ * where you were.
+ */
+function withCard(
+  rows: Row[],
+  changes: ChangeSet,
+  review: Review,
+  state: ViewState,
+  columns: Columns,
+  inner: number,
+): Row[] {
+  if (!state.reading) return rows
+  const thread = review.threads.find((each) => each.id === state.reading)
+  if (!thread) return rows
+
+  const body = rows.slice(HEADER_ROWS, rows.length - FOOTER_ROWS)
+  const width = columns.list === 0 ? inner : columns.diff
+  const file = changes.files.find((each) => each.path === thread.file)
+  const card = cardRows(thread, { width, height: body.length }, threadDrifted(thread, file))
+
+  /** Over the diff column only: the file list stays put, so you can see where you are. */
+  const floated = floatOver(
+    body.map((row) => ({ runs: row.runs.slice(columns.list === 0 ? 0 : columns.list + 1) })),
+    card,
+    width,
+  )
+  const merged = body.map((row, index) => ({
+    ...row,
+    runs:
+      columns.list === 0
+        ? (floated[index]?.runs ?? row.runs)
+        : [...row.runs.slice(0, columns.list + 1), ...(floated[index]?.runs ?? [])],
+  }))
+
+  return [...rows.slice(0, HEADER_ROWS), ...merged, ...rows.slice(rows.length - FOOTER_ROWS)]
 }
 
 /**

@@ -242,6 +242,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
             ...view,
             label: label(),
             ...(hereThreadId() ? { thread: hereThreadId() } : {}),
+            ...(view.reading ? { reading: view.reading } : {}),
             syntax: highlighted ? "tree-sitter" : "basic",
             ...(highlighted ? { highlighted } : {}),
           },
@@ -320,6 +321,8 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
         ...view,
         pane: "diff",
         thread: picked,
+        /** Clicking a marked line opens its thread, the way clicking a comment marker does anywhere. */
+        ...(picked ? { reading: picked } : {}),
         ...(line === undefined ? {} : { line, ...(keepAnchor ? {} : { anchor: undefined }) }),
       }
       draw()
@@ -421,6 +424,15 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
 
       /** Enter on a folder folds it; on a file it opens it and moves you into the diff. */
       const enter = () => {
+        /** In the diff, enter is "read this thread" when there is one to read. */
+        if (view.pane === "diff") {
+          const thread = hereThread()
+          if (thread) {
+            view = { ...view, reading: thread.id }
+            draw()
+          }
+          return
+        }
         const rows = navigableRows(store.current().changes, view)
         const row = rows.find((candidate) => candidate.path === view.cursor)
         if (!row) return
@@ -521,19 +533,21 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       }
 
       /**
-       * Opens a folded thread back up, or folds an open one away.
+       * Opens the thread under the cursor as a card, or closes the one that is open.
        *
-       * The choice is remembered per thread and beats the default, which is the only way this key can
-       * do anything: it acts on the thread under the cursor, and that one is open by default.
+       * One thread at a time, because a card is a thing you open and close — a rule with no edge
+       * cases, unlike "which of these inline boxes is folded", which had several and cost a key that
+       * appeared to do nothing.
        */
       const expand = () => {
+        if (view.reading) {
+          view = { ...view, reading: undefined }
+          draw()
+          return
+        }
         const thread = hereThread()
         if (!thread) return
-        const unfolded = new Map(view.unfolded ?? [])
-        /** It is open unless told otherwise: this acts on the focused thread, and focus opens it. */
-        const showing = unfolded.get(thread.id) ?? true
-        unfolded.set(thread.id, !showing)
-        view = { ...view, unfolded }
+        view = { ...view, reading: thread.id }
         draw()
       }
 
@@ -635,9 +649,20 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
           { name: "cockpit.review.pane.cycle", title: "Right pane or full screen", run: () => cycle() },
           {
             name: "cockpit.review.pane.quit",
-            title: "Close the review",
-            /** Deferred: closing disposes the layer this handler is dispatching through. */
-            run: () => setTimeout(() => close(), 0),
+            title: "Close the card, or the review",
+            /**
+             * Escape closes the nearest thing first. A key that shuts the whole review when you meant
+             * to put a comment away is a key you stop trusting.
+             */
+            run: () => {
+              if (view.reading) {
+                view = { ...view, reading: undefined }
+                draw()
+                return
+              }
+              /** Deferred: closing disposes the layer this handler is dispatching through. */
+              setTimeout(() => close(), 0)
+            },
           },
         ],
         bindings: [
