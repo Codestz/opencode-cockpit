@@ -5,13 +5,19 @@
  * effects — so the panel cannot render a list by mapping over state the way a component would. What
  * *is* live is the renderable: OpenTUI's setters request a frame when their value changes.
  *
- * So the panel keeps a pool of text lines, one per visible row, and each draw assigns to them. The
- * pool is the size of the viewport, never the size of the file: a three-thousand-line diff scrolled to
- * the middle costs the same as a three-line one, because only what fits is ever built.
+ * So the panel is handed a pool of text lines built once in its own JSX, and each draw assigns to
+ * them. The pool is the size of the window, never the size of the file: a three-thousand-line diff
+ * scrolled to the middle costs the same as a three-line one, because only what fits is ever drawn.
+ *
+ * **Nothing here imports OpenTUI.** `@opentui/core` is not installed beside a published plugin — it
+ * has to come from the host — and a top-level import of it would take the whole bundle down, shell
+ * and statusline included, if the host did not happen to provide it. The lines come from the
+ * component, and `StyledText` is taken from a line's own `content`, which is the host's class by
+ * construction.
  */
 
 import type { TuiThemeCurrent } from "@opencode-ai/plugin/tui"
-import { type BoxRenderable, RGBA, StyledText, type TextChunk, TextRenderable } from "@opentui/core"
+import type { RGBA, TextChunk, TextRenderable } from "@opentui/core"
 import type { Fill, Row, Tone } from "../../core/view/layout.ts"
 
 /** Tones are named for meaning; the theme decides what they look like. */
@@ -73,51 +79,52 @@ const fillColour = (theme: TuiThemeCurrent, fill: Fill | undefined): RGBA | unde
   }
 }
 
-/** One styled run becomes one chunk; a row becomes one `StyledText`. */
-const chunk = (theme: TuiThemeCurrent, run: Row["runs"][number]): TextChunk => ({
-  __isChunk: true,
-  text: run.text,
-  /** An exact colour wins: a real highlighter knows better than a tone does. */
-  fg: run.color ? RGBA.fromHex(run.color) : toneColour(theme, run.tone),
-  bg: fillColour(theme, run.fill),
-  attributes: (run.bold ? 1 : 0) | (run.italic ? 4 : 0),
-})
+/** One styled run becomes one chunk. An exact colour wins: a parser knows better than a tone does. */
+const chunk = (theme: TuiThemeCurrent, run: Row["runs"][number]): TextChunk =>
+  ({
+    __isChunk: true,
+    text: run.text,
+    fg: (run.color as RGBA | undefined) ?? toneColour(theme, run.tone),
+    bg: fillColour(theme, run.fill),
+    attributes: (run.bold ? 1 : 0) | (run.italic ? 4 : 0),
+  }) as TextChunk
 
 export interface RowPool {
-  /** Draws these rows, growing or shrinking the pool to match. */
+  /** Draws these rows onto the pool's lines. */
   draw: (rows: readonly Row[], theme: TuiThemeCurrent) => void
-  /** Blanks every line without tearing the pool down, for a hidden panel. */
+  /** Blanks every line without tearing anything down, for a hidden panel. */
   clear: () => void
 }
 
 /**
- * A pool of text lines inside `panel`.
+ * A pool over lines the component already built.
  *
- * Lines are created once and reused. Rebuilding the children on every draw would be simpler and is
- * what a component would do — it also allocates a renderable per line per keystroke, which a scroll
- * turns into thousands.
+ * `StyledText` is read off a line rather than imported: the getter hands back an instance the host
+ * made, so its constructor is the host's class — the same object graph, with no module resolution
+ * involved. Building a styled line is the one thing here that needs a class at all.
  */
-export function createRowPool(panel: BoxRenderable): RowPool {
-  const lines: TextRenderable[] = []
+export function createRowPool(lines: readonly TextRenderable[]): RowPool {
+  type StyledTextish = { new (chunks: TextChunk[]): unknown }
+  let StyledText: StyledTextish | undefined
 
-  const grow = (count: number) => {
-    while (lines.length < count) {
-      const line = new TextRenderable(panel.ctx, { content: "" })
-      panel.add(line)
-      lines.push(line)
+  const styled = (chunks: TextChunk[]): unknown => {
+    if (!StyledText && lines[0]) {
+      const sample = lines[0].content as unknown as object | undefined
+      const found = sample?.constructor as StyledTextish | undefined
+      if (found && found !== Object) StyledText = found
     }
+    return StyledText ? new StyledText(chunks) : chunks.map((part) => part.text).join("")
   }
 
   return {
     draw(rows, theme) {
-      grow(rows.length)
       rows.forEach((row, index) => {
         const line = lines[index]
         if (!line) return
-        line.content = new StyledText(row.runs.map((run) => chunk(theme, run)))
+        line.content = styled(row.runs.map((run) => chunk(theme, run))) as never
         line.visible = true
       })
-      /** Lines the current view does not need are hidden, not destroyed: the next draw may want them. */
+      /** Lines this view does not need are hidden, not destroyed: the next draw may want them. */
       for (let index = rows.length; index < lines.length; index++) {
         const line = lines[index]
         if (line) line.visible = false

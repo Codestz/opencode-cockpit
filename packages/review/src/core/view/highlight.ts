@@ -17,7 +17,12 @@ import type { Language } from "./syntax.ts"
 
 /** What a highlighter hands back: one array of coloured spans per line. */
 export interface HighlightedLine {
-  spans: { text: string; color?: string; bold?: boolean; italic?: boolean }[]
+  /**
+   * `color` is whatever the highlighter produced — an OpenTUI `RGBA`, passed straight through to the
+   * renderer. Deliberately untyped here: this file is pure and must not import the terminal library,
+   * and converting to hex and back would lose precision for nothing.
+   */
+  spans: { text: string; color?: unknown; bold?: boolean; italic?: boolean }[]
 }
 
 export interface Highlighter {

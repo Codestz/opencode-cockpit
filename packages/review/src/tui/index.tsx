@@ -516,10 +516,10 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
               }}
               onClick={(x, y) => clickAt(x, y)}
               onScroll={(x, delta) => scrollAt(x, delta)}
-              onBoxes={(back, front) => {
+              onReady={({ backdrop: back, panel: front, lines }) => {
                 backdrop = back
                 panel = front
-                pool = createRowPool(front)
+                pool = createRowPool(lines)
                 draw()
               }}
             />

@@ -14,7 +14,7 @@ import { join } from "node:path"
 
 const root = join(import.meta.dir, "..")
 // Dependency order, matching the release workflow.
-const PACKAGES = ["protocol", "daemon", "client", "shell", "status", "opencode"]
+const PACKAGES = ["protocol", "daemon", "client", "shell", "status", "review", "opencode"]
 const work = mkdtempSync(join(tmpdir(), "cockpit-pack-"))
 const tarballs = join(work, "tarballs")
 // Short: unix socket paths are limited to 104 bytes on macOS.

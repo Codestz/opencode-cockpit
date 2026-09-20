@@ -1,13 +1,13 @@
 /** @jsxImportSource @opentui/solid */
 // biome-ignore-all lint/a11y/noStaticElementInteractions: these are terminal boxes, not DOM elements
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
-import { type BoxRenderable, type MouseEvent, RGBA } from "@opentui/core"
+import type { BoxRenderable, MouseEvent, TextRenderable } from "@opentui/core"
 import type { JSX } from "solid-js"
 
 export interface OverlayProps {
   api: TuiPluginApi
-  /** Hands both boxes up. Everything about them is set from the plugin, imperatively. */
-  onBoxes: (backdrop: BoxRenderable, panel: BoxRenderable) => void
+  /** Hands the boxes and the line pool up. Everything about them is set from the plugin. */
+  onReady: (parts: { backdrop: BoxRenderable; panel: BoxRenderable; lines: TextRenderable[] }) => void
   /** A click landed outside the panel: dismiss, the way clicking off any overlay does. */
   onDismiss: () => void
   /** A click landed on the panel, at this screen column and row. */
@@ -16,20 +16,28 @@ export interface OverlayProps {
   onScroll: (x: number, delta: number) => void
 }
 
-/** Nothing painted: the conversation stays readable behind the panel. */
-const TRANSPARENT = RGBA.fromValues(0, 0, 0, 0)
+/**
+ * How many lines the panel can ever draw.
+ *
+ * Built once, because a slot's tree is read once — so the pool cannot grow later and has to be large
+ * enough for any terminal. Hidden lines cost nothing to keep and the alternative is constructing
+ * renderables from the plugin, which would mean importing OpenTUI's classes at runtime: a package
+ * that is not installed beside a published plugin and would take the whole bundle down if the host
+ * did not happen to provide it.
+ */
+const MAX_LINES = 300
 
 /**
- * A full-window, transparent backdrop with the review panel inside it.
+ * A full-window, transparent backdrop with the review panel inside it, and the panel's lines.
  *
  * The backdrop exists to catch two things, not to be seen. It gives the panel a parent that *is* the
  * window, so the panel only has to say how wide it wants to be — both earlier height bugs were a box
  * sized against the window while pinned to a parent at the foot of the screen. And it catches clicks
- * that land outside the panel, which is how an overlay is supposed to be dismissed.
+ * that land outside the panel, which is how an overlay is dismissed.
  *
  * **Nothing here is reactive.** The host reads a slot's children once and never revisits them — not
  * the tree shape, not `createEffect`, not the compiled prop effects. OpenTUI's setters (`visible`,
- * `width`, `title`…) request a frame when their value changes, so the plugin drives these by
+ * `width`, `content`…) request a frame when their value changes, so the plugin drives all of this by
  * assignment.
  */
 export function Overlay(props: OverlayProps): JSX.Element {
@@ -37,22 +45,22 @@ export function Overlay(props: OverlayProps): JSX.Element {
 
   let backdrop: BoxRenderable | undefined
   let panel: BoxRenderable | undefined
+  const lines: TextRenderable[] = []
 
   /**
-   * Refs fire child-first, so neither box can assume the other exists yet. Handing them up only when
-   * both have arrived is the difference between a configured pane and a placeholder: keying off the
-   * backdrop while the panel's ref ran first meant the callback never fired at all, and both boxes kept
-   * their dummy `width={20} height={0}`.
+   * Refs fire child-first, so nothing can assume its siblings exist yet. Handing everything up once
+   * the last piece has arrived is the difference between a configured pane and a placeholder.
    */
-  const ready = (element: BoxRenderable, which: "backdrop" | "panel") => {
-    if (which === "backdrop") backdrop = element
-    else panel = element
-    if (backdrop && panel) props.onBoxes(backdrop, panel)
+  const ready = () => {
+    if (backdrop && panel && lines.length === MAX_LINES) props.onReady({ backdrop, panel, lines })
   }
 
   return (
     <box
-      ref={(element: BoxRenderable) => ready(element, "backdrop")}
+      ref={(element: BoxRenderable) => {
+        backdrop = element
+        ready()
+      }}
       visible={false}
       position="absolute"
       // Anchored bottom-right, never top-left. An absolute box is positioned against its parent, and
@@ -65,11 +73,14 @@ export function Overlay(props: OverlayProps): JSX.Element {
       zIndex={1000}
       flexDirection="row"
       justifyContent="flex-end"
-      backgroundColor={TRANSPARENT}
+      backgroundColor="transparent"
       onMouseDown={() => props.onDismiss()}
     >
       <box
-        ref={(element: BoxRenderable) => ready(element, "panel")}
+        ref={(element: BoxRenderable) => {
+          panel = element
+          ready()
+        }}
         width={20}
         height={0}
         flexShrink={0}
@@ -77,7 +88,6 @@ export function Overlay(props: OverlayProps): JSX.Element {
         border
         backgroundColor={theme().backgroundPanel}
         titleColor={theme().accent}
-        // A click on the panel is not a click outside it.
         onMouseDown={(event: MouseEvent) => {
           event.stopPropagation()
           props.onClick(event.x, event.y)
@@ -89,7 +99,19 @@ export function Overlay(props: OverlayProps): JSX.Element {
           event.stopPropagation()
           props.onScroll(event.x, scroll.direction === "up" ? -3 : 3)
         }}
-      />
+      >
+        {Array.from({ length: MAX_LINES }, () => (
+          <text
+            wrapMode="none"
+            flexShrink={0}
+            visible={false}
+            ref={(element: TextRenderable) => {
+              lines.push(element)
+              ready()
+            }}
+          />
+        ))}
+      </box>
     </box>
   )
 }

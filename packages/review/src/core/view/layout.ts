@@ -66,9 +66,10 @@ export interface Run {
    * An exact colour, when something knows better than a tone does.
    *
    * A real highlighter returns colours, not categories — so it sets this and the renderers prefer it
-   * over `tone`. Everything else keeps naming a tone and letting the theme decide.
+   * over `tone`. Untyped because this file is pure: it is the terminal library's own colour object,
+   * carried through untouched.
    */
-  color?: string
+  color?: unknown
   italic?: boolean
 }
 
