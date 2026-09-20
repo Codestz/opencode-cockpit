@@ -16,6 +16,7 @@ import {
   toggleRead,
 } from "../core/model/review.ts"
 import { threadWhere } from "../core/model/thread.ts"
+import { reviewPaths } from "../core/store/paths.ts"
 import { frameBounds, VARIANTS, type Variant } from "../core/view/frame.ts"
 import {
   diffRows,
@@ -34,6 +35,7 @@ import { Overlay } from "./components/overlay.tsx"
 import { askForNote } from "./dialogs.tsx"
 import { createHighlighter } from "./render/highlighter.ts"
 import { createRowPool, type RowPool } from "./render/rows.ts"
+import { createPersistence } from "./state/persist.ts"
 import { createStore } from "./state/store.ts"
 
 /** Global keys, leader-prefixed and few. `<leader>` is OpenCode's own prefix — `ctrl+x` by default. */
@@ -93,6 +95,25 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
     let open = false
     let variant: Variant = options.variant ?? "right"
     let review: Review = emptyReview()
+
+    /**
+     * Threads are kept on disk, one file each, keyed by the branch they are about.
+     *
+     * A review is about the *work*, not the conversation: you read a branch, leave notes, the agent
+     * answers them, and somewhere in the middle you may well start a new chat. That should no more
+     * lose your review than it loses your branch — and a half-finished review is a half-finished job,
+     * not a piece of interface state to throw away on exit.
+     */
+    let persistence = createPersistence(
+      reviewPaths(api.state.path.worktree || api.state.path.directory, api.state.vcs?.branch),
+    )
+
+    /** Saves one thread, and says nothing if it cannot: a review that will not persist still works. */
+    const keep = (id: string | undefined) => {
+      if (!id) return
+      const thread = review.threads.find((each) => each.id === id)
+      if (thread) void persistence.save(thread).catch(() => {})
+    }
     let view: ViewState = { context: 3, collapsed: new Set() }
     /** Where the list starts on screen, so a click can be turned into a row. */
     const listTop = () => (panel?.y ?? 0) + 1 + HEADER_ROWS
@@ -210,7 +231,12 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
     }
 
     const refresh = async () => {
-      await store.load()
+      /** The branch can change under us, and the review that belongs to it changes with it. */
+      persistence = createPersistence(
+        reviewPaths(api.state.path.worktree || api.state.path.directory, api.state.vcs?.branch),
+      )
+      const [, threads] = await Promise.all([store.load(), persistence.load()])
+      review = { ...review, threads }
       /** Land on something worth reading rather than on an empty pane. */
       if (!view.file || !files().some((file) => file.path === view.file)) {
         view = { ...view, ...(files()[0] ? { file: files()[0]?.path } : {}) }
@@ -433,6 +459,8 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
                   "you",
                   at,
                 )
+            /** Written as it is said. A note you have to remember to save is a note you will lose. */
+            keep(existing?.id ?? threadOn(review, file, from, to)?.id)
             view = { ...view, anchor: undefined }
             draw()
           },
@@ -455,7 +483,10 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
         if (!view.file) return
         const from = view.pane === "diff" ? view.line : undefined
         const thread = threadOn(review, view.file, from, from)
-        if (thread) review = drop(review, thread.id)
+        if (thread) {
+          review = drop(review, thread.id)
+          void persistence.remove(thread.id).catch(() => {})
+        }
         draw()
       }
 
