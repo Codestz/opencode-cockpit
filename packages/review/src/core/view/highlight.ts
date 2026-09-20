@@ -42,7 +42,14 @@ const FILETYPES: Partial<Record<Language, string>> = {
 }
 
 export const filetypeFor = (language: Language, path: string): string | undefined => {
-  if (language === "ts") return path.endsWith(".tsx") || path.endsWith(".jsx") ? "tsx" : "typescript"
+  /**
+   * TSX asks for the typescript grammar, not a `tsx` one.
+   *
+   * OpenTUI ships typescript, javascript and markdown; there is no `tsx` parser to find, so asking
+   * for one failed — and failure used to switch highlighting off for the whole session, which is how
+   * opening one `.tsx` file left every other file uncoloured.
+   */
+  void path
   return FILETYPES[language]
 }
 

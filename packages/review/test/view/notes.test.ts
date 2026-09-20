@@ -107,3 +107,40 @@ describe("a thread about the whole file", () => {
     expect(rows[0]?.target).toBe(review.threads[0]?.id as string)
   })
 })
+
+describe("what is tinted", () => {
+  /**
+   * A tint across a changed row repeats what the `+` already said, and in a newly added file it
+   * repeats it on every line — leaving nothing for a comment to stand out against.
+   */
+  test("a changed line is not flooded with background", () => {
+    const rows = diffRows(file, emptyReview(), { context: 3 }, 80)
+    const added = rows.find((row) => row.runs.some((run) => run.text.includes("TWO")))
+    expect(added?.runs.every((run) => run.fill === undefined || run.fill === "none")).toBe(true)
+  })
+
+  test("a comment is, so it is the one tinted thing on the screen", () => {
+    const review = open(emptyReview(), { file: "a.ts", line: 2 }, "why?")
+    const rows = diffRows(file, review, { context: 3 }, 80)
+    const said = rows.find((row) => row.runs.some((run) => run.text.includes("why?")))
+    expect(said?.runs.some((run) => run.fill === "panel")).toBe(true)
+  })
+})
+
+describe("counting changes", () => {
+  test("a file that deleted nothing does not say so", () => {
+    const created = { ...file, before: "", additions: 4, deletions: 0 }
+    expect(text(diffRows(created, emptyReview(), { context: 3 }, 80))[0]).not.toContain("−0")
+  })
+
+  test("a file that added nothing does not say so either", () => {
+    const deleted = { path: "a.ts", before: "gone\n", after: "", additions: 0, deletions: 1 }
+    expect(text(diffRows(deleted, emptyReview(), { context: 3 }, 80))[0]).not.toContain("+0")
+  })
+
+  test("a file that did both says both", () => {
+    const heading = text(diffRows(file, emptyReview(), { context: 3 }, 80))[0] as string
+    expect(heading).toContain("+1")
+    expect(heading).toContain("−1")
+  })
+})

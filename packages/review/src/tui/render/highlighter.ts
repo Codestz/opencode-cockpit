@@ -79,6 +79,8 @@ export function createHighlighter(theme: () => TuiThemeCurrent): Highlighter {
   const asked = new Set<string>()
   let broken = false
   let parsed = false
+  /** Filetypes this build has no grammar for: asked once, then left alone. */
+  const unsupported = new Set<string>()
 
   const key = (path: string, source: string) => [path, source.length, source.slice(0, 64)].join("|")
 
@@ -88,7 +90,7 @@ export function createHighlighter(theme: () => TuiThemeCurrent): Highlighter {
     request(path, source, language, onReady) {
       if (broken) return
       const filetype = filetypeFor(language, path)
-      if (!filetype) return
+      if (!filetype || unsupported.has(filetype)) return
       const id = key(path, source)
       if (cache.has(id) || asked.has(id)) return
       asked.add(id)
@@ -118,8 +120,20 @@ export function createHighlighter(theme: () => TuiThemeCurrent): Highlighter {
           cache.set(id, toLines(styled.chunks))
           parsed = true
           onReady()
-        } catch {
-          /** One strike: a highlighter that works sometimes is worse than one that never runs. */
+        } catch (error) {
+          /**
+           * One strike for a client that is not answering — but not for a file it cannot parse.
+           *
+           * A missing grammar is a fact about that filetype, not a sign the parser is broken, and
+           * treating the two the same is how one unparseable file left everything else uncoloured
+           * for the rest of the session.
+           */
+          const message = error instanceof Error ? error.message : String(error)
+          const unparseable = /parser|filetype|language|grammar|unsupported/i.test(message)
+          if (unparseable) {
+            unsupported.add(filetype)
+            return
+          }
           broken = true
           cache.clear()
         }

@@ -132,7 +132,10 @@ export function navigableRows(changes: ChangeSet, state: ViewState): TreeRow[] {
   )
 }
 
-const tallyOf = (file: FileChange) => `+${file.additions} −${file.deletions}`
+const tallyOf = (file: FileChange) =>
+  [file.additions > 0 ? `+${file.additions}` : "", file.deletions > 0 ? `−${file.deletions}` : ""]
+    .filter(Boolean)
+    .join(" ")
 
 /**
  * The same numbers, in their own colours.
@@ -140,13 +143,14 @@ const tallyOf = (file: FileChange) => `+${file.additions} −${file.deletions}`
  * Grey `+11 −3` makes you read the digits to learn the shape of a change; green and red let you see it
  * without reading — which is the whole job of a file list you are scanning rather than studying.
  */
-const tallyRuns = (file: FileChange | undefined): Run[] =>
-  file
-    ? [
-        { text: ` +${file.additions}`, tone: "added" },
-        { text: ` −${file.deletions}`, tone: "removed" },
-      ]
-    : []
+const tallyRuns = (file: FileChange | undefined): Run[] => {
+  if (!file) return []
+  /** A file that deleted nothing does not need telling you so forty times down a list. */
+  return [
+    ...(file.additions > 0 ? [{ text: ` +${file.additions}`, tone: "added" as const }] : []),
+    ...(file.deletions > 0 ? [{ text: ` −${file.deletions}`, tone: "removed" as const }] : []),
+  ]
+}
 
 /**
  * A five-cell bar of the add/remove ratio, the way a pull request shows it. Small, and the fastest
@@ -410,7 +414,15 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
         highest !== undefined &&
         at >= lowest &&
         at <= highest
-      const fill: Fill = here ? "selected" : added ? "added" : removed ? "removed" : "none"
+      /**
+       * No background on a changed line.
+       *
+       * A tint across the whole row repeats what the `+` already said, and in a newly added file it
+       * repeats it on every line — leaving the screen uniformly green with nothing for a comment to
+       * stand out against. The sign and the line numbers carry the change; the background stays out
+       * of it, so the only tinted thing on screen is a conversation.
+       */
+      const fill: Fill = here ? "selected" : "none"
       /**
        * The sign is the loud part and the code is not: `success`/`error` for `+`/`−`, and the code
        * coloured as code. Painting a whole line green makes a diff harder to read, not easier — the
@@ -437,8 +449,16 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
         ...(line.after === undefined ? {} : { line: line.after }),
         runs: [
           { text: here ? "▌" : " ", tone: "accent", fill },
-          { text: String(line.before ?? "").padStart(NUMBER_COLUMNS - 1), tone: "lineNumber", fill },
-          { text: String(line.after ?? "").padStart(NUMBER_COLUMNS), tone: "lineNumber", fill },
+          {
+            text: String(line.before ?? "").padStart(NUMBER_COLUMNS - 1),
+            tone: removed ? "removed" : "lineNumber",
+            fill,
+          },
+          {
+            text: String(line.after ?? "").padStart(NUMBER_COLUMNS),
+            tone: added ? "added" : "lineNumber",
+            fill,
+          },
           { text: ` ${sign}`, tone: signTone, fill, bold: added || removed },
           ...clipRuns(painted, body, fill),
         ],
@@ -475,7 +495,6 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
               cardRows(each, { width: width - INDENT, height: 40 }, threadDrifted(each, file), {
                 inline: true,
                 focused: each.id === state.thread,
-                fill,
               }),
               each.id,
             ),

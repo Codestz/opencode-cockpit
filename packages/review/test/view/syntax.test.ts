@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { filetypeFor } from "../../src/core/view/highlight.ts"
 import { languageOf, tokenize } from "../../src/core/view/syntax.ts"
 
 const tones = (text: string, state?: { inBlockComment: boolean }) =>
@@ -64,5 +65,23 @@ describe("tokenize", () => {
         .runs.map((run) => run.text)
         .join(""),
     ).toBe(line)
+  })
+})
+
+describe("which grammar a file asks for", () => {
+  /**
+   * OpenTUI ships typescript, javascript and markdown — there is no `tsx` parser to find. Asking for
+   * one failed, and failure used to switch highlighting off for the session, so opening a single
+   * `.tsx` file left every other file uncoloured.
+   */
+  test("tsx and jsx ask for the typescript grammar, which exists", () => {
+    expect(filetypeFor("ts", "src/tui/index.tsx")).toBe("typescript")
+    expect(filetypeFor("ts", "src/app.jsx")).toBe("typescript")
+    expect(filetypeFor("ts", "src/thing.ts")).toBe("typescript")
+  })
+
+  test("a filetype with no grammar asks for nothing rather than guessing", () => {
+    expect(filetypeFor("shell", "scripts/release.sh")).toBeUndefined()
+    expect(filetypeFor("plain", "LICENSE")).toBeUndefined()
   })
 })
