@@ -20,6 +20,16 @@ describe("where a note lands", () => {
     expect(noteAt).toBe(lineAt + 1)
   })
 
+  test("a note about a range is drawn under the last line it covers", () => {
+    const review = addNote(emptyReview(), { file: "a.ts", line: 1, through: 3, body: "all three" })
+    const rows = diffRows(file, review, { context: 3 }, 80)
+    const text = rows.map((row) => row.runs.map((run) => run.text).join(""))
+    const noteAt = text.findIndex((row) => row.includes("note ·"))
+    const lastAt = text.findIndex((row) => row.includes("three"))
+    expect(noteAt).toBe(lastAt + 1)
+    expect(text[noteAt]).toContain("lines 1–3")
+  })
+
   test("the note's title names the line it was written against", () => {
     const review = addNote(emptyReview(), { file: "a.ts", line: 2, body: "here" })
     const rows = diffRows(file, review, { context: 3 }, 80)

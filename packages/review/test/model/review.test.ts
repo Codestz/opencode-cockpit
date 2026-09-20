@@ -95,10 +95,15 @@ describe("adding and removing notes", () => {
     expect(notesFor(review, "a.ts").map((n) => n.line)).toEqual([2, 5, 9])
   })
 
-  test("a note is found under the first line of its range, not the last", () => {
+  /**
+   * Changed deliberately: a note about a range reads *after* the lines it covers, which is where a
+   * pull request puts it and where the eye goes looking. Drawing it under the first line put it in
+   * the middle of the code it was talking about.
+   */
+  test("a note is found under the last line of its range, not the first", () => {
     const review = addNote(emptyReview(), note({ line: 2, through: 6 }))
-    expect(notesOnLine(review, "a.ts", 2)).toHaveLength(1)
-    expect(notesOnLine(review, "a.ts", 6)).toHaveLength(0)
+    expect(notesOnLine(review, "a.ts", 6)).toHaveLength(1)
+    expect(notesOnLine(review, "a.ts", 2)).toHaveLength(0)
   })
 })
 

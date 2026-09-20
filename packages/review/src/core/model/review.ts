@@ -101,9 +101,15 @@ export function notesFor(review: Review, file: string): Note[] {
   return review.notes.filter((note) => note.file === file).sort((a, b) => (a.line ?? 0) - (b.line ?? 0))
 }
 
-/** The notes attached to one line of the new file, for drawing them under it. */
+/**
+ * The notes to draw under one line of the new file.
+ *
+ * A note about a range belongs under the *last* line it covers, not the first: you select thirteen
+ * through fifteen and the note is about all three, so it reads after them — which is where a pull
+ * request puts it, and where your eye goes looking.
+ */
 export function notesOnLine(review: Review, file: string, line: number): Note[] {
-  return notesFor(review, file).filter((note) => noteRange(note)?.from === line)
+  return notesFor(review, file).filter((note) => noteRange(note)?.to === line)
 }
 
 export function toggleRead(review: Review, file: string): Review {

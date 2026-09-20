@@ -254,8 +254,17 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
 
       const lines = visibleDiffLines(store.current().changes, review, { ...view, pane: "diff" }, viewport())
       const line = lines[row]
-      /** A click on a hunk header or a note is not a click on a line; it moves the pane, not the cursor. */
-      view = { ...view, pane: "diff", ...(line === undefined ? {} : { line, anchor: undefined }) }
+      /**
+       * Clicking while a selection is open *extends* it, so `v` then a click picks a range the way
+       * dragging would — the anchor stays and the click becomes the moving end. A click on a hunk
+       * header or a note is not a click on a line at all; it moves the pane, not the cursor.
+       */
+      const keepAnchor = view.anchor !== undefined
+      view = {
+        ...view,
+        pane: "diff",
+        ...(line === undefined ? {} : { line, ...(keepAnchor ? {} : { anchor: undefined }) }),
+      }
       draw()
     }
 
