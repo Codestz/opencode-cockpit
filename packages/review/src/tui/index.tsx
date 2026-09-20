@@ -125,11 +125,14 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
      * A later turn moves the code out from under a note, and a review that quotes the wrong line is
      * worse than one that admits the line has moved — so the text is recorded now, while it is true.
      */
-    const quoteOf = (path: string, line: number | undefined): string[] | undefined => {
-      if (line === undefined) return undefined
+    const quoteOf = (path: string, from: number | undefined, to?: number): string[] | undefined => {
+      if (from === undefined) return undefined
       const file = files().find((candidate) => candidate.path === path)
-      const text = file?.after.split("\n")[line - 1]
-      return text === undefined ? undefined : [text]
+      if (!file) return undefined
+      const lines = file.after.split("\n")
+      const last = Math.max(from, to ?? from)
+      const quoted = lines.slice(from - 1, last)
+      return quoted.length > 0 ? quoted : undefined
     }
 
     /** Everything on screen, recomputed and pushed onto the boxes. */
@@ -279,7 +282,8 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
         const next = rows[Math.max(0, Math.min(rows.length - 1, (at < 0 ? 0 : at) + delta))]
         if (!next) return
         view = { ...view, cursor: next.path }
-        if (next.kind === "file") view = { ...view, file: next.path, scroll: 0, line: undefined }
+        if (next.kind === "file")
+          view = { ...view, file: next.path, scroll: 0, line: undefined, anchor: undefined }
         view = { ...view, listOffset: keepCursorVisible(store.current().changes, view, listHeight()) }
         draw()
       }
@@ -333,35 +337,64 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       }
 
       /**
-       * One key, and it comments on whatever the cursor is on: a line in the diff, the whole file in
-       * the list. Two keys for the same intention is two keys to remember for no reason.
+       * One key, and it comments on whatever the cursor is on: the selected lines, the line under the
+       * cursor, or — in the file list — the file as a whole. Two keys for the same intention is two
+       * keys to remember for no reason.
        */
-      const comment = () => {
+      const comment = (whole = false) => {
         const file = view.file
         if (!file) return
-        const line = view.pane === "diff" ? view.line : undefined
-        const existing = notesFor(review, file).find((note) => note.line === line)
+        const onFile = whole || view.pane === "files"
+        const from = onFile ? undefined : Math.min(view.anchor ?? view.line ?? 0, view.line ?? 0)
+        const to = onFile ? undefined : Math.max(view.anchor ?? view.line ?? 0, view.line ?? 0)
+        const existing = notesFor(review, file).find((note) => note.line === from)
+
+        /**
+         * The review's keys are a *global* layer, so they are still live while a dialog is open — which
+         * means typing a note would trigger them and `escape` would close the review out from under the
+         * prompt. They go away for as long as the dialog is up.
+         */
+        dropKeys()
+
         askForNote(
           api,
           {
-            title: line === undefined ? `Note on ${file}` : `Note on ${file}:${line}`,
+            title:
+              from === undefined
+                ? `Note on ${file}`
+                : to !== undefined && to > from
+                  ? `Note on ${file}:${from}-${to}`
+                  : `Note on ${file}:${from}`,
             description:
-              line === undefined
+              from === undefined
                 ? "About the file as a whole. Nothing is sent until you submit."
                 : "Nothing is sent until you submit the review.",
             ...(existing ? { value: existing.body } : {}),
           },
           (body) => {
-            const quoted = quoteOf(file, line)
+            const quoted = quoteOf(file, from, to)
             review = addNote(review, {
               file,
-              ...(line === undefined ? {} : { line }),
+              ...(from === undefined ? {} : { line: from }),
+              ...(to !== undefined && from !== undefined && to > from ? { through: to } : {}),
               body,
               ...(quoted ? { quoted } : {}),
             })
+            view = { ...view, anchor: undefined }
+            draw()
+          },
+          () => {
+            /** However it closed, the keys come back and the pane is drawn again. */
+            if (open) takeKeys()
             draw()
           },
         )
+      }
+
+      /** Starts a selection, or throws one away. The moving end is the cursor. */
+      const selectRange = () => {
+        view = view.anchor === undefined ? { ...view, anchor: view.line } : { ...view, anchor: undefined }
+        draw()
       }
 
       /** A second thought can also be no thought at all. */
@@ -432,6 +465,8 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
           { key: "d,pagedown", cmd: "cockpit.review.pane.scrollDown", desc: "Scroll down" },
           { key: "u,pageup", cmd: "cockpit.review.pane.scrollUp", desc: "Scroll up" },
           { key: "c", cmd: "cockpit.review.pane.comment", desc: "Comment" },
+          { key: "f", cmd: "cockpit.review.pane.commentFile", desc: "Comment on the file" },
+          { key: "v", cmd: "cockpit.review.pane.select", desc: "Select lines" },
           { key: "x", cmd: "cockpit.review.pane.uncomment", desc: "Remove note" },
           { key: "space,m", cmd: "cockpit.review.pane.read", desc: "Mark read" },
           { key: "s", cmd: "cockpit.review.pane.source", desc: "Next source" },

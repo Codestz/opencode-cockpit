@@ -12,6 +12,7 @@ export function askForNote(
   api: TuiPluginApi,
   { title, description, value }: { title: string; description: string; value?: string },
   onConfirm: (text: string) => void,
+  onClose?: () => void,
 ): void {
   const DialogPrompt = api.ui.DialogPrompt
   api.ui.dialog.replace(
@@ -23,12 +24,17 @@ export function askForNote(
         value={value ?? ""}
         onConfirm={(text: string) => {
           api.ui.dialog.clear()
+          onClose?.()
           const trimmed = text.trim()
           if (trimmed) onConfirm(trimmed)
         }}
-        onCancel={() => api.ui.dialog.clear()}
+        onCancel={() => {
+          api.ui.dialog.clear()
+          onClose?.()
+        }}
       />
     ),
-    () => {},
+    /** Dismissed any other way — escape, a click outside — still has to give the keys back. */
+    () => onClose?.(),
   )
 }

@@ -124,6 +124,13 @@ export interface ViewState {
   /** The line of the new file the diff cursor sits on — what a comment would attach to. */
   line?: number
   /**
+   * Where a multi-line selection started, if one is being made.
+   *
+   * A note about a loop is about the loop, not about whichever line you happened to be on — so the
+   * range is held here and `line` is the moving end of it, the way a selection works anywhere else.
+   */
+  anchor?: number
+  /**
    * First visible row of the file list.
    *
    * Its own scroll, separate from the cursor. Deriving it from the cursor made the wheel *select*
@@ -253,16 +260,46 @@ export function headerRows(
 }
 
 /** The keys, on screen, because a surface whose keys are undiscoverable has none. */
-export function footerRows(width: number, _columns: Columns, pane: "files" | "diff" = "files"): Row[] {
+export function footerRows(width: number, _columns: Columns, state: ViewState = {}): Row[] {
   /** The hints say what the keys do *here*, because `j` means two different things in two panes. */
-  const inDiff = pane === "diff"
-  const hint: Run[] = [
+  const inDiff = state.pane === "diff"
+  const selecting = inDiff && state.anchor !== undefined
+
+  /** While a selection is live, say what `c` would capture rather than what it usually does. */
+  const lines =
+    selecting && state.line !== undefined && state.anchor !== undefined
+      ? Math.abs(state.line - state.anchor) + 1
+      : 0
+
+  const selected: Run[] = [
+    { text: " ", tone: "muted" },
+    { text: `${lines} line${lines === 1 ? "" : "s"} selected  `, tone: "accent", bold: true },
+    { text: "j/k", tone: "accent", bold: true },
+    { text: " extend  ", tone: "muted" },
+    { text: "c", tone: "accent", bold: true },
+    { text: " note them  ", tone: "muted" },
+    { text: "v", tone: "accent", bold: true },
+    { text: " cancel", tone: "muted" },
+  ]
+
+  const normal: Run[] = [
     { text: " tab", tone: "accent", bold: true },
     { text: inDiff ? " files  " : " diff  ", tone: "muted" },
     { text: "j/k", tone: "accent", bold: true },
     { text: inDiff ? " line  " : " file  ", tone: "muted" },
-    { text: "c", tone: "accent", bold: true },
-    { text: inDiff ? " note this line  " : " note this file  ", tone: "muted" },
+    ...(inDiff
+      ? [
+          { text: "v", tone: "accent" as const, bold: true },
+          { text: " select  ", tone: "muted" as const },
+          { text: "c", tone: "accent" as const, bold: true },
+          { text: " note line  ", tone: "muted" as const },
+        ]
+      : [
+          { text: "c", tone: "accent" as const, bold: true },
+          { text: " note file  ", tone: "muted" as const },
+        ]),
+    { text: "f", tone: "accent", bold: true },
+    { text: " note file  ", tone: "muted" },
     { text: "x", tone: "accent", bold: true },
     { text: " unnote  ", tone: "muted" },
     { text: "space", tone: "accent", bold: true },
@@ -274,11 +311,9 @@ export function footerRows(width: number, _columns: Columns, pane: "files" | "di
     { text: "q", tone: "accent", bold: true },
     { text: " close", tone: "muted" },
   ]
-  const used = hint.reduce((sum, run) => sum + run.text.length, 0)
-  return [
-    { runs: [{ text: "─".repeat(width), tone: "border" }] },
-    { runs: [...hint, { text: " ".repeat(Math.max(0, width - used)) }] },
-  ]
+
+  const hint = selecting ? selected : normal
+  return [{ runs: [{ text: "─".repeat(width), tone: "border" }] }, { runs: clipRuns(hint, width, "none") }]
 }
 
 /** One row per tree entry: folders with a count, files with their basename and tally. */
@@ -443,7 +478,19 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
     for (const line of hunk.lines) {
       const added = line.kind === "add"
       const removed = line.kind === "remove"
-      const here = focused && line.after !== undefined && line.after === state.line
+      /** Inside the selection, or on the cursor when there is no selection. */
+      const at = line.after
+      const lowest =
+        state.anchor === undefined ? state.line : Math.min(state.anchor, state.line ?? state.anchor)
+      const highest =
+        state.anchor === undefined ? state.line : Math.max(state.anchor, state.line ?? state.anchor)
+      const here =
+        focused &&
+        at !== undefined &&
+        lowest !== undefined &&
+        highest !== undefined &&
+        at >= lowest &&
+        at <= highest
       const fill: Fill = here ? "selected" : added ? "added" : removed ? "removed" : "none"
       /**
        * The sign is the loud part and the code is not: `success`/`error` for `+`/`−`, and the code
@@ -501,7 +548,7 @@ export function layout(changes: ChangeSet, review: Review, state: ViewState, vie
   if (changes.files.length === 0) {
     rows.push({ runs: [{ text: cell("  Nothing has changed here.", inner), tone: "muted" }] })
     for (let index = 1; index < body; index++) rows.push({ runs: [{ text: " ".repeat(inner) }] })
-    rows.push(...footerRows(inner, columns, state.pane ?? "files"))
+    rows.push(...footerRows(inner, columns, state))
     return rows
   }
 
@@ -512,7 +559,7 @@ export function layout(changes: ChangeSet, review: Review, state: ViewState, vie
     for (let index = 0; index < body; index++) {
       rows.push(shown[index] ?? { runs: [{ text: " ".repeat(inner) }] })
     }
-    rows.push(...footerRows(inner, columns, state.pane ?? "files"))
+    rows.push(...footerRows(inner, columns, state))
     return rows
   }
 
@@ -528,7 +575,7 @@ export function layout(changes: ChangeSet, review: Review, state: ViewState, vie
       runs: [...left, { text: "│", tone: "border" }, ...right],
     })
   }
-  rows.push(...footerRows(inner, columns, state.pane ?? "files"))
+  rows.push(...footerRows(inner, columns, state))
   return rows
 }
 
