@@ -10,13 +10,7 @@
   "include": ["src"],
   "references": [
     {
-      "path": "../shell"
-    },
-    {
-      "path": "../status"
-    },
-    {
-      "path": "../review"
+      "path": "../client"
     }
   ]
 }

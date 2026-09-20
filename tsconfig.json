@@ -17,6 +17,9 @@
       "path": "packages/status"
     },
     {
+      "path": "packages/review"
+    },
+    {
       "path": "packages/opencode"
     }
   ]

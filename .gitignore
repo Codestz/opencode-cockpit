@@ -20,3 +20,8 @@ media/social/
 .idea/
 .vscode/
 *.log
+
+# mcpx / serena (local tooling config)
+.mcpx/
+.serena/
+.claude
