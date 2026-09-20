@@ -13,6 +13,8 @@ import {
   type Source,
   say,
   threadOn,
+  threadsFor,
+  threadsOnLine,
   toggleRead,
 } from "../core/model/review.ts"
 import { threadWhere } from "../core/model/thread.ts"
@@ -149,6 +151,20 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
     const files = () => store.current().changes.files
 
     /**
+     * The thread the cursor is standing on, for drawing it open and heavier than the rest.
+     *
+     * Derived from the line rather than navigated to: a thread lives on a line, so standing on the
+     * line is standing on the thread, and a second cursor would be a second thing to explain.
+     */
+    const hereThreadId = (): string | undefined => {
+      if (!view.file) return undefined
+      if (view.pane === "files") {
+        return threadsFor(review, view.file).find((each) => each.line === undefined)?.id
+      }
+      return view.line === undefined ? undefined : threadsOnLine(review, view.file, view.line)[0]?.id
+    }
+
+    /**
      * The line a note was written against, kept with it.
      *
      * A later turn moves the code out from under a note, and a review that quotes the wrong line is
@@ -217,6 +233,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
           {
             ...view,
             label: label(),
+            ...(hereThreadId() ? { thread: hereThreadId() } : {}),
             syntax: highlighted ? "tree-sitter" : "basic",
             ...(highlighted ? { highlighted } : {}),
           },
@@ -478,15 +495,68 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
         draw()
       }
 
+      /**
+       * The thread under the cursor, which is what `r`, `o` and `x` act on.
+       *
+       * Derived rather than navigated: a thread lives on a line, so standing on the line is standing
+       * on the thread. A second cursor for threads would be a second thing to move and to explain.
+       */
+      const hereThread = () => {
+        if (!view.file) return undefined
+        if (view.pane === "files")
+          return threadsFor(review, view.file).find((each) => each.line === undefined)
+        return view.line === undefined ? undefined : threadsOnLine(review, view.file, view.line)[0]
+      }
+
+      /** Opens a folded thread back up, or folds an open one away. */
+      const expand = () => {
+        const thread = hereThread()
+        if (!thread) return
+        const expanded = new Set(view.expanded ?? [])
+        if (expanded.has(thread.id)) expanded.delete(thread.id)
+        else expanded.add(thread.id)
+        view = { ...view, expanded }
+        draw()
+      }
+
+      /**
+       * Answering back.
+       *
+       * Saying something on a resolved thread reopens it, which is the honest meaning of a reply: you
+       * have read the answer and it is not finished. Accepting needs no key — a thread you say nothing
+       * more about is one you accepted.
+       */
+      const replyHere = () => {
+        const thread = hereThread()
+        if (!thread) return comment()
+        dropKeys()
+        askForNote(
+          api,
+          {
+            title: `Reply · ${thread.file}:${threadWhere(thread)}`,
+            description:
+              thread.status === "resolved"
+                ? "Replying reopens this thread, so the agent sees it again."
+                : "Continues the thread. Nothing is sent until you submit.",
+          },
+          (body) => {
+            review = say(review, thread.id, { author: "you", body, at: Date.now() })
+            keep(thread.id)
+            draw()
+          },
+          () => {
+            if (open) takeKeys()
+            draw()
+          },
+        )
+      }
+
       /** Throws a thread away. Resolving is what the agent does; this is what you do to a mistake. */
       const uncomment = () => {
-        if (!view.file) return
-        const from = view.pane === "diff" ? view.line : undefined
-        const thread = threadOn(review, view.file, from, from)
-        if (thread) {
-          review = drop(review, thread.id)
-          void persistence.remove(thread.id).catch(() => {})
-        }
+        const thread = hereThread()
+        if (!thread) return
+        review = drop(review, thread.id)
+        void persistence.remove(thread.id).catch(() => {})
         draw()
       }
 
@@ -516,7 +586,9 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
             run: () => comment(true),
           },
           { name: "cockpit.review.pane.select", title: "Select lines", run: () => selectRange() },
-          { name: "cockpit.review.pane.uncomment", title: "Remove the note here", run: () => uncomment() },
+          { name: "cockpit.review.pane.uncomment", title: "Remove the thread here", run: () => uncomment() },
+          { name: "cockpit.review.pane.reply", title: "Reply to the thread here", run: () => replyHere() },
+          { name: "cockpit.review.pane.expand", title: "Open or fold the thread here", run: () => expand() },
           { name: "cockpit.review.pane.files", title: "Back to the file list", run: () => toFiles() },
           {
             name: "cockpit.review.pane.read",
@@ -541,7 +613,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
               void refresh()
             },
           },
-          { name: "cockpit.review.pane.reload", title: "Reload", run: () => void refresh() },
+          { name: "cockpit.review.pane.reload", title: "Reload the diff", run: () => void refresh() },
           { name: "cockpit.review.pane.cycle", title: "Right pane or full screen", run: () => cycle() },
           {
             name: "cockpit.review.pane.quit",
@@ -561,10 +633,12 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
           { key: "f", cmd: "cockpit.review.pane.commentFile", desc: "Comment on the file" },
           { key: "v", cmd: "cockpit.review.pane.select", desc: "Select lines" },
           { key: "h,left", cmd: "cockpit.review.pane.files", desc: "Back to the files" },
-          { key: "x", cmd: "cockpit.review.pane.uncomment", desc: "Remove note" },
+          { key: "x", cmd: "cockpit.review.pane.uncomment", desc: "Remove thread" },
+          { key: "r", cmd: "cockpit.review.pane.reply", desc: "Reply" },
+          { key: "o", cmd: "cockpit.review.pane.expand", desc: "Open or fold" },
           { key: "space,m", cmd: "cockpit.review.pane.read", desc: "Mark read" },
           { key: "s", cmd: "cockpit.review.pane.source", desc: "Next source" },
-          { key: "r", cmd: "cockpit.review.pane.reload", desc: "Reload" },
+          { key: "g", cmd: "cockpit.review.pane.reload", desc: "Reload" },
           { key: "w", cmd: "cockpit.review.pane.cycle", desc: "Width" },
           { key: "q,escape", cmd: "cockpit.review.pane.quit", desc: "Close" },
         ],

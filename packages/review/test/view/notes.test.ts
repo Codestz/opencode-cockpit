@@ -98,3 +98,40 @@ describe("how a thread reads", () => {
     }
   })
 })
+
+describe("a finished thread you want to read again", () => {
+  const resolved = thread({
+    status: "resolved",
+    entries: [
+      { author: "you", body: "is this licence complete?", at: 1 },
+      {
+        author: "agent",
+        body: "Yes, the MIT license is complete and correct. It includes the grant, the conditions, the warranty disclaimer and the limitation of liability.",
+        at: 2,
+      },
+    ],
+  })
+
+  test("folds to one line, and says how to open it", () => {
+    const rows = noteRows(resolved, 80)
+    expect(rows).toHaveLength(1)
+    expect(text(rows)[0]).toContain("o opens")
+  })
+
+  test("opened, it shows the whole answer rather than a line of it", () => {
+    const rows = text(noteRows(resolved, 80, { collapsed: false }))
+    /** Prose wraps, so the words are read back without the box drawing between them. */
+    const prose = rows
+      .map((row) => row.replace(/[│╭╮╰╯─┃┏┓┗┛]/g, " "))
+      .join(" ")
+      .replace(/\s+/g, " ")
+    expect(prose).toContain("limitation of liability")
+    expect(rows.length).toBeGreaterThan(3)
+  })
+
+  test("the folded line still says which line and that it is resolved", () => {
+    const line = text(noteRows(resolved, 80))[0] as string
+    expect(line).toContain("line 2")
+    expect(line).toContain("resolved")
+  })
+})

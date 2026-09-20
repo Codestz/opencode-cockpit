@@ -7,7 +7,7 @@
  */
 
 import { latest, type Thread, threadWhere, waitingOn } from "../model/thread.ts"
-import { cell, type Fill, type Row, type Run, type Tone, wrapText } from "./rows.ts"
+import { cell, clipRuns, type Fill, type Row, type Run, type Tone, wrapText } from "./rows.ts"
 
 export interface NoteStyle {
   /** Hidden bodies, showing only the heading. Resolved threads start this way. */
@@ -57,17 +57,24 @@ function collapsedRows(thread: Thread, indent: string, width: number, drifted: b
   const mark = thread.status === "resolved" ? "✓" : "•"
   const last = latest(thread)
   const head = `${mark} ${threadWhere(thread)} · ${statusWord(thread, drifted)} `
-  const room = Math.max(0, width - indent.length - head.length - 1)
+  /** `o` at the end, because a line of an answer is not the answer and the way back has to be visible. */
+  const more = thread.entries.length > 0 ? " o opens " : ""
+  const room = Math.max(0, width - indent.length - head.length - more.length - 1)
   const trailing = last ? cell(last.body, room) : " ".repeat(room)
   return [
     {
       target: thread.id,
-      runs: [
-        { text: indent },
-        { text: head, tone, fill: "panel" },
-        { text: trailing, tone: "muted", fill: "panel" },
-        { text: " ", fill: "panel" },
-      ],
+      /** Clipped, because a heading plus a hint can outgrow a narrow column on its own. */
+      runs: clipRuns(
+        [
+          { text: indent },
+          { text: head, tone, fill: "panel" },
+          { text: trailing, tone: "muted", fill: "panel" },
+          { text: more, tone: "border", fill: "panel" },
+        ],
+        width,
+        "panel",
+      ),
     },
   ]
 }

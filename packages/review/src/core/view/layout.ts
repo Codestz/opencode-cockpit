@@ -21,8 +21,9 @@ import {
   threadsFor,
   threadsOnLine,
 } from "../model/review.ts"
+import type { Thread } from "../model/thread.ts"
 import type { HighlightedLine } from "./highlight.ts"
-import { noteRows } from "./note.ts"
+import { type NoteStyle, noteRows } from "./note.ts"
 import { cell, clipRuns, elidePath, type Fill, type Row, type Run, type Tone } from "./rows.ts"
 import { languageOf, type SyntaxState, tokenize } from "./syntax.ts"
 import { type TreeRow, treeRows } from "./tree.ts"
@@ -50,6 +51,13 @@ export interface ViewState {
   collapsed?: ReadonlySet<string>
   /** The thread the cursor is on, drawn heavier and showing its keys. */
   thread?: string
+  /**
+   * Threads opened back up by hand.
+   *
+   * A resolved thread collapses so a finished review reads as quiet — but the answer is still in
+   * there, and a line of it is not the answer. This is how you get the rest back.
+   */
+  expanded?: ReadonlySet<string>
   /**
    * Real highlighting for the file on screen, when a parser has produced some.
    *
@@ -261,7 +269,23 @@ export function footerRows(width: number, _columns: Columns, state: ViewState = 
     { text: " close", tone: "muted" },
   ]
 
-  const hint = selecting ? selected : normal
+  /** Standing on a thread changes what the keys mean, so it changes what the footer says. */
+  const onThread: Run[] = [
+    { text: " r", tone: "accent", bold: true },
+    { text: " reply  ", tone: "muted" },
+    { text: "o", tone: "accent", bold: true },
+    { text: " open/fold  ", tone: "muted" },
+    { text: "x", tone: "accent", bold: true },
+    { text: " remove  ", tone: "muted" },
+    { text: "j/k", tone: "accent", bold: true },
+    { text: " line  ", tone: "muted" },
+    { text: "h", tone: "accent", bold: true },
+    { text: " files  ", tone: "muted" },
+    { text: "q", tone: "accent", bold: true },
+    { text: " close", tone: "muted" },
+  ]
+
+  const hint = selecting ? selected : state.thread ? onThread : normal
   return [{ runs: [{ text: "─".repeat(width), tone: "border" }] }, { runs: clipRuns(hint, width, "none") }]
 }
 
@@ -316,6 +340,21 @@ export function fileRows(changes: ChangeSet, review: Review, state: ViewState, w
       ],
     }
   })
+}
+
+/**
+ * How a thread is drawn here: finished ones fold away, the one under the cursor is always open.
+ *
+ * Collapsing is the default for resolved threads because the point of resolving something is to stop
+ * reading it — but a thread you have walked onto is one you are looking at, so it opens itself.
+ */
+function noteStyle(thread: Thread, file: FileChange, state: ViewState): NoteStyle {
+  const focused = thread.id === state.thread
+  return {
+    drifted: threadDrifted(thread, file),
+    focused,
+    collapsed: !focused && thread.status === "resolved" && !state.expanded?.has(thread.id),
+  }
 }
 
 /** `@@ -60,7 +60,9 @@` — the real numbers, because a note citing the wrong line is worse than none. */
@@ -429,12 +468,7 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
       /** Threads sit under the lines they are about, the way a review reads. */
       if (line.after !== undefined) {
         for (const thread of threadsOnLine(review, file.path, line.after)) {
-          rows.push(
-            ...noteRows(thread, width, {
-              drifted: threadDrifted(thread, file),
-              focused: thread.id === state.thread,
-            }),
-          )
+          rows.push(...noteRows(thread, width, noteStyle(thread, file, state)))
         }
       }
     }
