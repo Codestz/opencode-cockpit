@@ -331,9 +331,18 @@ const NUMBER_COLUMNS = 5
  */
 const INDENT = NUMBER_COLUMNS * 2 + 2
 
-/** Moves a thread's rows in from the margin, and tags each with the thread it belongs to. */
+/**
+ * Moves a thread's rows in from the margin, and tags each with the thread it belongs to.
+ *
+ * The indent carries the comment's own surface rather than being left blank. Unfilled, it punched a
+ * black hole through the tinted diff on the left of every conversation — the band has to reach the
+ * edge to read as one surface instead of a gap with text beside it.
+ */
 const indent = (rows: readonly Row[], id: string): Row[] =>
-  rows.map((row) => ({ target: id, runs: [{ text: " ".repeat(INDENT) }, ...row.runs] }))
+  rows.map((row) => ({
+    target: id,
+    runs: [{ text: " ".repeat(INDENT), fill: "comment" as Fill }, ...row.runs],
+  }))
 
 /** `@@ -60,7 +60,9 @@` — the real numbers, because a note citing the wrong line is worse than none. */
 export function hunkHeader(hunk: Hunk, width: number): Row {

@@ -167,3 +167,27 @@ describe("counting changes", () => {
     expect(heading).toContain("−1")
   })
 })
+
+describe("the comment band", () => {
+  /**
+   * Unfilled, the indent punched a black hole through the tinted diff to the left of every
+   * conversation — a gap with text beside it rather than one surface.
+   */
+  test("reaches the margin, so it reads as one surface", () => {
+    const review = open(emptyReview(), { file: "a.ts", line: 2 }, "why?")
+    const said = diffRows(file, review, { context: 3 }, 80).find((row) =>
+      row.runs.some((run) => run.text.includes("why?")),
+    )
+    expect(said?.runs.every((run) => run.fill === "comment")).toBe(true)
+  })
+
+  test("and spans the full width of the column it is drawn in", () => {
+    const review = open(emptyReview(), { file: "a.ts", line: 2 }, "why?")
+    for (const width of [50, 80, 120]) {
+      const said = diffRows(file, review, { context: 3 }, width).find((row) =>
+        row.runs.some((run) => run.text.includes("why?")),
+      )
+      expect(rowWidth(said ?? { runs: [] })).toBe(width)
+    }
+  })
+})
