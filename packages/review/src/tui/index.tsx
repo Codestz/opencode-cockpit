@@ -32,6 +32,7 @@ import {
   splitColumns,
   type ViewState,
   visibleDiffLines,
+  visibleDiffRows,
 } from "../core/view/layout.ts"
 import { languageOf } from "../core/view/syntax.ts"
 import { Overlay } from "./components/overlay.tsx"
@@ -158,10 +159,17 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
      */
     const hereThreadId = (): string | undefined => {
       if (!view.file) return undefined
-      if (view.pane === "files") {
-        return threadsFor(review, view.file).find((each) => each.line === undefined)?.id
-      }
-      return view.line === undefined ? undefined : threadsOnLine(review, view.file, view.line)[0]?.id
+      /** Picked by hand — clicking a thread's box — outranks whatever the line cursor implies. */
+      if (view.thread && review.threads.some((each) => each.id === view.thread)) return view.thread
+      const onLine =
+        view.pane === "diff" && view.line !== undefined
+          ? threadsOnLine(review, view.file, view.line)[0]?.id
+          : undefined
+      /**
+       * Falling back to the file's own thread, which lives on no line and so can never be under the
+       * cursor. Without this it could be written and then never opened again.
+       */
+      return onLine ?? threadsFor(review, view.file).find((each) => each.line === undefined)?.id
     }
 
     /**
@@ -297,8 +305,11 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
         return
       }
 
-      const lines = visibleDiffLines(store.current().changes, review, { ...view, pane: "diff" }, viewport())
-      const line = lines[row]
+      const drawn = visibleDiffRows(store.current().changes, review, { ...view, pane: "diff" }, viewport())
+      const at = drawn[row]
+      /** A click on a thread's box is a click on the thread, whatever line it happens to sit under. */
+      const picked = at?.target?.startsWith("rv_") ? at.target : undefined
+      const line = at?.line
       /**
        * Clicking while a selection is open *extends* it, so `v` then a click picks a range the way
        * dragging would — the anchor stays and the click becomes the moving end. A click on a hunk
@@ -308,6 +319,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       view = {
         ...view,
         pane: "diff",
+        thread: picked,
         ...(line === undefined ? {} : { line, ...(keepAnchor ? {} : { anchor: undefined }) }),
       }
       draw()
@@ -372,7 +384,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
         const at = view.line === undefined ? 0 : lines.indexOf(view.line)
         const next = lines[Math.max(0, Math.min(lines.length - 1, (at < 0 ? 0 : at) + delta))]
         if (next === undefined) return
-        view = { ...view, line: next }
+        view = { ...view, line: next, thread: undefined }
         /** Keep the cursor in sight without yanking the view around it. */
         const index = lines.indexOf(next)
         const height = Math.max(1, (panel?.height ?? 20) - 2 - HEADER_ROWS - FOOTER_ROWS)

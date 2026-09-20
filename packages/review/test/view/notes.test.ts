@@ -135,3 +135,25 @@ describe("a finished thread you want to read again", () => {
     expect(line).toContain("resolved")
   })
 })
+
+describe("a thread about the whole file", () => {
+  test("is drawn under the file's heading, before any line of it", () => {
+    const review = open(emptyReview(), { file: "a.ts" }, "about all of it")
+    const rows = text(diffRows(file, review, { context: 3 }, 80))
+    const noteAt = rows.findIndex((row) => row.includes("whole file"))
+    const firstLine = rows.findIndex((row) => row.includes("one"))
+    expect(noteAt).toBeGreaterThan(0)
+    expect(noteAt).toBeLessThan(firstLine)
+  })
+
+  /**
+   * It lives on no line, so it can never be under a line cursor — which is how it became possible to
+   * write one and then never open it again.
+   */
+  test("carries its id so something other than a line cursor can find it", () => {
+    const review = open(emptyReview(), { file: "a.ts" }, "about all of it")
+    const id = review.threads[0]?.id
+    const rows = diffRows(file, review, { context: 3 }, 80)
+    expect(rows.some((row) => row.target === id)).toBe(true)
+  })
+})

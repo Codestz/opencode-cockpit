@@ -560,17 +560,30 @@ export function window(rows: Row[], scroll: number, height: number): Row[] {
  * Clicking needs this: row six on screen is whatever the sixth drawn row happens to be, and only the
  * layout knows what that is.
  */
-export function visibleDiffLines(
+export function visibleDiffRows(
   changes: ChangeSet,
   review: Review,
   state: ViewState,
   viewport: Viewport,
-): (number | undefined)[] {
+): { line?: number; target?: string }[] {
   const columns = splitColumns(viewport.width)
   const inner = Math.max(0, viewport.width - 2)
   const width = columns.list === 0 ? inner : columns.diff
   const file = changes.files.find((candidate) => candidate.path === state.file) ?? changes.files[0]
   if (!file) return []
   const body = Math.max(1, viewport.height - HEADER_ROWS - FOOTER_ROWS)
-  return window(diffRows(file, review, state, width), state.scroll ?? 0, body).map((row) => row.line)
+  return window(diffRows(file, review, state, width), state.scroll ?? 0, body).map((row) => ({
+    ...(row.line === undefined ? {} : { line: row.line }),
+    ...(row.target === undefined ? {} : { target: row.target }),
+  }))
+}
+
+/** Just the lines, for walking the cursor down a file. */
+export function visibleDiffLines(
+  changes: ChangeSet,
+  review: Review,
+  state: ViewState,
+  viewport: Viewport,
+): (number | undefined)[] {
+  return visibleDiffRows(changes, review, state, viewport).map((row) => row.line)
 }
