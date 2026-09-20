@@ -56,7 +56,8 @@ export function cardHeight(thread: Thread, size: CardSize): number {
 export function cardRows(thread: Thread, size: CardSize, drifted = false, style: CardStyle = {}): Row[] {
   const width = Math.max(20, size.width)
   const tone = toneFor(thread, drifted)
-  const fill: Fill = style.fill ?? "panel"
+  /** A conversation gets a surface of its own: neither an addition nor a deletion nor the pane. */
+  const fill: Fill = style.fill ?? "comment"
   const rows: Row[] = []
 
   /** Everything is quoted, and nothing is allowed wider than the column it is quoted into. */

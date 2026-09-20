@@ -422,7 +422,15 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
        * stand out against. The sign and the line numbers carry the change; the background stays out
        * of it, so the only tinted thing on screen is a conversation.
        */
-      const fill: Fill = here ? "selected" : "none"
+      /**
+       * Three tints, the way a pull request does it: the gutter loudly, the row faintly, and a
+       * conversation on a surface of its own.
+       *
+       * One tint for all three is what made a file of pure additions read as a green field with text
+       * on it, and left a comment nothing to stand out against.
+       */
+      const fill: Fill = here ? "selected" : added ? "added" : removed ? "removed" : "none"
+      const gutter: Fill = here ? "selected" : added ? "addedNumber" : removed ? "removedNumber" : "none"
       /**
        * The sign is the loud part and the code is not: `success`/`error` for `+`/`−`, and the code
        * coloured as code. Painting a whole line green makes a diff harder to read, not easier — the
@@ -451,13 +459,13 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
           { text: here ? "▌" : " ", tone: "accent", fill },
           {
             text: String(line.before ?? "").padStart(NUMBER_COLUMNS - 1),
-            tone: removed ? "removed" : "lineNumber",
-            fill,
+            tone: "lineNumber",
+            fill: gutter,
           },
           {
             text: String(line.after ?? "").padStart(NUMBER_COLUMNS),
-            tone: added ? "added" : "lineNumber",
-            fill,
+            tone: "lineNumber",
+            fill: gutter,
           },
           { text: ` ${sign}`, tone: signTone, fill, bold: added || removed },
           ...clipRuns(painted, body, fill),

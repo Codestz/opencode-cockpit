@@ -70,6 +70,13 @@ const fillColour = (theme: TuiThemeCurrent, fill: Fill | undefined): RGBA | unde
       return theme.diffAddedBg
     case "removed":
       return theme.diffRemovedBg
+    case "addedNumber":
+      return theme.diffAddedLineNumberBg
+    case "removedNumber":
+      return theme.diffRemovedLineNumberBg
+    /** Neither side of the diff: a conversation is not an addition and not a deletion. */
+    case "comment":
+      return theme.backgroundElement
     case "selected":
       return theme.backgroundElement
     case "panel":

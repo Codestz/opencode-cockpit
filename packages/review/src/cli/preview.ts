@@ -62,9 +62,12 @@ const FG: Record<Tone, string> = {
 
 const BG: Record<Fill, string> = {
   none: "",
-  added: `${ESC}[48;2;27;46;36m`,
-  removed: `${ESC}[48;2;56;29;38m`,
-  selected: `${ESC}[48;2;49;50;68m`,
+  added: `${ESC}[48;2;19;38;28m`,
+  removed: `${ESC}[48;2;46;24;31m`,
+  addedNumber: `${ESC}[48;2;31;64;44m`,
+  removedNumber: `${ESC}[48;2;74;36;45m`,
+  comment: `${ESC}[48;2;49;50;68m`,
+  selected: `${ESC}[48;2;62;63;84m`,
   panel: `${ESC}[48;2;30;30;46m`,
 }
 

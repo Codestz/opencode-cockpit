@@ -110,20 +110,43 @@ describe("a thread about the whole file", () => {
 
 describe("what is tinted", () => {
   /**
-   * A tint across a changed row repeats what the `+` already said, and in a newly added file it
-   * repeats it on every line — leaving nothing for a comment to stand out against.
+   * Three tints, the way a pull request does it: the gutter loudly, the row faintly, and a
+   * conversation on a surface of its own. One tint for all three made a file of pure additions read
+   * as a green field with text on it, and left a comment nothing to stand out against.
    */
-  test("a changed line is not flooded with background", () => {
-    const rows = diffRows(file, emptyReview(), { context: 3 }, 80)
-    const added = rows.find((row) => row.runs.some((run) => run.text.includes("TWO")))
-    expect(added?.runs.every((run) => run.fill === undefined || run.fill === "none")).toBe(true)
+  const added = () =>
+    diffRows(file, emptyReview(), { context: 3 }, 80).find((row) =>
+      row.runs.some((run) => run.text.includes("TWO")),
+    )
+
+  test("a changed line's gutter is tinted apart from the rest of the row", () => {
+    const runs = added()?.runs ?? []
+    expect(runs.some((run) => run.fill === "addedNumber")).toBe(true)
+    expect(runs.some((run) => run.fill === "added")).toBe(true)
   })
 
-  test("a comment is, so it is the one tinted thing on the screen", () => {
+  test("a removed line uses the other side's tints, never the added ones", () => {
+    const removed = diffRows(file, emptyReview(), { context: 3 }, 80).find((row) =>
+      row.runs.some((run) => run.text.includes("two")),
+    )
+    expect(removed?.runs.some((run) => run.fill === "removedNumber")).toBe(true)
+    expect(removed?.runs.some((run) => run.fill === "added")).toBe(false)
+  })
+
+  test("an unchanged line is tinted by nothing at all", () => {
+    const context = diffRows(file, emptyReview(), { context: 3 }, 80).find((row) =>
+      row.runs.some((run) => run.text.includes("three")),
+    )
+    expect(context?.runs.every((run) => run.fill === undefined || run.fill === "none")).toBe(true)
+  })
+
+  test("a comment sits on a surface belonging to neither side of the diff", () => {
     const review = open(emptyReview(), { file: "a.ts", line: 2 }, "why?")
-    const rows = diffRows(file, review, { context: 3 }, 80)
-    const said = rows.find((row) => row.runs.some((run) => run.text.includes("why?")))
-    expect(said?.runs.some((run) => run.fill === "panel")).toBe(true)
+    const said = diffRows(file, review, { context: 3 }, 80).find((row) =>
+      row.runs.some((run) => run.text.includes("why?")),
+    )
+    expect(said?.runs.some((run) => run.fill === "comment")).toBe(true)
+    expect(said?.runs.some((run) => run.fill === "added" || run.fill === "removed")).toBe(false)
   })
 })
 

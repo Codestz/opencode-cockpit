@@ -34,8 +34,25 @@ export type Tone =
   | "operator"
   | "punct"
 
-/** Backgrounds are separate: a changed line is tinted across its whole width, text or not. */
-export type Fill = "none" | "added" | "removed" | "selected" | "panel"
+/**
+ * Backgrounds, and there are three kinds of them in a diff rather than one.
+ *
+ * A pull request tints the line-number gutter strongly, the row itself faintly, and gives a comment a
+ * surface of its own — so a changed line reads as changed, a wall of additions does not drown the
+ * screen, and a conversation is plainly not code. Using one tint for all three is what made a review
+ * look like a green field with text on it.
+ */
+export type Fill =
+  | "none"
+  | "added"
+  | "removed"
+  /** The gutter of a changed line: the loudest of the three. */
+  | "addedNumber"
+  | "removedNumber"
+  /** A conversation, on a surface that belongs to neither side of the diff. */
+  | "comment"
+  | "selected"
+  | "panel"
 
 export interface Run {
   text: string
