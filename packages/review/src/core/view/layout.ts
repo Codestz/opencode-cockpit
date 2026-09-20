@@ -377,6 +377,34 @@ export function noteRows(note: Note, file: FileChange, width: number): Row[] {
   return rows
 }
 
+/**
+ * Clips a line's runs to `width`, keeping their colours, and pads what is left.
+ *
+ * The first version swapped the whole line for one uncoloured string whenever it did not fit, which
+ * is why a half-width pane looked unhighlighted: in a narrow column almost every line needs clipping,
+ * so almost every line lost its colours. Truncation is a question about width and has nothing to say
+ * about colour.
+ */
+export function clipRuns(runs: readonly Run[], width: number, fill: Fill): Run[] {
+  if (width <= 0) return []
+  const out: Run[] = []
+  let used = 0
+  for (const run of runs) {
+    if (used >= width) break
+    const room = width - used
+    if (run.text.length <= room) {
+      out.push(run)
+      used += run.text.length
+      continue
+    }
+    /** The last run standing gets an ellipsis, so a clipped line never pretends to be whole. */
+    out.push({ ...run, text: room > 1 ? `${run.text.slice(0, room - 1)}…` : "…" })
+    used = width
+  }
+  if (used < width) out.push({ text: " ".repeat(width - used), fill })
+  return out
+}
+
 export function diffRows(file: FileChange, review: Review, state: ViewState, width: number): Row[] {
   if (width <= 0) return []
   const rows: Row[] = []
@@ -437,7 +465,6 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
         : tokenize(line.text, language, syntax)
       syntax = code.state
       const painted = code.runs.map((run) => ({ ...run, fill }))
-      const used = painted.reduce((sum, run) => sum + run.text.length, 0)
 
       rows.push({
         ...(line.after === undefined ? {} : { line: line.after }),
@@ -446,9 +473,7 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
           { text: String(line.before ?? "").padStart(NUMBER_COLUMNS - 1), tone: "lineNumber", fill },
           { text: String(line.after ?? "").padStart(NUMBER_COLUMNS), tone: "lineNumber", fill },
           { text: ` ${sign}`, tone: signTone, fill, bold: added || removed },
-          ...(used > body
-            ? [{ text: cell(line.text, body), tone: "text" as Tone, fill }]
-            : [...painted, { text: " ".repeat(Math.max(0, body - used)), fill }]),
+          ...clipRuns(painted, body, fill),
         ],
       })
 

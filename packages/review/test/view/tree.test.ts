@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { clipRuns } from "../../src/core/view/layout.ts"
 import { treeRows } from "../../src/core/view/tree.ts"
 
 describe("treeRows", () => {
@@ -31,5 +32,33 @@ describe("treeRows", () => {
 
   test("no paths, no rows", () => {
     expect(treeRows([])).toEqual([])
+  })
+})
+
+describe("clipRuns", () => {
+  test("keeps colours when a line is too wide for its column", () => {
+    const runs = [
+      { text: "const", tone: "keyword" as const },
+      { text: " open = ", tone: "text" as const },
+      { text: "false", tone: "number" as const },
+    ]
+    const clipped = clipRuns(runs, 10, "none")
+    expect(clipped.map((run) => run.tone)).toEqual(["keyword", "text"])
+    expect(clipped.map((run) => run.text).join("")).toBe("const ope…")
+  })
+
+  test("pads a short line to exactly the column width, so the tint reaches the edge", () => {
+    const clipped = clipRuns([{ text: "ab", tone: "text" as const }], 6, "added")
+    expect(clipped.map((run) => run.text).join("")).toBe("ab    ")
+    expect(clipped.at(-1)?.fill).toBe("added")
+  })
+
+  test("a line that fits exactly is left alone", () => {
+    const runs = [{ text: "abcdef", tone: "text" as const }]
+    expect(clipRuns(runs, 6, "none")).toEqual(runs)
+  })
+
+  test("no room means no runs", () => {
+    expect(clipRuns([{ text: "x" }], 0, "none")).toEqual([])
   })
 })
