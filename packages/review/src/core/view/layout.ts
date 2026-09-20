@@ -612,3 +612,25 @@ export function window(rows: Row[], scroll: number, height: number): Row[] {
   const start = Math.max(0, Math.min(scroll, Math.max(0, rows.length - height)))
   return rows.slice(start, start + height)
 }
+
+/**
+ * The lines the diff is showing, in the order they are drawn, with `undefined` where a row is not a
+ * line of the new file — a hunk header, a file header, a note.
+ *
+ * Clicking needs this: row six on screen is whatever the sixth drawn row happens to be, and only the
+ * layout knows what that is.
+ */
+export function visibleDiffLines(
+  changes: ChangeSet,
+  review: Review,
+  state: ViewState,
+  viewport: Viewport,
+): (number | undefined)[] {
+  const columns = splitColumns(viewport.width)
+  const inner = Math.max(0, viewport.width - 2)
+  const width = columns.list === 0 ? inner : columns.diff
+  const file = changes.files.find((candidate) => candidate.path === state.file) ?? changes.files[0]
+  if (!file) return []
+  const body = Math.max(1, viewport.height - HEADER_ROWS - FOOTER_ROWS)
+  return window(diffRows(file, review, state, width), state.scroll ?? 0, body).map((row) => row.line)
+}

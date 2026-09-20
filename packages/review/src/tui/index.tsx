@@ -25,6 +25,7 @@ import {
   navigableRows,
   splitColumns,
   type ViewState,
+  visibleDiffLines,
 } from "../core/view/layout.ts"
 import { languageOf } from "../core/view/syntax.ts"
 import { Overlay } from "./components/overlay.tsx"
@@ -94,6 +95,11 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
     /** Where the list starts on screen, so a click can be turned into a row. */
     const listTop = () => (panel?.y ?? 0) + 1 + HEADER_ROWS
     /** How many rows of it are visible, which both scrolling and clicking need to agree on. */
+    /** The viewport the layout is drawn into, which clicking and drawing have to agree on. */
+    const viewport = () => ({
+      width: frameBounds(variant, { width: api.renderer.width, height: api.renderer.height }).width,
+      height: api.renderer.height - 2,
+    })
     const listHeight = () => Math.max(1, (panel?.height ?? 20) - 2 - HEADER_ROWS - FOOTER_ROWS)
     let disposeKeys: (() => void) | undefined
 
@@ -208,31 +214,37 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
     const clickAt = (x: number, y: number) => {
       if (!panel) return
       const columns = splitColumns(panel.width)
+      const row = y - listTop()
+      if (row < 0) return
+
       /**
-       * Only the file list answers to a click.
-       *
-       * The diff side is going to grow its own meanings for a click — put a note on this line, start a
-       * selection — and a click that quietly moved the file list instead would be the wrong thing
+       * Each half answers to a click in its own terms: the list selects a file or folds a folder, the
+       * diff puts the cursor on a line. A click that quietly did the wrong one would be the wrong thing
        * happening somewhere you were not looking.
        */
-      if (columns.list === 0 || x > panel.x + columns.list) return
-
-      const rows = navigableRows(store.current().changes, view)
-      if (rows.length === 0) return
-      const height = Math.max(1, panel.height - 2 - HEADER_ROWS - FOOTER_ROWS)
-      const index = y - listTop() + listScroll(store.current().changes, view, height)
-      const row = rows[index]
-      if (!row) return
-
-      view = { ...view, cursor: row.path }
-      if (row.kind === "file") {
-        view = { ...view, file: row.path, scroll: 0 }
-      } else {
-        const collapsed = new Set(view.collapsed ?? [])
-        if (collapsed.has(row.path)) collapsed.delete(row.path)
-        else collapsed.add(row.path)
-        view = { ...view, collapsed }
+      const onList = columns.list > 0 && x <= panel.x + columns.list
+      if (onList) {
+        const rows = navigableRows(store.current().changes, view)
+        if (rows.length === 0) return
+        const entry = rows[row + listScroll(store.current().changes, view, listHeight())]
+        if (!entry) return
+        view = { ...view, cursor: entry.path, pane: "files" }
+        if (entry.kind === "file") {
+          view = { ...view, file: entry.path, scroll: 0, line: undefined, anchor: undefined }
+        } else {
+          const collapsed = new Set(view.collapsed ?? [])
+          if (collapsed.has(entry.path)) collapsed.delete(entry.path)
+          else collapsed.add(entry.path)
+          view = { ...view, collapsed }
+        }
+        draw()
+        return
       }
+
+      const lines = visibleDiffLines(store.current().changes, review, { ...view, pane: "diff" }, viewport())
+      const line = lines[row]
+      /** A click on a hunk header or a note is not a click on a line; it moves the pane, not the cursor. */
+      view = { ...view, pane: "diff", ...(line === undefined ? {} : { line, anchor: undefined }) }
       draw()
     }
 
@@ -309,6 +321,17 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
 
       const scroll = (delta: number) => {
         view = { ...view, scroll: Math.max(0, (view.scroll ?? 0) + delta) }
+        draw()
+      }
+
+      /**
+       * Out of the diff and back to the list.
+       *
+       * `enter` takes you into a file, so something has to take you out, and `tab` alone is a thing you
+       * have to be told. `h` and `left` are where a hand already is after `j`/`k`.
+       */
+      const toFiles = () => {
+        view = { ...view, pane: "files", anchor: undefined }
         draw()
       }
 
@@ -424,7 +447,14 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
             title: "Comment on this line or file",
             run: () => comment(),
           },
+          {
+            name: "cockpit.review.pane.commentFile",
+            title: "Comment on the whole file",
+            run: () => comment(true),
+          },
+          { name: "cockpit.review.pane.select", title: "Select lines", run: () => selectRange() },
           { name: "cockpit.review.pane.uncomment", title: "Remove the note here", run: () => uncomment() },
+          { name: "cockpit.review.pane.files", title: "Back to the file list", run: () => toFiles() },
           {
             name: "cockpit.review.pane.read",
             title: "Mark read, and go to the next unread",
@@ -467,6 +497,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
           { key: "c", cmd: "cockpit.review.pane.comment", desc: "Comment" },
           { key: "f", cmd: "cockpit.review.pane.commentFile", desc: "Comment on the file" },
           { key: "v", cmd: "cockpit.review.pane.select", desc: "Select lines" },
+          { key: "h,left", cmd: "cockpit.review.pane.files", desc: "Back to the files" },
           { key: "x", cmd: "cockpit.review.pane.uncomment", desc: "Remove note" },
           { key: "space,m", cmd: "cockpit.review.pane.read", desc: "Mark read" },
           { key: "s", cmd: "cockpit.review.pane.source", desc: "Next source" },
