@@ -161,13 +161,16 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
         pool?.clear()
       } else {
         /**
-         * Hide the terminal's own cursor while the review is up.
+         * Hide the terminal's own cursor while the review is up, *after* the host has drawn.
          *
-         * That blue block sitting over the file list is the real cursor, still parked in the prompt
-         * underneath. A terminal draws its cursor itself, above every cell, so no z-index could have
-         * covered it — it has to be turned off and put back.
+         * That blue block over the file list is the real cursor, still parked in the prompt underneath.
+         * A terminal draws its cursor itself, above every cell, so no z-index could cover it. Hiding it
+         * during our draw is not enough either: the host paints its prompt afterwards and puts the
+         * cursor back, so the last word has to be ours.
          */
-        api.renderer.setCursorPosition(0, 0, false)
+        setTimeout(() => {
+          if (open) api.renderer.setCursorPosition(0, 0, false)
+        }, 0)
         /**
          * Ask for a real parse of the file on screen — both sides of it — and draw with whatever has
          * arrived. Requests are no-ops once a file is cached, so this costs nothing per frame, and
