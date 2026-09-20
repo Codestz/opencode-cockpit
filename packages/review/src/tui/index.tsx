@@ -171,7 +171,12 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
         const rows = layout(
           store.current().changes,
           review,
-          { ...view, label: label(), ...(highlighted ? { highlighted } : {}) },
+          {
+            ...view,
+            label: label(),
+            syntax: highlighted ? "tree-sitter" : "basic",
+            ...(highlighted ? { highlighted } : {}),
+          },
           {
             width: frame.width,
             height: screen.height - 2,

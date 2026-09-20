@@ -104,6 +104,13 @@ export interface ViewState {
    */
   highlighted?: { before?: HighlightedLine[]; after?: HighlightedLine[] }
   /**
+   * Which highlighter coloured what is on screen.
+   *
+   * On the header because "is this the real parser or the fallback?" is otherwise unanswerable by
+   * looking — the two agree on most of an import line and disagree exactly where it matters.
+   */
+  syntax?: "tree-sitter" | "basic"
+  /**
    * What to call what is being reviewed — `feat/x → main` rather than the bare word "branch".
    * Named here rather than derived, because only the plugin knows what git says the branches are.
    */
@@ -207,7 +214,13 @@ export function ratioBar(file: FileChange): Run[] {
 }
 
 /** The bar across the top: what you are reading, and how far through it you are. */
-export function headerRows(changes: ChangeSet, review: Review, width: number, label?: string): Row[] {
+export function headerRows(
+  changes: ChangeSet,
+  review: Review,
+  width: number,
+  label?: string,
+  syntax?: "tree-sitter" | "basic",
+): Row[] {
   const seen = progress(changes, review)
   const left: Run[] = [
     { text: " review ", tone: "accent", bold: true },
@@ -216,16 +229,24 @@ export function headerRows(changes: ChangeSet, review: Review, width: number, la
     { text: `+${seen.additions} `, tone: "added" },
     { text: `−${seen.deletions}`, tone: "removed" },
   ]
-  const right = `${seen.read}/${seen.files} read · ${seen.notes} notes `
+  /**
+   * Which highlighter is colouring the code, said out loud.
+   *
+   * The real parser and the built-in tokenizer agree on most of an import line and disagree exactly
+   * where it matters, so "is this tree-sitter?" cannot be answered by looking at the code — only by
+   * the view admitting which one it used.
+   */
+  const right: Run[] = [
+    { text: `${syntax ?? "basic"} `, tone: syntax === "tree-sitter" ? "success" : "muted" },
+    { text: "· ", tone: "border" },
+    { text: `${seen.read}/${seen.files} read `, tone: "muted" },
+    { text: "· ", tone: "border" },
+    { text: `${seen.notes} notes `, tone: seen.notes > 0 ? "accent" : "muted" },
+  ]
   const used = left.reduce((sum, run) => sum + run.text.length, 0)
+  const tail = right.reduce((sum, run) => sum + run.text.length, 0)
   return [
-    {
-      runs: [
-        ...left,
-        { text: " ".repeat(Math.max(0, width - used - right.length)) },
-        { text: right, tone: "muted" },
-      ],
-    },
+    { runs: [...left, { text: " ".repeat(Math.max(0, width - used - tail)) }, ...right] },
     { runs: [{ text: "─".repeat(width), tone: "border" }] },
   ]
 }
@@ -446,7 +467,7 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
 export function layout(changes: ChangeSet, review: Review, state: ViewState, viewport: Viewport): Row[] {
   const columns = splitColumns(viewport.width)
   const inner = Math.max(0, viewport.width - 2)
-  const rows: Row[] = [...headerRows(changes, review, inner, state.label)]
+  const rows: Row[] = [...headerRows(changes, review, inner, state.label, state.syntax)]
 
   const body = Math.max(1, viewport.height - HEADER_ROWS - FOOTER_ROWS)
   const file = changes.files.find((candidate) => candidate.path === state.file) ?? changes.files[0]
