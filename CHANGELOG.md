@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **The documented keys match the keys.** Review's table still offered a third source that 0.4.2
+  removed, the statusline's `git.diff` was still described as counting the session, and the shell's
+  console table was missing `d`, `shift+d`, `backspace`, `ctrl+]` and everything that scrolls — along
+  with the two keys that open the panel and the console in the first place. Every bay now documents
+  what it actually binds, including the statusline, which binds nothing and says so.
+
 ### Changed
 
 - **The console names its keys the way Review does, and stops carrying all of them.**

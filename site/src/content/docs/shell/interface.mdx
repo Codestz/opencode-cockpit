@@ -7,6 +7,22 @@ import Cast from "../../../components/Cast.astro"
 
 <Cast name="dock" caption="The panel under the conversation, then the console." />
 
+## Opening it
+
+| Key | Does |
+| --- | --- |
+| <kbd>&lt;leader&gt;o</kbd> | Toggle the panel under the conversation |
+| <kbd>&lt;leader&gt;i</kbd> | Open the full console |
+
+OpenCode's leader is <kbd>ctrl+x</kbd> unless you have changed it, so these read as
+<kbd>ctrl+x</kbd> <kbd>o</kbd> and <kbd>ctrl+x</kbd> <kbd>i</kbd>. Both are rebindable:
+
+```json title="~/.config/opencode-cockpit/config.json"
+{ "ui": { "keybinds": { "cockpit.shells.console": "<leader>t" } } }
+```
+
+Every command below also has a slash name, so nothing here depends on a key being free.
+
 ## One conversation at a time
 
 The panel lists the shells of the session you are in. A project's shells all mixed together is how
@@ -22,17 +38,43 @@ one at a glance. `ui.dockHeight` sets how tall, `ui.dockOpen` whether it starts 
 
 Full screen, one shell at a time.
 
+The row along the bottom carries the keys that act on the shell in front of you — they change with
+its state, because a key with nothing to act on is noise:
+
+```
+running:   [i] Type   [c] ^C   [r] Restart   [x] Stop   [?] Details
+finished:  [r] Run Again   [d] Remove   [?] Details
+```
+
+Everything else is behind <kbd>?</kbd>, listed under the shell's own facts. Those keys work from
+anywhere in the console, whether or not you can see them.
+
+### Acting on this shell
+
 | Key | Does |
 | --- | --- |
-| <kbd>i</kbd> | Type into the shell |
+| <kbd>i</kbd> <kbd>return</kbd> | Type into the shell — every key goes to the program, <kbd>ctrl+c</kbd> included |
+| <kbd>ctrl+]</kbd> | Stop typing, back to these keys |
+| <kbd>c</kbd> | Send <kbd>ctrl+c</kbd> without entering typing mode |
+| <kbd>r</kbd> | Restart it, or run a finished one again |
+| <kbd>x</kbd> | Stop it |
+| <kbd>d</kbd> | Remove a finished shell from the list |
+| <kbd>shift+d</kbd> | Forget every finished shell |
+
+### Looking around
+
+| Key | Does |
+| --- | --- |
 | <kbd>tab</kbd> | Switch between the screen and the agent's numbered log |
 | <kbd>/</kbd> | Filter the log — matches highlighted, line numbers kept |
-| <kbd>?</kbd> | Details: command, folder, timing, watcher, log file |
+| <kbd>backspace</kbd> | Clear the filter |
+| <kbd>?</kbd> | Details: command, folder, timing, watcher, log file, and the keys on this page |
+| <kbd>j</kbd> <kbd>k</kbd> or arrows | Scroll the log |
+| <kbd>g</kbd> <kbd>shift+g</kbd> | Top, bottom |
 | <kbd>[</kbd> <kbd>]</kbd> | Previous / next shell |
 | <kbd>s</kbd> | This session only, or the whole project |
-| <kbd>r</kbd> · <kbd>x</kbd> · <kbd>c</kbd> | Restart · stop · interrupt |
 | <kbd>n</kbd> | Start a new shell yourself |
-| <kbd>esc</kbd> | Back to the conversation |
+| <kbd>q</kbd> <kbd>esc</kbd> | Back to the conversation |
 
 ## Searching a long log
 
