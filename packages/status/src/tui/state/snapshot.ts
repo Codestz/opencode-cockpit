@@ -1,11 +1,15 @@
 import { homedir } from "node:os"
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import type { SessionSnapshot, StatusContext, TokenCounts } from "../../core/context.ts"
+import type { DiffCounts } from "../../core/diff.ts"
 
 /**
  * Turns OpenCode's live state into the plain snapshot the segments read. Everything that touches
  * the plugin api lives here, so every built-in stays a pure function of its input.
  */
+
+/** Before the first `git diff` comes back there is nothing to report, which is not the same as zero. */
+const NOTHING: DiffCounts = { files: 0, additions: 0, deletions: 0 }
 
 /** Everything a usage reading accounts for; zero means the message has not reported yet. */
 function counted(tokens: TokenCounts): number {
@@ -18,7 +22,12 @@ export function currentSession(api: TuiPluginApi): string | undefined {
   return route.name === "session" ? (route.params as { sessionID?: string }).sessionID : undefined
 }
 
-export function sessionSnapshot(api: TuiPluginApi, id: string, now: number): SessionSnapshot {
+export function sessionSnapshot(
+  api: TuiPluginApi,
+  id: string,
+  now: number,
+  diff: DiffCounts,
+): SessionSnapshot {
   const messages = api.state.session.messages(id)
   const status = api.state.session.status(id)
   const session = api.state.session.get(id)
@@ -55,14 +64,6 @@ export function sessionSnapshot(api: TuiPluginApi, id: string, now: number): Ses
 
   const model = modelID && providerID ? describeModel(api, providerID, modelID) : undefined
 
-  let additions = 0
-  let deletions = 0
-  const files = api.state.session.diff(id)
-  for (const file of files) {
-    additions += file.additions
-    deletions += file.deletions
-  }
-
   const todos = api.state.session.todo(id)
   const completed = todos.filter((todo) => todo.status === "completed").length
 
@@ -79,7 +80,7 @@ export function sessionSnapshot(api: TuiPluginApi, id: string, now: number): Ses
     priced: model?.priced ?? false,
     messages: messages.length,
     ...(session?.time.created ? { startedAt: session.time.created } : { startedAt: now }),
-    diff: { files: files.length, additions, deletions },
+    diff,
     todo: { total: todos.length, completed },
   }
 }
@@ -108,7 +109,13 @@ function describeModel(
 
 export function buildContext(
   api: TuiPluginApi,
-  options: { now: number; width: number; version: string; commands: Record<string, string> },
+  options: {
+    now: number
+    width: number
+    version: string
+    commands: Record<string, string>
+    diff?: DiffCounts
+  },
 ): StatusContext {
   const sessionID = currentSession(api)
   return {
@@ -119,7 +126,8 @@ export function buildContext(
     ...(api.state.vcs?.branch ? { branch: api.state.vcs.branch } : {}),
     ...(api.state.vcs?.default_branch ? { defaultBranch: api.state.vcs.default_branch } : {}),
     version: options.version,
-    ...(sessionID ? { session: sessionSnapshot(api, sessionID, options.now) } : {}),
+    ...(options.diff ? { diff: options.diff } : {}),
+    ...(sessionID ? { session: sessionSnapshot(api, sessionID, options.now, options.diff ?? NOTHING) } : {}),
     lsp: api.state.lsp().map((item) => ({ name: item.id, status: String(item.status) })),
     mcp: api.state.mcp().map((item) => ({ name: item.name, status: String(item.status) })),
     commands: options.commands,

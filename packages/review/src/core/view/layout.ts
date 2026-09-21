@@ -55,9 +55,31 @@ function compose(changes: ChangeSet, review: Review, state: ViewState, viewport:
     return [...built, ...feet.map((row, index) => (index === 0 ? rule : inset(row, inner)))]
   }
 
+  /**
+   * Nothing to review, and why.
+   *
+   * "Nothing has changed here" is true of an empty branch, of a conversation that has not edited
+   * anything, and of a source that could not be read at all — and a reader who cannot tell those
+   * apart reads all three as the pane being broken. So the empty state names the source it is empty
+   * *for*, and points at the key that changes it.
+   */
   if (changes.files.length === 0) {
-    rows.push(inset({ runs: [{ text: cell("Nothing has changed here.", content), tone: "muted" }] }, inner))
-    for (let index = 1; index < body; index++) rows.push(blank(inner))
+    const said = state.label ? `Nothing to review in ${state.label}.` : "Nothing has changed here."
+    const lines: Row[] = [{ runs: [{ text: cell(said, content), tone: "muted" }] }]
+    if (body >= 3) {
+      lines.push(blank(content))
+      lines.push({
+        runs: [
+          {
+            text: cell("[b] reads the other source: uncommitted, or what this branch changes.", content),
+            tone: "muted",
+            faint: true,
+          },
+        ],
+      })
+    }
+    for (const line of lines) rows.push(inset(line, inner))
+    for (let index = lines.length; index < body; index++) rows.push(blank(inner))
     return close(rows)
   }
 

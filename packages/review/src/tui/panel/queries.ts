@@ -41,14 +41,8 @@ export function createQueries(api: TuiPluginApi, surface: Surface, store: Store)
     const vcs = api.state.vcs
     const here = vcs?.branch
     const base = vcs?.default_branch
-    switch (store.source()) {
-      case "branch":
-        return here && base && here !== base ? `${here} → ${base}` : (here ?? "branch")
-      case "worktree":
-        return here ? `uncommitted on ${here}` : "uncommitted"
-      default:
-        return "this conversation"
-    }
+    if (store.source() === "worktree") return here ? `uncommitted on ${here}` : "uncommitted"
+    return here && base && here !== base ? `${here} → ${base}` : (here ?? "branch")
   }
 
   const files = () => store.current().changes.files

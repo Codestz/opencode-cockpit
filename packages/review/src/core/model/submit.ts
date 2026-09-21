@@ -56,6 +56,19 @@ const count = (threads: readonly Thread[]): string =>
   threads.length === 1 ? "1 comment" : `${threads.length} comments`
 
 /**
+ * The files the review is in.
+ *
+ * Named in the message so the agent can plan before it calls anything — otherwise its first move is
+ * a tool call whose only purpose is to find out where the work is. Long reviews are cut off rather
+ * than allowed to become the message.
+ */
+const where = (threads: readonly Thread[]): string => {
+  const files = [...new Set(threads.map((thread) => thread.file))]
+  const shown = files.slice(0, 6).join(", ")
+  return files.length > 6 ? `${shown}, and ${files.length - 6} more` : shown
+}
+
+/**
  * The message, or nothing at all.
  *
  * Nothing is a real answer: a review with every thread answered has nothing to hand over, and sending
@@ -84,7 +97,16 @@ export function submission(review: Review, options: SubmitOptions): Submission |
     return {
       threads,
       outdated,
-      text: `${opening}I have left ${count(threads)}${about}. Run \`review_list\` to read them with the code each one is about, then work them: change what needs changing and \`review_reply\` with resolved=true, or reply saying why not.`,
+      text:
+        `${opening}I have left ${count(threads)}${about}, in ${where(threads)}.\n\n` +
+        "Work them one at a time:\n" +
+        "1. `review_list` — every comment, with the code it is about.\n" +
+        "2. Make the change the comment asks for, or decide it is wrong.\n" +
+        "3. `review_reply` on that thread: `resolved=true` once you have changed the file, or a plain " +
+        "reply saying why you disagree. Resolving is refused while the file still reads exactly as it " +
+        "did, so reply rather than resolving when you are not changing anything.\n\n" +
+        "Stay inside these comments: no unrelated work, and do not commit. If one of them turns out " +
+        "to be the tip of something bigger, say so in the reply instead of fixing it all.",
     }
   }
 
@@ -98,7 +120,12 @@ export function submission(review: Review, options: SubmitOptions): Submission |
   return {
     threads,
     outdated,
-    text: `${opening}I have left ${count(threads)}${about}. They are below, with the code each one was written against. Work them: change what needs changing, and say what you changed under each one.\n\n${written}`,
+    text:
+      `${opening}I have left ${count(threads)}${about}, in ${where(threads)}. They are below, with ` +
+      "the code each one was written against.\n\nWork them one at a time: change what the comment " +
+      "asks for, and say what you changed under each one. Where you disagree, say that instead — a " +
+      "comment you answer is as finished as one you act on. Stay inside these comments, and do not " +
+      `commit.\n\n${written}`,
   }
 }
 

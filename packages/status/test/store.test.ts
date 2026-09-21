@@ -98,7 +98,7 @@ describe("commands run off the draw path", () => {
     live = harness({ commands: { probe: { run: "echo hi" } } })
     live.store.context()
     await live.settle()
-    expect(live.runs).toEqual(["echo hi"])
+    expect(live.runs).toContain("echo hi")
   })
 
   test("its output reaches the snapshot once it finishes", async () => {
@@ -126,8 +126,12 @@ describe("commands run off the draw path", () => {
     expect(live.store.context().commands.probe).toBe("good")
   })
 
-  test("no commands configured means no shell is ever spawned", async () => {
-    live = harness()
+  /**
+   * The working tree's counts come from git now, so a line carrying that segment does spawn one
+   * process — and a line without it still spawns none. You pay for the segments you asked for.
+   */
+  test("a line with no diff segment spawns nothing", async () => {
+    live = harness({ segments: ["context", "session.status"] })
     live.store.context()
     await live.settle()
     expect(live.runs).toEqual([])

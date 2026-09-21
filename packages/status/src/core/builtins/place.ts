@@ -32,17 +32,21 @@ export const SEGMENTS: SegmentDef[] = [
   },
   {
     /**
-     * What *this session* changed, which is what OpenCode's own Files list shows -- not what `git
-     * status` would. A file you edited by hand was never part of the session and does not appear
-     * here, which is why the old name, `git.diff`, was a trap. That name still works.
+     * What is uncommitted in the working tree, from `git diff --shortstat HEAD`.
      *
-     * For the working tree, use a command segment: `git diff --shortstat`.
+     * It used to report what *this session* changed, taken from the host's own file list. That was a
+     * better idea than it was a number: it could not be checked against anything, it counted nothing
+     * you edited by hand, and when the list came back empty — which it did — the segment simply
+     * disappeared, which reads as a feature you never configured rather than one that is broken.
+     *
+     * Git answers the same question well enough and can always be checked by running the command
+     * yourself. `session.diff` still works as a name; `git.diff` is now the honest one.
      */
-    name: "session.diff",
+    name: "git.diff",
     icon: "±",
     priority: 50,
     render(ctx, config) {
-      const diff = ctx.session?.diff
+      const diff = ctx.diff ?? ctx.session?.diff
       if (!diff || (diff.additions === 0 && diff.deletions === 0)) return undefined
       const shaped = formatted(config, {
         files: diff.files,

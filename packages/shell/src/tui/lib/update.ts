@@ -62,3 +62,32 @@ export async function fetchLatestVersion(pkg: string, timeoutMs = 3000): Promise
     return undefined // offline, rate limited, private registry: never worth bothering the user
   }
 }
+
+/** A plugin entry is a spec, or a spec paired with its options. Both are legal in the config. */
+export type PluginEntry = string | [string, unknown]
+
+/**
+ * The version this config pins the plugin to, if it pins one.
+ *
+ * Clearing the cache only helps when OpenCode is free to resolve something newer. Against
+ * `opencode-cockpit@0.4.0` it reinstalls 0.4.0, and the update reports success while nothing moves —
+ * which is worse than refusing, because the next thing you do is wonder why the version is the same.
+ *
+ * A path install pins nothing (it is whatever is on disk), and a tag moves on its own, so only a
+ * fixed version counts. Scoped names keep their leading `@`: the pin is the *last* one.
+ */
+export function pinnedVersion(
+  entries: ReadonlyArray<PluginEntry> | undefined,
+  name: string,
+): string | undefined {
+  for (const entry of entries ?? []) {
+    const spec = typeof entry === "string" ? entry : entry[0]
+    if (typeof spec !== "string") continue
+    if (spec.startsWith(".") || spec.startsWith("/") || spec.startsWith("file:")) continue
+    const at = spec.lastIndexOf("@")
+    if (at <= 0 || spec.slice(0, at) !== name) continue
+    const version = spec.slice(at + 1)
+    if (/^\d+\.\d+\.\d+/.test(version)) return version
+  }
+  return undefined
+}

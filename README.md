@@ -58,7 +58,7 @@ stays open for you.
 How full is the context? Where did the tokens go? What has changed? OpenCode answers the first in a
 corner and the rest not at all. **Statusline** answers them where you are already looking.
 
-![The statusline under an OpenCode conversation: a context bar at 40%, the token total with its cache, input and output parts, the session diff, elapsed time and todo progress](media/statusline.png)
+![The statusline under an OpenCode conversation: a context bar at 40%, the token total with its cache, input and output parts, what is uncommitted, elapsed time and todo progress](media/statusline.png)
 
 *The default line — no configuration written at all. Every part is a segment you can reshape,
 recolour or remove, or write yourself in TypeScript. Your Claude Code statusline script runs here

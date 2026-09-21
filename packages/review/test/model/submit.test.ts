@@ -49,7 +49,30 @@ describe("what a submit is about", () => {
   })
 
   test("one comment is one comment, not 1 comments", () => {
-    expect(submission(reviewWith(1), { tools: true })?.text).toContain("1 comment.")
+    const said = submission(reviewWith(1), { tools: true })?.text as string
+    expect(said).toContain("1 comment,")
+    expect(said).not.toContain("1 comments")
+  })
+
+  /** So the agent can plan before spending a tool call finding out where the work is. */
+  test("the files are named in the message", () => {
+    const said = submission(reviewWith(2), { tools: true })?.text as string
+    expect(said).toContain("src/thing-0.ts")
+    expect(said).toContain("src/thing-1.ts")
+  })
+
+  /**
+   * `review_reply` refuses to resolve a thread whose file has not changed. Saying so here saves the
+   * agent a reply that comes back rejected, and saves the person a thread that looks answered.
+   */
+  test("it says that resolving is refused on an unchanged file", () => {
+    const said = submission(reviewWith(1), { tools: true })?.text as string
+    expect(said.toLowerCase()).toContain("refused")
+  })
+
+  test("it draws a boundary round the work", () => {
+    const said = submission(reviewWith(1), { tools: true })?.text as string
+    expect(said).toContain("do not commit")
   })
 })
 

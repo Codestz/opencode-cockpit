@@ -6,6 +6,45 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Review reads two sources, not three, and the statusline counts git.** "This conversation" is
+  gone. It was built on OpenCode's `session.diff`, which returns an empty list for a session whose
+  own snapshots plainly differ — checked against three baselines, with the snapshot trees diffed by
+  hand to confirm the changes were really there. A mode that cannot answer is worse than one that is
+  missing, so it has been removed along with the dead `FileChange.marked` it was reserved for.
+  `[b]` now toggles uncommitted and branch.
+
+  The statusline's `session.diff` segment rested on the same feed and made the same promise. It is
+  now `git.diff` and reads `git diff --shortstat HEAD` — what is uncommitted, a number you can check
+  by running the command yourself. The old name still resolves, the command runs only when a line
+  actually carries the segment, and a line without it spawns nothing.
+
+### Fixed
+
+- **`/cockpit-update` no longer promises an update it cannot make.** It cleared the cached copy and
+  told you to restart — but if your config pins `opencode-cockpit@0.4.1`, the next start reinstalls
+  0.4.1 and the version never moves. It now reads both plugin lists (`opencode.json` and
+  `tui.json`), and when a pin is in the way it says which entry to edit instead of clearing a cache
+  for nothing. A path install and a tag are not pins, so neither is treated as one.
+
+- **The handover tells the agent what it needs before it asks.** The submit message now names the
+  files the comments are in, so the first move is not a tool call spent finding out where the work
+  is; says plainly that resolving is *refused* while a file still reads as it did, which is what
+  `review_reply` actually does; and draws a boundary — these comments, no unrelated work, no
+  commits, and say so in the reply when a comment turns out to be the tip of something bigger.
+
+- **The panel no longer fails in silence.** The change store set a `notice` in four places — "no
+  conversation open", every git error, "file too large" — and nothing ever read it, so each of those
+  reached the screen as an empty pane with no explanation. It is now shown in the footer, and the
+  empty state names the source it is empty for and points at the key that changes it.
+
+- **`[s]` says how much there is to submit**, and says the right thing when there is nothing. The key
+  carries a live count and dims at zero, and the three ways to have nothing to hand over — no
+  comments yet, all answered, all outdated — now read differently instead of all claiming every
+  comment had been answered. Submit also counts outdated comments before offering, so the number it
+  offers is the number it sends.
+
 ## [0.4.1] - 2026-09-21
 
 ### Fixed

@@ -15,8 +15,8 @@ not have the cursor is drawn dimmer, so the answer to "where am I" costs no bord
 Left: what you are reading, and how big it is. Right: what is left to do, in the order you run out of
 it — how much you have read, how many comments are waiting on the agent, how many are finished.
 
-"branch" is a category, not an answer, so the label says `feat/review-bay → main` for a branch review,
-`uncommitted on main` for the worktree, and `this conversation` for a session.
+"branch" is a category, not an answer, so the label says `feat/review-bay → main` for a branch review
+and `uncommitted on main` for the worktree.
 
 ## The tree
 

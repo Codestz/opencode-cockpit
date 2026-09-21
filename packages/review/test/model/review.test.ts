@@ -20,7 +20,7 @@ import {
 import { resolve } from "../../src/core/model/thread.ts"
 
 const changes: ChangeSet = {
-  source: "session",
+  source: "worktree",
   files: [
     { path: "a.ts", before: "one\ntwo\nthree\n", after: "one\nTWO\nthree\n", additions: 1, deletions: 1 },
     { path: "b.ts", before: "", after: "new\n", additions: 1, deletions: 0 },
@@ -153,7 +153,7 @@ describe("progress", () => {
   })
 
   test("an empty change set counts zero rather than failing", () => {
-    expect(progress({ source: "session", files: [] }, emptyReview()).files).toBe(0)
+    expect(progress({ source: "worktree", files: [] }, emptyReview()).files).toBe(0)
   })
 })
 

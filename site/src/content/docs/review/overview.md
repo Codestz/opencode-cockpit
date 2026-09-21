@@ -60,13 +60,15 @@ describing it.**
 
 ## What it reviews
 
-Three sources, switched with <kbd>b</kbd>:
+Two sources, switched with <kbd>b</kbd>:
 
-- **Uncommitted** — what is in the worktree now. The default, because that is what you are looking at
-  nine times in ten: the work that just happened.
-- **Branch** — this branch against its base, which is the pull-request reading.
-- **This conversation** — only what this session changed, which is the smallest honest unit of "what
-  did you just do".
+- **Uncommitted** — what is in the worktree now: the work that just happened.
+- **Branch** — this branch against its base, which is the pull-request reading. The default, because
+  by the time you go looking for the work it is usually committed.
+
+Both come from git, and both are read as whole files rather than as a patch, which is what lets Review
+compute its own hunks — so the line numbers are the file's real line numbers and the syntax is
+highlighted like code, not like a diff.
 
 ## Getting it
 
