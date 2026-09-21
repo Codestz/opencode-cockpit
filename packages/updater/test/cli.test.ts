@@ -205,7 +205,7 @@ describe("update", () => {
     const cli = io(files, { opencode: fakeOpencode(files, calls, true) })
     expect(await update(["--only", "opencode-cockpit", "-y"], cli)).toBe(1)
     expect(memoryDisk(files).list(PKGS)).toContain("opencode-cockpit@latest")
-    expect(cli.out.join("")).toContain("exited 1: Failed updating plugin config")
+    expect(cli.out.join("")).toContain("-f -g failed: Failed updating plugin config")
   })
 
   test("an unknown cache layout updates configs but deletes nothing", async () => {

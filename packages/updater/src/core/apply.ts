@@ -31,11 +31,16 @@ export async function applyPlan(
   io: ApplyIo,
 ): Promise<Outcome> {
   const failures: string[] = []
+  const remedies: string[] = []
   for (const command of plan.commands) {
     const result = await io.opencode(command.args, command.cwd)
     if (result.status !== 0) {
-      const last = result.output.trim().split("\n").pop() ?? ""
-      failures.push(`opencode ${command.args.join(" ")} exited ${result.status}${last ? `: ${last}` : ""}`)
+      const why = failureReason(result.output)
+      failures.push(
+        `opencode ${command.args.join(" ")} failed${why ? `: ${why}` : ` (exit ${result.status})`}`,
+      )
+      const remedy = remedyFor(result.output)
+      if (remedy && !remedies.includes(remedy)) remedies.push(remedy)
     }
   }
   // A failed install keeps the old copy: removing it would leave nothing that runs.
@@ -48,7 +53,59 @@ export async function applyPlan(
     dirs: cacheDirsFor(io.disk, where.root, plan.name),
   })
   if (failures.length === 0) return outcome
-  return { ...outcome, ok: false, problems: [...failures, ...outcome.problems] }
+  // The remedy goes first: the retry command below it only works once the cause is gone.
+  return {
+    ...outcome,
+    ok: false,
+    problems: [...failures, ...outcome.problems],
+    fixes: [...remedies, ...outcome.fixes],
+  }
+}
+
+/** A terminal escape sequence, built from its code so no control character sits in a literal. */
+const ANSI = new RegExp(`${String.fromCharCode(27)}\\[[0-9;?]*[A-Za-z]`, "g")
+
+/** Terminal escapes and spinner frames: `opencode plugin` draws for a person, not for a pipe. */
+const plain = (output: string): string[] =>
+  output
+    .replace(ANSI, "")
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^[│┌└◆●◒◐◓◑\s]+/, "").trim())
+    .filter(Boolean)
+
+/**
+ * The line that says why, out of what `opencode plugin` printed.
+ *
+ * Its output is a clack transcript ending in `└ Done` whether it worked or not, so "the last line" was
+ * `└ Done` — seen on a real failure, where the reason sat two lines above: the last `■` line that is
+ * more than a heading ("Install failed", "Could not install …").
+ */
+export function failureReason(output: string): string | undefined {
+  const errors = output
+    .replace(ANSI, "")
+    .split(/\r?\n/)
+    .filter((line) => line.includes("■"))
+    .map((line) => line.replace(/^.*■\s*/, "").trim())
+    .filter((line) => line && !/^Install failed$/i.test(line) && !/^Could not install\b/i.test(line))
+  const home = process.env.HOME
+  const reason =
+    errors.at(-1) ??
+    plain(output)
+      .filter((l) => l !== "Done")
+      .at(-1)
+  return reason && home ? reason.split(home).join("~") : reason
+}
+
+/**
+ * A cause this machine can fix, as the command that fixes it.
+ *
+ * npm's cache holding files the user does not own (usually from an old `sudo npm`) fails every
+ * install that touches them, and `opencode plugin` installs through npm — seen on a real machine,
+ * where one package failed and another installed fine.
+ */
+export function remedyFor(output: string): string | undefined {
+  if (/EACCES/.test(output) && /[/\\]\.npm[/\\]/.test(output)) return 'sudo chown -R "$(whoami)" ~/.npm'
+  return undefined
 }
 
 /** Every step of the plans as lines a person can run, for when nothing may be run for them. */

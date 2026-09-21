@@ -6,6 +6,7 @@
 import { describe, expect, test } from "bun:test"
 import { paint } from "../src/cli/ansi.ts"
 import { type Io, update } from "../src/cli/run.ts"
+import { applyPlan, failureReason, remedyFor } from "../src/core/apply.ts"
 import { installedVersion, specDir } from "../src/core/cache.ts"
 import { memoryDisk } from "../src/core/disk.ts"
 import { gather } from "../src/core/gather.ts"
@@ -217,5 +218,61 @@ describe("seen against a real install", () => {
     // `latest  ⚠` and `1.3.0` sit within a few columns of each other, whatever the path's length.
     const gap = (row ?? "").indexOf("1.3.0") - ((row ?? "").indexOf("⚠") + 1)
     expect(gap).toBeLessThanOrEqual(24)
+  })
+
+  /** What `opencode plugin` printed on a real machine whose npm cache had files it did not own. */
+  const EACCES_OUTPUT = [
+    "\x1b[0m",
+    "┌  Install plugin opencode-command-hooks@0.7.1",
+    "\x1b[?25l│",
+    "◒  Installing plugin package\x1b[999D\x1b[J◐  Installing plugin package\x1b[999D\x1b[J■  Install failed",
+    "\x1b[?25h│",
+    '■  Could not install "opencode-command-hooks@0.7.1"',
+    "│",
+    "■  EACCES: permission denied, rename '/Users/me/.npm/_cacache/tmp/a62a' -> '/Users/me/.npm/_cacache/content-v2/sha512/2a/45/0fe2'",
+    "│",
+    "└  Done",
+    "",
+  ].join("\n")
+
+  test("a failed install names its cause, not clack's closing `└ Done`", () => {
+    const why = failureReason(EACCES_OUTPUT)
+    expect(why).toStartWith("EACCES: permission denied, rename")
+    expect(why).not.toContain("Done")
+    expect(failureReason("\x1b[0m┌  x\n│\n└  Done\n")).toBe("x")
+  })
+
+  test("npm's cache owned by someone else comes with the command that fixes it, before the retry", async () => {
+    expect(remedyFor(EACCES_OUTPUT)).toBe('sudo chown -R "$(whoami)" ~/.npm')
+    expect(remedyFor("■  ETARGET No matching version")).toBeUndefined()
+
+    const global = {
+      path: "/c/opencode.jsonc",
+      scope: "global" as const,
+      owner: "command" as const,
+      cwd: "/",
+    }
+    const files: Record<string, string> = { "/c/opencode.jsonc": '{"plugin": ["hooks@0.6.1"]}' }
+    const [plan] = buildPlan({
+      plugins: [{ name: "hooks", source: "npm", running: "0.6.1" }],
+      entries: [{ file: global, spec: parseSpec("hooks@0.6.1") }],
+      published: new Map([["hooks", "0.7.1"]]),
+      cacheDirs: new Map([["hooks", ["/cache/packages/hooks@0.6.1"]]]),
+    })
+    if (!plan) throw new Error("no plan")
+    const removed: string[] = []
+    const outcome = await applyPlan(
+      plan,
+      { root: "/cache", files: [global] },
+      {
+        disk: memoryDisk(files),
+        opencode: async () => ({ status: 1, output: EACCES_OUTPUT }),
+        remove: (dir) => removed.push(dir),
+      },
+    )
+    expect(outcome.ok).toBe(false)
+    expect(outcome.problems[0]).toStartWith("opencode plugin hooks@0.7.1 -f -g failed: EACCES")
+    expect(outcome.fixes).toEqual(['sudo chown -R "$(whoami)" ~/.npm', "opencode plugin hooks@0.7.1 -f -g"])
+    expect(removed).toEqual([]) // the old copy stays: it is the one that still runs
   })
 })
