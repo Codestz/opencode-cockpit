@@ -83,8 +83,15 @@ model that uses shells less well.
 
 ## ui
 
-Interface only: `dockHeight`, `dockOpen`, `sidebarRows`, `historyMinutes`, `colors`, `defaultView`
-(`screen` or `log`), `keybinds`, `updateCheck`.
+Interface only: `dockHeight`, `dockOpen`, `sidebarRows`, `sidebarOrder`, `historyMinutes`, `colors`,
+`defaultView` (`screen` or `log`), `keybinds`, `updateCheck`.
+
+:::tip[Two bays share the sidebar]
+Shell and the statusline both draw there, in the order they register — Shell first (150), the
+statusline under it (200). `ui.sidebarOrder` here and `statusline.sidebarOrder` in the statusline's
+own config move them; lower draws first, so `{"statusline": {"sidebarOrder": 100}}` puts the line on
+top.
+:::
 
 :::tip[dockOpen decides how it starts]
 Set it and the panel always starts that way. Leave it out and it starts however you last left it.

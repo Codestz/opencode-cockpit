@@ -169,8 +169,11 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
     const sidebar = on("sidebar")
 
     api.slots.register({
-      // After the shell dock (150), so the line sits at the very bottom of the window.
-      order: 200,
+      /**
+       * After the shell dock (150), so the line sits at the very bottom of the window — and in a
+       * shared sidebar, under the shells. `sidebarOrder` moves it; lower draws first.
+       */
+      order: config.sidebarOrder ?? 200,
       slots: {
         app_bottom: () => (
           <>

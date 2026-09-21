@@ -107,7 +107,12 @@ export function shellStart(kit: ToolKit): ToolDefinition {
         cwd: args.workdir || ctx.directory,
         env: { ...deps.env(), ...args.env },
         title: args.description,
-        owner: { project: ctx.directory, session: ctx.sessionID, instance: deps.instance },
+        /** The conversation, not the subagent that happens to be running inside it. */
+        owner: {
+          project: ctx.directory,
+          session: (await deps.rootSession?.(ctx.sessionID).catch(() => undefined)) ?? ctx.sessionID,
+          instance: deps.instance,
+        },
         timeoutMs: seconds(args.timeoutSeconds ?? defaults.timeoutSeconds),
         idleTimeoutMs: seconds(args.idleTimeoutSeconds ?? defaults.idleTimeoutSeconds),
         logFile: logFile === true,

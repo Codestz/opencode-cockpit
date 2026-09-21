@@ -6,6 +6,29 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **`YOU` and `AGENT` are readable on every theme.** The badges on a comment — and the `review`
+  badge in the header — printed their word in the theme's background colour, which paints nothing
+  at all when a theme leaves that colour transparent: the coloured block appeared, the word inside
+  it did not. The ink is now chosen rather than assumed, taking the first theme colour that both
+  paints and stands clear of the block it sits on; where a theme offers nothing that reads, the
+  block is dropped and the badge is printed in its own colour instead.
+
+- **A shell the agent starts from a subagent now belongs to the conversation you are in.** A tool
+  called inside a task runs in a *child* session, and the shell was stamped with that id — so the
+  panel, which filters by the session on screen, showed the agent's own shells only under "whole
+  project", and `/shell` listed shells that looked like they came from somewhere else. Ownership now
+  resolves up `parentID` to the conversation that asked, and the guidance the agent reads resolves
+  the same way, so "this session" means the same thing on both sides.
+
+### Added
+
+- **`sidebarOrder` puts the bays in the order you want.** Shell and Statusline both draw in the
+  sidebar, in the order they register — which was a constant nobody could reach. Set
+  `ui.sidebarOrder` for Shell (default 150) or `statusline.sidebarOrder` (default 200); lower draws
+  first.
+
 ## [0.4.0] - 2026-09-21
 
 ### Fixed

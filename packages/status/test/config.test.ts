@@ -251,3 +251,18 @@ describe("resolving lines", () => {
     expect(asSegmentConfig({ type: "cwd", priority: 5 })).toEqual({ type: "cwd", priority: 5 })
   })
 })
+
+/**
+ * Two bays share the sidebar and draw in registration order, which was a constant nobody could
+ * reach. A key the loader drops is a setting that silently does nothing.
+ */
+describe("where the line sits among other bays", () => {
+  test("sidebarOrder survives the loader, from a file and from plugin options", () => {
+    expect(asStatusConfig({ statusline: { sidebarOrder: 120 } }).sidebarOrder).toBe(120)
+    expect(asStatusConfig({ sidebarOrder: 120 }).sidebarOrder).toBe(120)
+  })
+
+  test("and is absent when nobody set it, so the default stands", () => {
+    expect(asStatusConfig({ surface: "sidebar" }).sidebarOrder).toBeUndefined()
+  })
+})

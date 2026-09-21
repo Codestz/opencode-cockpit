@@ -57,6 +57,13 @@ export interface CockpitConfig {
     dockHeight?: number
     dockOpen?: boolean
     sidebarRows?: number
+    /**
+     * Where this bay's block sits among the others in a shared surface. Lower draws first.
+     *
+     * Two bays in one sidebar draw in the order they registered, and until now that order was a
+     * constant nobody could reach: shells above the statusline, whatever you would rather see.
+     */
+    sidebarOrder?: number
     historyMinutes?: number
     colors?: boolean
     defaultView?: "screen" | "log"
@@ -124,7 +131,14 @@ function asConfig(input: unknown): CockpitConfig {
   if (typeof raw.listRunningShells === "number") config.listRunningShells = raw.listRunningShells
 
   const legacy: CockpitConfig["ui"] = {}
-  for (const key of ["dockHeight", "dockOpen", "sidebarRows", "historyMinutes", "updateCheck"] as const) {
+  for (const key of [
+    "dockHeight",
+    "dockOpen",
+    "sidebarRows",
+    "sidebarOrder",
+    "historyMinutes",
+    "updateCheck",
+  ] as const) {
     if (raw[key] !== undefined) Object.assign(legacy, { [key]: raw[key] })
   }
   if (raw.keybinds && typeof raw.keybinds === "object")

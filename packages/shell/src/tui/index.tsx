@@ -175,7 +175,8 @@ const shellTui: TuiPlugin = async (api, rawOptions, meta) => {
   const height = () => Math.max(6, Math.min(options.dockHeight ?? 14, Math.floor(api.renderer.height * 0.45)))
 
   api.slots.register({
-    order: 150,
+    /** Above the statusline (200) unless the person says otherwise; lower draws first. */
+    order: options.sidebarOrder ?? 150,
     slots: {
       app_bottom() {
         return (
