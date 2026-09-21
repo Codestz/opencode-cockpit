@@ -36,6 +36,18 @@ against the file before it counts. See [Review](/opencode-cockpit/review/overvie
 opencode plugin @opencode-cockpit/review@0.4.3 --global --force
 ```
 
+## Updater — available
+
+Every plugin you have installed — not just this one — with what is really running beside what your
+config says and what is published. An update pins an exact version through OpenCode's own
+`opencode plugin`, removes the stale cache and reads every file back, because OpenCode resolves a
+spec once and `@latest` never moves again. From a shell, on any version:
+`npx opencode-cockpit@latest update`. See [Updater](/opencode-cockpit/updater/overview/).
+
+```sh
+opencode plugin @opencode-cockpit/updater@0.4.3 --global --force
+```
+
 ## Doctor — next
 
 One command that checks your setup and says how to fix it.

@@ -1,0 +1,100 @@
+---
+title: Updater
+description: Every plugin you have installed, what it is really running, and an update checked against disk.
+---
+
+import Cast from "../../../components/Cast.astro"
+
+OpenCode installs a plugin into a cache directory named after the spec you wrote, and **never
+resolves that spec again**. So `some-plugin@latest` — or no version at all — means the release that
+was newest the day you first installed it, for ever. Restarting does not move it, and nothing
+anywhere tells you which release you are really running: the config says `latest`, and nothing says
+`0.1.2`.
+
+The Updater lists every plugin you have, shows what is running beside what your config says and
+what is published, and updates the ones you pick.
+
+<Cast name="updater" caption="A plugin frozen behind @latest and one pinned behind, found and fixed — a real session, only the npm wait is cut." />
+
+## Opening it
+
+`/plugins-update` inside OpenCode. `/cockpit-update` opens the same screen.
+
+```
+     plugin                        running   config        published
+▌[x] opencode-subagent-statusline  1.2.3     latest  ⚠     1.3.0       ↑
+ [x] opencode-command-hooks        0.6.1     @0.6.1        0.7.1       ↑
+     opencode-cockpit              0.4.3     ~/code/cockpit              local
+     12 built into OpenCode
+```
+
+| Column | Says |
+| --- | --- |
+| **running** | The version actually loaded, read from the installed package — not from the config |
+| **config** | What your config asks for. `latest ⚠` is a spec that will not move on its own |
+| **published** | The newest release on your registry. `?` when it did not answer — never "current" |
+
+What needs a decision comes first and is selected for you. Plugins built into OpenCode are one
+line, and a plugin loaded from a path is listed but never touched: it is updated with git.
+
+| Key | |
+| --- | --- |
+| `j` `k` / `↓` `↑` | Move |
+| `space` | Select or clear the plugin under the cursor |
+| `a` | Select every update |
+| `enter` | Review what will change — then `enter` again to do it |
+| `esc` | Back from the review; close the list |
+| `r` | After an update: retry what failed |
+| `c` | After an update: copy the commands that fix what is still wrong |
+
+## What an update does
+
+The review shows every file and every spec that will change, and every cache directory that will be
+removed, before anything is written. Then, for each plugin:
+
+1. **Pins an exact version** — the only kind of spec OpenCode will not freeze — by running
+   OpenCode's own `opencode plugin <name>@<version> --force`. OpenCode edits its own config, in its
+   own format, comments kept. The Updater never writes a config file itself.
+2. **Removes the stale cache directories**, `@latest` included, once the new version is installed.
+   If the install failed, the old copy is kept: it is the one that still runs.
+3. **Reads every file back.** `opencode plugin` prints "Installed" even over an entry it left alone,
+   so the only evidence that counts is disk. The result says what was confirmed —
+   `✓ 2 configs say @1.3.0 · 1 dir removed` — or what is still wrong, with the exact command that
+   fixes it.
+
+Restart OpenCode afterwards to load what was updated.
+
+## From a shell, when you are stuck
+
+An old copy of a plugin cannot update itself: it predates whatever would fix it. This runs from npm
+instead of from the copy that is stuck, so it works whatever version you are on:
+
+```sh
+npx opencode-cockpit@latest update     # or: bunx opencode-cockpit@latest update
+```
+
+It prints the same list and the same review, asks before writing anything, and reads the files back
+the same way. `--dry-run` shows the plan and writes nothing, `--only <name>` updates one plugin, and
+`--yes` does not ask.
+
+## Where it will not reach
+
+- **A project's root `opencode.json`.** `opencode plugin` writes a project's `.opencode/` directory
+  and never edits a root-level `opencode.json`, so those rows say **edit by hand** — and the result
+  checks them like everything else.
+- **npm's cache owned by someone else.** Every install goes through npm; if `~/.npm` holds files
+  from an old `sudo npm`, the install fails with `EACCES`. The result says so and gives the fix,
+  `sudo chown -R "$(whoami)" ~/.npm`, before the retry.
+- **A private registry** is used when npm is configured for it through `npm_config_registry`.
+
+## The daily check
+
+Once a day the Updater asks the registry about every plugin you have, and if something is behind,
+says so once: `2 plugin updates available. Run /plugins-update.` The same set is not announced
+again. To turn it off:
+
+```json title="~/.config/opencode-cockpit/config.json"
+{ "updater": { "updateCheck": false } }
+```
+
+Shell's old `ui.updateCheck: false` is honoured too.

@@ -66,6 +66,10 @@ export default defineConfig({
             { label: "Proxies", slug: "status/proxies" },
           ],
         },
+        {
+          label: "Updater",
+          items: [{ label: "Overview", slug: "updater/overview" }],
+        },
         { label: "Configuration", slug: "configuration" },
         {
           label: "Platform",

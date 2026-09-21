@@ -76,10 +76,7 @@ release that was newest the day you installed it* — and nothing anywhere says 
 published, and updates the ones you pick. It pins an exact version through OpenCode's own
 `opencode plugin`, clears the stale cache, and reads every file back before calling it done.
 
-```
-plugin                        running   config          published
-opencode-cockpit              0.1.2     latest  ⚠       0.5.0       ↑
-```
+![The updater in OpenCode: a plugin frozen behind @latest at 1.2.3 and one pinned behind, reviewed, updated, and both confirmed on disk](media/updater.gif)
 
 `/plugins-update` inside OpenCode, or `npx opencode-cockpit@latest update` from a shell — which
 works whatever version you are stuck on, because it comes from npm rather than from the copy that

@@ -9,6 +9,7 @@ export const nav = {
     { label: "Review", href: "#review" },
     { label: "Shell", href: "#shell" },
     { label: "Statusline", href: "#status" },
+    { label: "Updater", href: "#updater" },
     { label: "Platform", href: "#platform" },
     { label: "Install", href: "#install" },
   ],
@@ -57,7 +58,7 @@ export const compare = {
 }
 
 export const platform = {
-  number: "04",
+  number: "06",
   kicker: "The platform",
   title: "What every capability inherits.",
   intro:
@@ -108,7 +109,7 @@ export const platform = {
 export const bays = {
   number: "01",
   kicker: "What is fitted",
-  title: "Three instruments today. One switch each.",
+  title: "Four instruments today. One switch each.",
   intro:
     "Every bay is its own npm package with a switch in config. They share the daemon, the config " +
     "file and the keys, so the second costs nothing and moving between them changes nothing you " +
@@ -207,12 +208,46 @@ export const bays = {
         caption: "the default line · no configuration written at all",
       },
     },
+    {
+      id: "updater",
+      name: "Updater",
+      tagline: "Every plugin, and what it really runs",
+      state: "live",
+      status: "Available",
+      gains: { agent: "—", you: "Plugins that are actually current" },
+      blurb:
+        "OpenCode installs a plugin once and never resolves its spec again, so @latest quietly means " +
+        "the release that was newest the day you installed it — and nothing says which one that was. " +
+        "The Updater shows what is running beside what your config says and what is published, and " +
+        "updates what you pick, checking every file afterwards.",
+      points: [
+        "Every plugin you have, not just this one",
+        "Running, config and published, side by side",
+        "latest ⚠ — a spec that will not move on its own",
+        "Every change shown before anything is written",
+        "Pins through OpenCode's own installer",
+        "Read back from disk, with the fix for what is not",
+      ],
+      foot: ["every plugin", "npx … update when stuck", "@opencode-cockpit/updater"],
+      docs: "/updater/overview/",
+      media: {
+        kind: "casts" as const,
+        clips: [
+          {
+            cast: "updater",
+            label: "A frozen @latest",
+            hint: "found → reviewed → fixed",
+            caption: "tapes/updater.ts · real plugins, a real install — only the npm wait is cut",
+          },
+        ],
+      },
+    },
   ],
 }
 
 /** What is coming, and the reason it is next. */
 export const next = {
-  number: "05",
+  number: "07",
   kicker: "What is next",
   title: "One bay at a time, and only what can be built.",
   intro:
@@ -231,7 +266,7 @@ export const next = {
 }
 
 export const install = {
-  number: "06",
+  number: "08",
   kicker: "Install",
   title: "Two minutes, then ask it to start something.",
   modes: [

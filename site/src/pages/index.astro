@@ -13,18 +13,23 @@ import Closing from "../components/landing/Closing.astro"
 ---
 <Base
   title="Cockpit — instruments for OpenCode"
-  description="Instruments for OpenCode: background terminals your agent starts and waits on, and a statusline that tells you what the session is costing. One daemon, one config, a switch per bay."
+  description="Instruments for OpenCode: background terminals your agent starts and waits on, a pull request in the terminal, a statusline that tells you what the session is costing, and an updater that shows what every plugin is really running. One daemon, one config, a switch per bay."
 >
   <Nav />
   <main>
     <Hero />
     <Specs />
-    <!-- The index, then a section each. Fitting another bay is an entry in bays.items. -->
+    <!--
+      The index, then a section each. A new bay is an entry in bays.items AND a <Bay> line here: the
+      sections are placed by hand so Compare can sit beside Shell. The Updater shipped with only the
+      first half and appeared in the index with no section below it.
+    -->
     <Fitted />
     <Bay id="review" number="02" />
     <Bay id="shell" number="03" />
     <Compare />
     <Bay id="status" number="04" />
+    <Bay id="updater" number="05" />
     <Platform />
     <Next />
     <Install />
