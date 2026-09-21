@@ -34,7 +34,11 @@ jobs:
         run: bun run lint
       - name: Typecheck
         run: bun run typecheck
+      # About a minute on either runner. A macOS runner once sat in this step for eleven minutes with
+      # no output on code that passed before and after; a hang should fail fast and be rerun, not
+      # hold the whole job until its own limit.
       - name: Test
+        timeout-minutes: 5
         run: bun test --conditions browser
       - name: Pack and install check
         run: bun run pack:check
