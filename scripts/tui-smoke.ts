@@ -142,6 +142,26 @@ try {
   const second = await screen()
 
   /**
+   * The console, which was never opened here — so a crash on open was never caught here either.
+   * Pressing `?` walks both halves of the key row: the keys that act, and the rest in the panel.
+   */
+  await type("\x18i", 3000) // ctrl+x i
+  const consoleScreen = await screen()
+  await type("?", 1500)
+  const consoleDetails = await screen()
+  await type("\x1b", 800) // esc, back to the conversation
+
+  for (const [what, marker] of [
+    ["the console never drew its keys", "[?]"],
+    ["the console's action keys never drew", "[r]"],
+  ] as const) {
+    if (!consoleScreen.includes(marker)) throw new Error(`${what}:\n${consoleScreen}`)
+  }
+  if (!consoleDetails.includes("keys")) {
+    throw new Error(`the details panel never listed the other keys:\n${consoleDetails}`)
+  }
+
+  /**
    * The review panel, from the same published build.
    *
    * It reads the repository rather than the session, so the project is a real checkout with one
@@ -182,7 +202,7 @@ try {
     )
   }
   console.log(
-    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; statusline drew; review drew its diff`,
+    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; console and its keys drew; statusline drew; review drew its diff`,
   )
 } finally {
   rmSync(work, { recursive: true, force: true })

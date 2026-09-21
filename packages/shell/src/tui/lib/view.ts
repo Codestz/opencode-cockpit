@@ -219,3 +219,165 @@ export function tailLines(text: string | undefined, rows: number, cols: number):
 export function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, Math.max(0, max - 1))}…` : text
 }
+
+/**
+ * One key and what it does.
+ *
+ * The console used to say `i type · c ^C · r restart · tab screen · / search log`, which is a
+ * sentence you have to parse before you can use it — the reader has to work out where each key stops
+ * and its description starts. Review settled this already: a bracketed key is a *shape*, recognised
+ * rather than read, and it does that work without spending colour, which the console needs for the
+ * shells themselves.
+ */
+export interface KeyHint {
+  key: string
+  /** Dropped when the console is too narrow for words; the key alone is still a handhold. */
+  label: string
+  /**
+   * `act` does something to the shell in front of you and earns a place on the row whatever the
+   * width. `more` moves, switches or manages, and lives in the details panel, which has room to lay
+   * it out properly instead of competing for a single line.
+   */
+  tier: "act" | "more"
+}
+
+export interface ConsoleKeysState {
+  /** False when no shell is selected, which leaves almost nothing worth offering. */
+  shell: boolean
+  running: boolean
+  view: "log" | "screen" | "details"
+  /** A filter is on, so there is something to clear. */
+  filtered: boolean
+  /** How many shells the console can move between. */
+  count: number
+  scope: "session" | "project"
+  /** Finished shells, which are the only ones `D` would clear. */
+  finished: number
+}
+
+/** Only the keys that do something right now: no actions without a target, no concepts from elsewhere. */
+export function consoleKeys(state: ConsoleKeysState): KeyHint[] {
+  if (!state.shell) {
+    return [
+      { key: "n", label: "New", tier: "act" },
+      { key: "esc", label: "Close", tier: "act" },
+    ]
+  }
+  const keys: KeyHint[] = state.running
+    ? [
+        { key: "i", label: "Type", tier: "act" },
+        { key: "c", label: "^C", tier: "act" },
+        { key: "r", label: "Restart", tier: "act" },
+        { key: "x", label: "Stop", tier: "act" },
+      ]
+    : [
+        { key: "r", label: "Run Again", tier: "act" },
+        { key: "d", label: "Remove", tier: "act" },
+      ]
+  if (state.view === "log" && state.filtered) keys.push({ key: "⌫", label: "Clear Filter", tier: "more" })
+  keys.push({ key: "tab", label: state.view === "log" ? "Screen" : "Log", tier: "more" })
+  if (state.view !== "details") keys.push({ key: "/", label: "Search Log", tier: "more" })
+  if (state.count > 1) keys.push({ key: "[ ]", label: "Switch Shell", tier: "more" })
+  keys.push({
+    key: "s",
+    label: state.scope === "session" ? "Whole Project" : "This Session",
+    tier: "more",
+  })
+  if (state.finished > 0) keys.push({ key: "D", label: "Clear Done", tier: "more" })
+  keys.push({ key: "n", label: "New Shell", tier: "more" }, { key: "esc", label: "Close", tier: "more" })
+  return keys
+}
+
+/**
+ * The row under the console: what acts on this shell, and the way to everything else.
+ *
+ * A footer carrying every key is a wall — nine bracketed keys with no room for their words, which is
+ * what it became. These are the ones whose absence would cost a press right now; the rest are a
+ * keystroke away and laid out in columns where they can be read.
+ */
+export function footerHints(state: ConsoleKeysState): KeyHint[] {
+  const all = consoleKeys(state)
+  const acting = all.filter((hint) => hint.tier === "act")
+  if (acting.length === all.length) return all
+  return [...acting, { key: "?", label: state.view === "details" ? "Back" : "Details", tier: "act" }]
+}
+
+/** Everything the footer left out, for the panel that has room for it. */
+export function panelHints(state: ConsoleKeysState): KeyHint[] {
+  return consoleKeys(state).filter((hint) => hint.tier === "more")
+}
+
+/**
+ * The other keys, two to a line.
+ *
+ * `detailRows` is already a label column and a value column, so the keys join it as rows rather than
+ * as a panel of their own — one place to look, one alignment, and the section cannot drift out of
+ * step with what the footer offers because both are built from `consoleKeys`.
+ */
+export function keyRows(hints: readonly KeyHint[], cols: number): [string, string][] {
+  if (hints.length === 0) return []
+  const cell = (hint: KeyHint) => `${hint.key.padEnd(5)}${hint.label}`
+  const cells = hints.map(cell)
+  /** The second column starts just past the longest first one — not at half the panel. */
+  const gutter = Math.min(
+    Math.max(16, Math.floor(Math.max(20, cols - 11) / 2)),
+    Math.max(...cells.filter((_, index) => index % 2 === 0).map((text) => text.length)) + 4,
+  )
+  const rows: [string, string][] = []
+  for (let index = 0; index < cells.length; index += 2) {
+    const left = cells[index] as string
+    const right = cells[index + 1]
+    rows.push([index === 0 ? "keys" : "", right ? `${left.padEnd(gutter)}${right}` : left])
+  }
+  return rows
+}
+
+/** The gap between two hints, in cells. Must match what the console actually prints. */
+export const HINT_GAP = 3
+
+/**
+ * What one hint costs: `[key]`, its label, and the gap after it.
+ *
+ * The gap was counted as two while the console printed three, so every hint was a cell wider than
+ * measured and a row of nine ran a key and a half past the edge. Arithmetic that disagrees with the
+ * renderer is worse than no arithmetic: it fits confidently and wrongly.
+ */
+export const hintWidth = (hint: KeyHint, withLabel: boolean, gap = HINT_GAP): number =>
+  hint.key.length + 2 + (withLabel && hint.label ? hint.label.length + 1 : 0) + gap
+
+/** A hint, and whether this row has the width to say what it does. */
+export interface FittedHint extends KeyHint {
+  labelled: boolean
+}
+
+export interface FittedRow {
+  hints: FittedHint[]
+  /** Keys that did not fit at all. Shown as `…`, so the row never pretends to be the whole list. */
+  dropped: number
+}
+
+/**
+ * As much of the row as fits, giving up the least useful thing first.
+ *
+ * The keys are already ordered by how often they are wanted, so the last label goes first, then the
+ * one before it; only when there are no labels left does a key itself drop. An earlier version was
+ * all-or-nothing — one label too many and every label went, leaving a roomy console showing nine
+ * bare brackets that said nothing.
+ *
+ * The final hint is measured without its trailing gap, because nothing follows it.
+ */
+export function fitHints(hints: readonly KeyHint[], cols: number): FittedRow {
+  const fitted: FittedHint[] = hints.map((hint) => ({ ...hint, labelled: true }))
+  const width = (): number =>
+    fitted.reduce(
+      (sum, hint, index) => sum + hintWidth(hint, hint.labelled, index === fitted.length - 1 ? 0 : HINT_GAP),
+      0,
+    )
+  for (let index = fitted.length - 1; index >= 0 && width() > cols; index--) {
+    ;(fitted[index] as FittedHint).labelled = false
+  }
+  /** Room for the `…` that says the row is not the whole list. */
+  const ellipsis = 2
+  while (fitted.length > 0 && width() > cols - (fitted.length < hints.length ? ellipsis : 0)) fitted.pop()
+  return { hints: fitted, dropped: hints.length - fitted.length }
+}

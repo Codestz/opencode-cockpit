@@ -10,8 +10,12 @@ import { isReleaseKey, keyToBytes } from "../lib/keys.ts"
 import { friendlyError, splitMatches } from "../lib/search.ts"
 import {
   displayCommand,
+  fitHints,
+  footerHints,
+  keyRows,
   kindColor,
   kindOf,
+  panelHints,
   relativeCwd,
   statusDetail,
   tailLines,
@@ -65,6 +69,7 @@ export function Console(props: ConsoleProps) {
   let scroll: ScrollBoxRenderable | undefined
 
   const running = () => shell()?.status === "running"
+  const finished = createMemo(() => props.store.shells().filter((s) => s.status !== "running").length)
   const client = props.store.client
 
   // Layout budget. The host dialog starts at 1/4 of the height and is 116 columns wide (xlarge),
@@ -306,8 +311,25 @@ export function Console(props: ConsoleProps) {
   const screenRuns = createMemo(() =>
     props.colors === false ? [] : tailRuns(screen()?.styled, bodyRows(), bodyCols()),
   )
+  /** Declared above `details`, which reads it: a `const` below its reader throws when the memo runs. */
+  const keyState = createMemo(() => ({
+    shell: Boolean(shell()),
+    running: running(),
+    view: view(),
+    filtered: Boolean(filter()),
+    count: props.store.shells().length,
+    scope: props.store.scope(),
+    finished: finished(),
+  }))
+
+  /** The shell's facts, then the keys the footer had no room to name. */
   const details = createMemo(() =>
-    shell() ? detailRows(shell() as ShellInfo, props.store.now(), bodyCols()) : [],
+    shell()
+      ? [
+          ...detailRows(shell() as ShellInfo, props.store.now(), bodyCols()),
+          ...keyRows(panelHints(keyState()), bodyCols()),
+        ]
+      : [],
   )
   const bodyHeight = createMemo(() => {
     if (typing()) return bodyRows()
@@ -319,7 +341,6 @@ export function Console(props: ConsoleProps) {
           : screenText().split("\n").length
     return Math.min(bodyRows(), Math.max(6, content))
   })
-  const finished = createMemo(() => props.store.shells().filter((s) => s.status !== "running").length)
   const position = createMemo(() => {
     const list = props.store.shells()
     const index = list.findIndex((x) => x.id === shell()?.id)
@@ -327,32 +348,19 @@ export function Console(props: ConsoleProps) {
   })
   // Only the keys that do something for the selected shell.
   /** Only the keys that do something right now: no sidebar concepts, no actions with no target. */
-  const hint = createMemo(() => {
+  /**
+   * Searching and typing are *states*, not key lists.
+   *
+   * While one of them is on, the row says what is happening and how to get out, because a row of
+   * keys that do not currently work is worse than no row at all.
+   */
+  const message = createMemo(() => {
     if (searching()) return `search: ${draft()}▏· enter filters · esc cancels`
     if (typing()) return "TYPING: keys go to the shell (ctrl+c included) · ctrl+] stop typing"
-    const wide = dims().width >= 110
-    const label = (long: string, short: string) => (wide ? long : short)
-    const keys: string[] = []
-    if (!shell()) return ["n new", "esc close"].join(" · ")
-    keys.push(
-      ...(running()
-        ? [label("i type", "i"), label("c ^C", "c"), label("r restart", "r"), label("x stop", "x")]
-        : [label("r run again", "r"), label("d remove", "d")]),
-    )
-    if (view() === "log" && filter()) keys.push(label("backspace clear filter", "⌫ filter"))
-    keys.push(label(`tab ${view() === "log" ? "screen" : "log"}`, "tab"))
-    if (view() !== "details") keys.push(label("/ search log", "/"))
-    keys.push(label("? details", "?"))
-    if (props.store.shells().length > 1) keys.push(label("[ ] switch", "[ ]"))
-    keys.push(
-      props.store.scope() === "session"
-        ? label("s whole project", "s project")
-        : label("s this session", "s session"),
-    )
-    if (finished() > 0) keys.push(label("D clear done", "D"))
-    keys.push(label("n new", "n"), "esc")
-    return keys.join(" · ")
+    return undefined
   })
+
+  const keys = createMemo(() => fitHints(footerHints(keyState()), bodyCols()))
 
   return (
     <box flexDirection="column" paddingLeft={2} paddingRight={2} paddingBottom={1} overflow="hidden">
@@ -499,9 +507,36 @@ export function Console(props: ConsoleProps) {
         <Show
           when={notice()}
           fallback={
-            <text fg={typing() ? theme().accent : theme().textMuted} wrapMode="none">
-              {truncate(hint(), bodyCols())}
-            </text>
+            <Show
+              when={message()}
+              fallback={
+                <text wrapMode="none">
+                  <For each={keys().hints}>
+                    {(hint) => (
+                      <>
+                        <span style={{ fg: theme().accent }}>
+                          <b>[{hint.key}]</b>
+                        </span>
+                        <span style={{ fg: theme().textMuted }}>
+                          {hint.labelled ? ` ${hint.label}` : ""}
+                          {"   "}
+                        </span>
+                      </>
+                    )}
+                  </For>
+                  {/* The row is not the whole list, and says so rather than ending mid-key. */}
+                  <Show when={keys().dropped > 0}>
+                    <span style={{ fg: theme().textMuted }}>…</span>
+                  </Show>
+                </text>
+              }
+            >
+              {(said) => (
+                <text fg={typing() ? theme().accent : theme().textMuted} wrapMode="none">
+                  {truncate(said(), bodyCols())}
+                </text>
+              )}
+            </Show>
           }
         >
           {(n) => (

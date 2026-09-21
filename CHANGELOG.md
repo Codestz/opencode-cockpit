@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **The console names its keys the way Review does, and stops carrying all of them.**
+  `i type · c ^C · r restart · tab screen · / search log` was a sentence you had to parse before you
+  could use it, and at nine keys there was no room left for the words. The row now holds only what
+  acts on the shell in front of you — `[i] Type  [c] ^C  [r] Restart  [x] Stop` — and `[?] Details`,
+  which opens the panel where the rest are laid out in two columns, under the shell's own facts. The
+  bracket does the work colour would otherwise have to do, and colour stays with the shells.
+
 ## [0.4.2] - 2026-09-21
 
 ### Changed
