@@ -22,6 +22,18 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **`/cockpit-update` no longer promises an update it cannot make.** It cleared the cached copy and
+  told you to restart — but if your config pins `opencode-cockpit@0.4.1`, the next start reinstalls
+  0.4.1 and the version never moves. It now reads both plugin lists (`opencode.json` and
+  `tui.json`), and when a pin is in the way it says which entry to edit instead of clearing a cache
+  for nothing. A path install and a tag are not pins, so neither is treated as one.
+
+- **The handover tells the agent what it needs before it asks.** The submit message now names the
+  files the comments are in, so the first move is not a tool call spent finding out where the work
+  is; says plainly that resolving is *refused* while a file still reads as it did, which is what
+  `review_reply` actually does; and draws a boundary — these comments, no unrelated work, no
+  commits, and say so in the reply when a comment turns out to be the tip of something bigger.
+
 - **The panel no longer fails in silence.** The change store set a `notice` in four places — "no
   conversation open", every git error, "file too large" — and nothing ever read it, so each of those
   reached the screen as an empty pane with no explanation. It is now shown in the footer, and the

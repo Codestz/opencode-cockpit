@@ -3,11 +3,36 @@
 import { rmSync } from "node:fs"
 import type { TuiPluginApi, TuiPluginMeta } from "@opencode-ai/plugin/tui"
 import pkg from "../../package.json" with { type: "json" }
-import { cacheDirFor, fetchLatestVersion, isNewer, shouldCheck } from "./lib/update.ts"
+import {
+  cacheDirFor,
+  fetchLatestVersion,
+  isNewer,
+  type PluginEntry,
+  pinnedVersion,
+  shouldCheck,
+} from "./lib/update.ts"
 import { BADGE_LABEL, displayCommand, kindOf, order } from "./lib/view.ts"
 import type { ShellStore } from "./state/store.ts"
 
 const PACKAGE_NAME = pkg.name
+
+/**
+ * The version the person's own config pins us to, from either half's plugin list.
+ *
+ * Both lists can carry a spec — `opencode.json` for the server half, `tui.json` for the interface —
+ * and either one pinned is enough to make an update a no-op.
+ */
+function pinnedHere(api: TuiPluginApi): string | undefined {
+  const server = api.state.config.plugin as ReadonlyArray<PluginEntry> | undefined
+  const interfaceSide = api.tuiConfig.plugin as ReadonlyArray<PluginEntry> | undefined
+  return pinnedVersion(server, PACKAGE_NAME) ?? pinnedVersion(interfaceSide, PACKAGE_NAME)
+}
+
+/** What to do instead, when clearing the cache would only reinstall the same thing. */
+const changeThePin = (pinned: string, latest: string | undefined): string =>
+  `Your config pins ${PACKAGE_NAME}@${pinned}, so clearing the cache would reinstall ${pinned}. ` +
+  `Change that entry to ${latest ? `${PACKAGE_NAME}@${latest}` : "a newer version"} — or drop the ` +
+  `version to follow the latest release — then restart OpenCode.`
 
 /** One quiet registry check a day; a newer release is announced once per version. */
 export async function announceUpdate(api: TuiPluginApi, meta: TuiPluginMeta, current: string): Promise<void> {
@@ -19,10 +44,13 @@ export async function announceUpdate(api: TuiPluginApi, meta: TuiPluginMeta, cur
   if (!latest || !isNewer(latest, current)) return
   if (api.kv.get<string>("cockpit.update.announced", "") === latest) return
   api.kv.set("cockpit.update.announced", latest)
+  const pinned = pinnedHere(api)
   api.ui.toast({
     variant: "info",
     title: "opencode-cockpit",
-    message: `${latest} is available (you have ${current}). Run /cockpit-update.`,
+    message: pinned
+      ? `${latest} is available (you have ${current}). ${changeThePin(pinned, latest)}`
+      : `${latest} is available (you have ${current}). Run /cockpit-update.`,
     duration: 10_000,
   })
 }
@@ -42,6 +70,23 @@ export function offerUpdate(api: TuiPluginApi, meta: TuiPluginMeta, current: str
     return
   }
   void fetchLatestVersion(PACKAGE_NAME).then((latest) => {
+    /**
+     * A pin outranks everything else here.
+     *
+     * The cache can be cleared and the newest release fetched and it still installs the pinned
+     * version, so the only honest move is to say what to edit. Deleting the cache anyway would cost
+     * a reinstall and change nothing.
+     */
+    const pinned = pinnedHere(api)
+    if (pinned && (!latest || isNewer(latest, pinned))) {
+      api.ui.toast({
+        variant: "warning",
+        title: "opencode-cockpit",
+        message: changeThePin(pinned, latest),
+        duration: 15_000,
+      })
+      return
+    }
     if (latest && !isNewer(latest, current)) {
       api.ui.toast({
         variant: "success",
