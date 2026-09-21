@@ -52,18 +52,20 @@ The panel takes the keyboard while it is open, and gives it straight back when i
 
 | Key | Does |
 | --- | --- |
+| <kbd>&lt;leader&gt;v</kbd> | Open or close the review |
+| <kbd>&lt;leader&gt;r</kbd> | Move it: right pane, full screen |
 | <kbd>j</kbd> <kbd>k</kbd> <kbd>↑</kbd> <kbd>↓</kbd> | Move |
 | <kbd>tab</kbd> | Switch pane |
 | <kbd>return</kbd> <kbd>l</kbd> <kbd>→</kbd> | Open a file, or fold a folder |
 | <kbd>h</kbd> <kbd>←</kbd> | Back to the file list |
-| <kbd>d</kbd> <kbd>u</kbd> | Scroll the diff |
+| <kbd>d</kbd> <kbd>u</kbd> <kbd>pgdn</kbd> <kbd>pgup</kbd> | Scroll the diff |
 | <kbd>v</kbd> | Start a selection, or cancel it |
 | <kbd>c</kbd> <kbd>n</kbd> | Comment here, or reply to the thread here |
 | <kbd>f</kbd> | Comment on the whole file |
 | <kbd>x</kbd> | Remove the thread you are on |
 | <kbd>space</kbd> <kbd>m</kbd> | Mark read, and go to the next unread |
 | <kbd>s</kbd> | Submit the review |
-| <kbd>b</kbd> | Next source: uncommitted, branch, conversation |
+| <kbd>b</kbd> | Next source: uncommitted, or what this branch changes |
 | <kbd>g</kbd> | Reload the diff |
 | <kbd>w</kbd> | Right pane or full screen |
 | <kbd>p</kbd> | Show what the panel is costing |

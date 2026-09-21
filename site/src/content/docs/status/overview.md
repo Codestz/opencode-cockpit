@@ -22,7 +22,7 @@ what the host leaves out:
 | Segment | Says |
 | --- | --- |
 | `session.status` | working, or `retry 2 in 5s` — OpenCode shows a spinner, not why it stalled |
-| `git.diff` | `+150 / -30` for this session |
+| `git.diff` | `+150 / -30` — what is uncommitted, from `git diff --shortstat HEAD` |
 | `todo` | `3/7 todo`, and nothing once the list is finished |
 | `session.time` | `12m04s` |
 | `diagnostics` | only when an LSP or MCP server is unhealthy |
@@ -61,6 +61,19 @@ until it fits, so how full the context is survives a 60-column window and the ve
 not. A hard right-cut would have kept whichever segments happened to sit on the left.
 
 A vertical line drops by `maxRows` instead, and each row is cut to the column's width.
+
+## Keys and commands
+
+The statusline has no keys, and that is deliberate: it is something you read, not something you
+drive. Nothing it does needs a keystroke, so it takes none — a line that claimed a letter you could
+have given to a bay you actually operate would be charging you for the privilege of being looked at.
+
+| Command | Does |
+| --- | --- |
+| `/statusline` | Hands the agent a brief on your line: which config file this project reads, what is in it, and anything that failed to load |
+
+`/statusline` writes into the conversation rather than opening a panel, because the useful next step
+is usually "change this for me", and the agent needs to know what it is changing.
 
 ## Three ways to configure it
 
