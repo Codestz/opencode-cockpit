@@ -8,7 +8,7 @@ Requires **OpenCode 1.18+** on macOS or Linux.
 ## Everything
 
 ```sh
-opencode plugin opencode-cockpit@0.4.3 --global --force
+opencode plugin opencode-cockpit@0.5.0 --global --force
 ```
 
 This writes the plugin entry into **both** `opencode.json` and `tui.json` — the agent half and the
@@ -17,7 +17,7 @@ interface half. Restart OpenCode afterwards.
 ## A single bay
 
 ```sh
-opencode plugin @opencode-cockpit/shell@0.4.3 --global --force
+opencode plugin @opencode-cockpit/shell@0.5.0 --global --force
 ```
 
 Same daemon, same config file, same interface slots. Add other bays later without changing anything

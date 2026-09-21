@@ -15,7 +15,7 @@ behind you. Cockpit is the instrument panel: things your agent can use, and thin
 what it is doing.
 
 ```sh
-opencode plugin opencode-cockpit@0.4.3 --global --force
+opencode plugin opencode-cockpit@0.5.0 --global --force
 ```
 
 ---
@@ -167,13 +167,13 @@ switches between the live screen and the scrollback, `?` shows details.
 **Everything**
 
 ```sh
-opencode plugin opencode-cockpit@0.4.3 --global --force
+opencode plugin opencode-cockpit@0.5.0 --global --force
 ```
 
 **Only what you want**
 
 ```sh
-opencode plugin @opencode-cockpit/shell@0.4.3 --global --force
+opencode plugin @opencode-cockpit/shell@0.5.0 --global --force
 ```
 
 The version is pinned on purpose. OpenCode resolves a plugin spec once and never again, so a

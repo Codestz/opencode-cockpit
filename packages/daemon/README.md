@@ -12,7 +12,7 @@ One daemon per machine, shared by every OpenCode window, started on demand and g
 > front end, writing a capability, or debugging the daemon itself.
 >
 > ```sh
-> opencode plugin opencode-cockpit@0.4.3 --global --force
+> opencode plugin opencode-cockpit@0.5.0 --global --force
 > ```
 
 ---

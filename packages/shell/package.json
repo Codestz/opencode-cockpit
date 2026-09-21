@@ -1,6 +1,6 @@
 {
   "name": "@opencode-cockpit/shell",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "description": "Background shells for OpenCode: the agent starts, waits on and drives PTYs; you watch them in a docked TUI panel",
   "type": "module",
   "license": "MIT",
