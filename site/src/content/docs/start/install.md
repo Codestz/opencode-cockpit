@@ -8,7 +8,7 @@ Requires **OpenCode 1.18+** on macOS or Linux.
 ## Everything
 
 ```sh
-opencode plugin opencode-cockpit --global
+opencode plugin opencode-cockpit@0.4.3 --global --force
 ```
 
 This writes the plugin entry into **both** `opencode.json` and `tui.json` — the agent half and the
@@ -17,7 +17,7 @@ interface half. Restart OpenCode afterwards.
 ## A single bay
 
 ```sh
-opencode plugin @opencode-cockpit/shell --global
+opencode plugin @opencode-cockpit/shell@0.4.3 --global --force
 ```
 
 Same daemon, same config file, same interface slots. Add other bays later without changing anything
@@ -48,6 +48,20 @@ Shells survive an OpenCode restart, and a second OpenCode window sees the same o
 
 ## Staying up to date
 
-OpenCode resolves an unpinned plugin spec **once** and caches it forever, so `@latest` does not move
-on its own. Cockpit checks the registry at most once a day and offers `/cockpit-update`, which clears
-the cache entry so the next start installs the new version.
+OpenCode resolves a plugin spec **once** and caches it for ever, so a bare `opencode-cockpit` or
+`@latest` means the release that was newest the day you first installed it. That is why the commands
+above pin a version, and why `--force` is there: run the same line with a newer version to move.
+
+You rarely need to. Once a day Cockpit checks every plugin you have — not just its own — and says so
+when something is behind. `/plugins-update` shows what runs beside what your config says and what is
+published, and updates what you pick: it pins the new version through OpenCode's own `opencode plugin`,
+removes the stale cache, and reads every file back before calling it done.
+
+:::tip[Stuck on an old version?]
+An old copy cannot update itself — it predates the fix. This runs from npm instead, so it works
+whatever you have installed:
+
+```sh
+npx opencode-cockpit@latest update     # or bunx
+```
+:::

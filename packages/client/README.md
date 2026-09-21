@@ -10,7 +10,7 @@ spawning, reconnecting, version skew, subscriptions — so a capability is left 
 > front end for Cockpit, or a capability of your own.
 >
 > ```sh
-> opencode plugin opencode-cockpit --global
+> opencode plugin opencode-cockpit@0.4.3 --global --force
 > ```
 
 ---

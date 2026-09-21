@@ -15,7 +15,7 @@ behind you. Cockpit is the instrument panel: things your agent can use, and thin
 what it is doing.
 
 ```sh
-opencode plugin opencode-cockpit --global
+opencode plugin opencode-cockpit@0.4.3 --global --force
 ```
 
 ---
@@ -65,6 +65,27 @@ recolour or remove, or write yourself in TypeScript. Your Claude Code statusline
 unchanged, colours and all.*
 
 **14 segments · 2 surfaces · [docs](https://codestz.github.io/opencode-cockpit/status/overview/) · [`@opencode-cockpit/status`](packages/status)**
+
+---
+
+### 🔄  Updater — every plugin, and what it is really running
+
+OpenCode installs a plugin once and never resolves its spec again, so `@latest` quietly means *the
+release that was newest the day you installed it* — and nothing anywhere says which one that was.
+**Updater** lists every plugin you have, what is running beside what your config says and what is
+published, and updates the ones you pick. It pins an exact version through OpenCode's own
+`opencode plugin`, clears the stale cache, and reads every file back before calling it done.
+
+```
+plugin                        running   config          published
+opencode-cockpit              0.1.2     latest  ⚠       0.5.0       ↑
+```
+
+`/plugins-update` inside OpenCode, or `npx opencode-cockpit@latest update` from a shell — which
+works whatever version you are stuck on, because it comes from npm rather than from the copy that
+cannot update itself.
+
+**Every plugin, not just this one · [`@opencode-cockpit/updater`](packages/updater)**
 
 ---
 
@@ -137,7 +158,7 @@ keeping line numbers and highlighting matches — and output keeps the colours t
 | `ctrl+x i` · `/shell` | Open the shell console |
 | `/shell-new` | Start a shell yourself |
 | `/shells-clear` | Remove finished shells |
-| `/cockpit-update` | Update the plugin when a newer release exists |
+| `/plugins-update` | Every plugin you have installed: what runs, what is published, and an update checked against disk |
 
 Status reads the same everywhere — `RUN` (with a spinner), `FAIL`, `STOP`, `DONE` — running shells
 and recent failures stay in view, the rest folds behind `▸ N more`. In the console: `i` types
@@ -149,13 +170,24 @@ switches between the live screen and the scrollback, `?` shows details.
 **Everything**
 
 ```sh
-opencode plugin opencode-cockpit --global
+opencode plugin opencode-cockpit@0.4.3 --global --force
 ```
 
 **Only what you want**
 
 ```sh
-opencode plugin @opencode-cockpit/shell --global
+opencode plugin @opencode-cockpit/shell@0.4.3 --global --force
+```
+
+The version is pinned on purpose. OpenCode resolves a plugin spec once and never again, so a
+bare `opencode-cockpit` or `@latest` stays on whatever it installed first. `--force` replaces an
+entry you already have, so the same line is also how you move to a newer release.
+
+**Stuck on an old version?** This runs outside OpenCode, from npm, so it works whatever you have
+installed — and shows every plugin you have, not just this one:
+
+```sh
+npx opencode-cockpit@latest update     # or: bunx opencode-cockpit@latest update
 ```
 
 Restart OpenCode. Requires OpenCode 1.18+ on macOS or Linux. Install a feature either through
@@ -213,6 +245,8 @@ Each shell's output feeds three views at once: a normalized **log** for the agen
 | [`opencode-cockpit`](packages/opencode) | The bundle: every bay, each switchable | [README](packages/opencode/README.md) |
 | [`@opencode-cockpit/shell`](packages/shell) | Bay 01 — background terminals | [README](packages/shell/README.md) · [docs](https://codestz.github.io/opencode-cockpit/shell/overview/) |
 | [`@opencode-cockpit/status`](packages/status) | Bay 02 — the statusline | [README](packages/status/README.md) · [docs](https://codestz.github.io/opencode-cockpit/status/overview/) |
+| [`@opencode-cockpit/review`](packages/review) | Bay 03 — a pull request in the terminal | [README](packages/review/README.md) · [docs](https://codestz.github.io/opencode-cockpit/review/overview/) |
+| [`@opencode-cockpit/updater`](packages/updater) | Bay 04 — every plugin, and an update checked against disk | [README](packages/updater/README.md) |
 | [`@opencode-cockpit/daemon`](packages/daemon) | `cockpitd`, the shared process host | [README](packages/daemon/README.md) |
 | [`@opencode-cockpit/client`](packages/client) | Typed, auto-spawning client | [README](packages/client/README.md) |
 | [`@opencode-cockpit/protocol`](packages/protocol) | Wire contracts and schemas | [README](packages/protocol/README.md) |
