@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **A daemon whose socket has been deleted now stops instead of stranding its shells.** A unix socket
+  is held by its inode rather than by its name, so removing `~/.cache/opencode-cockpit` — where
+  cleanup tools aim — left the daemon running and listening on a path that no longer existed. The
+  next client found no socket, started a second daemon, and the first kept its shells alive where
+  nothing could see or stop them: a dev server holding a port, findable only with `ps`. There is no
+  way back from that state, since a client can only reach the daemon through the path, so it shuts
+  down and lets its shells go rather than leaving them stranded for the rest of the session.
+
 ### Added
 
 - **The line reports its own failures, on the line.** A module that would not load draws a `⚠` row

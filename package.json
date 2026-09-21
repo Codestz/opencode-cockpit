@@ -6,18 +6,19 @@
     "packages/*"
   ],
   "scripts": {
-    "test": "bun run build && bun test --conditions browser",
+    "test": "bun run clean:daemons && bun run build && bun test --conditions browser",
     "typecheck": "tsc -b",
     "lint": "biome check .",
     "format": "biome format --write .",
     "lint:fix": "biome check --write .",
-    "check": "bun run build && bun run lint && bun run typecheck && bun test --conditions browser",
+    "check": "bun run clean:daemons && bun run build && bun run lint && bun run typecheck && bun test --conditions browser",
     "pack:check": "bun scripts/pack-check.ts",
     "version:set": "bun scripts/set-version.ts",
     "build": "bun scripts/build.ts",
     "smoke:tui": "bun scripts/tui-smoke.ts",
     "release": "bun scripts/release.ts",
     "record": "bun scripts/record.ts",
+    "clean:daemons": "bun scripts/clean-daemons.ts",
     "preview": "bun packages/status/src/cli/preview.ts",
     "capture": "bun scripts/capture.ts"
   },

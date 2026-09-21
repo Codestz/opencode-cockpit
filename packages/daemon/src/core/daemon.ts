@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs"
 import {
   type CockpitPaths,
   daemonBuildId,
@@ -17,6 +17,8 @@ export interface DaemonOptions {
   modules: Module[]
   /** Shut down after this long with no clients and no busy module. 0 disables. */
   idleTimeoutMs?: number
+  /** How often to re-check idleness and that the socket is still ours. */
+  checkIntervalMs?: number
   logLevel?: Level
   /** Log to the log file (default) or stderr. */
   logToFile?: boolean
@@ -31,6 +33,16 @@ export const DAEMON_BUILD: string = daemonBuildId(
   DAEMON_VERSION,
 )
 
+/** A socket by identity rather than by name: the pair survives a rename and changes on a rebind. */
+function socketIdentity(path: string): string | undefined {
+  try {
+    const stat = statSync(path)
+    return `${stat.dev}:${stat.ino}`
+  } catch {
+    return undefined
+  }
+}
+
 export class Daemon {
   readonly log: Logger
   private readonly router = new Router()
@@ -38,6 +50,8 @@ export class Daemon {
   private readonly startedAt = Date.now()
   private idleTimer: ReturnType<typeof setTimeout> | undefined
   private idleCheck: ReturnType<typeof setInterval> | undefined
+  /** Which socket file this daemon is actually listening on, by identity rather than by path. */
+  private socketId: string | undefined
   private stopping: Promise<void> | undefined
   private resolveStopped!: () => void
   /** Resolves once the daemon has fully shut down. */
@@ -84,7 +98,11 @@ export class Daemon {
     this.server.listen(paths.socket)
     chmodSync(paths.socket, 0o600)
     writeFileSync(paths.pidFile, String(process.pid), { mode: 0o600 })
-    this.idleCheck = setInterval(() => this.refreshIdle(), 30_000)
+    this.socketId = socketIdentity(paths.socket)
+    this.idleCheck = setInterval(() => {
+      this.refreshIdle()
+      this.checkReachable()
+    }, this.options.checkIntervalMs ?? 30_000)
     this.refreshIdle()
     this.log.info("daemon started", { pid: process.pid, build: DAEMON_BUILD, socket: paths.socket })
   }
@@ -109,6 +127,31 @@ export class Daemon {
       this.resolveStopped()
     })()
     return this.stopping
+  }
+
+  /**
+   * Stop once nobody can reach us any more.
+   *
+   * A unix socket is held by its inode, not by its name, so deleting the socket — or the whole home
+   * directory, which is under `~/.cache` and exactly where cleanup tools aim — leaves this daemon
+   * running and listening on a path that no longer exists. The next client finds no socket, starts a
+   * second daemon, and this one keeps its shells alive where nothing can see or stop them: a dev
+   * server holding a port, discoverable only with `ps`.
+   *
+   * There is no way back from it. A client can only connect through the path, and the path is gone or
+   * belongs to somebody else now, so the honest thing is to shut down and let the shells go with us
+   * rather than strand them for the rest of the session.
+   */
+  private checkReachable(): void {
+    if (this.stopping || !this.socketId) return
+    const now = socketIdentity(this.options.paths.socket)
+    if (now === this.socketId) return
+    this.log.warn("socket is no longer ours; nothing can reach this daemon", {
+      socket: this.options.paths.socket,
+      had: this.socketId,
+      found: now ?? "gone",
+    })
+    void this.stop("unreachable")
   }
 
   private busy(): boolean {

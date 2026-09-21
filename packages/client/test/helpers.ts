@@ -12,11 +12,14 @@ export async function startDaemon(
   paths = tempHome(),
   idleTimeoutMs = 0,
   shell: Partial<Parameters<typeof createModules>[0]["shell"]> = {},
+  /** How often the daemon re-checks idleness and that the socket is still its own. */
+  checkIntervalMs?: number,
 ) {
   const daemon = new Daemon({
     paths,
     modules: createModules({ shell: { logDir: `${paths.home}/logs`, ...shell } }),
     idleTimeoutMs,
+    ...(checkIntervalMs === undefined ? {} : { checkIntervalMs }),
     logToFile: false,
     logLevel: "error",
   })
