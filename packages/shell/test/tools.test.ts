@@ -48,6 +48,8 @@ beforeAll(async () => {
     quiet,
     env: () => ({ PATH: process.env.PATH ?? "" }),
     sessionTitle: async (id) => (id === "ses_2" ? "Refactor auth" : undefined),
+    /** `ses_sub` is a subagent running inside `ses_1`, the way a task tool's session is. */
+    rootSession: async (id) => (id === "ses_sub" ? "ses_1" : id),
     shellCommand: (command) => ({ command: "/bin/bash", args: ["--noprofile", "--norc", "-c", command] }),
   })
 })
@@ -339,5 +341,37 @@ describe("OpenCode passes raw args (no zod defaults, nulls for omitted fields)",
     expect(await raw("shell_wait", { id, idleSeconds: 0.2, pattern: null })).toContain("condition met")
     expect(await raw("shell_list", {})).toContain(id)
     expect(await raw("shell_stop", { id })).toContain("stopped by")
+  })
+})
+
+/**
+ * A shell the agent starts belongs to the conversation that asked for it.
+ *
+ * A tool called from a subagent runs in a child session, and stamping that id hid the shell from
+ * the panel: it filters by the session on screen, so the agent's own shells showed up only under
+ * "whole project" — which is how this was found.
+ */
+describe("which conversation a shell belongs to", () => {
+  /** The owner as the daemon recorded it, which is what the panel filters on. */
+  const ownerOf = async (out: string) => {
+    const client = env.client("owner-check")
+    await client.connect()
+    const shells = await client.call("shell.list", { owner: {} })
+    client.close()
+    return shells.find((s) => s.id === idOf(out))?.owner.session
+  }
+
+  test("a subagent's shell belongs to the conversation above it", async () => {
+    const out = await run(
+      "shell_start",
+      { command: "sleep 5", description: "from a subagent" },
+      ctx("ses_sub"),
+    )
+    expect(await ownerOf(out)).toBe("ses_1")
+  })
+
+  test("and one started in the conversation itself is unchanged", async () => {
+    const out = await run("shell_start", { command: "sleep 5", description: "from the session" })
+    expect(await ownerOf(out)).toBe("ses_1")
   })
 })

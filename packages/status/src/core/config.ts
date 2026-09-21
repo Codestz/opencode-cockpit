@@ -96,6 +96,14 @@ export interface StatusConfig {
   preset?: string
   /** One line, for the common case. Use `lines` for more than one surface. */
   surface?: Surface
+  /**
+   * Where this bay's block sits among the others in a shared surface. Lower draws first.
+   *
+   * The sidebar holds whatever bays you have installed, in the order they registered — which until
+   * now was a constant nobody could reach: shells above the statusline, whatever you would rather
+   * see. Defaults to 200, and Shell's is 150.
+   */
+  sidebarOrder?: number
   segments?: (string | SegmentConfig)[]
   separator?: string
   stack?: Stack
@@ -192,6 +200,7 @@ export function asStatusConfig(input: unknown): StatusConfig {
     "lines",
     "commands",
     "modules",
+    "sidebarOrder",
   ] as const) {
     if (raw[key] !== undefined) Object.assign(own, { [key]: raw[key] })
   }

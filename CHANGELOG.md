@@ -6,6 +6,22 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **A shell the agent starts from a subagent now belongs to the conversation you are in.** A tool
+  called inside a task runs in a *child* session, and the shell was stamped with that id — so the
+  panel, which filters by the session on screen, showed the agent's own shells only under "whole
+  project", and `/shell` listed shells that looked like they came from somewhere else. Ownership now
+  resolves up `parentID` to the conversation that asked, and the guidance the agent reads resolves
+  the same way, so "this session" means the same thing on both sides.
+
+### Added
+
+- **`sidebarOrder` puts the bays in the order you want.** Shell and Statusline both draw in the
+  sidebar, in the order they register — which was a constant nobody could reach. Set
+  `ui.sidebarOrder` for Shell (default 150) or `statusline.sidebarOrder` (default 200); lower draws
+  first.
+
 ## [0.4.0] - 2026-09-21
 
 ### Fixed

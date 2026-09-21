@@ -164,3 +164,17 @@ bolted on.
 On by default, in single-width glyphs — an emoji is two cells wide in most terminals and one in a
 few, which is exactly what shears a fixed-width line. Turn them off with `"icons": false`, globally
 or per line, or set your own per segment with `"icon": "»"`.
+
+## sidebarOrder
+
+Where the line sits among the other bays in the sidebar. Lower draws first; the statusline defaults
+to 200 and Shell's list to 150, so the shells are above it.
+
+```json title="~/.config/opencode-cockpit/config.json"
+{
+  "statusline": { "surface": "sidebar", "sidebarOrder": 100 }
+}
+```
+
+That puts the line above the shells. It has no effect on the bottom surface, where there is nothing
+to share the row with.

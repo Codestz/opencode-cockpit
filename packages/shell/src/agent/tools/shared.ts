@@ -18,6 +18,13 @@ export interface ToolDeps {
   config?: CockpitConfig
   /** Human title of an OpenCode session, for telling agents which session started a shell. */
   sessionTitle?(sessionID: string): Promise<string | undefined>
+  /**
+   * The conversation a session belongs to: a subagent's session resolves to the one you are in.
+   *
+   * Optional, and falling back to the id given is the honest default — a host that cannot say
+   * leaves shells where they were, which is what happened before this existed.
+   */
+  rootSession?(sessionID: string | undefined): Promise<string | undefined>
 }
 
 /** What every tool shares: the client, name resolution, permission prompts and abort handling. */
@@ -46,7 +53,11 @@ export function createToolKit(deps: ToolDeps): ToolKit {
   const sessionLabel = async (s: ShellInfo, ctx: ToolContext): Promise<string> => {
     const session = s.owner.session
     if (!session) return "started by the user"
-    if (session === ctx.sessionID) return "this session"
+    if (
+      session === (await deps.rootSession?.(ctx.sessionID).catch(() => undefined)) ||
+      session === ctx.sessionID
+    )
+      return "this session"
     const title = await deps.sessionTitle?.(session).catch(() => undefined)
     return title ? `session "${title}"` : `another session (${session})`
   }

@@ -66,6 +66,33 @@ async function shellHooks({ client: opencode, directory }: PluginInput, options?
     return out
   }
 
+  /**
+   * The conversation a session belongs to.
+   *
+   * A tool called from a subagent runs in a *child* session, and stamping a shell with that id
+   * hides it from the conversation you are looking at: the panel filters by the session it is
+   * showing, so the agent's own shells appear only under "whole project". Walking up `parentID`
+   * puts them where the person who asked for them is.
+   *
+   * Cached, and the chain is bounded — a cycle in session parentage would otherwise be a hang, and
+   * this runs on the path that starts a shell.
+   */
+  const roots = new Map<string, { root: string; at: number }>()
+  const rootSession = async (sessionID: string | undefined): Promise<string | undefined> => {
+    if (!sessionID) return undefined
+    const hit = roots.get(sessionID)
+    if (hit && Date.now() - hit.at < 60_000) return hit.root
+    let at = sessionID
+    for (let hop = 0; hop < 8; hop++) {
+      const result = await opencode.session.get({ path: { id: at } }).catch(() => undefined)
+      const parent = (result?.data as { parentID?: string } | undefined)?.parentID
+      if (!parent || parent === at) break
+      at = parent
+    }
+    roots.set(sessionID, { root: at, at: Date.now() })
+    return at
+  }
+
   // Session titles rarely change; cache them so listing shells stays one round trip.
   const titles = new Map<string, { title: string | undefined; at: number }>()
   const sessionTitle = async (sessionID: string): Promise<string | undefined> => {
@@ -139,11 +166,14 @@ async function shellHooks({ client: opencode, directory }: PluginInput, options?
       env,
       config,
       sessionTitle,
+      rootSession,
       shellCommand: (command) => ({ command: userShell, args: ["-c", command] }),
     }),
 
     "experimental.chat.system.transform": async (input, output) => {
       if (config.guidance !== false) output.system.push(GUIDANCE)
+      /** Shells are owned by the conversation, so "is this mine?" has to ask about the same thing. */
+      const here = (await rootSession(input.sessionID).catch(() => undefined)) ?? input.sessionID
       const listLimit = config.listRunningShells ?? 15
       if (listLimit <= 0) return
       const running = await cockpit
@@ -156,7 +186,7 @@ async function shellHooks({ client: opencode, directory }: PluginInput, options?
             .map((s) => {
               const from = !s.owner.session
                 ? ", started by the user"
-                : s.owner.session === input.sessionID
+                : s.owner.session === here
                   ? ""
                   : ", another session"
               const health = s.watch ? `, ${s.watch.preset ?? "watch"}: ${s.watch.status}` : ""
