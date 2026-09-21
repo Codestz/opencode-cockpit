@@ -45,7 +45,7 @@ export function reviewList(kit: ToolKit): ToolDefinition {
       /** The file's current text, so a thread whose code has moved can say so rather than mislead. */
       const contents = new Map<string, string | undefined>()
       for (const thread of wanted) {
-        if (!contents.has(thread.file)) contents.set(thread.file, await kit.contentsOf(thread.file))
+        if (!contents.has(thread.file)) contents.set(thread.file, (await kit.contentsOf(thread.file))?.text)
       }
 
       const body = wanted.map((thread) => describe(thread, contents.get(thread.file))).join("\n\n")

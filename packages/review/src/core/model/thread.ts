@@ -144,3 +144,21 @@ export function tally(threads: readonly Thread[]): Tally {
     resolved: threads.filter((thread) => thread.status === "resolved").length,
   }
 }
+
+/**
+ * One thread, as prose anybody can read without another call.
+ *
+ * Used by `review_list` to describe what is waiting, and by submit to carry the whole review as text
+ * when the agent has no tools to fetch it with. Both are the same job — saying what a thread is — and
+ * two versions of it would drift into disagreeing about what a thread is.
+ */
+export function describeThread(thread: Thread, after?: string | undefined): string {
+  const waiting = waitingOn(thread)
+  const state = thread.status === "resolved" ? "resolved" : `${thread.status}, waiting on ${waiting}`
+  const drifted = hasDrifted(thread, after) ? " · code has changed since" : ""
+  const said = thread.entries.map((entry) => `    ${entry.author}: ${entry.body}`).join("\n")
+  const quoted = thread.quoted?.length
+    ? `\n  code as it was:\n${thread.quoted.map((line) => `    ${line}`).join("\n")}`
+    : ""
+  return `${thread.id}  ${thread.file} · ${threadWhere(thread)}  [${state}${drifted}]\n${said}${quoted}`
+}

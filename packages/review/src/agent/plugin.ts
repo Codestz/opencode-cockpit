@@ -1,8 +1,10 @@
 import type { Hooks, Plugin, PluginInput } from "@opencode-ai/plugin"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
+import { waitingOn } from "../core/model/thread.ts"
 import { reviewPaths } from "../core/store/paths.ts"
 import { createPersistence, type Persistence } from "../core/store/persist.ts"
 import { createTools } from "./tools/index.ts"
+import type { FileContents } from "./tools/shared.ts"
 
 /**
  * What the agent is told about reviews, once, at the top of the conversation.
@@ -73,10 +75,15 @@ async function reviewHooks({ client: opencode, directory }: PluginInput): Promis
    * Read through OpenCode rather than the filesystem so it sees the same content the session does,
    * and so a path outside the project is refused by something that already knows how.
    */
-  const contentsOf = async (path: string): Promise<string | undefined> => {
+  /**
+   * The host resolves the path, so a read that succeeds is a path that exists in this project — and
+   * that is the path the review files things under. A suffix the host cannot resolve comes back
+   * undefined, and the tools say so rather than filing a note nobody will see.
+   */
+  const contentsOf = async (path: string): Promise<FileContents | undefined> => {
     const result = await opencode.file.read({ query: { path } }).catch(() => undefined)
     const content = (result?.data as { content?: string } | undefined)?.content
-    return typeof content === "string" ? content : undefined
+    return typeof content === "string" ? { path, text: content } : undefined
   }
 
   return {
@@ -92,7 +99,8 @@ async function reviewHooks({ client: opencode, directory }: PluginInput): Promis
        */
       const waiting = await store()
         .then((persistence) => persistence.load())
-        .then((threads) => threads.filter((thread) => thread.status !== "resolved"))
+        /** Waiting on *it*, not merely unresolved: its own notes are waiting on the person. */
+        .then((threads) => threads.filter((thread) => waitingOn(thread) === "agent"))
         .catch(() => [])
       if (waiting.length > 0) {
         const files = [...new Set(waiting.map((thread) => thread.file))]

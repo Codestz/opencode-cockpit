@@ -7,16 +7,32 @@
  */
 
 import type { PluginInput } from "@opencode-ai/plugin"
-import { hasDrifted, type Thread, threadWhere, waitingOn } from "../../core/model/thread.ts"
+import type { Thread } from "../../core/model/thread.ts"
 import type { Persistence } from "../../core/store/persist.ts"
+
+/** Where `describe` lives now: submit sends the same prose when the agent has no tools. */
+export { describeThread as describe } from "../../core/model/thread.ts"
+
+export interface FileContents {
+  /** As the diff and the store know it. */
+  path: string
+  text: string
+}
 
 export interface ToolDeps {
   opencode: PluginInput["client"]
   directory: string
   /** The threads for whatever branch is checked out now, re-resolved per call. */
   store: () => Promise<Persistence>
-  /** A file's current text, for checking whether a resolve is believable. */
-  contentsOf: (path: string) => Promise<string | undefined>
+  /**
+   * A file's current text *and the path it turned out to be*.
+   *
+   * Both, because an agent names a file the way it has it in hand and the review has to store the path
+   * the diff uses. Returning only the text let `review_open` write a thread under whatever the agent
+   * typed — a note the panel would never show, because it was filed against a path that does not
+   * appear in the diff.
+   */
+  contentsOf: (path: string) => Promise<FileContents | undefined>
 }
 
 export interface ToolKit extends ToolDeps {
@@ -51,16 +67,4 @@ export function createToolKit(deps: ToolDeps): ToolKit {
       return matches.length > 1 ? { ambiguous: matches } : undefined
     },
   }
-}
-
-/** One thread, as a line an agent can read without another call. */
-export function describe(thread: Thread, after: string | undefined): string {
-  const waiting = waitingOn(thread)
-  const state = thread.status === "resolved" ? "resolved" : `${thread.status}, waiting on ${waiting}`
-  const drifted = hasDrifted(thread, after) ? " · code has changed since" : ""
-  const said = thread.entries.map((entry) => `    ${entry.author}: ${entry.body}`).join("\n")
-  const quoted = thread.quoted?.length
-    ? `\n  code as it was:\n${thread.quoted.map((line) => `    ${line}`).join("\n")}`
-    : ""
-  return `${thread.id}  ${thread.file} · ${threadWhere(thread)}  [${state}${drifted}]\n${said}${quoted}`
 }

@@ -276,7 +276,13 @@ export function footerRows(width: number, _columns: Columns, state: ViewState = 
           ...hint("space", "Read"),
         ]
 
-  const tail: Run[] = [...hint("s", "Source"), ...hint("w", "Width"), ...hint("q", "Close")]
+  /** Submit is the point of the bay, so it is the one key in the footer that is not lower case. */
+  const tail: Run[] = [
+    ...hint("S", "Submit"),
+    ...hint("s", "Source"),
+    ...hint("w", "Width"),
+    ...hint("q", "Close"),
+  ]
 
   /**
    * One line, and a queue for it: trouble, then numbers, then the keys.

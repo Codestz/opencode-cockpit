@@ -19,6 +19,7 @@ import {
   threadsOnLine,
   toggleRead,
 } from "../core/model/review.ts"
+import { submission, toolsConfigured } from "../core/model/submit.ts"
 import { threadWhere } from "../core/model/thread.ts"
 import { metrics } from "../core/perf.ts"
 import { reviewPaths } from "../core/store/paths.ts"
@@ -657,6 +658,78 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
         )
       }
 
+      /**
+       * Whether the agent has the review tools.
+       *
+       * Read from the user's own plugin list rather than guessed: only this half can see it, and telling
+       * an agent to "run review_list" when it has no such tool is worse than sending it too much. When
+       * the server half is not installed the whole review travels as prose instead.
+       */
+      const hasTools = (): boolean => toolsConfigured(api.state.config.plugin, REVIEW_PACKAGE)
+
+      /** The conversation this review would be handed to. */
+      const sessionID = (): string | undefined => {
+        const route = api.route.current
+        return route.name === "session" ? (route.params as { sessionID?: string }).sessionID : undefined
+      }
+
+      /**
+       * Handing the review over.
+       *
+       * The end of reading, so it closes the pane: what happens next happens in the conversation, and
+       * leaving a review open over the answer to it is leaving the screen on the wrong thing.
+       */
+      const submit = () => {
+        const ready = submission(review, { label: label(), tools: hasTools() })
+        if (!ready) {
+          api.ui.toast({
+            variant: "info",
+            title: "Review",
+            message: "Nothing to hand over — every comment has been answered.",
+          })
+          return
+        }
+        const id = sessionID()
+        if (!id) {
+          api.ui.toast({
+            variant: "error",
+            title: "Review",
+            message: "Open a conversation to submit a review to.",
+          })
+          return
+        }
+
+        dropKeys()
+        askForNote(
+          api,
+          {
+            title: `Submit · ${label()}`,
+            description: `${ready.threads.length} comment${ready.threads.length === 1 ? "" : "s"} go to the agent. A sentence of your own is optional.`,
+            allowEmpty: true,
+          },
+          (summary) => {
+            const said = submission(review, { label: label(), tools: hasTools(), summary })
+            if (!said) return
+            guard.task("submit", async () => {
+              await api.client.session.promptAsync({
+                sessionID: id,
+                parts: [{ type: "text", text: said.text }],
+              })
+            })
+            api.ui.toast({
+              variant: "success",
+              title: "Review",
+              message: `Handed over ${said.threads.length} comment${said.threads.length === 1 ? "" : "s"}.`,
+            })
+            close()
+          },
+          () => {
+            if (open) takeKeys()
+            draw()
+          },
+        )
+      }
+
       /** Throws a thread away. Resolving is what the agent does; this is what you do to a mistake. */
       const uncomment = () => {
         const thread = hereThread()
@@ -699,6 +772,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
             run: () => comment(true),
           },
           { name: "cockpit.review.pane.select", title: "Select lines", run: () => selectRange() },
+          { name: "cockpit.review.pane.submit", title: "Hand the review to the agent", run: () => submit() },
           { name: "cockpit.review.pane.uncomment", title: "Remove the thread here", run: () => uncomment() },
           { name: "cockpit.review.pane.files", title: "Back to the file list", run: () => toFiles() },
           {
@@ -773,6 +847,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
           { key: "g", cmd: "cockpit.review.pane.reload", desc: "Reload" },
           { key: "w", cmd: "cockpit.review.pane.cycle", desc: "Width" },
           { key: "p", cmd: "cockpit.review.pane.stats", desc: "Numbers" },
+          { key: "S", cmd: "cockpit.review.pane.submit", desc: "Submit" },
           { key: "q,escape", cmd: "cockpit.review.pane.quit", desc: "Close" },
         ],
       })

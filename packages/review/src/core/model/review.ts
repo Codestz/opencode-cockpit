@@ -65,7 +65,13 @@ export function open(
     ...(where.through === undefined ? {} : { through: where.through }),
     ...(where.quoted === undefined ? {} : { quoted: where.quoted }),
     entries: [{ author, body, at }],
-    status: "open",
+    /**
+     * A note the agent leaves is waiting on the *person*, exactly as a reply from it would be.
+     *
+     * Hardcoding "open" here predated the agent being able to open threads at all, and it meant its
+     * own notes came back round to it as work it was waiting on — including in a submit.
+     */
+    status: author === "agent" ? "answered" : "open",
   }
   /** A second thought about the same lines continues the thread rather than starting a rival one. */
   const existing = at ? threadOn(review, thread.file, thread.line, thread.through) : undefined

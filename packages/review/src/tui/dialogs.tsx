@@ -14,6 +14,13 @@ export interface AskOptions {
   /** The code the thread was written against, for a new note on a line. */
   quoted?: string[]
   value?: string
+  /**
+   * Whether an empty answer still counts.
+   *
+   * A note has to say something; a submit does not — handing over a review with no covering sentence
+   * is an ordinary thing to do, and refusing it silently would look like a broken key.
+   */
+  allowEmpty?: boolean
 }
 
 /**
@@ -35,7 +42,7 @@ export interface AskOptions {
  */
 export function askForNote(
   api: TuiPluginApi,
-  { title, description, thread, quoted, value }: AskOptions,
+  { title, description, thread, quoted, value, allowEmpty }: AskOptions,
   onConfirm: (text: string) => void,
   onClose?: () => void,
 ): void {
@@ -118,7 +125,7 @@ export function askForNote(
           api.ui.dialog.clear()
           onClose?.()
           const trimmed = text.trim()
-          if (trimmed) onConfirm(trimmed)
+          if (trimmed || allowEmpty) onConfirm(trimmed)
         }}
         onCancel={() => {
           api.ui.dialog.clear()

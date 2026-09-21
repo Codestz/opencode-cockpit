@@ -51,7 +51,7 @@ export function reviewReply(kit: ToolKit): ToolDefinition {
       }
 
       const entry = { author: "agent" as const, body: args.text, at: Date.now() }
-      const after = args.resolved ? await kit.contentsOf(found.file) : undefined
+      const after = args.resolved ? (await kit.contentsOf(found.file))?.text : undefined
       const next = args.resolved ? resolveOn(found, entry, after) : sayOn(found, entry)
       await store.save(next)
 
