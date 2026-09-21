@@ -43,6 +43,14 @@ export interface Thread {
    * anything, and a resolve can be checked against it rather than taken on trust.
    */
   quoted?: string[]
+  /**
+   * The commit the file was at when this was written.
+   *
+   * Provenance, not an anchor: a comment is *found* by its quoted lines, because that is what
+   * survives being committed. This is for saying "written against a1b2c3" and for telling two
+   * reviews of the same lines apart.
+   */
+  commit?: string
   entries: Entry[]
   status: Status
 }
@@ -106,11 +114,60 @@ export function reply(thread: Thread, entry: Entry): Thread {
  *
  * Not deleted when it moves — the reviewer meant it — but marked, so nobody trusts the number.
  */
-export function hasDrifted(thread: Thread, after: string | undefined): boolean {
+/**
+ * Where a thread's code is now — which is not always where it was, and is sometimes nowhere.
+ *
+ * Three answers rather than two, because "the lines moved" and "the lines are gone" want opposite
+ * treatment. Code that moved should take its comment with it, silently: an edit above a thread is
+ * not a reason to make the thread look broken. Code that is gone should say so, and stop being
+ * handed to an agent as work — an answer about lines that no longer exist answers nothing.
+ *
+ * Content is the anchor, not a commit. A comment survives being committed because committing does
+ * not change the code, only where git keeps it; anchoring to a commit would orphan every comment on
+ * the branch at the moment you committed, which is the failure it was meant to prevent.
+ */
+export type Anchor =
+  | { state: "current" }
+  /** The quoted lines are still in the file, starting here instead. */
+  | { state: "moved"; line: number; through?: number }
+  /** The quoted lines are not in the file at all. */
+  | { state: "outdated" }
+
+export function anchorOf(thread: Thread, after: string | undefined): Anchor {
   const range = threadRange(thread)
-  if (!thread.quoted || !range || after === undefined) return false
+  /** Nothing to check against: a note on the whole file, or a file we cannot read, is never stale. */
+  if (!thread.quoted?.length || !range || after === undefined) return { state: "current" }
+
   const lines = after.split("\n")
-  return thread.quoted.some((text, index) => lines[range.from - 1 + index] !== text)
+  const here = thread.quoted.every((text, index) => lines[range.from - 1 + index] === text)
+  if (here) return { state: "current" }
+
+  /**
+   * The same block, elsewhere. Searched as a whole rather than line by line: a single line of
+   * `  }` matches in fifty places, and a comment that re-anchors to the wrong one is worse than a
+   * comment that admits it is lost.
+   */
+  const quoted = thread.quoted
+  for (let at = 0; at + quoted.length <= lines.length; at++) {
+    if (quoted.every((text, index) => lines[at + index] === text)) {
+      const line = at + 1
+      const span = quoted.length - 1
+      return span > 0 ? { state: "moved", line, through: line + span } : { state: "moved", line }
+    }
+  }
+  return { state: "outdated" }
+}
+
+/** Whether the code a thread is about has changed under it, either way. */
+export function hasDrifted(thread: Thread, after: string | undefined): boolean {
+  return anchorOf(thread, after).state !== "current"
+}
+
+/** Where the thread should be drawn now: its anchored range, or the one it was written against. */
+export function anchoredRange(thread: Thread, after: string | undefined): Range | undefined {
+  const anchor = anchorOf(thread, after)
+  if (anchor.state !== "moved") return threadRange(thread)
+  return { from: anchor.line, to: anchor.through ?? anchor.line }
 }
 
 /**
@@ -155,7 +212,19 @@ export function tally(threads: readonly Thread[]): Tally {
 export function describeThread(thread: Thread, after?: string | undefined): string {
   const waiting = waitingOn(thread)
   const state = thread.status === "resolved" ? "resolved" : `${thread.status}, waiting on ${waiting}`
-  const drifted = hasDrifted(thread, after) ? " · code has changed since" : ""
+  const anchor = anchorOf(thread, after)
+  /**
+   * Said differently for the two, because they ask for different things.
+   *
+   * Moved: the code is still there, at a line the agent should use instead of the one recorded.
+   * Outdated: the code is gone, and the only honest answer is to say so rather than to invent one.
+   */
+  const drifted =
+    anchor.state === "moved"
+      ? ` · moved, now at line ${anchor.line}`
+      : anchor.state === "outdated"
+        ? " · OUTDATED: the lines it was written against are no longer in the file"
+        : ""
   const said = thread.entries.map((entry) => `    ${entry.author}: ${entry.body}`).join("\n")
   const quoted = thread.quoted?.length
     ? `\n  code as it was:\n${thread.quoted.map((line) => `    ${line}`).join("\n")}`

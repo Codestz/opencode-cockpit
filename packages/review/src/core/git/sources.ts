@@ -43,6 +43,18 @@ export const runGit: RunGit = async (args, cwd) => {
   return { ok: (await proc.exited) === 0, out }
 }
 
+/**
+ * The commit a review is being written against, short form, or nothing outside a repository.
+ *
+ * Recorded on a thread as provenance — never as its anchor. A comment is found again by the lines it
+ * quoted, because those survive being committed, and a commit id does not.
+ */
+export async function headOf(cwd: string, git: RunGit = runGit): Promise<string | undefined> {
+  const result = await git(["rev-parse", "--short", "HEAD"], cwd)
+  const head = result.out.trim()
+  return result.ok && head.length > 0 ? head : undefined
+}
+
 /** A file's contents at a revision, or "" when it did not exist there — which is what a diff wants. */
 async function show(git: RunGit, cwd: string, revision: string, path: string): Promise<string> {
   const result = await git(["show", `${revision}:${path}`], cwd)

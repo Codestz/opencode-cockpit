@@ -15,13 +15,15 @@
  */
 
 import type { Review } from "./review.ts"
-import { describeThread, type Thread, waitingOn } from "./thread.ts"
+import { anchorOf, describeThread, type Thread, waitingOn } from "./thread.ts"
 
 export interface Submission {
   /** What is sent to the conversation. */
   text: string
   /** The threads it is about — what the pane says in its toast, and what the tests count. */
   threads: readonly Thread[]
+  /** Threads held back because the code they are about is gone. Worth saying, not worth sending. */
+  outdated: readonly Thread[]
 }
 
 export interface SubmitOptions {
@@ -36,6 +38,13 @@ export interface SubmitOptions {
    * to an agent that has no such tool is worse than sending too much.
    */
   tools: boolean
+  /**
+   * The files as they read now, by path, for deciding which comments still have code under them.
+   *
+   * Without it nothing is treated as outdated, which is the right default: a submit that cannot see
+   * the files should send everything rather than silently hold half of it back.
+   */
+  files?: ReadonlyMap<string, string>
 }
 
 /** The threads a submit is about: the ones waiting on the agent, in the order they were written. */
@@ -53,7 +62,17 @@ const count = (threads: readonly Thread[]): string =>
  * "0 comments" would be asking the agent to look at an empty list.
  */
 export function submission(review: Review, options: SubmitOptions): Submission | undefined {
-  const threads = waitingOnAgent(review)
+  const waiting = waitingOnAgent(review)
+  /**
+   * A comment about code that no longer exists is not work, it is history.
+   *
+   * Sending it asks the agent to act on lines it cannot find, and the honest answer — "that code is
+   * gone" — is one you already know. They stay in the panel, badged, and out of the handover.
+   */
+  const outdated = waiting.filter(
+    (thread) => anchorOf(thread, options.files?.get(thread.file)).state === "outdated",
+  )
+  const threads = waiting.filter((thread) => !outdated.includes(thread))
   if (threads.length === 0) return undefined
 
   const about = options.label ? ` on ${options.label}` : ""
@@ -64,6 +83,7 @@ export function submission(review: Review, options: SubmitOptions): Submission |
   if (options.tools) {
     return {
       threads,
+      outdated,
       text: `${opening}I have left ${count(threads)}${about}. Run \`review_list\` to read them with the code each one is about, then work them: change what needs changing and \`review_reply\` with resolved=true, or reply saying why not.`,
     }
   }
@@ -77,6 +97,7 @@ export function submission(review: Review, options: SubmitOptions): Submission |
   const written = threads.map((thread) => describeThread(thread)).join("\n\n")
   return {
     threads,
+    outdated,
     text: `${opening}I have left ${count(threads)}${about}. They are below, with the code each one was written against. Work them: change what needs changing, and say what you changed under each one.\n\n${written}`,
   }
 }

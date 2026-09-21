@@ -16,7 +16,11 @@
  * you recognise without reading — and it costs no extra row.
  */
 
-import { type Thread, threadWhere, waitingOn } from "../model/thread.ts"
+import { type Anchor, type Thread, threadWhere, waitingOn } from "../model/thread.ts"
+
+/** Just the name of it: the card needs to know which of the three, not where the code went. */
+type AnchorState = Anchor["state"]
+
 import { cell, clipRuns, type Fill, type Row, type Run, type Tone, wrapText } from "./rows.ts"
 
 export interface CardSize {
@@ -31,16 +35,25 @@ export interface CardStyle {
   focused?: boolean
 }
 
-const toneFor = (thread: Thread, drifted: boolean): Tone => {
-  if (drifted) return "warning"
+const toneFor = (thread: Thread, state: AnchorState): Tone => {
+  /** Gone is worse than moved, and reads as the colour of something you no longer have to act on. */
+  if (state === "outdated") return "muted"
+  if (state === "moved") return "warning"
   if (thread.status === "resolved") return "success"
   return waitingOn(thread) === "you" ? "warning" : "accent"
 }
 
-const statusWord = (thread: Thread, drifted: boolean): string => {
+const statusWord = (thread: Thread, state: AnchorState): string => {
+  /**
+   * Moved is an aside; outdated replaces the status entirely.
+   *
+   * A thread whose code is gone is not waiting on anybody — there is nothing left to do about it,
+   * and "WAITING · OUTDATED" invites somebody to try.
+   */
+  if (state === "outdated") return "OUTDATED"
   const base =
     thread.status === "resolved" ? "RESOLVED" : waitingOn(thread) === "you" ? "YOUR TURN" : "WAITING"
-  return drifted ? `${base} · MOVED` : base
+  return state === "moved" ? `${base} · MOVED` : base
 }
 
 /** The band's own surface. Neither an addition nor a deletion nor the pane behind it. */
@@ -54,9 +67,14 @@ export function cardHeight(thread: Thread, size: CardSize): number {
   return cardRows(thread, size).length
 }
 
-export function cardRows(thread: Thread, size: CardSize, drifted = false, style: CardStyle = {}): Row[] {
+export function cardRows(
+  thread: Thread,
+  size: CardSize,
+  anchor: AnchorState = "current",
+  style: CardStyle = {},
+): Row[] {
   const width = Math.max(20, size.width)
-  const tone = toneFor(thread, drifted)
+  const tone = toneFor(thread, anchor)
   const rows: Row[] = []
 
   /**
@@ -86,7 +104,7 @@ export function cardRows(thread: Thread, size: CardSize, drifted = false, style:
    * solid blocks in the band are the names of who is speaking.
    */
   const where = (style.inline ? threadWhere(thread) : `${thread.file} · ${threadWhere(thread)}`).toUpperCase()
-  const status = `[${statusWord(thread, drifted)}]`
+  const status = `[${statusWord(thread, anchor)}]`
   /**
    * The two sit together, not one at each end of the pane.
    *

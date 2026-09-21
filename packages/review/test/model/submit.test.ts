@@ -103,3 +103,42 @@ describe("what the person wrote", () => {
     expect(said.startsWith("I have left")).toBe(true)
   })
 })
+
+/**
+ * The complaint that started this: comments about code that has already changed, handed over again
+ * every time you submit. A thread whose quoted lines are gone is history, not work.
+ */
+describe("comments whose code is gone", () => {
+  const onLine = (body: string, quoted: string[]) => {
+    const review = open(emptyReview(), { file: "a.ts", line: 1, quoted }, body, "you", 1)
+    return review
+  }
+
+  test("are held back, and counted", () => {
+    const review = onLine("round this", ["const rate = 10"])
+    const files = new Map([["a.ts", "const rate = 12\n"]])
+    expect(submission(review, { tools: true, files })).toBeUndefined()
+
+    const both = open(review, { file: "a.ts", line: 2, quoted: ["const other = 1"] }, "and this", "you", 2)
+    const now = new Map([["a.ts", "const rate = 12\nconst other = 1\n"]])
+    const said = submission(both, { tools: true, files: now })
+    expect(said?.threads).toHaveLength(1)
+    expect(said?.outdated).toHaveLength(1)
+    /** And in the prose fallback, where the comments travel in the message, the held-back one is absent. */
+    const written = submission(both, { tools: false, files: now })
+    expect(written?.text).toContain("and this")
+    expect(written?.text).not.toContain("round this")
+  })
+
+  test("code that merely moved is still work", () => {
+    const review = onLine("round this", ["const rate = 10"])
+    const files = new Map([["a.ts", "import x from 'y'\n\nconst rate = 10\n"]])
+    expect(submission(review, { tools: true, files })?.threads).toHaveLength(1)
+  })
+
+  /** A submit that cannot see the files sends everything: silence is worse than too much. */
+  test("without the files, nothing is held back", () => {
+    const review = onLine("round this", ["const rate = 10"])
+    expect(submission(review, { tools: true })?.threads).toHaveLength(1)
+  })
+})

@@ -10,6 +10,7 @@
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import type { BoxRenderable } from "@opentui/core"
 import type { Guard } from "../../core/guard.ts"
+import { filesElsewhere } from "../../core/model/review.ts"
 import { metrics } from "../../core/perf.ts"
 import { frameBounds } from "../../core/view/frame.ts"
 import { layout } from "../../core/view/layout.ts"
@@ -87,6 +88,7 @@ export function createPainter(deps: PaintDeps): Painter {
 
     const trouble = deps.notice()
     const thread = queries.hereThreadId()
+    const away = filesElsewhere(surface.review, store.current().changes)
     const rows = layout(
       store.current().changes,
       surface.review,
@@ -94,6 +96,7 @@ export function createPainter(deps: PaintDeps): Painter {
         ...surface.view,
         label: queries.label(),
         ...(thread ? { thread } : {}),
+        ...(away.length > 0 ? { elsewhere: away } : {}),
         /** Trouble outranks the numbers; both outrank the keys, and the footer stays two rows. */
         ...(trouble
           ? { notice: trouble }

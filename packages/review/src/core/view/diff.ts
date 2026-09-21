@@ -8,7 +8,7 @@
  */
 
 import { type Hunk, toHunks } from "../diff/hunks.ts"
-import { type FileChange, type Review, threadDrifted, threadsFor, threadsOnLine } from "../model/review.ts"
+import { type FileChange, type Review, threadAnchor, threadsFor, threadsOnLine } from "../model/review.ts"
 import { metrics } from "../perf.ts"
 import { cardRows } from "./card.ts"
 import { tallyOf } from "./counts.ts"
@@ -145,7 +145,7 @@ function buildDiffRows(file: FileChange, review: Review, state: ViewState, width
   for (const each of whole) {
     rows.push(
       ...indent(
-        cardRows(each, { width: width - INDENT, height: 40 }, threadDrifted(each, file), {
+        cardRows(each, { width: width - INDENT, height: 40 }, threadAnchor(each, file).state, {
           inline: true,
           focused: each.id === state.thread,
         }),
@@ -230,7 +230,7 @@ function buildDiffRows(file: FileChange, review: Review, state: ViewState, width
        * the conversation grew and squeezed prose into a diff column. The mark says a thread is here;
        * the card is where it is read.
        */
-      const onLine = line.after === undefined ? [] : threadsOnLine(review, file.path, line.after)
+      const onLine = line.after === undefined ? [] : threadsOnLine(review, file.path, line.after, file.after)
       const thread = onLine[0]
       if (thread) {
         const at = rows.at(-1)
@@ -251,7 +251,7 @@ function buildDiffRows(file: FileChange, review: Review, state: ViewState, width
         for (const each of onLine) {
           rows.push(
             ...indent(
-              cardRows(each, { width: width - INDENT, height: 40 }, threadDrifted(each, file), {
+              cardRows(each, { width: width - INDENT, height: 40 }, threadAnchor(each, file).state, {
                 inline: true,
                 focused: each.id === state.thread,
               }),
@@ -287,4 +287,55 @@ export function withCursor(rows: readonly Row[], state: ViewState): Row[] {
       ],
     }
   })
+}
+
+/**
+ * A file's comments, with no diff to hang them on.
+ *
+ * What is left when the work has been committed away: the threads are still true, still answerable,
+ * and have nowhere to sit. Rather than drop them, they are shown as they are — the code each one
+ * quoted is inside the card already, which is the whole reason a thread keeps it.
+ */
+export function awayRows(path: string, review: Review, state: ViewState, width: number): Row[] {
+  if (width <= 0) return []
+  const rows: Row[] = [
+    {
+      runs: [
+        { text: " ", fill: "panel" },
+        {
+          text: cell(elidePath(path, Math.max(1, width - 2)), Math.max(1, width - 2)),
+          tone: "text",
+          bold: true,
+          fill: "panel",
+        },
+        { text: " ", fill: "panel" },
+      ],
+    },
+    { runs: [{ text: " ".repeat(width) }] },
+    {
+      runs: [
+        { text: "  " },
+        {
+          text: cell(
+            "Not in this diff. The comments are here; the change is somewhere else — try another source with b.",
+            Math.max(1, width - 2),
+          ),
+          tone: "muted",
+        },
+      ],
+    },
+    { runs: [{ text: " ".repeat(width) }] },
+  ]
+  for (const thread of threadsFor(review, path)) {
+    rows.push(
+      ...indent(
+        cardRows(thread, { width: width - INDENT, height: 40 }, "current", {
+          inline: true,
+          focused: thread.id === state.thread,
+        }),
+        thread.id,
+      ),
+    )
+  }
+  return rows
 }

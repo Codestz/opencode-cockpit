@@ -21,10 +21,19 @@ import { type TreeRow, treeRows } from "./tree.ts"
  * cursor.
  */
 export function navigableRows(changes: ChangeSet, state: ViewState): TreeRow[] {
-  return treeRows(
+  const rows = treeRows(
     changes.files.map((file) => file.path),
     state.collapsed ?? new Set(),
   )
+  /**
+   * Files with comments but no diff, at the foot of the list.
+   *
+   * Flat and at depth zero: they are not part of the tree of this change, they are a coda to it.
+   * Reachable by the cursor like anything else, because a comment you cannot get to is a comment
+   * you have lost.
+   */
+  const away = state.elsewhere ?? []
+  return [...rows, ...away.map((path) => ({ kind: "file" as const, path, name: path, depth: 0 }))]
 }
 
 /**

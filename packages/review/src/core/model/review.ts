@@ -7,7 +7,10 @@
  */
 
 import {
+  type Anchor,
   type Author,
+  anchoredRange,
+  anchorOf,
   type Entry,
   hasDrifted,
   type Range,
@@ -17,7 +20,7 @@ import {
   threadRange,
 } from "./thread.ts"
 
-export type { Author, Entry, Range, Thread } from "./thread.ts"
+export type { Anchor, Author, Entry, Range, Thread } from "./thread.ts"
 
 /** Session: what this conversation changed. Worktree: what is uncommitted. Branch: vs its base. */
 export type Source = "session" | "worktree" | "branch"
@@ -53,7 +56,7 @@ export const emptyReview = (): Review => ({ threads: [], read: [] })
 /** Opening a thread: the first thing said, on the lines it is about. */
 export function open(
   review: Review,
-  where: { file: string; line?: number; through?: number; quoted?: string[] },
+  where: { file: string; line?: number; through?: number; quoted?: string[]; commit?: string },
   body: string,
   author: Author = "you",
   at: number = Date.now(),
@@ -64,6 +67,7 @@ export function open(
     ...(where.line === undefined ? {} : { line: where.line }),
     ...(where.through === undefined ? {} : { through: where.through }),
     ...(where.quoted === undefined ? {} : { quoted: where.quoted }),
+    ...(where.commit === undefined ? {} : { commit: where.commit }),
     entries: [{ author, body, at }],
     /**
      * A note the agent leaves is waiting on the *person*, exactly as a reply from it would be.
@@ -122,11 +126,37 @@ export function threadsFor(review: Review, file: string): Thread[] {
  * and it is about all three, so it reads after them — which is where a pull request puts it, and
  * where the eye goes looking.
  */
-export function threadsOnLine(review: Review, file: string, line: number): Thread[] {
-  return threadsFor(review, file).filter((thread) => threadRange(thread)?.to === line)
+/**
+ * The threads that read after this line.
+ *
+ * Anchored rather than remembered: a thread whose code moved is drawn where the code is now, so an
+ * edit above a comment carries the comment down with it instead of stranding it. A thread whose code
+ * is gone keeps the line it was written against — there is nowhere better to put it, and it says so.
+ */
+export function threadsOnLine(review: Review, file: string, line: number, after?: string): Thread[] {
+  return threadsFor(review, file).filter((thread) => anchoredRange(thread, after)?.to === line)
 }
 
-/** Whether a thread's code has moved, given the file it belongs to. */
+/**
+ * Files with comments on them that this view does not contain.
+ *
+ * Commit the work you were reviewing and the worktree diff empties: the comments are still true and
+ * still on disk, but there is no file in front of you to draw them against. They are not lost and
+ * they are not stale — they are somewhere else, usually one source away, and the panel says so
+ * rather than silently dropping them.
+ */
+export function filesElsewhere(review: Review, changes: ChangeSet): string[] {
+  const shown = new Set(changes.files.map((file) => file.path))
+  const missing = review.threads.filter((thread) => !shown.has(thread.file)).map((thread) => thread.file)
+  return [...new Set(missing)].sort()
+}
+
+/** Where a thread's code is now, given the file it belongs to. */
+export function threadAnchor(thread: Thread, file: FileChange | undefined): Anchor {
+  return anchorOf(thread, file?.after)
+}
+
+/** Whether a thread's code has changed under it, either way. */
 export function threadDrifted(thread: Thread, file: FileChange | undefined): boolean {
   return hasDrifted(thread, file?.after)
 }

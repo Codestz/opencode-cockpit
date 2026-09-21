@@ -26,6 +26,8 @@ export interface Queries {
   quoteOf: (path: string, from: number | undefined, to?: number) => string[] | undefined
   /** The lines the diff is showing, in order, so the cursor has something to walk. */
   diffLines: () => number[]
+  /** Every changed file as it reads now, by path — what decides whether a comment still has code. */
+  contents: () => ReadonlyMap<string, string>
 }
 
 export function createQueries(api: TuiPluginApi, surface: Surface, store: Store): Queries {
@@ -110,5 +112,7 @@ export function createQueries(api: TuiPluginApi, surface: Surface, store: Store)
       .filter((line): line is number => line !== undefined)
   }
 
-  return { label, files, hereThreadId, reachableThreadId, quoteOf, diffLines }
+  const contents = (): ReadonlyMap<string, string> => new Map(files().map((file) => [file.path, file.after]))
+
+  return { label, files, hereThreadId, reachableThreadId, quoteOf, diffLines, contents }
 }

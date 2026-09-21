@@ -14,6 +14,7 @@ import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import type { Guard } from "../../core/guard.ts"
 import {
   drop,
+  filesElsewhere,
   isRead,
   nextUnread,
   open as openThread,
@@ -58,6 +59,8 @@ export interface ActionDeps {
   reviewPackage: string
   /** The sources to cycle through. */
   sources: readonly Source[]
+  /** The commit the working tree is on, for recording on a new thread. */
+  head: () => string | undefined
 }
 
 export interface Actions {
@@ -96,8 +99,14 @@ export function createActions(deps: ActionDeps): Actions {
    * listed things — and driving the cursor from the second while looking at the first is why it
    * appeared to jump at random.
    */
+  /** The view the list is actually drawn from, including files that have comments but no diff. */
+  const listState = () => ({
+    ...surface.view,
+    elsewhere: filesElsewhere(surface.review, store.current().changes),
+  })
+
   const moveFiles = (delta: number) => {
-    const rows = navigableRows(store.current().changes, surface.view)
+    const rows = navigableRows(store.current().changes, listState())
     if (rows.length === 0) return
     const at = surface.view.cursor ? rows.findIndex((row) => row.path === surface.view.cursor) : 0
     const next = rows[Math.max(0, Math.min(rows.length - 1, (at < 0 ? 0 : at) + delta))]
@@ -107,7 +116,7 @@ export function createActions(deps: ActionDeps): Actions {
       surface.view = { ...surface.view, file: next.path, scroll: 0, line: undefined, anchor: undefined }
     surface.view = {
       ...surface.view,
-      listOffset: keepCursorVisible(store.current().changes, surface.view, listHeight()),
+      listOffset: keepCursorVisible(store.current().changes, listState(), listHeight()),
     }
     draw()
   }
@@ -157,7 +166,7 @@ export function createActions(deps: ActionDeps): Actions {
 
   /** Enter on a folder folds it; on a file it opens it and moves you into the diff. */
   const enter = () => {
-    const rows = navigableRows(store.current().changes, surface.view)
+    const rows = navigableRows(store.current().changes, listState())
     const row = rows.find((candidate) => candidate.path === surface.view.cursor)
     if (!row) return
     if (row.kind === "file") {
@@ -215,6 +224,8 @@ export function createActions(deps: ActionDeps): Actions {
                 ...(from === undefined ? {} : { line: from }),
                 ...(to !== undefined && from !== undefined && to > from ? { through: to } : {}),
                 ...(queries.quoteOf(file, from, to) ? { quoted: queries.quoteOf(file, from, to) } : {}),
+                /** What the file was at when this was written. Provenance, never the anchor. */
+                ...(deps.head() ? { commit: deps.head() } : {}),
               },
               body,
               "you",
@@ -329,7 +340,12 @@ export function createActions(deps: ActionDeps): Actions {
       api,
       submitFields(queries.label(), ready.threads.length),
       (summary) => {
-        const said = submission(surface.review, { label: queries.label(), tools: hasTools(), summary })
+        const said = submission(surface.review, {
+          label: queries.label(),
+          tools: hasTools(),
+          files: queries.contents(),
+          summary,
+        })
         if (!said) return
         guard.task("submit", async () => {
           await api.client.session.promptAsync({
@@ -340,7 +356,11 @@ export function createActions(deps: ActionDeps): Actions {
         api.ui.toast({
           variant: "success",
           title: "Review",
-          message: `Handed over ${said.threads.length} comment${said.threads.length === 1 ? "" : "s"}.`,
+          /** The held-back ones are said out loud: a comment that quietly did not go is a bug report. */
+          message:
+            said.outdated.length > 0
+              ? `Handed over ${said.threads.length} comment${said.threads.length === 1 ? "" : "s"}. ${said.outdated.length} left out — their code is gone.`
+              : `Handed over ${said.threads.length} comment${said.threads.length === 1 ? "" : "s"}.`,
         })
         close()
       },

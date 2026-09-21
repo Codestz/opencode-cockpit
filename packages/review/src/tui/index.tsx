@@ -3,6 +3,7 @@
 import { createBindingLookup, type TuiPlugin, type TuiPluginModule } from "@opencode-ai/plugin/tui"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
 import type { BoxRenderable } from "@opentui/core"
+import { headOf } from "../core/git/sources.ts"
 import type { Source } from "../core/model/review.ts"
 import { metrics } from "../core/perf.ts"
 import { reviewPaths } from "../core/store/paths.ts"
@@ -89,6 +90,8 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
     let pool: RowPool | undefined
     let disposeKeys: (() => void) | undefined
     let watching: ReturnType<typeof setInterval> | undefined
+    /** The commit the working tree is on, re-read when the diff is, and only used as provenance. */
+    let head: string | undefined
 
     /**
      * Threads are kept on disk, one file each, keyed by the branch they are about.
@@ -136,7 +139,9 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       persistence = createPersistence(
         reviewPaths(api.state.path.worktree || api.state.path.directory, api.state.vcs?.branch),
       )
-      const [, threads] = await Promise.all([store.load(), persistence.load()])
+      const directory = api.state.path.worktree || api.state.path.directory
+      const [, threads, at] = await Promise.all([store.load(), persistence.load(), headOf(directory)])
+      head = at
       surface.review = { ...surface.review, threads }
       /** Land on something worth reading rather than on an empty pane. */
       const files = queries.files()
@@ -217,6 +222,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       cycle,
       reviewPackage: REVIEW_PACKAGE,
       sources: SOURCES,
+      head: () => head,
     })
 
     const pointer = createPointer({
@@ -236,9 +242,14 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
           title: "Review: open, or close it",
           category: "Review",
           namespace: "palette",
-          // One slash name for the bay: `/review` and `/diff` are the host's, and `/changes` loses the
-          // fuzzy match to `/review`'s own description.
-          slashName: "cockreview",
+          /**
+           * `/changes`, because `/review` and `/diff` are the host's.
+           *
+           * It was `/cockreview` for a while, which reads as a mashed-together package name rather
+           * than as a thing you do. `/changes` says what the panel shows; the only cost is that the
+           * palette's fuzzy search also offers OpenCode's own `/review` when you type it.
+           */
+          slashName: "changes",
           run: () => guard.run("open", toggle),
         },
         {

@@ -78,8 +78,18 @@ describe("what a thread says", () => {
     expect(heading(cardRows(answered, { width: 70, height: 20 }))).toContain("[RESOLVED]")
   })
 
-  test("a thread whose code has moved says so", () => {
-    expect(heading(cardRows(thread(), { width: 70, height: 20 }, true))).toContain("MOVED")
+  test("a thread whose code has moved says so, beside where it stands", () => {
+    expect(heading(cardRows(thread(), { width: 70, height: 20 }, "moved"))).toContain("· MOVED")
+  })
+
+  /**
+   * Gone is not a footnote on a status. A thread whose code no longer exists is not waiting on
+   * anybody, and "WAITING · OUTDATED" invites somebody to try.
+   */
+  test("a thread whose code is gone says only that", () => {
+    const said = heading(cardRows(thread(), { width: 70, height: 20 }, "outdated"))
+    expect(said).toContain("[OUTDATED]")
+    expect(said).not.toContain("WAITING")
   })
 
   test("shows both sides of the conversation, in full", () => {

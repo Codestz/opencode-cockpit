@@ -93,11 +93,22 @@ describe("review_list", () => {
     expect(said).not.toContain("rv_000000001")
   })
 
-  /** A thread whose code moved on is worth flagging: the answer may be about code that is gone. */
-  test("says when the code has changed since the comment was written", async () => {
+  /**
+   * Moved and gone ask for different things, so they are said differently: one gives the agent a
+   * line to use instead, the other tells it there is nothing left to answer about.
+   */
+  test("says where code moved to", async () => {
+    await store().save(thread())
+    files["src/config.ts"] = "added\nabove\nline one\nline two\n  const timeout = 30\nline four\n"
+    expect(await run("review_list", {})).toContain("now at line 5")
+  })
+
+  test("and says plainly when the code is gone", async () => {
     await store().save(thread())
     files["src/config.ts"] = "line one\nline two\n  const timeout = 5\nline four\n"
-    expect(await run("review_list", {})).toContain("changed")
+    const said = await run("review_list", {})
+    expect(said).toContain("OUTDATED")
+    expect(said).toContain("no longer in the file")
   })
 })
 

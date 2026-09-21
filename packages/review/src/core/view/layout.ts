@@ -15,7 +15,7 @@
 import type { ChangeSet, Review } from "../model/review.ts"
 import { metrics } from "../perf.ts"
 import { footerRows, headerRows } from "./chrome.ts"
-import { diffRows, withCursor } from "./diff.ts"
+import { awayRows, diffRows, withCursor } from "./diff.ts"
 import { FOOTER_ROWS, GUTTER, HEADER_ROWS, inset, splitColumns, window } from "./geometry.ts"
 import { fileRows, listScroll } from "./list.ts"
 import { cell, faint, type Row } from "./rows.ts"
@@ -40,6 +40,14 @@ function compose(changes: ChangeSet, review: Review, state: ViewState, viewport:
 
   const body = Math.max(1, viewport.height - HEADER_ROWS - FOOTER_ROWS)
   const file = changes.files.find((candidate) => candidate.path === state.file) ?? changes.files[0]
+  /** A file with comments but no diff is drawn from its threads alone. */
+  const away = state.file !== undefined && !changes.files.some((each) => each.path === state.file)
+  const bodyRows = (width: number): Row[] =>
+    away && state.file
+      ? awayRows(state.file, review, state, width)
+      : file
+        ? diffRows(file, review, state, width)
+        : []
   const blank = (width: number): Row => ({ runs: [{ text: " ".repeat(width) }] })
 
   const close = (built: Row[]): Row[] => {
@@ -55,7 +63,7 @@ function compose(changes: ChangeSet, review: Review, state: ViewState, viewport:
 
   /** One column: the list, or the diff, never both squeezed into something unreadable. */
   if (columns.list === 0) {
-    const only = file ? diffRows(file, review, state, content) : fileRows(changes, review, state, content)
+    const only = file || away ? bodyRows(content) : fileRows(changes, review, state, content)
     const shown = withCursor(window(only, state.scroll ?? 0, body), state)
     for (let index = 0; index < body; index++) {
       const row = shown[index]
@@ -71,12 +79,7 @@ function compose(changes: ChangeSet, review: Review, state: ViewState, viewport:
   const left = list(
     window(fileRows(changes, review, state, columns.list), listScroll(changes, state, body), body),
   )
-  const right = code(
-    withCursor(
-      window(file ? diffRows(file, review, state, columns.diff) : [], state.scroll ?? 0, body),
-      state,
-    ),
-  )
+  const right = code(withCursor(window(bodyRows(columns.diff), state.scroll ?? 0, body), state))
 
   for (let index = 0; index < body; index++) {
     const listRuns = left[index]?.runs ?? [{ text: " ".repeat(columns.list) }]

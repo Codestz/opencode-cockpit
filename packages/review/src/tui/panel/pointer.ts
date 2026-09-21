@@ -8,6 +8,7 @@
  */
 
 import type { BoxRenderable } from "@opentui/core"
+import { filesElsewhere } from "../../core/model/review.ts"
 import { splitColumns } from "../../core/view/geometry.ts"
 import { visibleDiffRows } from "../../core/view/layout.ts"
 import { listScroll, navigableRows } from "../../core/view/list.ts"
@@ -48,9 +49,10 @@ export function createPointer(deps: PointerDeps): Pointer {
       if (row < 0) return
 
       if (overList(x, panel)) {
-        const rows = navigableRows(store.current().changes, surface.view)
+        const state = { ...surface.view, elsewhere: filesElsewhere(surface.review, store.current().changes) }
+        const rows = navigableRows(store.current().changes, state)
         if (rows.length === 0) return
-        const entry = rows[row + listScroll(store.current().changes, surface.view, deps.listHeight())]
+        const entry = rows[row + listScroll(store.current().changes, state, deps.listHeight())]
         if (!entry) return
         surface.view = { ...surface.view, cursor: entry.path, pane: "files" }
         if (entry.kind === "file") {

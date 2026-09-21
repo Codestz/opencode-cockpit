@@ -67,4 +67,11 @@ export interface ViewState {
   notice?: string
   /** The numbers, when you have asked to see them. Same place, same reasoning. */
   stats?: readonly Run[]
+  /**
+   * Files that have comments on them but are not in this diff.
+   *
+   * Passed in rather than derived, because only the composition knows both the review and the change
+   * set — and the list must not start reaching for one to draw the other.
+   */
+  elsewhere?: readonly string[]
 }

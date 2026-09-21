@@ -133,7 +133,7 @@ export function askForNote(
 
   const context = (): Row[] => [
     ...quotedRows(),
-    ...(thread ? cardRows(thread, { width: width(), height: 40 }, false, { inline: true }) : []),
+    ...(thread ? cardRows(thread, { width: width(), height: 40 }, "current", { inline: true }) : []),
   ]
 
   const colour = (tone: Tone | undefined) => toneColour(theme(), tone)
