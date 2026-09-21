@@ -1,3 +1,4 @@
+import manifest from "../../../package.json" with { type: "json" }
 /**
  * Every word on the landing page. Components render this; none of them hold copy of their own, so
  * changing the pitch never means touching markup.
@@ -11,7 +12,13 @@ export const nav = {
     { label: "Platform", href: "#platform" },
     { label: "Install", href: "#install" },
   ],
-  version: "v0.3.0",
+  /**
+   * Read from the package rather than typed here.
+   *
+   * It said v0.3.0 through two releases: a number nobody thinks to update is a number that is
+   * wrong, and this one sits in the corner of every page.
+   */
+  version: `v${manifest.version}`,
   github: "https://github.com/Codestz/opencode-cockpit",
 }
 
