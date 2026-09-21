@@ -843,11 +843,18 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
           { key: "h,left", cmd: "cockpit.review.pane.files", desc: "Back to the files" },
           { key: "x", cmd: "cockpit.review.pane.uncomment", desc: "Remove thread" },
           { key: "space,m", cmd: "cockpit.review.pane.read", desc: "Mark read" },
-          { key: "s", cmd: "cockpit.review.pane.source", desc: "Next source" },
+          /**
+           * Source is `b`, not `s`, because `s` submits.
+           *
+           * They were `s` and `S` for an afternoon: two meanings on one letter separated only by a
+           * shift, one of which sends the review to the agent. A key that does something you cannot
+           * unsend may not be one slipped finger away from a key you press to look around.
+           */
+          { key: "b", cmd: "cockpit.review.pane.source", desc: "Next source" },
           { key: "g", cmd: "cockpit.review.pane.reload", desc: "Reload" },
           { key: "w", cmd: "cockpit.review.pane.cycle", desc: "Width" },
           { key: "p", cmd: "cockpit.review.pane.stats", desc: "Numbers" },
-          { key: "S", cmd: "cockpit.review.pane.submit", desc: "Submit" },
+          { key: "s", cmd: "cockpit.review.pane.submit", desc: "Submit" },
           { key: "q,escape", cmd: "cockpit.review.pane.quit", desc: "Close" },
         ],
       })
