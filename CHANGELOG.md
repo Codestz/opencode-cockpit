@@ -18,6 +18,14 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- **Review — a pull request in the terminal.** Bay 02, `@opencode-cockpit/review`. The diff where
+  the work happened, comments on the lines they are about, and an agent that can read them, answer
+  them and mark them resolved. Comments live on the branch rather than in the chat, so they outlive
+  the conversation; `s` hands the review over, and the notes travel as structured data through
+  `review_list` rather than as prose the agent has to parse back out of a message. A resolve is
+  checked against the file before it counts: an agent that claims "done" over an untouched file has
+  its reply kept, the thread left open, and is told so plainly. It can open notes of its own with
+  `review_open`, which appear in the panel beside yours. `<leader>v` opens it.
 - **The line reports its own failures, on the line.** A module that would not load draws a `⚠` row
   naming it, and a column that ran out of room draws a dim `↳ N more — raise maxRows`. Both used to
   end as segments that were simply not there, which is indistinguishable from a segment that had
