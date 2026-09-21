@@ -48,7 +48,8 @@ const api = (state: FakeState = {}): TuiPluginApi =>
     },
   }) as unknown as TuiPluginApi
 
-const snapshot = (state: FakeState) => sessionSnapshot(api(state), "ses_1", 5000)
+const NONE = { files: 0, additions: 0, deletions: 0 }
+const snapshot = (state: FakeState, diff = NONE) => sessionSnapshot(api(state), "ses_1", 5000, diff)
 
 describe("token usage during a turn", () => {
   /**
@@ -138,13 +139,12 @@ describe("what the provider catalogue supplies", () => {
 })
 
 describe("the rest of the session", () => {
-  test("diff totals are summed across files", () => {
-    const changed = snapshot({
-      diff: [
-        { file: "a", additions: 10, deletions: 2 },
-        { file: "b", additions: 5, deletions: 1 },
-      ],
-    })
+  /**
+   * The counts are git's, handed in rather than gathered here — the host's own session file list
+   * turned out to report nothing at all, and a number that cannot be checked is worse than none.
+   */
+  test("the working tree's counts are carried through as they were given", () => {
+    const changed = snapshot({}, { files: 2, additions: 15, deletions: 3 })
     expect(changed.diff).toEqual({ files: 2, additions: 15, deletions: 3 })
   })
 

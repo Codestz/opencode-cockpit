@@ -30,7 +30,7 @@ fatal: a config written against a newer version costs you a segment, not the lin
 | --- | --- | --- |
 | `cwd` | folder, relative to the worktree | `maxWidth` |
 | `git.branch` | current branch, dimmed on the default branch | |
-| `session.diff` | `+150 / -30` — what **this session** changed, not the working tree | |
+| `git.diff` | `+150 / -30` — what is uncommitted in the working tree | |
 | `model` | `claude-opus-5` | `full` |
 | `context` | how full the window is | `style`, `width`, `warnAt`, `dangerAt` |
 | `tokens` | `78.5k tok` | |
@@ -45,11 +45,20 @@ fatal: a config written against a newer version costs you a segment, not the lin
 
 Every one also takes `prefix`, `suffix`, `priority`, `color` and `icon`.
 
-## What `session.diff` counts
+## What `git.diff` counts
 
-What **this session** changed — the same files OpenCode lists in its own sidebar, tracked through
-the session's snapshots. Not `git status`: a file you edited by hand was never part of the session
-and will not appear, however dirty the tree is.
+What is uncommitted: `git diff --shortstat HEAD`, so staged and unstaged changes together, against
+the last commit. Untracked files are left out, because git cannot count lines in a file it has never
+seen and a file count that moves without the line counts moving reads as a bug.
+
+It used to report what *this session* changed, read from OpenCode's own file list. That number could
+not be checked against anything, it counted nothing you edited by hand — and when the list came back
+empty, which it did, the segment simply vanished, which looks exactly like a segment you never
+configured. Git answers a slightly different question honestly, and you can always run the command
+yourself to see the same number.
+
+The command only runs when a line actually carries this segment, at most once every two seconds, on
+the same schedule as any other command segment — a line without it spawns nothing.
 
 Both questions are worth asking, and they are different questions — "what have I changed here" is
 not "what has the agent changed this turn". The working tree needs a command, because a built-in
@@ -62,7 +71,7 @@ them testable without a filesystem:
     "modules": ["<examples/bottom.ts>"],
     "commands": { "tree": { "run": "git diff --shortstat", "intervalMs": 5000 } },
     "segments": [
-      { "type": "session.diff", "prefix": "session " },
+      { "type": "git.diff", "prefix": "uncommitted " },
       { "type": "worktree", "prefix": "tree " }
     ]
   }
@@ -72,7 +81,7 @@ them testable without a filesystem:
 `git diff --shortstat` prints `3 files changed, 12 insertions(+), 4 deletions(-)`, far too long for
 a line — the `worktree` segment in `examples/bottom.ts` reads that and draws `3f +12 -4`.
 
-`session.diff` also answers to `git.diff`, its old and more misleading name.
+`git.diff` also answers to `session.diff`, the name it had while the numbers came from the host.
 
 ## Replacing OpenCode's own sidebar blocks
 

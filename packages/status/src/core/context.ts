@@ -4,6 +4,8 @@
  * OpenCode to draw it in.
  */
 
+import type { DiffCounts } from "./diff.ts"
+
 export interface TokenCounts {
   input: number
   output: number
@@ -34,7 +36,14 @@ export interface SessionSnapshot {
   priced: boolean
   messages: number
   startedAt?: number
-  diff: { files: number; additions: number; deletions: number }
+  /**
+   * What is uncommitted in the working tree.
+   *
+   * Kept on the session for the sake of modules that already read `ctx.session.diff`, but it is no
+   * longer the session's own doing: it mirrors `ctx.diff`, which git answers whether a conversation
+   * is open or not.
+   */
+  diff: DiffCounts
   todo: { total: number; completed: number }
 }
 
@@ -53,6 +62,12 @@ export interface StatusContext {
   branch?: string
   defaultBranch?: string
   version: string
+  /**
+   * What is uncommitted, from git — absent until the first read comes back, and absent outside a
+   * repository. A segment must tell "not yet" from "nothing changed": the first renders nothing,
+   * the second renders zeros.
+   */
+  diff?: DiffCounts
   session?: SessionSnapshot
   lsp: ServiceSnapshot[]
   mcp: ServiceSnapshot[]

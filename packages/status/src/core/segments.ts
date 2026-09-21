@@ -53,7 +53,8 @@ const BY_NAME = new Map(BUILTINS.map((def) => [def.name, def]))
  * Names that changed, kept working. `git.diff` read as "what git would tell me", when it has
  * always been what this session changed.
  */
-const ALIASES: Record<string, string> = { "git.diff": "session.diff" }
+/** `session.diff` was the name while the numbers came from the host; both still resolve. */
+const ALIASES: Record<string, string> = { "session.diff": "git.diff" }
 
 for (const [from, to] of Object.entries(ALIASES)) {
   const def = BY_NAME.get(to)

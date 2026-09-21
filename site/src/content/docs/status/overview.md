@@ -6,7 +6,7 @@ description: A statusline for OpenCode you can actually configure — and what i
 Statusline puts a line of live session state under your conversation, or a column of it in the
 sidebar. Bay 02, new in 0.3.0.
 
-![The statusline under an OpenCode conversation: a context bar at 40%, the token total with its cache, input and output parts, the session diff, elapsed time and todo progress](/opencode-cockpit/media/statusline.png)
+![The statusline under an OpenCode conversation: a context bar at 40%, the token total with its cache, input and output parts, what is uncommitted, elapsed time and todo progress](/opencode-cockpit/media/statusline.png)
 
 That is the default line — what you get having written no configuration at all.
 
