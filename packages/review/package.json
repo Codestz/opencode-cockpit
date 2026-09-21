@@ -1,6 +1,6 @@
 {
   "name": "@opencode-cockpit/review",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "A pull request in the terminal: read the diff, hold your notes, send one review",
   "type": "module",
   "license": "MIT",

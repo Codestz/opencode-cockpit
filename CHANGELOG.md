@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.3] - 2026-09-21
+
 ### Fixed
 
 - **The documented keys match the keys.** Review's table still offered a third source that 0.4.2
@@ -464,7 +466,8 @@ All notable changes to this project are documented here. The format follows
 - Daemon lifecycle: on-demand start, single instance under concurrent starts, idle shutdown,
   replacement of outdated idle daemons, orphan reaping after crashes.
 
-[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.4.3...HEAD
+[0.4.3]: https://github.com/Codestz/opencode-cockpit/compare/v0.4.2...v0.4.3
 [0.4.2]: https://github.com/Codestz/opencode-cockpit/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/Codestz/opencode-cockpit/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/Codestz/opencode-cockpit/compare/v0.3.2...v0.4.0
