@@ -1,6 +1,6 @@
 {
   "name": "@opencode-cockpit/daemon",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "cockpitd: the process host behind opencode-cockpit (PTY shells, clean logs, wait conditions)",
   "type": "module",
   "license": "MIT",
