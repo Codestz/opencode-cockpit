@@ -16,7 +16,7 @@ import type { Readiness } from "../core/apply.ts"
 import type { Gathered } from "../core/gather.ts"
 import type { PluginPlan } from "../core/plan.ts"
 import type { Outcome } from "../core/verify.ts"
-import { keyRow, listRows, resultRows, reviewRows, titleRow } from "../core/view/layout.ts"
+import { keyRow, listRows, noteRows, resultRows, reviewRows, titleRow } from "../core/view/layout.ts"
 import { fit, type Row } from "../core/view/rows.ts"
 import { Rows } from "./rows.tsx"
 
@@ -208,6 +208,8 @@ export function UpdaterDialog(props: UpdaterDialogProps) {
         const start = Math.max(0, Math.min(cursor() - room() + 2, body.length - room()))
         if (header) out.push(header)
         out.push(...body.slice(start, start + room()))
+        const notes = noteRows(found()?.plans ?? [], w, props.home)
+        if (notes.length > 0) out.push({ runs: fit([], w) }, ...notes)
         if (plans().length === 0)
           out.push({ runs: fit([{ text: "No plugins in your OpenCode config.", tone: "muted" }], w) })
         break

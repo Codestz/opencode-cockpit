@@ -18,6 +18,8 @@ export interface Plugin {
   running?: string
   /** What to call it when its name is a path: the package name found there. */
   label?: string
+  /** Installed, and not something OpenCode can load: no plugin entry points in its manifest. */
+  notPlugin?: boolean
 }
 
 /** What `api.plugins.list()` hands back, minus what the plan does not need. */
@@ -39,6 +41,8 @@ export type State =
   | "internal"
   /** A path or URL: updated with git, not by this. */
   | "local"
+  /** Listed as a plugin, but the package has no plugin entry points: a person removes the entry. */
+  | "not-plugin"
 
 export interface Command {
   cwd: string
@@ -62,6 +66,8 @@ export interface PluginPlan {
   state: State
   /** Every spec the configs carry for it, as written. */
   specs: string[]
+  /** The config files that list it — where a person goes to remove an entry that is not a plugin. */
+  files: string[]
   /** Some spec will not move on its own — the `⚠` in the list. */
   frozen: boolean
   changes: Change[]
@@ -125,6 +131,8 @@ function needsChange(spec: Spec, published: string): boolean {
 function classify(plugin: Plugin, specs: readonly Spec[], published: string | undefined): State {
   if (plugin.source === "internal") return "internal"
   if (plugin.source === "file") return "local"
+  // Before anything about versions: there is nothing to update in a package OpenCode will not load.
+  if (plugin.notPlugin) return "not-plugin"
   if (published === undefined) return "unknown"
   // Ahead of the registry — a pre-release, a local publish — is never "updated" backwards.
   if (plugin.running && isNewer(plugin.running, published)) return "current"
@@ -172,6 +180,7 @@ export function buildPlan(input: PlanInput): PluginPlan[] {
       ...(published === undefined ? {} : { published }),
       state,
       specs: specs.map((spec) => spec.raw),
+      files: [...new Set(mine.map((entry) => entry.file.path))],
       frozen: specs.some((spec) => spec.kind === "npm" && spec.pin.type !== "exact"),
       changes,
       commands,
@@ -190,7 +199,16 @@ export function buildPlan(input: PlanInput): PluginPlan[] {
  * have work in them down the list.
  */
 export function rank(plan: PluginPlan): number {
-  const order: Record<State, number> = { update: 1, pin: 1, current: 2, unknown: 3, internal: 4, local: 5 }
+  // An entry that is not a plugin needs a person, so it sits right after what the screen can do.
+  const order: Record<State, number> = {
+    update: 1,
+    pin: 1,
+    "not-plugin": 2,
+    current: 3,
+    unknown: 4,
+    internal: 5,
+    local: 6,
+  }
   // A frozen spec is the reason this screen exists: among the actionable rows, it leads.
   return order[plan.state] - (plan.selected && plan.frozen ? 1 : 0)
 }

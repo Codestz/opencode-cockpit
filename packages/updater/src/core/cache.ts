@@ -47,9 +47,44 @@ export function cacheDirsFor(disk: Disk, root: string, name: string): string[] {
 
 /** The version a spec's cache directory actually installed, whatever the spec says. */
 export function installedVersion(disk: Disk, root: string, spec: string, name: string): string | undefined {
-  const manifest = readJson(disk, join(specDir(root, spec), "node_modules", name, "package.json"))
-  const version = (manifest as { version?: unknown } | undefined)?.version
+  const version = installedManifest(disk, root, spec, name)?.version
   return typeof version === "string" ? version : undefined
+}
+
+export interface Manifest {
+  version?: unknown
+  main?: unknown
+  exports?: unknown
+  "oc-themes"?: unknown
+}
+
+/** The `package.json` a spec's cache directory installed, if there is one. */
+export function installedManifest(
+  disk: Disk,
+  root: string,
+  spec: string,
+  name: string,
+): Manifest | undefined {
+  const manifest = readJson(disk, join(specDir(root, spec), "node_modules", name, "package.json"))
+  return manifest && typeof manifest === "object" ? (manifest as Manifest) : undefined
+}
+
+/**
+ * Whether a package is something OpenCode will load as a plugin — its own rule, as `opencode plugin`
+ * prints it when it refuses: `exports["./tui"]`, `exports["./server"]`, `main` for a server plugin, or
+ * `oc-themes`. A package without any of them is a program with a similar name, and "updating" it
+ * only ends in that refusal (seen with `opencode-worktree`, a command-line tool, listed as a plugin).
+ */
+export function isPluginManifest(manifest: Manifest): boolean {
+  const exports = manifest.exports
+  const has = (key: string) =>
+    typeof exports === "object" && exports !== null && key in (exports as Record<string, unknown>)
+  return (
+    has("./tui") ||
+    has("./server") ||
+    typeof manifest.main === "string" ||
+    manifest["oc-themes"] !== undefined
+  )
 }
 
 /**

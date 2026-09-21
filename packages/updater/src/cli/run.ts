@@ -9,7 +9,7 @@
 import { type ApplyIo, applyPlan, manualSteps, readiness } from "../core/apply.ts"
 import { type GatherIo, gather } from "../core/gather.ts"
 import type { Outcome } from "../core/verify.ts"
-import { listRows, resultRows, reviewRows } from "../core/view/layout.ts"
+import { listRows, noteRows, resultRows, reviewRows } from "../core/view/layout.ts"
 import { fit, type Row } from "../core/view/rows.ts"
 import { paint } from "./ansi.ts"
 
@@ -96,6 +96,11 @@ export async function update(argv: readonly string[], io: Io): Promise<number> {
 
   io.write("\n")
   say(listRows(plans, io.width, undefined, io.home))
+  const notes = noteRows(plans, io.width, io.home)
+  if (notes.length > 0) {
+    io.write("\n")
+    say(notes)
+  }
   const chosen = plans.filter((p) => p.selected && (!args.only || p.name === args.only))
   if (chosen.length === 0) {
     io.write("\n")
@@ -105,7 +110,9 @@ export async function update(argv: readonly string[], io: Io): Promise<number> {
       line(`Could not reach the registry for ${unknown.map((p) => p.name).join(", ")}.`, "warning")
       return 1
     }
-    line(args.only ? `${args.only} is current.` : "Everything is current.")
+    // With an entry to remove, not everything is fine — only nothing is left to update.
+    const current = notes.length > 0 ? "Nothing to update." : "Everything is current."
+    line(args.only ? `${args.only} is current.` : current)
     return 0
   }
 

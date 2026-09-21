@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Updater tells a program from a plugin.** `opencode-worktree@latest` in a plugin list names a
+  command-line tool on npm, with no plugin entry points; OpenCode refuses it, and the Updater used to
+  propose pinning it and then fail with that same refusal. It now reads the installed manifest and
+  applies OpenCode's own rule — `exports["./tui"]`, `exports["./server"]`, `main` or `oc-themes` —
+  and lists anything else as `not a plugin`, with the file to remove the entry from. What OpenCode
+  already loaded is never questioned, and a manifest it cannot read proves nothing.
+- **A pin says what it is for.** The review showed `0.4.1 → 0.4.1`, which read as a bug; it now reads
+  `0.4.1 · pin, so latest cannot freeze again`.
+- **A watch sees what the run printed before it was attached.** A shell that failed in its first
+  milliseconds could print its failure before `shell.watch` arrived, and the run was judged without
+  it. A new watcher is now caught up on the current run's recent output — never an earlier run's —
+  and on its exit, if it has already ended.
+
 ## [0.5.0] - 2026-09-21
 
 ### Added

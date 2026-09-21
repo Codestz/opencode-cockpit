@@ -527,6 +527,33 @@ describe("watchers", () => {
     await c.call("shell.stop", { id: info.id, graceMs: 500 })
   })
 
+  /**
+   * The race behind the test above, made certain: the failure is already in the log when the watch
+   * arrives. A watcher used to see only lines printed after it was attached, so this could never
+   * pass; the test above lost the same race only on a busy machine — once blocking a release.
+   */
+  test("a watch attached after the failure was printed still sees it", async () => {
+    const c = env.client()
+    const changes: string[] = []
+    c.on("shell.watch", (e) => changes.push(`${e.previous}→${e.current}`))
+    await c.connect()
+    const info = await c.call("shell.start", bash("echo 'DEPLOY FAILED: bad config'; sleep 30"))
+    await c.call("shell.wait", { id: info.id, until: { pattern: "DEPLOY FAILED" }, timeoutMs: 5000 })
+    await c.call("shell.watch", { id: info.id, rule: { fail: "FAILED", ok: "SUCCEEDED", idleSeconds: 1 } })
+    await Bun.sleep(2500)
+    expect(changes).toContain("pending→fail")
+    await c.call("shell.stop", { id: info.id, graceMs: 500 })
+  })
+
+  test("a watch attached after the run ended judges the run that ended", async () => {
+    const c = env.client()
+    await c.connect()
+    const info = await c.call("shell.start", bash("echo 'tests: 3 failed'; exit 1"))
+    await c.call("shell.wait", { id: info.id, until: { exit: true }, timeoutMs: 5000 })
+    const watched = await c.call("shell.watch", { id: info.id, rule: { fail: "failed" } })
+    expect(watched.watch?.status).toBe("fail")
+  })
+
   test("a watched process that dies reports a failure", async () => {
     const c = env.client()
     const changes: { current: string; summary?: string }[] = []

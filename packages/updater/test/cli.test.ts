@@ -14,8 +14,13 @@ const CONFIG = `${HOME}/.config/opencode`
 const CACHE = `${HOME}/.cache/opencode`
 const PKGS = `${CACHE}/packages`
 
+/** A real plugin declares an entry point; a manifest with none is a program, not a plugin. */
 const installed = (spec: string, name: string, version: string) => ({
-  [`${PKGS}/${spec}/node_modules/${name}/package.json`]: JSON.stringify({ name, version }),
+  [`${PKGS}/${spec}/node_modules/${name}/package.json`]: JSON.stringify({
+    name,
+    version,
+    exports: { "./server": "./dist/server.js" },
+  }),
 })
 
 /** The machine from the investigation: `@latest` frozen at 0.1.2, plus a plugin pinned behind. */

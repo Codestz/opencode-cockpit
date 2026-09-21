@@ -15,6 +15,9 @@ import { Screen } from "./output/screen.ts"
 import type { PtyBackend, PtyExit, PtyProcess } from "./pty.ts"
 import type { WatchChange, Watcher } from "./watch/watcher.ts"
 
+/** How much of the current run a newly attached watcher is shown: enough for a test summary. */
+const WATCH_REPLAY_LINES = 500
+
 const ERROR_LINE = /\b(error|err!|failed|failure|fatal|panic|exception|traceback)\b|✗|✖/i
 
 export interface ShellSpec {
@@ -271,6 +274,33 @@ export class Shell {
     this.listeners.clear()
     this.pty?.close()
     this.screen.dispose()
+  }
+
+  /**
+   * Attach a health rule, and let it see what this run has already printed.
+   *
+   * A watcher only ever saw lines printed *after* it was attached, so a command that fails in its
+   * first milliseconds — `echo FAILED` — could print its failure before `shell.watch` arrived, and
+   * the run was judged without it. That is a real race for anyone who starts a shell and watches it
+   * in a second call; it surfaced as a test that failed only on a busy machine, and blocked a
+   * release. The current run's recent lines are replayed first — never an earlier run's, and at most
+   * `WATCH_REPLAY_LINES`, so attaching to a long-running server stays cheap — then the exit, if the
+   * run has already ended. Every change is reported exactly as it would have been live.
+   */
+  attachWatcher(watcher: Watcher, onChange: (change: WatchChange) => void): void {
+    this.watcher = watcher
+    this.onWatchChange = onChange
+    const from = Math.max(this.runStartLine, this.log.firstLine, this.log.lastLine - WATCH_REPLAY_LINES + 1)
+    for (let n = from; n <= this.log.lastLine; n++) {
+      const text = this.log.get(n)
+      if (text === undefined) continue
+      const change = watcher.line(text)
+      if (change) onChange(change)
+    }
+    if (this.status !== "running" && this.exit) {
+      const ended = watcher.exited(this.exit.exitCode ?? undefined, this.exit.signal ?? undefined)
+      if (ended) onChange(ended)
+    }
   }
 
   /** Last error-looking line of the current run, else its last non-empty line. */
