@@ -126,14 +126,16 @@ export function shellMethods(module: ShellModule): MethodTable<"shell"> {
       // No pattern fits a command like `sleep 300`, and that is still worth watching: an empty rule
       // reports nothing until the process dies, which is exactly crash detection.
       const watchRule = rule ?? chosen?.rule ?? {}
+      let watcher: Watcher
       try {
-        shell.watcher = new Watcher(compileRule(watchRule), chosen?.name ?? (rule ? undefined : EXIT_ONLY))
+        watcher = new Watcher(compileRule(watchRule), chosen?.name ?? (rule ? undefined : EXIT_ONLY))
       } catch (err) {
         throw invalidParams(`invalid watch pattern: ${err instanceof Error ? err.message : String(err)}`)
       }
-      shell.onWatchChange = (change) => {
+      // Attached with what this run already printed, so a failure faster than this call still counts.
+      shell.attachWatcher(watcher, (change) => {
         module.emit("shell.watch", { info: shell.info(), ...change })
-      }
+      })
       module.armIdle(shell)
       return shell.info()
     },
