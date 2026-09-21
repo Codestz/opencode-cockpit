@@ -13,6 +13,7 @@
 import { mkdtempSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { Terminal } from "@xterm/headless"
+import { FEATURES } from "../packages/opencode/src/features.ts"
 
 const root = join(import.meta.dir, "..")
 const opencode = Bun.which("opencode")
@@ -48,7 +49,8 @@ const screen = async () => {
 try {
   run(["bun", "run", "build"], root)
   const tarballs = join(work, "tarballs")
-  for (const dir of ["protocol", "daemon", "client", "shell", "status", "opencode"]) {
+  /** The plumbing, then every bay — from the bundle's own list, so a new one cannot be left out. */
+  for (const dir of ["protocol", "daemon", "client", "opencode", ...FEATURES]) {
     run(["bun", "pm", "pack", "--destination", tarballs], join(root, "packages", dir))
   }
   const names = [...new Bun.Glob("*.tgz").scanSync(tarballs)]
@@ -61,6 +63,7 @@ try {
       dependencies: {
         "@opencode-cockpit/shell": file("opencode-cockpit-shell-"),
         "@opencode-cockpit/status": file("opencode-cockpit-status-"),
+        "@opencode-cockpit/review": file("opencode-cockpit-review-"),
       },
       overrides: {
         "@opencode-cockpit/protocol": file("opencode-cockpit-protocol-"),
@@ -71,11 +74,24 @@ try {
   )
   run(["npm", "install"], install)
 
+  /** Review reads git, so the project is a checkout with exactly one change to show. */
+  await Bun.write(join(project, "SMOKE-REVIEW.ts"), "export const answer = 41\n")
+  for (const cmd of [
+    ["git", "init", "-q", "-b", "main"],
+    ["git", "config", "user.email", "smoke@example.com"],
+    ["git", "config", "user.name", "Smoke"],
+    ["git", "add", "-A"],
+    ["git", "commit", "-qm", "smoke"],
+  ]) {
+    run(cmd, project)
+  }
+  await Bun.write(join(project, "SMOKE-REVIEW.ts"), "export const answer = 42\n")
+
   // The plugins must live under node_modules: that is what disables OpenCode's Solid transform.
   const bay = (name: string) => join(install, "node_modules", "@opencode-cockpit", name)
   for (const [name, schema, plugins] of [
     ["opencode.json", "https://opencode.ai/config.json", [bay("shell")]],
-    ["tui.json", "https://opencode.ai/tui.json", [bay("shell"), bay("status")]],
+    ["tui.json", "https://opencode.ai/tui.json", [bay("shell"), bay("status"), bay("review")]],
   ] as const) {
     await Bun.write(join(config, "opencode", name), JSON.stringify({ $schema: schema, plugin: plugins }))
   }
@@ -124,6 +140,16 @@ try {
   const first = await screen()
   await Bun.sleep(4000)
   const second = await screen()
+
+  /**
+   * The review panel, from the same published build.
+   *
+   * It reads the repository rather than the session, so the project is a real checkout with one
+   * uncommitted change — and the file is named for this test, so a panel that draws *something*
+   * cannot pass for a panel that drew the diff.
+   */
+  await type("\x18v", 3000)
+  const review = await screen()
   proc.kill("SIGKILL")
 
   /**
@@ -139,6 +165,13 @@ try {
     if (!second.includes(marker)) throw new Error(`${what}:\n${second}`)
   }
 
+  for (const [what, marker] of [
+    ["the review panel never drew", "review"],
+    ["the review panel drew no diff", "SMOKE-REVIEW"],
+  ] as const) {
+    if (!review.includes(marker)) throw new Error(`${what}:\n${review}`)
+  }
+
   const ticks = (text: string) => [...text.matchAll(/tick (\d+)/g)].map((m) => Number(m[1]))
   const firstMax = Math.max(0, ...ticks(first))
   const secondMax = Math.max(0, ...ticks(second))
@@ -148,7 +181,9 @@ try {
       `the panel froze: still at tick ${firstMax} after 4s (published JSX not Solid-compiled?)\n${second}`,
     )
   }
-  console.log(`tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; statusline drew`)
+  console.log(
+    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; statusline drew; review drew its diff`,
+  )
 } finally {
   rmSync(work, { recursive: true, force: true })
 }
