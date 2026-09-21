@@ -49,6 +49,45 @@ const sameRow = (was: Row | undefined, now: Row): boolean => {
   return true
 }
 
+/**
+ * Whether a colour would actually paint.
+ *
+ * A theme may leave a colour fully transparent — a terminal background that lets the wallpaper
+ * through is the usual one — and a transparent *foreground* paints nothing at all: the word is
+ * drawn and no one sees it. Alpha is 0..1 when the colour came from floats and 0..255 when it came
+ * from ints, so the test is only against zero.
+ */
+const opaque = (colour: RGBA | undefined): colour is RGBA => colour !== undefined && colour.a > 0
+
+/** Perceived lightness, 0..1, tolerant of both 0..1 and 0..255 channels. */
+const lightness = (colour: RGBA): number => {
+  const scale = Math.max(colour.r, colour.g, colour.b) > 1 ? 255 : 1
+  return (0.2126 * colour.r + 0.7152 * colour.g + 0.0722 * colour.b) / scale
+}
+
+/** Below this the word and the block are too close to read apart. */
+const SEPARATION = 0.3
+
+/**
+ * Ink for a word printed on a block of colour.
+ *
+ * A badge — ` YOU `, ` AGENT `, ` review ` — is a word cut out of a solid fill, so its colour is
+ * not a matter of taste: it has to be legible against that fill, and a theme can break that two
+ * ways. It can leave `background` transparent, which paints no ink and leaves a bare coloured
+ * block (this is what a work machine showed: the blocks were there, the words were not). Or its
+ * background can simply sit too near the accent to read.
+ *
+ * So the ink is chosen rather than assumed: the first theme colour that both paints and stands far
+ * enough from the block. `undefined` means this theme has nothing that reads on it — the caller
+ * then drops the block instead, which every theme can show.
+ */
+export const inkOn = (theme: TuiThemeCurrent, fill: RGBA | undefined): RGBA | undefined => {
+  const candidates = [theme.background, theme.backgroundPanel, theme.backgroundElement, theme.text]
+  const paints = candidates.filter(opaque)
+  if (!opaque(fill)) return paints[0]
+  const level = lightness(fill)
+  return paints.find((colour) => Math.abs(lightness(colour) - level) >= SEPARATION)
+}
 /** Tones are named for meaning; the theme decides what they look like. */
 export const toneColour = (theme: TuiThemeCurrent, tone: Tone | undefined): RGBA => {
   switch (tone) {
@@ -88,9 +127,9 @@ export const toneColour = (theme: TuiThemeCurrent, tone: Tone | undefined): RGBA
       return theme.syntaxOperator
     case "punct":
       return theme.syntaxPunctuation
-    /** Ink for a solid badge: the panel's own background, used as a foreground. */
+    /** `inverse` has no colour of its own: see `inkOn`, which picks one against the block it sits on. */
     case "inverse":
-      return theme.background
+      return inkOn(theme, undefined) ?? theme.text
     default:
       return theme.text
   }
@@ -134,14 +173,21 @@ const DIM = 1 << 1
 const ITALIC = 1 << 2
 
 /** One styled run becomes one chunk. An exact colour wins: a parser knows better than a tone does. */
-const chunk = (theme: TuiThemeCurrent, run: Row["runs"][number]): TextChunk =>
-  ({
+const chunk = (theme: TuiThemeCurrent, run: Row["runs"][number]): TextChunk => {
+  const fill = fillColour(theme, run.fill)
+  const ink = run.tone === "inverse" ? inkOn(theme, fill) : toneColour(theme, run.tone)
+  const attributes = (run.bold ? BOLD : 0) | (run.italic ? ITALIC : 0) | (run.faint ? DIM : 0)
+  // No ink reads on this block, so the block goes: the badge becomes its own colour, in words.
+  if (run.tone === "inverse" && ink === undefined)
+    return { __isChunk: true, text: run.text, fg: fill ?? theme.text, bg: undefined, attributes } as TextChunk
+  return {
     __isChunk: true,
     text: run.text,
-    fg: (run.color as RGBA | undefined) ?? toneColour(theme, run.tone),
-    bg: fillColour(theme, run.fill),
-    attributes: (run.bold ? BOLD : 0) | (run.italic ? ITALIC : 0) | (run.faint ? DIM : 0),
-  }) as TextChunk
+    fg: (run.color as RGBA | undefined) ?? ink,
+    bg: fill,
+    attributes,
+  } as TextChunk
+}
 
 export interface RowPool {
   /** Draws these rows onto the pool's lines. */
