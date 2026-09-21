@@ -8,28 +8,37 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- **Updater: every plugin you have installed, what actually runs, and an update checked against
-  disk.** OpenCode installs a plugin into a cache directory named after its spec and never resolves
-  it again, so `some-plugin@latest` means the latest release *on the day you first installed it* —
-  one person sat on 0.1.2 while 0.4.2 was published. `/plugins-update` lists every plugin with what
-  is running beside what the config says and what is published; `latest ⚠` marks a spec that will
-  not move. An update rewrites the spec to an exact version through OpenCode's own
-  `opencode plugin -f`, removes the stale cache directories, and then reads every file back — the
+- **Updater: every plugin you have installed, what it is really running, and an update checked
+  against disk.** OpenCode installs a plugin into a cache directory named after its spec and never
+  resolves it again, so `some-plugin@latest` — or a bare name — means the release that was newest
+  *the day you first installed it*: one person sat on 0.1.2 while 0.4.2 was published. `/plugins-update`
+  lists every plugin with what is running beside what the config says and what is published;
+  `latest ⚠` marks a spec that will not move on its own. The review shows every file and cache
+  directory that will change before anything is written. An update pins an exact version through
+  OpenCode's own `opencode plugin -f`, removes the stale cache, and reads every file back — the
   command prints "Installed" over entries it left alone, so disk is the only evidence. Whatever is
-  still wrong is shown with the exact command that fixes it.
-- **The same, from a shell, for anyone too far behind to have it:**
-  `npx @opencode-cockpit/updater@latest` (or `bunx`). Both re-resolve `@latest` on every run, which
-  is what OpenCode's cache does not do.
+  still wrong comes with the exact command that fixes it. [Docs](https://codestz.github.io/opencode-cockpit/updater/overview/)
+- **The rescue, for anyone too far behind to have it:** `npx opencode-cockpit@latest update` (or
+  `bunx`). It runs from npm rather than from the copy that is stuck, and both re-resolve `@latest` on
+  every run — what OpenCode's cache does not do. `--dry-run`, `--only <name>` and `--yes`.
+- **A failed install says why, and what fixes it.** npm's cache holding files you do not own — an old
+  `sudo npm` — fails every install that touches them; the result names it and puts
+  `sudo chown -R "$(whoami)" ~/.npm` before the retry.
 
 ### Changed
 
-- **`/cockpit-update` opens the updater**, for every plugin rather than only this one. The daily
-  notice moved with it and now counts every plugin; `ui.updateCheck: false` still silences it.
+- **Every install line pins a version**: `opencode plugin opencode-cockpit@0.5.0 --global --force`.
+  The documented bare install was the command that created the frozen state; `--force` makes the same
+  line the way to move to a newer release.
+- **`/cockpit-update` opens the Updater**, for every plugin rather than only this one. The daily notice
+  moved with it and counts every plugin; `ui.updateCheck: false` still silences it.
+- **The registry is the one npm uses** (`npm_config_registry`), so a plugin on a private registry is
+  asked where it lives.
 
 ### Fixed
 
-- **The update check never got an answer.** It asked npm for abbreviated metadata on `/latest`,
-  which npm now refuses with a 406, so no update was ever announced and `/cockpit-update` offered a
+- **The update check never got an answer.** It asked npm for abbreviated metadata on `/latest`, which
+  npm now refuses with a 406, so no update was ever announced and `/cockpit-update` offered a
   reinstall with no version. The test stubbed the request and asserted the header, so it stayed green.
 
 ## [0.4.3] - 2026-09-21
