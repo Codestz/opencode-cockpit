@@ -25,6 +25,13 @@ export interface ReviewPaths {
   dir: string
   /** Where a single thread is written. */
   fileFor: (id: string) => string
+  /**
+   * Where trouble is appended — a stack, and what was true when it happened.
+   *
+   * Beside the threads rather than in a global log, because a crash belongs to the review that produced
+   * it: the branch, the files, the notes already written are all the context worth having.
+   */
+  log: string
 }
 
 /**
@@ -56,5 +63,5 @@ export function reviewPaths(
     env.COCKPIT_HOME ?? join(env.XDG_DATA_HOME ?? join(homedir(), ".local", "share"), "opencode-cockpit")
   /** No branch is not an error: a project without a repository still has a conversation to review. */
   const dir = join(base, "review", `${projectSlug(directory)}-${slug(branch ?? "no-branch")}`)
-  return { dir, fileFor: (id) => join(dir, `${slug(id)}.json`) }
+  return { dir, fileFor: (id) => join(dir, `${slug(id)}.json`), log: join(dir, "trouble.log") }
 }

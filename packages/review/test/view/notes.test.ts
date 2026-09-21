@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { emptyReview, open } from "../../src/core/model/review.ts"
-import { diffRows } from "../../src/core/view/layout.ts"
+import { diffRows, layout } from "../../src/core/view/layout.ts"
 import { rowWidth } from "../../src/core/view/rows.ts"
 
 /**
@@ -35,7 +35,7 @@ describe("a thread on a line", () => {
   test("is indented, so it is not mistaken for code", () => {
     const review = open(emptyReview(), { file: "a.ts", line: 2 }, "why?")
     const rows = text(diffRows(file, review, { context: 3 }, 80))
-    expect(rows.find((row) => row.includes("line 2"))?.startsWith("    ")).toBe(true)
+    expect(rows.find((row) => row.includes("LINE 2"))?.startsWith("    ")).toBe(true)
   })
 
   test("its line is marked, so a thread is visible before you read it", () => {
@@ -67,8 +67,8 @@ describe("a thread on a line", () => {
       ],
     }
     const rows = text(diffRows(file, review, { context: 3 }, 80))
-    const heading = rows.find((row) => row.includes("line 2")) as string
-    expect(heading).toContain("your turn")
+    const heading = rows.find((row) => row.includes("LINE 2")) as string
+    expect(heading).toContain("[YOUR TURN]")
     expect(heading).not.toContain("a.ts")
     expect(rows.join(" ")).toContain("because the caller holds the lock")
   })
@@ -178,7 +178,7 @@ describe("the comment band", () => {
     const said = diffRows(file, review, { context: 3 }, 80).find((row) =>
       row.runs.some((run) => run.text.includes("why?")),
     )
-    expect(said?.runs.every((run) => run.fill === "comment")).toBe(true)
+    expect(said?.runs.every((run) => run.fill === "comment" || run.fill === "you")).toBe(true)
   })
 
   test("and spans the full width of the column it is drawn in", () => {
@@ -198,21 +198,21 @@ describe("room around a comment", () => {
    * the next, leaving the eye to find the boundary by colour alone — hard work on a screen that is
    * already green.
    */
-  test("a quoted blank row sits above and below, with the bar running through it", () => {
+  test("a row of the band's own colour sits above and below, empty", () => {
     const review = open(emptyReview(), { file: "a.ts", line: 2 }, "why?")
     const rows = diffRows(file, review, { context: 3 }, 60)
-    const first = rows.findIndex((row) => row.runs.some((run) => run.text.includes("line 2")))
+    const first = rows.findIndex((row) => row.runs.some((run) => run.text.includes("LINE 2")))
     const last = rows.findIndex((row) => row.runs.some((run) => run.text.includes("why?")))
 
     for (const row of [rows[first - 1], rows[last + 1]]) {
       expect(row?.runs.every((run) => run.fill === "comment")).toBe(true)
-      /** The bar and nothing else: the mark down the left is one line, not three with gaps in it. */
+      /** Nothing in it at all: the band is the boundary, so it needs no glyph to draw one. */
       expect(
         row?.runs
           .map((run) => run.text)
           .join("")
           .trim(),
-      ).toBe("▎")
+      ).toBe("")
     }
   })
 
@@ -220,7 +220,118 @@ describe("room around a comment", () => {
     const review = open(emptyReview(), { file: "a.ts", line: 2 }, "why?")
     const id = review.threads[0]?.id
     const rows = diffRows(file, review, { context: 3 }, 60)
-    const first = rows.findIndex((row) => row.runs.some((run) => run.text.includes("line 2")))
+    const first = rows.findIndex((row) => row.runs.some((run) => run.text.includes("LINE 2")))
     expect(rows[first - 1]?.target).toBe(id as string)
+  })
+})
+
+describe("building rows costs what it should", () => {
+  const big = () => {
+    const after = `${Array.from({ length: 2000 }, (_, index) => `const value${index} = ${index}`).join("\n")}\n`
+    return { path: "big.ts", before: "", after, additions: 2000, deletions: 0 }
+  }
+
+  /**
+   * A file's rows are built in full and then windowed to what fits, so a long file costs every line
+   * to show fifty — and twice per keypress, since moving the cursor builds them once to find the
+   * lines and again to draw. It was 19ms a keystroke on a 3,000-line file, which is felt.
+   */
+  test("a second look at the same file does not build it again", () => {
+    const file = big()
+    const state = { context: 3 }
+    const first = diffRows(file, emptyReview(), state, 100)
+    expect(diffRows(file, emptyReview(), state, 100)).toBe(first)
+  })
+
+  test("moving the cursor does not rebuild, because the cursor is not built in", () => {
+    const file = big()
+    const rows = diffRows(file, emptyReview(), { context: 3, pane: "diff" as const, line: 10 }, 100)
+    expect(diffRows(file, emptyReview(), { context: 3, pane: "diff" as const, line: 900 }, 100)).toBe(rows)
+  })
+
+  test("but a new comment on it does", () => {
+    const file = big()
+    const before = diffRows(file, emptyReview(), { context: 3 }, 100)
+    const review = open(emptyReview(), { file: "big.ts", line: 10 }, "why?")
+    expect(diffRows(file, review, { context: 3 }, 100)).not.toBe(before)
+  })
+
+  test("and so does a narrower pane, since every row is sized to it", () => {
+    const file = big()
+    const wide = diffRows(file, emptyReview(), { context: 3 }, 100)
+    expect(diffRows(file, emptyReview(), { context: 3 }, 60)).not.toBe(wide)
+  })
+
+  test("the cursor still marks its line, and a selection still marks its range", () => {
+    const file = {
+      path: "a.ts",
+      before: "one\ntwo\nthree\n",
+      after: "one\nTWO\nthree\n",
+      additions: 1,
+      deletions: 1,
+    }
+    const state = { context: 3, pane: "diff" as const, line: 2 }
+    const rows = layout(
+      { source: "branch" as const, files: [file] },
+      emptyReview(),
+      { ...state, file: "a.ts" },
+      {
+        width: 100,
+        height: 20,
+      },
+    )
+    /** Read the row, not a run index: the pane's gutter sits in front of everything now. */
+    const marked = rows.find((row) => row.runs.some((run) => run.text.includes("TWO")))
+    expect(marked?.runs.map((run) => run.text).join("")).toContain("▌")
+  })
+})
+
+describe("the space between things", () => {
+  const changes = { source: "branch" as const, files: [file] }
+
+  /**
+   * Shell gets its spacing from the box model — padding, gap, margin on real nested boxes. This pane
+   * paints a flat list of rows into a text pool, which is the only way a slot surface updates at all,
+   * so every space has to be a character somebody emits. Nobody was emitting any.
+   */
+  test("the pane keeps a gutter on both sides of its content", () => {
+    const rows = layout(changes, emptyReview(), { file: "a.ts" }, { width: 80, height: 20 })
+    const heading = rows.find((row) => row.runs.some((run) => run.text.includes("a.ts")))
+    const drawn = heading?.runs.map((run) => run.text).join("") as string
+    expect(drawn.startsWith(" ")).toBe(true)
+    expect(drawn.endsWith(" ")).toBe(true)
+  })
+
+  test("the rules still span the pane, edge to edge", () => {
+    const rows = layout(changes, emptyReview(), { file: "a.ts" }, { width: 80, height: 20 })
+    const rule = rows[1]?.runs.map((run) => run.text).join("") as string
+    expect(rule).toBe("─".repeat(78))
+  })
+
+  /** A hunk is the paragraph break of a diff: it is where the file skips. */
+  test("a hunk header has air above it", () => {
+    const rows = diffRows(file, emptyReview(), { context: 3 }, 80)
+    const at = rows.findIndex((row) => row.runs.some((run) => run.text.includes("@@")))
+    expect(
+      rows[at - 1]?.runs
+        .map((run) => run.text)
+        .join("")
+        .trim(),
+    ).toBe("")
+  })
+
+  test("the two columns never touch the divider between them", () => {
+    const many = {
+      source: "branch" as const,
+      files: Array.from({ length: 4 }, (_, index) => ({ ...file, path: `src/file${index}.ts` })),
+    }
+    const rows = layout(many, emptyReview(), { file: "src/file0.ts" }, { width: 160, height: 20 })
+    for (const row of rows) {
+      const drawn = row.runs.map((run) => run.text).join("")
+      const at = drawn.indexOf("│")
+      if (at === -1) continue
+      expect(drawn[at - 1]).toBe(" ")
+      expect(drawn[at + 1]).toBe(" ")
+    }
   })
 })

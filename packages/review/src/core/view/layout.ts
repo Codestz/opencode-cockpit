@@ -21,11 +21,20 @@ import {
   threadsFor,
   threadsOnLine,
 } from "../model/review.ts"
-import type { Thread } from "../model/thread.ts"
+import { metrics } from "../perf.ts"
 import { cardRows } from "./card.ts"
-import type { HighlightedLine } from "./highlight.ts"
-import { cell, clipRuns, elidePath, type Fill, type Row, type Run, type Tone } from "./rows.ts"
-import { languageOf, type SyntaxState, tokenize } from "./syntax.ts"
+import {
+  cell,
+  cellTail,
+  clipRuns,
+  elidePath,
+  type Fill,
+  type Row,
+  type Run,
+  rowWidth,
+  type Tone,
+} from "./rows.ts"
+import { languageOf, type SyntaxState, tokenize } from "./syntax/index.ts"
 import { type TreeRow, treeRows } from "./tree.ts"
 
 /**
@@ -52,20 +61,6 @@ export interface ViewState {
   /** The thread the cursor is on, drawn heavier and showing its keys. */
   thread?: string
   /**
-   * Real highlighting for the file on screen, when a parser has produced some.
-   *
-   * Given as lines rather than fetched, because the view is a pure function: highlighting arrives from
-   * a worker whenever it arrives, and the layout should not know that workers exist.
-   */
-  highlighted?: { before?: HighlightedLine[]; after?: HighlightedLine[] }
-  /**
-   * Which highlighter coloured what is on screen.
-   *
-   * On the header because "is this the real parser or the fallback?" is otherwise unanswerable by
-   * looking — the two agree on most of an import line and disagree exactly where it matters.
-   */
-  syntax?: "tree-sitter" | "basic"
-  /**
    * What to call what is being reviewed — `feat/x → main` rather than the bare word "branch".
    * Named here rather than derived, because only the plugin knows what git says the branches are.
    */
@@ -91,6 +86,15 @@ export interface ViewState {
    * files as it moved the view, which reads as the list grabbing at you rather than scrolling.
    */
   listOffset?: number
+  /**
+   * Something went wrong, said where you are rather than in a log you have to go and find.
+   *
+   * Takes the footer's keys for as long as it is set: when the review is broken, what is broken is more
+   * use than a row of keys you can get back with `?`.
+   */
+  notice?: string
+  /** The numbers, when you have asked to see them. Same place, same reasoning. */
+  stats?: readonly Run[]
 }
 
 /** Rows above the list: the summary bar and its rule. */
@@ -99,11 +103,14 @@ export const HEADER_ROWS = 2
 export const FOOTER_ROWS = 2
 
 /** Columns the file list takes, clamped: paths are bounded, code is not. */
-export const MIN_LIST_COLUMNS = 24
+/** Narrow enough that a half-width pane keeps its list; paths elide to fit. */
+export const MIN_LIST_COLUMNS = 18
 export const MAX_LIST_COLUMNS = 40
 export const LIST_SHARE = 0.3
 /** Below this the diff column cannot hold a line of code, so the list gives up its space. */
 export const MIN_DIFF_COLUMNS = 72
+/** The divider, and a space either side of it. */
+const DIVIDER = 3
 
 export interface Columns {
   list: number
@@ -112,10 +119,17 @@ export interface Columns {
 
 export function splitColumns(width: number): Columns {
   const inner = Math.max(0, width - 2)
-  const list = Math.min(MAX_LIST_COLUMNS, Math.max(MIN_LIST_COLUMNS, Math.floor(inner * LIST_SHARE)))
-  const diff = inner - list - 1
-  if (diff < MIN_DIFF_COLUMNS) return { list: 0, diff: inner }
-  return { list, diff }
+  const wanted = Math.min(MAX_LIST_COLUMNS, Math.max(MIN_LIST_COLUMNS, Math.floor(inner * LIST_SHARE)))
+  /**
+   * A narrow pane squeezes the list rather than losing it.
+   *
+   * Half of a wide terminal is around a hundred columns, where a share-based width left the diff a few
+   * columns short of the minimum and the list vanished altogether — so the half-width pane, the one
+   * people actually leave open beside the conversation, was the only view with no way to change file.
+   */
+  const room = inner - MIN_DIFF_COLUMNS - DIVIDER
+  const list = room >= MIN_LIST_COLUMNS ? Math.min(wanted, room) : 0
+  return { list, diff: list === 0 ? inner : inner - list - DIVIDER }
 }
 
 /**
@@ -166,49 +180,48 @@ export function ratioBar(file: FileChange): Run[] {
 }
 
 /** The bar across the top: what you are reading, and how far through it you are. */
-export function headerRows(
-  changes: ChangeSet,
-  review: Review,
-  width: number,
-  label?: string,
-  syntax?: "tree-sitter" | "basic",
-): Row[] {
+export function headerRows(changes: ChangeSet, review: Review, width: number, label?: string): Row[] {
   const seen = progress(changes, review)
-  const left: Run[] = [
-    { text: " review ", tone: "accent", bold: true },
-    { text: `${label ?? changes.source} `, tone: "text", bold: true },
-    { text: `${seen.files} files `, tone: "muted" },
-    { text: `+${seen.additions} `, tone: "added" },
-    { text: `−${seen.deletions}`, tone: "removed" },
-  ]
   /**
-   * Silence when the parser is doing its job, and a word when it is not.
+   * The bay names itself once, as a badge rather than a word.
    *
-   * Announcing "tree-sitter" on every screen is a status light for a thing that is simply working —
-   * noise. A *failure* must always speak, though: code coloured by the fallback looks plausible and is
-   * only approximately right, so that case says so.
+   * Solid-on-dark is how the eye finds the top-left of a pane without reading it, and it lets the
+   * branch beside it be the brightest *text* on the row — which is the thing you actually came to
+   * check.
    */
+  const left: Run[] = [
+    { text: " review ", tone: "inverse", fill: "you", bold: true },
+    { text: "  ", fill: "panel" },
+    { text: `${label ?? changes.source}`, tone: "text", bold: true, fill: "panel" },
+    { text: "  ", fill: "panel" },
+    { text: `+${seen.additions}`, tone: "added", fill: "selected" },
+    { text: " ", fill: "selected" },
+    { text: `−${seen.deletions}`, tone: "removed", fill: "selected" },
+  ]
+  /** What is left to do, in the order you run out of it: read it, answer it, finish it. */
+  const bar = (): Run => ({ text: "  │  ", tone: "border", fill: "panel" })
   const right: Run[] = [
-    ...(syntax === "basic"
-      ? [
-          { text: "basic syntax ", tone: "warning" as const },
-          { text: "· ", tone: "border" as const },
-        ]
-      : []),
-    { text: `${seen.read}/${seen.files} read `, tone: "muted" },
-    { text: "· ", tone: "border" },
-    { text: `${seen.open} open `, tone: seen.open > 0 ? "accent" : "muted" },
+    { text: `${seen.read}/${seen.files} read`, tone: "muted", fill: "panel" },
+    bar(),
+    { text: `${seen.open} open`, tone: seen.open > 0 ? "accent" : "muted", fill: "panel" },
     ...(seen.threads > seen.open
       ? [
-          { text: "· ", tone: "border" as const },
-          { text: `${seen.threads - seen.open} resolved `, tone: "muted" as const },
+          bar(),
+          { text: `${seen.threads - seen.open} resolved`, tone: "muted" as const, fill: "panel" as Fill },
         ]
       : []),
+    { text: " ", fill: "panel" },
   ]
-  const used = left.reduce((sum, run) => sum + run.text.length, 0)
-  const tail = right.reduce((sum, run) => sum + run.text.length, 0)
+  const used = rowWidth({ runs: left })
+  const tail = rowWidth({ runs: right })
   return [
-    { runs: [...left, { text: " ".repeat(Math.max(0, width - used - tail)) }, ...right] },
+    {
+      runs: clipRuns(
+        [...left, { text: " ".repeat(Math.max(0, width - used - tail)), fill: "panel" }, ...right],
+        width,
+        "panel",
+      ),
+    },
     { runs: [{ text: "─".repeat(width), tone: "border" }] },
   ]
 }
@@ -222,8 +235,18 @@ export function footerRows(width: number, _columns: Columns, state: ViewState = 
       ? Math.abs(state.line - state.anchor) + 1
       : 0
 
-  const key = (text: string): Run => ({ text, tone: "accent", bold: true })
-  const says = (text: string): Run => ({ text, tone: "muted" })
+  /**
+   * `[key] Label`, with the key bright and the label dim.
+   *
+   * A run-on string of `tab files  j/k line  v select` is a sentence you have to parse; a bracketed
+   * key is a shape you recognise. The brackets do the work a colour would otherwise have to do, which
+   * keeps the only saturated colours in the pane on the diff where they mean something.
+   */
+  const hint = (key: string, label: string): Run[] => [
+    { text: `[${key}]`, tone: "accent", bold: true },
+    { text: ` ${label}`, tone: "muted" },
+    { text: "   " },
+  ]
 
   /**
    * The keys you always have, then the ones this moment adds.
@@ -234,57 +257,112 @@ export function footerRows(width: number, _columns: Columns, state: ViewState = 
    */
   const moving: Run[] = [
     { text: " " },
-    key("tab"),
-    says(inDiff ? " files  " : " diff  "),
-    key("j/k"),
-    says(inDiff ? " line  " : " file  "),
-    ...(inDiff ? [key("v"), says(" select  ")] : []),
-    key("c"),
-    says(inDiff ? " note line  " : " note file  "),
+    ...hint("Tab", inDiff ? "Files" : "Diff"),
+    ...hint("j/k", "Navigate"),
+    ...(inDiff ? hint("v", "Select") : []),
   ]
 
   const extra: Run[] = selecting
     ? [
-        { text: `${lines} line${lines === 1 ? "" : "s"}  `, tone: "accent", bold: true },
-        key("c"),
-        says(" note them  "),
-        key("v"),
-        says(" cancel  "),
+        { text: `${lines} line${lines === 1 ? "" : "s"}   `, tone: "accent", bold: true },
+        ...hint("c", "Note Them"),
+        ...hint("v", "Cancel"),
       ]
     : state.thread
-      ? [key("r"), says(" reply  "), key("x"), says(" remove  ")]
-      : [key("f"), says(" note file  "), key("space"), says(" read  ")]
+      ? [...hint("c", "Reply"), ...hint("x", "Remove")]
+      : [
+          ...hint("c", inDiff ? "Note Line" : "Note File"),
+          ...(inDiff ? hint("f", "Note File") : []),
+          ...hint("space", "Read"),
+        ]
 
-  const tail: Run[] = [key("s"), says(" source  "), key("w"), says(" width  "), key("q"), says(" close")]
+  const tail: Run[] = [...hint("s", "Source"), ...hint("w", "Width"), ...hint("q", "Close")]
 
-  return [
-    { runs: [{ text: "─".repeat(width), tone: "border" }] },
-    { runs: clipRuns([...moving, ...extra, ...tail], width, "none") },
-  ]
+  /**
+   * One line, and a queue for it: trouble, then numbers, then the keys.
+   *
+   * The footer stays exactly two rows however much it has to say, because the body's height is measured
+   * from it — a footer that grew would push the diff about every time something went wrong.
+   */
+  const said: Run[] = state.notice
+    ? [
+        { text: " ! ", tone: "removed", bold: true },
+        { text: state.notice, tone: "removed" },
+      ]
+    : state.stats
+      ? [...state.stats]
+      : [...moving, ...extra, ...tail]
+
+  return [{ runs: [{ text: "─".repeat(width), tone: "border" }] }, { runs: clipRuns(said, width, "none") }]
 }
 
 /** One row per tree entry: folders with a count, files with their basename and tally. */
+/**
+ * The column the additions and deletions line up in.
+ *
+ * As wide as the widest change in *this* review and no wider: a fixed column is either too small for
+ * `+1234 −567`, which then overflows and takes the pane's right edge with it, or too wide for a
+ * branch of one-line fixes — and in a narrow list those columns are names.
+ */
+const countsColumn = (changes: ChangeSet): number => {
+  const widest = changes.files.reduce((most, file) => Math.max(most, rowWidth({ runs: tallyRuns(file) })), 0)
+  return Math.min(10, Math.max(6, widest))
+}
+
+/** A folder's mark. Two columns, and no glyph that needs a font the terminal may not have. */
+const MARK_COLUMNS = 2
+
+/**
+ * One column of indent per level, not two.
+ *
+ * A review of a real repository is six or seven levels deep before it reaches a file, and at two
+ * columns a level that is most of a narrow pane spent on whitespace — names were being cut to nothing
+ * to make room for the indent that was supposed to organise them.
+ */
+const STEP = 1
+
+/**
+ * How much of a list row is left for the name.
+ *
+ * Two columns in the margin, the indent, the folder mark, the counts, and one column of air at the
+ * end. Written once because both kinds of row have to agree to the character: when they disagreed by
+ * one, a row overflowed its column and the pane's right edge went ragged.
+ */
+const nameRoom = (width: number, indent: number, counts: number): number =>
+  Math.max(1, width - 2 - indent - MARK_COLUMNS - counts - 1)
+
 export function fileRows(changes: ChangeSet, review: Review, state: ViewState, width: number): Row[] {
   if (width <= 0) return []
   const byPath = new Map(changes.files.map((file) => [file.path, file]))
+  const counts = countsColumn(changes)
 
   return navigableRows(changes, state).map((row) => {
-    const indent = "  ".repeat(row.depth)
+    const indent = " ".repeat(row.depth * STEP)
     const here = row.path === state.cursor
+    /**
+     * The cursor is a bar in the margin, not a colour on the text.
+     *
+     * A selected row keeps its own colours — the file type badge, the green and red of its counts —
+     * and says it is selected with one character and a faint band. Recolouring the row to show where
+     * the cursor is throws away everything else the row was telling you.
+     */
+    const mark = (): Run => ({ text: here ? "▌" : " ", tone: "accent" })
+    const band: Fill = here ? "selected" : "none"
 
     if (row.kind === "folder") {
       const count = `${row.files}`
-      // 1 cursor + 1 gap + indent + 2 arrow + name + 1 gap + count = width, exactly.
-      const room = Math.max(1, width - indent.length - count.length - 5)
+      const icon = state.collapsed?.has(row.path) ? "▸ " : "▾ "
+      const room = nameRoom(width, indent.length, counts)
       return {
         target: row.path,
         runs: [
-          { text: here ? "▌" : " ", tone: "accent" },
-          { text: " " },
-          { text: indent },
-          { text: state.collapsed?.has(row.path) ? "▸ " : "▾ ", tone: "muted" },
-          { text: cell(row.name, room), tone: "text", bold: here, fill: here ? "selected" : "none" },
-          { text: ` ${count}`, tone: "muted" },
+          mark(),
+          { text: " ", fill: band },
+          { text: indent, fill: band },
+          { text: icon, tone: "muted", fill: band },
+          { text: cellTail(row.name, room), tone: "text", bold: here, fill: band },
+          { text: count.padStart(counts), tone: "muted", fill: band },
+          { text: " ", fill: band },
         ],
       }
     }
@@ -292,25 +370,39 @@ export function fileRows(changes: ChangeSet, review: Review, state: ViewState, w
     const file = byPath.get(row.path)
     const showing = row.path === state.file
     const read = isRead(review, row.path)
-    const tally = file ? tallyOf(file) : ""
-    // 1 cursor + 1 read + indent + 1 gap + name + tally runs (tally + 1) = width, exactly.
-    const room = Math.max(1, width - indent.length - tally.length - 4)
+    const tally = tallyRuns(file).map((run) => ({ ...run, fill: band }))
+    /**
+     * Right-aligned in its column, and never wider than it.
+     *
+     * The padding goes in front, so the numbers end where every other row's numbers end; a change too
+     * big for the column is cut rather than allowed to push the row past the edge of the pane.
+     */
+    const used = rowWidth({ runs: tally })
+    const numbers: Run[] =
+      used >= counts
+        ? clipRuns(tally, counts, band)
+        : [{ text: " ".repeat(counts - used), fill: band }, ...tally]
+    /** A file's name starts where a folder's does: in the columns the folder mark would occupy. */
+    const room = nameRoom(width, indent.length, counts)
     return {
       target: row.path,
       runs: [
-        { text: here ? "▌" : " ", tone: "accent" },
-        /** A tick when it has been read, and nothing at all when it has not — an unread marker on
-         *  every row is noise on the rows you have not got to yet, which is most of them. */
-        { text: read ? "✓" : " ", tone: "success" },
-        { text: indent },
-        { text: " " },
+        mark(),
+        /**
+         * A tick when it has been read, and nothing at all when it has not — an unread marker on every
+         * row is noise on the rows you have not got to yet, which is most of them.
+         */
+        { text: read ? "✓" : " ", tone: "success", fill: band },
+        { text: indent, fill: band },
+        { text: " ".repeat(MARK_COLUMNS), fill: band },
         {
-          text: cell(row.name, room),
+          text: cellTail(row.name, room),
           tone: showing || here ? "text" : "muted",
           bold: showing,
-          fill: here ? "selected" : "none",
+          fill: band,
         },
-        ...tallyRuns(file),
+        ...numbers,
+        { text: " ", fill: band },
       ],
     }
   })
@@ -364,25 +456,79 @@ export function hunkHeader(hunk: Hunk, width: number): Row {
  * what it meant, but the number no longer points at what the author was looking at — and a review that
  * silently cites the wrong line is worse than one that admits it.
  */
+/**
+ * Rows already built, keyed by everything that changes them.
+ *
+ * A file's rows are built in full and then windowed down to what fits, so a three-thousand-line file
+ * costs three thousand tokenised lines to show fifty — and twice per keypress, because moving the
+ * cursor builds them once to find the lines and again to draw. Measured at 19ms a keystroke on a
+ * 3,000-line file, which is felt.
+ *
+ * The cursor is deliberately not part of the key, because it is not part of what gets built: walking
+ * a file is a cache hit and a restyle of the visible rows. Only the file, the conversation on it, or
+ * the shape of the pane invalidates this.
+ */
+const built = new Map<string, Row[]>()
+
+/** A handful of files: moving between two is common, and holding every file is not free. */
+const REMEMBERED = 8
+
+/** Everything about the state that changes a row, and nothing that does not. */
+const signature = (file: FileChange, review: Review, state: ViewState, width: number): string =>
+  [
+    file.path,
+    file.before.length,
+    file.after.length,
+    width,
+    state.context ?? 3,
+    state.thread ?? "",
+    threadsFor(review, file.path)
+      .map((thread) => `${thread.id}:${thread.status}:${thread.entries.length}`)
+      .join(","),
+  ].join("|")
+
 export function diffRows(file: FileChange, review: Review, state: ViewState, width: number): Row[] {
+  const key = signature(file, review, state, width)
+  const hit = built.get(key)
+  if (hit) {
+    metrics.count("hits")
+    return hit
+  }
+
+  metrics.count("builds")
+  const rows = metrics.time("build", () => buildDiffRows(file, review, state, width))
+  /** Oldest out first: a plain map keeps insertion order, which is the only order that matters. */
+  if (built.size >= REMEMBERED) {
+    const oldest = built.keys().next().value
+    if (oldest !== undefined) built.delete(oldest)
+  }
+  built.set(key, rows)
+  return rows
+}
+
+function buildDiffRows(file: FileChange, review: Review, state: ViewState, width: number): Row[] {
   if (width <= 0) return []
   const rows: Row[] = []
-  const focused = state.pane === "diff"
 
   /** The file's own thread is announced here, so the heading is built with room for it. */
   const whole = threadsFor(review, file.path).filter((each) => each.line === undefined)
   const badge = whole.length > 0 ? ` ${MARK} ${whole.length} ` : ""
 
   const tally = tallyOf(file)
-  const room = Math.max(1, width - tally.length - 9 - badge.length)
+  // a leading space + the path + " tally " + the badge = the column, exactly.
+  const room = Math.max(1, width - tally.length - badge.length - 3)
   rows.push({
     ...(whole[0] ? { target: whole[0].id } : {}),
     runs: [
       { text: " ", fill: "panel" },
       { text: cell(elidePath(file.path, room), room), tone: "text", bold: true, fill: "panel" },
+      /**
+       * The numbers, and no bar of blocks beside them.
+       *
+       * A proportion bar is a second way of saying what `+2 −2` already said, in the loudest glyph on
+       * the screen, on a row that is already a heading.
+       */
       { text: ` ${tally} `, tone: "muted", fill: "panel" },
-      ...ratioBar(file),
-      { text: " ", fill: "panel" },
       ...(badge ? [{ text: badge, tone: "accent" as Tone, bold: true, fill: "panel" as Fill }] : []),
     ],
   })
@@ -404,6 +550,14 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
   const body = Math.max(0, width - NUMBER_COLUMNS * 2 - 2)
 
   for (const hunk of toHunks(file.before, file.after, { context: state.context ?? 3 })) {
+    /**
+     * A blank row above every hunk.
+     *
+     * A hunk is the paragraph break of a diff — it is where the file skips — and it was butting up
+     * against both the code above it and the code below. This is the one place in a diff where air
+     * carries meaning rather than just looking nicer.
+     */
+    rows.push({ runs: [{ text: " ".repeat(width) }] })
     rows.push(hunkHeader(hunk, width))
     /**
      * A block comment opened in one line is still open in the next, so the tokenizer's state travels
@@ -414,26 +568,12 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
     for (const line of hunk.lines) {
       const added = line.kind === "add"
       const removed = line.kind === "remove"
-      /** Inside the selection, or on the cursor when there is no selection. */
-      const at = line.after
-      const lowest =
-        state.anchor === undefined ? state.line : Math.min(state.anchor, state.line ?? state.anchor)
-      const highest =
-        state.anchor === undefined ? state.line : Math.max(state.anchor, state.line ?? state.anchor)
-      const here =
-        focused &&
-        at !== undefined &&
-        lowest !== undefined &&
-        highest !== undefined &&
-        at >= lowest &&
-        at <= highest
       /**
-       * No background on a changed line.
+       * The cursor is not built in.
        *
-       * A tint across the whole row repeats what the `+` already said, and in a newly added file it
-       * repeats it on every line — leaving the screen uniformly green with nothing for a comment to
-       * stand out against. The sign and the line numbers carry the change; the background stays out
-       * of it, so the only tinted thing on screen is a conversation.
+       * Which line you are standing on changes one row out of three thousand, and baking it into the
+       * build meant every keypress rebuilt the file. It is applied to the visible rows instead — see
+       * `withCursor` — so walking a file is a cache hit and a restyle of what fits on screen.
        */
       /**
        * Three tints, the way a pull request does it: the gutter loudly, the row faintly, and a
@@ -442,8 +582,8 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
        * One tint for all three is what made a file of pure additions read as a green field with text
        * on it, and left a comment nothing to stand out against.
        */
-      const fill: Fill = here ? "selected" : added ? "added" : removed ? "removed" : "none"
-      const gutter: Fill = here ? "selected" : added ? "addedNumber" : removed ? "removedNumber" : "none"
+      const fill: Fill = added ? "added" : removed ? "removed" : "none"
+      const gutter: Fill = added ? "addedNumber" : removed ? "removedNumber" : "none"
       /**
        * The sign is the loud part and the code is not: `success`/`error` for `+`/`−`, and the code
        * coloured as code. Painting a whole line green makes a diff harder to read, not easier — the
@@ -452,24 +592,14 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
       const sign = added ? "+" : removed ? "−" : " "
       const signTone: Tone = added ? "success" : removed ? "removed" : "muted"
 
-      /**
-       * A real parse when one has arrived, and the tokenizer until then. Highlighting is per side:
-       * a removed line is a line of the *old* file, and colouring it from the new one would be a
-       * confident lie about code that is no longer there.
-       */
-      const parsed = removed
-        ? state.highlighted?.before?.[(line.before ?? 0) - 1]
-        : state.highlighted?.after?.[(line.after ?? 0) - 1]
-      const code = parsed
-        ? { runs: parsed.spans.map((span) => ({ ...span, tone: "text" as Tone })), state: syntax }
-        : tokenize(line.text, language, syntax)
+      const code = tokenize(line.text, language, syntax)
       syntax = code.state
       const painted = code.runs.map((run) => ({ ...run, fill }))
 
       rows.push({
         ...(line.after === undefined ? {} : { line: line.after }),
         runs: [
-          { text: here ? "▌" : " ", tone: "accent", fill },
+          { text: " ", tone: "accent", fill },
           {
             text: String(line.before ?? "").padStart(NUMBER_COLUMNS - 1),
             tone: "lineNumber",
@@ -528,46 +658,114 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
 }
 
 /** Everything on screen, as rows, for a viewport of this size. */
+/**
+ * The gutter down each side of the pane.
+ *
+ * Shell gets this from the box model — `paddingLeft`, `paddingRight` on a real nested box. This pane
+ * paints a flat list of rows into a text pool, which is the only way a slot surface updates at all,
+ * so every space has to be a character somebody emits. Emitted here, once, rather than remembered by
+ * five different row builders.
+ */
+const GUTTER = 1
+
+/**
+ * Puts the gutter on a row and pads it out to the full width, so a fill reaches both edges.
+ *
+ * Without the padding a tinted row stopped where its text stopped, leaving a ragged right edge down
+ * the diff wherever lines were short.
+ */
+const inset = (row: Row, width: number, fill: Fill = "none"): Row => {
+  const slack = Math.max(0, width - GUTTER * 2 - rowWidth(row))
+  return {
+    ...row,
+    runs: [
+      { text: " ".repeat(GUTTER), fill },
+      ...row.runs,
+      ...(slack > 0 ? [{ text: " ".repeat(slack), fill }] : []),
+      { text: " ".repeat(GUTTER), fill },
+    ],
+  }
+}
+
 export function layout(changes: ChangeSet, review: Review, state: ViewState, viewport: Viewport): Row[] {
-  const columns = splitColumns(viewport.width)
+  return metrics.time("layout", () => compose(changes, review, state, viewport))
+}
+
+/** Everything `layout` does. Split out so the timing above has something to wrap. */
+function compose(changes: ChangeSet, review: Review, state: ViewState, viewport: Viewport): Row[] {
   const inner = Math.max(0, viewport.width - 2)
-  const rows: Row[] = [...headerRows(changes, review, inner, state.label, state.syntax)]
+  /** What the content gets, once the pane has taken its gutter off each side. */
+  const content = Math.max(1, inner - GUTTER * 2)
+  const columns = splitColumns(content + 2)
+
+  /** The rule spans the pane, edge to edge; everything with words in it sits inside the gutter. */
+  const rule: Row = { runs: [{ text: "─".repeat(inner), tone: "border" }] }
+  const rows: Row[] = headerRows(changes, review, content, state.label).map((row, index) =>
+    index === HEADER_ROWS - 1 ? rule : inset(row, inner),
+  )
 
   const body = Math.max(1, viewport.height - HEADER_ROWS - FOOTER_ROWS)
   const file = changes.files.find((candidate) => candidate.path === state.file) ?? changes.files[0]
+  const blank = (width: number): Row => ({ runs: [{ text: " ".repeat(width) }] })
+
+  const close = (built: Row[]): Row[] => {
+    const feet = footerRows(content, columns, state)
+    return [...built, ...feet.map((row, index) => (index === 0 ? rule : inset(row, inner)))]
+  }
 
   if (changes.files.length === 0) {
-    rows.push({ runs: [{ text: cell("  Nothing has changed here.", inner), tone: "muted" }] })
-    for (let index = 1; index < body; index++) rows.push({ runs: [{ text: " ".repeat(inner) }] })
-    rows.push(...footerRows(inner, columns, state))
-    return rows
+    rows.push(inset({ runs: [{ text: cell("Nothing has changed here.", content), tone: "muted" }] }, inner))
+    for (let index = 1; index < body; index++) rows.push(blank(inner))
+    return close(rows)
   }
 
   /** One column: the list, or the diff, never both squeezed into something unreadable. */
   if (columns.list === 0) {
-    const only = file ? diffRows(file, review, state, inner) : fileRows(changes, review, state, inner)
-    const shown = window(only, state.scroll ?? 0, body)
+    const only = file ? diffRows(file, review, state, content) : fileRows(changes, review, state, content)
+    const shown = withCursor(window(only, state.scroll ?? 0, body), state)
     for (let index = 0; index < body; index++) {
-      rows.push(shown[index] ?? { runs: [{ text: " ".repeat(inner) }] })
+      const row = shown[index]
+      rows.push(row ? inset(row, inner, row.runs[0]?.fill) : blank(inner))
     }
-    rows.push(...footerRows(inner, columns, state))
-    return rows
+    return close(rows)
   }
 
-  const list = window(fileRows(changes, review, state, columns.list), listScroll(changes, state, body), body)
-  const diff = window(file ? diffRows(file, review, state, columns.diff) : [], state.scroll ?? 0, body)
+  /** Whichever half does not have the cursor is dimmed, so the active one needs no outline. */
+  const inDiff = state.pane === "diff"
+  const list = (rows: Row[]) => (inDiff ? faint(rows) : rows)
+  const code = (rows: Row[]) => (inDiff ? rows : faint(rows))
+  const left = list(
+    window(fileRows(changes, review, state, columns.list), listScroll(changes, state, body), body),
+  )
+  const right = code(
+    withCursor(
+      window(file ? diffRows(file, review, state, columns.diff) : [], state.scroll ?? 0, body),
+      state,
+    ),
+  )
 
   for (let index = 0; index < body; index++) {
-    const left = list[index]?.runs ?? [{ text: " ".repeat(columns.list) }]
-    const right = diff[index]?.runs ?? [{ text: " ".repeat(columns.diff) }]
-    rows.push({
-      ...(list[index]?.target === undefined ? {} : { target: list[index]?.target }),
-      ...(diff[index]?.line === undefined ? {} : { line: diff[index]?.line }),
-      runs: [...left, { text: "│", tone: "border" }, ...right],
-    })
+    const listRuns = left[index]?.runs ?? [{ text: " ".repeat(columns.list) }]
+    const diffRuns = right[index]?.runs ?? [{ text: " ".repeat(columns.diff) }]
+    rows.push(
+      inset(
+        {
+          ...(left[index]?.target === undefined ? {} : { target: left[index]?.target }),
+          ...(right[index]?.line === undefined ? {} : { line: right[index]?.line }),
+          /** Air either side of the divider, so two columns of text never touch it. */
+          runs: [
+            ...listRuns,
+            { text: " ", tone: "border" },
+            { text: "│", tone: "border", faint: true },
+            { text: " " }, // DIVIDER columns wide, which is what splitColumns set aside
+            ...diffRuns,
+          ],
+        },
+        inner,
+      ),
+    )
   }
-  rows.push(...footerRows(inner, columns, state))
-  return rows
+  return close(rows)
 }
 
 /**
@@ -596,6 +794,19 @@ export function keepCursorVisible(changes: ChangeSet, state: ViewState, height: 
   if (at < offset) return at
   if (at > offset + height - 1) return at - height + 1
   return offset
+}
+
+/**
+ * Everything on these rows, drawn dimmer.
+ *
+ * How an inactive pane says so. The alternative — a bright border around the active one — adds a line
+ * to look at in order to say something about the pane you are already looking at, and two bright
+ * borders on screen at once is how a terminal UI starts to look like a cockpit warning panel.
+ *
+ * Applied after windowing, like the cursor, so it costs the rows on screen and not the file.
+ */
+export function faint(rows: readonly Row[]): Row[] {
+  return rows.map((row) => ({ ...row, runs: row.runs.map((run) => ({ ...run, faint: true })) }))
 }
 
 /** The visible slice, clamped so scrolling can never run off either end. */
@@ -637,4 +848,28 @@ export function visibleDiffLines(
   viewport: Viewport,
 ): (number | undefined)[] {
   return visibleDiffRows(changes, review, state, viewport).map((row) => row.line)
+}
+
+/**
+ * Marks the line the cursor is on, and the lines a selection covers, on the rows that are visible.
+ *
+ * Applied after windowing rather than during the build: it touches one row in fifty, and baking it
+ * into the build made every keypress rebuild the whole file. Fifty restyled rows is work you cannot
+ * feel; three thousand tokenised lines is work you can.
+ */
+export function withCursor(rows: readonly Row[], state: ViewState): Row[] {
+  if (state.pane !== "diff" || state.line === undefined) return rows as Row[]
+  const from = Math.min(state.anchor ?? state.line, state.line)
+  const to = Math.max(state.anchor ?? state.line, state.line)
+
+  return rows.map((row) => {
+    if (row.line === undefined || row.line < from || row.line > to) return row
+    return {
+      ...row,
+      runs: [
+        { ...(row.runs[0] ?? { text: " " }), text: "▌", tone: "accent" as Tone, fill: "selected" as Fill },
+        ...row.runs.slice(1).map((run) => ({ ...run, fill: "selected" as Fill })),
+      ],
+    }
+  })
 }

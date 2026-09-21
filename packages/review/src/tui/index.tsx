@@ -1,8 +1,10 @@
 /** @jsxImportSource @opentui/solid */
 
+import { appendFile, mkdir } from "node:fs/promises"
 import { createBindingLookup, type TuiPlugin, type TuiPluginModule } from "@opencode-ai/plugin/tui"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
 import type { BoxRenderable } from "@opentui/core"
+import { createGuard } from "../core/guard.ts"
 import {
   drop,
   emptyReview,
@@ -18,6 +20,7 @@ import {
   toggleRead,
 } from "../core/model/review.ts"
 import { threadWhere } from "../core/model/thread.ts"
+import { metrics } from "../core/perf.ts"
 import { reviewPaths } from "../core/store/paths.ts"
 import { createPersistence } from "../core/store/persist.ts"
 import { frameBounds, VARIANTS, type Variant } from "../core/view/frame.ts"
@@ -31,13 +34,11 @@ import {
   navigableRows,
   splitColumns,
   type ViewState,
-  visibleDiffLines,
   visibleDiffRows,
 } from "../core/view/layout.ts"
-import { languageOf } from "../core/view/syntax.ts"
+import { statsLines, statsRuns } from "../core/view/stats.ts"
 import { Overlay } from "./components/overlay.tsx"
 import { askForNote } from "./dialogs.tsx"
-import { createHighlighter } from "./render/highlighter.ts"
 import { createRowPool, type RowPool } from "./render/rows.ts"
 import { createStore } from "./state/store.ts"
 
@@ -52,12 +53,17 @@ const REVIEW_PACKAGE = "@opencode-cockpit/review"
 /** Above Shell's dock (150), below the statusline (200). */
 const SLOT_ORDER = 180
 
-const SOURCES: Source[] = ["branch", "worktree", "session"]
+const SOURCES: Source[] = ["worktree", "branch", "session"]
 
 export interface ReviewTuiOptions {
   /** Which placement to open in: right | full. */
   variant?: Variant
-  /** What to review on open: branch | worktree | session. */
+  /**
+   * What to review on open: worktree | branch | session.
+   *
+   * Uncommitted by default, because that is what you are looking at nine times in ten — the work
+   * that just happened. Branch is for reading a pull request, which is a thing you choose to do.
+   */
   source?: Source
   keybinds?: Record<string, string>
 }
@@ -80,13 +86,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
 
     const options = (rawOptions ?? {}) as ReviewTuiOptions
     const keys = createBindingLookup({ ...DEFAULT_KEYS, ...options.keybinds })
-    const store = createStore(api, options.source ?? "branch")
-    /**
-     * A real parse when the host's tree-sitter client will do one, and the built-in tokenizer until
-     * then — or for ever, if the client misbehaves once. Probing it outside a renderer showed it
-     * hanging rather than failing, so it is never awaited on the draw path.
-     */
-    const highlighter = createHighlighter(() => api.theme.current)
+    const store = createStore(api, options.source ?? "worktree")
 
     /**
      * Plain variables, not signals. Nothing inside a slot's tree is reactive, so state that the panel
@@ -118,6 +118,69 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       if (thread) void persistence.save(thread).catch(() => {})
     }
     let view: ViewState = { context: 3, collapsed: new Set() }
+    /** Whether the footer is showing the numbers instead of the keys. */
+    let showStats = false
+
+    /**
+     * What was true when something went wrong.
+     *
+     * Gathered only after a throw, so it can be as expensive as it likes — and it is the difference
+     * between a stack that names a line and a report you can actually act on.
+     */
+    const situation = (): string =>
+      [
+        `variant ${variant}  source ${store.source()}  pane ${view.pane ?? "files"}`,
+        `file ${view.file ?? "none"}  line ${view.line ?? "none"}  scroll ${view.scroll ?? 0}  list ${view.listOffset ?? 0}`,
+        `terminal ${api.renderer.width}x${api.renderer.height}  files ${store.current().changes.files.length}  threads ${review.threads.length}`,
+        ...statsLines(metrics.snapshot()).map((line) => `  ${line}`),
+      ].join("\n")
+
+    /**
+     * Nothing may take the session down, and nothing may fail in silence.
+     *
+     * A toast so you know now, a file so we can read it later. The pane stays up with the trouble in its
+     * footer: losing your place in a review is worse than one visibly broken row, and a pane that closes
+     * itself takes the evidence with it.
+     */
+    const guard = createGuard({
+      meter: metrics,
+      context: situation,
+      report: (trouble, detail) => {
+        api.ui.toast({
+          variant: "error",
+          title: "Review",
+          message: `${trouble.where}: ${trouble.message}`,
+          duration: 8_000,
+        })
+        const where = reviewPaths(api.state.path.worktree || api.state.path.directory, api.state.vcs?.branch)
+        void mkdir(where.dir, { recursive: true })
+          .then(() => appendFile(where.log, detail))
+          .catch(() => {})
+      },
+    })
+
+    /** The trouble is worth the footer for a while, then the keys are worth more. */
+    const notice = (): string | undefined => {
+      const trouble = guard.last()
+      if (!trouble || Date.now() - trouble.at > 12_000) return undefined
+      const again = trouble.seen > 1 ? ` (×${trouble.seen})` : ""
+      return `${trouble.where}: ${trouble.message}${again} — written to trouble.log`
+    }
+
+    /**
+     * Every key through the guard, and counted.
+     *
+     * Wrapped here, at the one place commands are registered, rather than at twenty call sites — a
+     * safety net with a hole in it because somebody forgot a line is not a safety net.
+     */
+    const guarded = <T extends { name: string; run: () => void }>(commands: T[]): T[] =>
+      commands.map((command) => ({
+        ...command,
+        run: () => {
+          metrics.count("keys")
+          guard.run(command.name.replace("cockpit.review.", ""), command.run)
+        },
+      }))
     /** Where the list starts on screen, so a click can be turned into a row. */
     const listTop = () => (panel?.y ?? 0) + 1 + HEADER_ROWS
     /** How many rows of it are visible, which both scrolling and clicking need to agree on. */
@@ -198,8 +261,12 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       return quoted.length > 0 ? quoted : undefined
     }
 
-    /** Everything on screen, recomputed and pushed onto the boxes. */
-    const draw = () => {
+    /**
+     * Everything on screen, recomputed and pushed onto the boxes.
+     *
+     * Called through `draw`, never directly — see below.
+     */
+    const paint = () => {
       if (!backdrop || !panel) return
       const screen = { width: api.renderer.width, height: api.renderer.height }
       const frame = frameBounds(variant, screen)
@@ -210,7 +277,13 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
 
       panel.width = frame.width
       panel.height = open ? screen.height : 0
-      panel.borderColor = api.theme.current.borderActive
+      /**
+       * No border, and nothing that could turn one on.
+       *
+       * The pane is a surface, not a frame: a rule under the header and the dimming of the inactive
+       * half already say where everything is. Setting a border colour on a box with no border was
+       * left over from the version that had one.
+       */
       /** No title: the header row inside says all of this, and saying it twice reads as a bug. */
       panel.title = ""
 
@@ -228,23 +301,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
         setTimeout(() => {
           if (open) api.renderer.setCursorPosition(0, 0, false)
         }, 0)
-        /**
-         * Ask for a real parse of the file on screen — both sides of it — and draw with whatever has
-         * arrived. Requests are no-ops once a file is cached, so this costs nothing per frame, and
-         * nothing here is awaited: highlighting lands when it lands and the next draw picks it up.
-         */
-        const showing = files().find((candidate) => candidate.path === view.file)
-        let highlighted: ViewState["highlighted"]
-        if (showing) {
-          const language = languageOf(showing.path)
-          const oldSide = `${showing.path}#before`
-          highlighter.request(showing.path, showing.after, language, draw)
-          highlighter.request(oldSide, showing.before, language, draw)
-          const after = highlighter.lines(showing.path, showing.after)
-          const before = highlighter.lines(oldSide, showing.before)
-          if (after || before) highlighted = { ...(after ? { after } : {}), ...(before ? { before } : {}) }
-        }
-
+        const trouble = notice()
         const rows = layout(
           store.current().changes,
           review,
@@ -252,8 +309,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
             ...view,
             label: label(),
             ...(hereThreadId() ? { thread: hereThreadId() } : {}),
-            syntax: highlighted ? "tree-sitter" : "basic",
-            ...(highlighted ? { highlighted } : {}),
+            ...(trouble ? { notice: trouble } : showStats ? { stats: statsRuns(metrics.snapshot()) } : {}),
           },
           {
             width: frame.width,
@@ -263,6 +319,34 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
         pool?.draw(rows, api.theme.current)
       }
       api.renderer.requestRender()
+    }
+
+    /**
+     * One paint per turn, however many times something asked for one.
+     *
+     * A terminal hands us a fast scroll as a burst of key events in a single read, and every one of them
+     * used to paint the whole pane — so the faster you scrolled the further behind the screen fell.
+     * Collapsing the burst means a flick of the wheel costs one paint, of the state it ended on.
+     */
+    let scheduled = false
+    const draw = () => {
+      if (scheduled) {
+        metrics.count("coalesced")
+        return
+      }
+      scheduled = true
+      /**
+       * A macrotask, not a microtask: a paint that asked for another paint would re-queue inside the
+       * same drain and starve the event loop — a freeze that reads exactly like a crash. A timeout
+       * collapses a burst just as well and always gives the loop its turn back.
+       */
+      setTimeout(() => {
+        scheduled = false
+        metrics.count("paints")
+        metrics.time("paint", () => {
+          guard.run("paint", paint)
+        })
+      }, 0)
     }
 
     const refresh = async () => {
@@ -346,11 +430,17 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       if (!panel) return
       const columns = splitColumns(panel.width)
       const overList = columns.list > 0 && x <= panel.x + columns.list
+      /**
+       * Scrolling a pane is using it, so scrolling it makes it the active one.
+       *
+       * Otherwise the half under your hand is the half drawn dimmed, which is the opposite of what
+       * dimming is for — it should mean "not in use", not "not last typed into".
+       */
       if (overList) {
         /** The view moves; the cursor stays where you left it. */
-        view = { ...view, listOffset: Math.max(0, (view.listOffset ?? 0) + delta) }
+        view = { ...view, pane: "files", listOffset: Math.max(0, (view.listOffset ?? 0) + delta) }
       } else {
-        view = { ...view, scroll: Math.max(0, (view.scroll ?? 0) + delta) }
+        view = { ...view, pane: "diff", scroll: Math.max(0, (view.scroll ?? 0) + delta) }
       }
       draw()
     }
@@ -584,7 +674,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
        */
       disposeKeys = api.keymap.registerLayer({
         priority: 100,
-        commands: [
+        commands: guarded([
           { name: "cockpit.review.pane.down", title: "Down", run: () => move(1) },
           { name: "cockpit.review.pane.up", title: "Up", run: () => move(-1) },
           { name: "cockpit.review.pane.swap", title: "Switch pane", run: () => swap() },
@@ -593,8 +683,15 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
           { name: "cockpit.review.pane.scrollUp", title: "Scroll up", run: () => scroll(-5) },
           {
             name: "cockpit.review.pane.comment",
-            title: "Comment on this line or file",
-            run: () => comment(),
+            /**
+             * One key for saying something.
+             *
+             * A thread where you are standing means you are answering it; no thread means you are
+             * starting one. Two keys was two things to remember for a difference the cursor already
+             * knows, and the wrong guess cost you the note you had begun writing.
+             */
+            title: "Comment here, or reply to the thread here",
+            run: () => (reachableThreadId() ? replyHere() : comment()),
           },
           {
             name: "cockpit.review.pane.commentFile",
@@ -603,7 +700,6 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
           },
           { name: "cockpit.review.pane.select", title: "Select lines", run: () => selectRange() },
           { name: "cockpit.review.pane.uncomment", title: "Remove the thread here", run: () => uncomment() },
-          { name: "cockpit.review.pane.reply", title: "Reply to the thread here", run: () => replyHere() },
           { name: "cockpit.review.pane.files", title: "Back to the file list", run: () => toFiles() },
           {
             name: "cockpit.review.pane.read",
@@ -625,10 +721,14 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
             title: "Next source (branch → worktree → session)",
             run: () => {
               store.setSource(SOURCES[(SOURCES.indexOf(store.source()) + 1) % SOURCES.length] ?? "branch")
-              void refresh()
+              guard.task("refresh", refresh)
             },
           },
-          { name: "cockpit.review.pane.reload", title: "Reload the diff", run: () => void refresh() },
+          {
+            name: "cockpit.review.pane.reload",
+            title: "Reload the diff",
+            run: () => guard.task("refresh", refresh),
+          },
           { name: "cockpit.review.pane.cycle", title: "Right pane or full screen", run: () => cycle() },
           {
             name: "cockpit.review.pane.quit",
@@ -640,7 +740,22 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
             /** Deferred: closing disposes the layer this handler is dispatching through. */
             run: () => setTimeout(() => close(), 0),
           },
-        ],
+          {
+            name: "cockpit.review.pane.stats",
+            /**
+             * The numbers are always being kept; this is only whether you are looking at them.
+             *
+             * A debug mode you have to switch on is off during every problem worth seeing, so the
+             * counting never stops — and when something feels slow the evidence is already there.
+             */
+            title: "Show what the review is costing",
+            run: () => {
+              showStats = !showStats
+              guard.clear()
+              draw()
+            },
+          },
+        ]),
         bindings: [
           { key: "j,down", cmd: "cockpit.review.pane.down", desc: "Down" },
           { key: "k,up", cmd: "cockpit.review.pane.up", desc: "Up" },
@@ -648,16 +763,16 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
           { key: "return,l,right", cmd: "cockpit.review.pane.enter", desc: "Open or fold" },
           { key: "d,pagedown", cmd: "cockpit.review.pane.scrollDown", desc: "Scroll down" },
           { key: "u,pageup", cmd: "cockpit.review.pane.scrollUp", desc: "Scroll up" },
-          { key: "c", cmd: "cockpit.review.pane.comment", desc: "Comment" },
+          { key: "c,n", cmd: "cockpit.review.pane.comment", desc: "Note, or reply" },
           { key: "f", cmd: "cockpit.review.pane.commentFile", desc: "Comment on the file" },
           { key: "v", cmd: "cockpit.review.pane.select", desc: "Select lines" },
           { key: "h,left", cmd: "cockpit.review.pane.files", desc: "Back to the files" },
           { key: "x", cmd: "cockpit.review.pane.uncomment", desc: "Remove thread" },
-          { key: "r", cmd: "cockpit.review.pane.reply", desc: "Reply" },
           { key: "space,m", cmd: "cockpit.review.pane.read", desc: "Mark read" },
           { key: "s", cmd: "cockpit.review.pane.source", desc: "Next source" },
           { key: "g", cmd: "cockpit.review.pane.reload", desc: "Reload" },
           { key: "w", cmd: "cockpit.review.pane.cycle", desc: "Width" },
+          { key: "p", cmd: "cockpit.review.pane.stats", desc: "Numbers" },
           { key: "q,escape", cmd: "cockpit.review.pane.quit", desc: "Close" },
         ],
       })
@@ -709,9 +824,9 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       panel?.focus()
       takeKeys()
       draw()
-      void refresh()
+      guard.task("refresh", refresh)
       clearInterval(watching)
-      watching = setInterval(() => void reconcile(), 1_500)
+      watching = setInterval(() => guard.task("reconcile", reconcile), 1_500)
     }
 
     const toggle = () => (open ? close() : show())
@@ -722,7 +837,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
     }
 
     api.keymap.registerLayer({
-      commands: [
+      commands: guarded([
         {
           name: "cockpit.review.open",
           title: "Review: open, or close it",
@@ -747,7 +862,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
           namespace: "palette",
           run: () => close(),
         },
-      ],
+      ]),
       bindings: keys.gather("cockpit", Object.keys(DEFAULT_KEYS)),
     })
 
@@ -766,8 +881,14 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
                 // Clicking off the panel dismisses it; at full width there is no "off" to click.
                 if (variant !== "full") close()
               }}
-              onClick={(x, y) => clickAt(x, y)}
-              onScroll={(x, delta) => scrollAt(x, delta)}
+              onClick={(x, y) => {
+                metrics.count("mouse")
+                guard.run("click", () => clickAt(x, y))
+              }}
+              onScroll={(x, delta) => {
+                metrics.count("mouse")
+                guard.run("scroll", () => scrollAt(x, delta))
+              }}
               onReady={({ backdrop: back, panel: front, lines }) => {
                 backdrop = back
                 panel = front

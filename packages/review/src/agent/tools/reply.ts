@@ -1,6 +1,6 @@
 import { type ToolDefinition, tool } from "@opencode-ai/plugin"
 import { resolve as resolveOn, reply as sayOn } from "../../core/model/thread.ts"
-import { describe, type ToolKit } from "./shared.ts"
+import type { ToolKit } from "./shared.ts"
 
 const REPLY = `Answer one review comment, and say whether it is done.
 

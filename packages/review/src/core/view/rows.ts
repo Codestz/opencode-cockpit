@@ -33,6 +33,8 @@ export type Tone =
   | "variable"
   | "operator"
   | "punct"
+  /** Dark text, for a run that sits on a solid badge. The theme's background, used as ink. */
+  | "inverse"
 
 /**
  * Backgrounds, and there are three kinds of them in a diff rather than one.
@@ -53,6 +55,9 @@ export type Fill =
   | "comment"
   | "selected"
   | "panel"
+  /** A solid badge: your name, the agent's. Paired with the `inverse` tone. */
+  | "you"
+  | "agent"
 
 export interface Run {
   text: string
@@ -60,6 +65,14 @@ export interface Run {
   fill?: Fill
   bold?: boolean
   italic?: boolean
+  /**
+   * Drawn dimmer than it would be otherwise.
+   *
+   * How an inactive pane says it is inactive. Brightening the *active* pane's border was the other
+   * option and it is the wrong one: it adds a line to look at in order to say something about a pane
+   * you are already looking at. Dimming what you are not using says it without drawing anything.
+   */
+  faint?: boolean
   /**
    * An exact colour, when something knows better than a tone does.
    *
@@ -76,6 +89,19 @@ export interface Row {
   line?: number
   /** The thing this row stands for — a path, a note id — so a click knows what it landed on. */
   target?: string
+}
+
+/**
+ * Pads or cuts to exactly `width` cells, keeping the *end* of the text.
+ *
+ * For a file name the end is the half that identifies it: `duplicate.test.ts` cut from the right is
+ * `duplicate.te…`, which could be anything, while `…cate.test.ts` still says what kind of file it is.
+ * A deep tree in a narrow pane is mostly this case.
+ */
+export function cellTail(text: string, width: number): string {
+  if (width <= 0) return ""
+  if (text.length <= width) return text.padEnd(width)
+  return `…${text.slice(text.length - width + 1)}`
 }
 
 /** Pads or cuts to exactly `width` cells, so a column can never bleed into its neighbour. */

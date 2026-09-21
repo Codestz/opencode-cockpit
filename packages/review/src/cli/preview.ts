@@ -58,6 +58,8 @@ const FG: Record<Tone, string> = {
   variable: `${ESC}[38;2;205;214;244m`,
   operator: `${ESC}[38;2;137;220;235m`,
   punct: `${ESC}[38;2;147;153;178m`,
+  /** Ink on a solid badge: the panel's own background. */
+  inverse: `${ESC}[38;2;30;30;46m`,
 }
 
 const BG: Record<Fill, string> = {
@@ -69,12 +71,17 @@ const BG: Record<Fill, string> = {
   comment: `${ESC}[48;2;49;50;68m`,
   selected: `${ESC}[48;2;62;63;84m`,
   panel: `${ESC}[48;2;30;30;46m`,
+  you: `${ESC}[48;2;148;226;213m`,
+  agent: `${ESC}[48;2;250;179;135m`,
 }
+
+const DIM = `${ESC}[2m`
 
 const paint = (row: Row): string =>
   row.runs
     .map(
-      (run) => `${BG[run.fill ?? "none"]}${FG[run.tone ?? "text"]}${run.bold ? BOLD : ""}${run.text}${RESET}`,
+      (run) =>
+        `${BG[run.fill ?? "none"]}${FG[run.tone ?? "text"]}${run.bold ? BOLD : ""}${run.faint ? DIM : ""}${run.text}${RESET}`,
     )
     .join("")
 

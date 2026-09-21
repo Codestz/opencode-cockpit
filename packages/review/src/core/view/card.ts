@@ -1,13 +1,19 @@
 /**
  * A thread, drawn under the line it is about.
  *
- * Quoted, not boxed. A bordered box spends four glyphs and two columns on every line to say "this is
- * a comment", leaves long empty rules across the screen, and has corners that align with nothing in a
- * diff. A bar down the left says the same thing in one column, and a terminal already reads that as
- * quotation — the same reason mail and markdown settled on it.
+ * A band, not a box and no longer a quote bar. A bordered box spends four glyphs and two columns per
+ * line saying "this is a comment", and a quote bar — which this was — says it in one column but says
+ * it *beside* the conversation rather than around it, so the thread still read as something laid on
+ * top of the diff.
  *
- * The bar carries the status, so a review with something waiting on you looks different from a
- * finished one before you read a word of it.
+ * A tinted row spanning the full width says the same thing with no characters at all: the band is the
+ * boundary. It belongs to neither side of the diff, which is exactly what a conversation is, and the
+ * eye reads a change of background faster than it reads any glyph.
+ *
+ * Inside it, two things carry meaning and nothing else does: a dim label saying where and how the
+ * thread stands, and an inverted badge naming who is talking. The badge is solid-on-dark rather than
+ * a coloured word, because a word in a colour is another thing to decode, while a badge is a label
+ * you recognise without reading — and it costs no extra row.
  */
 
 import { type Thread, threadWhere, waitingOn } from "../model/thread.ts"
@@ -23,13 +29,6 @@ export interface CardStyle {
   inline?: boolean
   /** The thread the cursor is on: the only one that shows what you can do to it. */
   focused?: boolean
-  /**
-   * The tint of the line it is attached to.
-   *
-   * An added line is tinted and a comment on it was not, so the comment read as a layer laid over the
-   * diff rather than as part of it. Sharing the tint is what makes it look attached.
-   */
-  fill?: Fill
 }
 
 const toneFor = (thread: Thread, drifted: boolean): Tone => {
@@ -40,14 +39,16 @@ const toneFor = (thread: Thread, drifted: boolean): Tone => {
 
 const statusWord = (thread: Thread, drifted: boolean): string => {
   const base =
-    thread.status === "resolved" ? "resolved" : waitingOn(thread) === "you" ? "your turn" : "waiting"
-  return drifted ? `${base} · moved` : base
+    thread.status === "resolved" ? "RESOLVED" : waitingOn(thread) === "you" ? "YOUR TURN" : "WAITING"
+  return drifted ? `${base} · MOVED` : base
 }
 
-/** The bar, and the gap that separates it from what it is quoting. */
-const BAR = "▎"
-/** Author names sit in a column so two turns of a thread line up. */
-const AUTHOR = 7
+/** The band's own surface. Neither an addition nor a deletion nor the pane behind it. */
+const BAND: Fill = "comment"
+/** The margin down the left of the band, where the focus edge lives. */
+const LEDGE = 2
+/** Badges sit in a column, so two turns of a conversation start at the same character. */
+const BADGE = 8
 
 export function cardHeight(thread: Thread, size: CardSize): number {
   return cardRows(thread, size).length
@@ -56,70 +57,89 @@ export function cardHeight(thread: Thread, size: CardSize): number {
 export function cardRows(thread: Thread, size: CardSize, drifted = false, style: CardStyle = {}): Row[] {
   const width = Math.max(20, size.width)
   const tone = toneFor(thread, drifted)
-  /** A conversation gets a surface of its own: neither an addition nor a deletion nor the pane. */
-  const fill: Fill = style.fill ?? "comment"
   const rows: Row[] = []
 
-  /** Everything is quoted, and nothing is allowed wider than the column it is quoted into. */
-  const bar = (runs: Run[]): Row => ({
-    runs: clipRuns([{ text: `${BAR} `, tone, bold: true, fill }, ...runs], width, fill),
+  /**
+   * One row of the band, padded to the full width so the tint reaches both edges.
+   *
+   * The focused thread gets a single coloured column in its margin. That is the whole of the focus
+   * treatment: a brighter band would fight the diff, and a border would be a box again.
+   */
+  const band = (runs: Run[]): Row => ({
+    runs: clipRuns(
+      [{ text: style.focused ? "▌" : " ", tone, fill: BAND }, { text: " ", fill: BAND }, ...runs],
+      width,
+      BAND,
+    ),
   })
 
-  /**
-   * A quoted blank line opens and closes the thread.
-   *
-   * The bar runs through it, so the mark down the left is one continuous line rather than three
-   * pieces with gaps at each end — and the comment gains a row of air at top and bottom without
-   * that air looking like a hole in the quote.
-   */
-  const air = () => bar([{ text: " ".repeat(Math.max(0, width - 2)), fill }])
+  /** Air at the top and bottom, in the band's own colour, so the thread has room to breathe. */
+  const air = () => band([{ text: " ".repeat(Math.max(0, width - LEDGE)), fill: BAND }])
 
   rows.push(air())
 
-  /** What it is about on the left, where it stands on the right. Nothing in between. */
-  const statusText = statusWord(thread, drifted)
-  const full = style.inline ? threadWhere(thread) : `${thread.file} · ${threadWhere(thread)}`
-  /** In a narrow column the path gives way: the lines are what identify a thread there. */
-  const where = full.length > width - 4 - statusText.length ? threadWhere(thread) : full
   /**
-   * Label and status together, not one at each end of the pane.
+   * Where it is, and how it stands — as a dim label and a badge, the way a heading works.
+   *
+   * Upper case and muted: it is the least important text in the band and should be read last, after
+   * the conversation it introduces. The status is bracketed rather than coloured-in, so the only
+   * solid blocks in the band are the names of who is speaking.
+   */
+  const where = (style.inline ? threadWhere(thread) : `${thread.file} · ${threadWhere(thread)}`).toUpperCase()
+  const status = `[${statusWord(thread, drifted)}]`
+  /**
+   * The two sit together, not one at each end of the pane.
    *
    * Right-aligning the status left a void across the middle of every thread and made the eye travel
    * the width of the screen to learn one word. They belong to each other; they read as one phrase.
    */
+  const label = cell(where, Math.max(1, width - LEDGE - status.length - 3))
   rows.push(
-    bar([
-      { text: where, tone: "text", bold: true, fill },
-      { text: " · ", tone: "border", fill },
-      { text: statusText, tone, fill },
+    band([
+      { text: label.trimEnd(), tone: "muted", fill: BAND },
+      { text: "  ", fill: BAND },
+      { text: status, tone, bold: true, fill: BAND },
     ]),
   )
+  rows.push(air())
 
-  /**
-   * Each turn: the author in its column, the words beside it. An author on a line of its own doubles
-   * the height of a two-sentence thread and reads as a heading for nothing.
-   */
-  const room = width - 2 - AUTHOR
+  /** Each turn: a badge in its column, the words beside it, and wrapped lines hanging under them. */
+  const room = Math.max(1, width - LEDGE - BADGE)
   thread.entries.forEach((entry, index) => {
-    if (index > 0) rows.push(bar([{ text: " ".repeat(width - 2), fill }]))
-    const who = entry.author === "agent" ? "agent" : "you"
-    const whoTone: Tone = entry.author === "agent" ? "success" : "accent"
+    if (index > 0) rows.push(air())
+    const agent = entry.author === "agent"
+    const badge: Run = {
+      text: agent ? " AGENT " : " YOU ",
+      tone: "inverse",
+      fill: agent ? "agent" : "you",
+      bold: true,
+    }
     wrapText(entry.body, room).forEach((line, at) => {
       rows.push(
-        bar([
-          { text: cell(at === 0 ? who : "", AUTHOR), tone: whoTone, bold: at === 0, fill },
-          { text: cell(line, room), tone: "text", fill },
-        ]),
+        at === 0
+          ? band([
+              badge,
+              { text: " ".repeat(Math.max(0, BADGE - badge.text.length)), fill: BAND },
+              { text: cell(line, room), tone: "text", fill: BAND },
+            ])
+          : band([
+              { text: " ".repeat(BADGE), fill: BAND },
+              { text: cell(line, room), tone: "text", fill: BAND },
+            ]),
       )
     })
   })
 
   /** Only the thread under the cursor says what you can do to it; the rest would be noise. */
   if (style.focused) {
+    rows.push(air())
     rows.push(
-      bar([
-        { text: cell("", AUTHOR), fill },
-        { text: cell("r reply · x remove", room), tone: "muted", fill },
+      band([
+        { text: " ".repeat(BADGE), fill: BAND },
+        { text: "[c]", tone: "accent", bold: true, fill: BAND },
+        { text: " Reply  ", tone: "muted", fill: BAND },
+        { text: "[x]", tone: "accent", bold: true, fill: BAND },
+        { text: " Remove", tone: "muted", fill: BAND },
       ]),
     )
   }

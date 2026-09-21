@@ -85,7 +85,6 @@ export function Overlay(props: OverlayProps): JSX.Element {
         height={0}
         flexShrink={0}
         flexDirection="column"
-        border
         backgroundColor={theme().backgroundPanel}
         titleColor={theme().accent}
         onMouseDown={(event: MouseEvent) => {

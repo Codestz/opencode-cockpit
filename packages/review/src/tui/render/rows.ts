@@ -18,10 +18,39 @@
 
 import type { TuiThemeCurrent } from "@opencode-ai/plugin/tui"
 import type { RGBA, TextChunk, TextRenderable } from "@opentui/core"
+import { metrics } from "../../core/perf.ts"
 import type { Fill, Row, Tone } from "../../core/view/rows.ts"
 
+/**
+ * Whether a line is already showing this row.
+ *
+ * Compared field by field rather than by identity: the cached rows of a diff *are* the same objects
+ * paint after paint, but the two-column view builds a fresh row per paint to join the halves, so
+ * identity would report everything as changed in the view people use most. Twenty field comparisons
+ * cost far less than building twenty chunks and a `StyledText`, which is what they replace — a scroll
+ * of one line now touches one line instead of fifty.
+ */
+const sameRow = (was: Row | undefined, now: Row): boolean => {
+  if (!was || was.runs.length !== now.runs.length) return false
+  for (let index = 0; index < now.runs.length; index++) {
+    const before = was.runs[index] as Row["runs"][number]
+    const after = now.runs[index] as Row["runs"][number]
+    if (
+      before.text !== after.text ||
+      before.tone !== after.tone ||
+      before.fill !== after.fill ||
+      before.bold !== after.bold ||
+      before.italic !== after.italic ||
+      before.faint !== after.faint ||
+      before.color !== after.color
+    )
+      return false
+  }
+  return true
+}
+
 /** Tones are named for meaning; the theme decides what they look like. */
-const toneColour = (theme: TuiThemeCurrent, tone: Tone | undefined): RGBA => {
+export const toneColour = (theme: TuiThemeCurrent, tone: Tone | undefined): RGBA => {
   switch (tone) {
     case "muted":
       return theme.textMuted
@@ -59,12 +88,15 @@ const toneColour = (theme: TuiThemeCurrent, tone: Tone | undefined): RGBA => {
       return theme.syntaxOperator
     case "punct":
       return theme.syntaxPunctuation
+    /** Ink for a solid badge: the panel's own background, used as a foreground. */
+    case "inverse":
+      return theme.background
     default:
       return theme.text
   }
 }
 
-const fillColour = (theme: TuiThemeCurrent, fill: Fill | undefined): RGBA | undefined => {
+export const fillColour = (theme: TuiThemeCurrent, fill: Fill | undefined): RGBA | undefined => {
   switch (fill) {
     case "added":
       return theme.diffAddedBg
@@ -81,10 +113,25 @@ const fillColour = (theme: TuiThemeCurrent, fill: Fill | undefined): RGBA | unde
       return theme.backgroundElement
     case "panel":
       return theme.backgroundPanel
+    case "you":
+      return theme.accent
+    case "agent":
+      return theme.warning
     default:
       return undefined
   }
 }
+
+/**
+ * OpenTUI's `TextAttributes`, by value.
+ *
+ * Named here rather than imported: `@opentui/core` is the host's, not ours, and a static import of it
+ * would take the whole bundle down where the host does not provide one. These bits are part of the
+ * terminal's own vocabulary and have not moved since ANSI.
+ */
+const BOLD = 1 << 0
+const DIM = 1 << 1
+const ITALIC = 1 << 2
 
 /** One styled run becomes one chunk. An exact colour wins: a parser knows better than a tone does. */
 const chunk = (theme: TuiThemeCurrent, run: Row["runs"][number]): TextChunk =>
@@ -93,7 +140,7 @@ const chunk = (theme: TuiThemeCurrent, run: Row["runs"][number]): TextChunk =>
     text: run.text,
     fg: (run.color as RGBA | undefined) ?? toneColour(theme, run.tone),
     bg: fillColour(theme, run.fill),
-    attributes: (run.bold ? 1 : 0) | (run.italic ? 4 : 0),
+    attributes: (run.bold ? BOLD : 0) | (run.italic ? ITALIC : 0) | (run.faint ? DIM : 0),
   }) as TextChunk
 
 export interface RowPool {
@@ -123,22 +170,41 @@ export function createRowPool(lines: readonly TextRenderable[]): RowPool {
     return StyledText ? new StyledText(chunks) : chunks.map((part) => part.text).join("")
   }
 
+  /** What each line is currently showing, so a paint can tell what actually changed. */
+  let painted: (Row | undefined)[] = []
+  let theme: TuiThemeCurrent | undefined
+
   return {
-    draw(rows, theme) {
+    draw(rows, current) {
+      /** A new theme changes every colour, so nothing on screen can be trusted to still be right. */
+      const all = current !== theme
+      theme = current
+      let touched = 0
+
       rows.forEach((row, index) => {
         const line = lines[index]
         if (!line) return
-        line.content = styled(row.runs.map((run) => chunk(theme, run))) as never
+        if (!all && sameRow(painted[index], row)) {
+          line.visible = true
+          return
+        }
+        line.content = styled(row.runs.map((run) => chunk(current, run))) as never
         line.visible = true
+        painted[index] = row
+        touched++
       })
+
       /** Lines this view does not need are hidden, not destroyed: the next draw may want them. */
       for (let index = rows.length; index < lines.length; index++) {
         const line = lines[index]
         if (line) line.visible = false
+        painted[index] = undefined
       }
+      metrics.count("lines", touched)
     },
     clear() {
       for (const line of lines) line.visible = false
+      painted = []
     },
   }
 }

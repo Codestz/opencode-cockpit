@@ -1,21 +1,81 @@
 import { describe, expect, test } from "bun:test"
-import { filetypeFor } from "../../src/core/view/highlight.ts"
-import { languageOf, tokenize } from "../../src/core/view/syntax.ts"
+import {
+  languageOf,
+  languages,
+  registerLanguage,
+  scanner,
+  tokenize,
+} from "../../src/core/view/syntax/index.ts"
 
 const tones = (text: string, state?: { inBlockComment: boolean }) =>
-  tokenize(text, "ts", state).runs.map((run) => [run.text, run.tone])
+  tokenize(text, "typescript", state).runs.map((run) => [run.text, run.tone])
 
-describe("languageOf", () => {
-  test("reads the extension, and is happy not to know", () => {
-    expect(languageOf("src/core/view/syntax.ts")).toBe("ts")
+const text = (line: string, language: string) =>
+  tokenize(line, language)
+    .runs.map((run) => run.text)
+    .join("")
+
+const toneOf = (line: string, language: string, word: string) =>
+  tokenize(line, language).runs.find((run) => run.text.trim() === word)?.tone
+
+describe("what a file is", () => {
+  test("by extension", () => {
+    expect(languageOf("src/core/view/layout.ts")).toBe("typescript")
+    expect(languageOf("src/tui/index.tsx")).toBe("typescript")
     expect(languageOf("a/b/tsconfig.json")).toBe("json")
     expect(languageOf("README.md")).toBe("markdown")
     expect(languageOf("scripts/release.sh")).toBe("shell")
+    expect(languageOf(".github/workflows/ci.yml")).toBe("yaml")
+    expect(languageOf("main.go")).toBe("go")
+    expect(languageOf("lib.rs")).toBe("rust")
+    expect(languageOf("app/models.py")).toBe("python")
+    expect(languageOf("schema.sql")).toBe("sql")
+    expect(languageOf("styles/app.css")).toBe("css")
+    expect(languageOf("index.html")).toBe("html")
+    expect(languageOf("src/Main.java")).toBe("curly")
+  })
+
+  /** A repository is full of files that carry a language without carrying an extension. */
+  test("by name, for the files that have no extension to read", () => {
+    expect(languageOf("Dockerfile")).toBe("shell")
+    expect(languageOf("Makefile")).toBe("shell")
+    expect(languageOf("justfile")).toBe("shell")
+    expect(languageOf(".zshrc")).toBe("shell")
+    expect(languageOf(".gitignore")).toBe("shell")
+    expect(languageOf(".env")).toBe("yaml")
+  })
+
+  test("and is content not to know", () => {
     expect(languageOf("LICENSE")).toBe("plain")
+    expect(languageOf("bun.lockb")).toBe("plain")
   })
 })
 
-describe("tokenize", () => {
+/**
+ * The point of the table: a filetype is a row, and adding one changes nothing else. This is the seam a
+ * user's own grammar — or one day a Shiki-backed one — arrives through.
+ */
+describe("the table anyone can add to", () => {
+  test("a registered language is found by name and colours its own words", () => {
+    registerLanguage({
+      id: "lua",
+      extensions: ["lua"],
+      scan: scanner({ keywords: new Set(["local", "function", "end"]), line: ["--"] }),
+    })
+    expect(languageOf("plugin/init.lua")).toBe("lua")
+    expect(toneOf("local name = 1", "lua", "local")).toBe("keyword")
+    expect(languages().some((each) => each.id === "lua")).toBe(true)
+  })
+
+  test("a language nobody registered is shown as itself rather than guessed at", () => {
+    expect(tokenize("const not really code", "plain").runs).toEqual([
+      { text: "const not really code", tone: "text" },
+    ])
+    expect(tokenize("¿anything?", "esperanto").runs).toEqual([{ text: "¿anything?", tone: "text" }])
+  })
+})
+
+describe("reading a line", () => {
   test("tells keywords, names and punctuation apart", () => {
     expect(tones("const open = false")).toEqual([
       ["const", "keyword"],
@@ -29,9 +89,8 @@ describe("tokenize", () => {
   })
 
   test("a name followed by a bracket is a call; a capital is a type", () => {
-    const runs = tokenize("new Store(config)", "ts").runs
-    expect(runs.find((run) => run.text === "Store")?.tone).toBe("function")
-    expect(runs.find((run) => run.text === "new")?.tone).toBe("keyword")
+    expect(toneOf("new Store(config)", "typescript", "Store")).toBe("function")
+    expect(toneOf("let it: Thread = x", "typescript", "Thread")).toBe("type")
   })
 
   test("strings keep their quotes and survive escapes", () => {
@@ -43,45 +102,111 @@ describe("tokenize", () => {
   })
 
   test("a block comment carries across lines", () => {
-    const first = tokenize("/* opened", "ts")
+    const first = tokenize("/* opened", "typescript")
     expect(first.state.inBlockComment).toBe(true)
-    const second = tokenize(" still inside", "ts", first.state)
+    const second = tokenize(" still inside", "typescript", first.state)
     expect(second.runs).toEqual([{ text: " still inside", tone: "comment" }])
-    const third = tokenize(" closed */ after", "ts", second.state)
+    const third = tokenize(" closed */ after", "typescript", second.state)
     expect(third.state.inBlockComment).toBe(false)
     expect(third.runs[0]).toEqual({ text: " closed */", tone: "comment" })
   })
 
-  test("plain text is left alone, whatever it contains", () => {
-    expect(tokenize("const not really code", "plain").runs).toEqual([
-      { text: "const not really code", tone: "text" },
-    ])
-  })
-
-  test("every run together is the original line, always", () => {
-    const line = 'export const x = { a: "b", n: 42 } // note'
-    expect(
-      tokenize(line, "ts")
-        .runs.map((run) => run.text)
-        .join(""),
-    ).toBe(line)
+  /** Whatever a scanner does, it may never lose or invent a character. */
+  test("every run together is the original line, in every language", () => {
+    const lines: [string, string][] = [
+      ['export const x = { a: "b", n: 42 } // note', "typescript"],
+      ['  "name": "cockpit",', "json"],
+      ["  - run: bun run check # the gate", "yaml"],
+      ["## A heading with `code` and a [link](url)", "markdown"],
+      ["def run(self, at: int) -> None:  # go", "python"],
+      ["SELECT id FROM threads WHERE open = true; -- all of them", "sql"],
+      ["func main() { fmt.Println(nil) }", "go"],
+      ["  .row { color: var(--fg); } /* tint */", "css"],
+      ['<div class="row">text</div>', "html"],
+    ]
+    for (const [line, language] of lines) expect(text(line, language)).toBe(line)
   })
 })
 
-describe("which grammar a file asks for", () => {
-  /**
-   * OpenTUI ships typescript, javascript and markdown — there is no `tsx` parser to find. Asking for
-   * one failed, and failure used to switch highlighting off for the session, so opening a single
-   * `.tsx` file left every other file uncoloured.
-   */
-  test("tsx and jsx ask for the typescript grammar, which exists", () => {
-    expect(filetypeFor("ts", "src/tui/index.tsx")).toBe("typescript")
-    expect(filetypeFor("ts", "src/app.jsx")).toBe("typescript")
-    expect(filetypeFor("ts", "src/thing.ts")).toBe("typescript")
+describe("languages that are not curly braces", () => {
+  test("a JSON key reads as a key, not as prose before a colon", () => {
+    expect(toneOf('  "name": "cockpit",', "json", '"name"')).toBe("keyword")
+    expect(toneOf('  "name": "cockpit",', "json", '"cockpit"')).toBe("string")
   })
 
-  test("a filetype with no grammar asks for nothing rather than guessing", () => {
-    expect(filetypeFor("shell", "scripts/release.sh")).toBeUndefined()
-    expect(filetypeFor("plain", "LICENSE")).toBeUndefined()
+  test("YAML and TOML are keys, values and comments", () => {
+    const runs = tokenize("  timeout: 30 # seconds", "yaml").runs
+    expect(runs.find((run) => run.text === "timeout")?.tone).toBe("keyword")
+    expect(runs.at(-1)?.tone).toBe("comment")
+  })
+
+  test("markdown is prose, with its marks", () => {
+    expect(tokenize("## Slots", "markdown").runs.at(-1)).toEqual({
+      text: "## Slots",
+      tone: "keyword",
+      bold: true,
+    })
+    expect(toneOf("use `tokenize` here", "markdown", "`tokenize`")).toBe("string")
+  })
+
+  test("case does not matter where the language says it does not", () => {
+    expect(toneOf("select id from t", "sql", "select")).toBe("keyword")
+    expect(toneOf("FROM oven/bun:1 AS base", "shell", "FROM")).toBe("keyword")
+  })
+
+  test("a shell has no types, so a capitalised word is just a word", () => {
+    expect(toneOf("echo $HOME", "shell", "echo")).toBe("variable")
+  })
+})
+
+/**
+ * The freeze.
+ *
+ * A start character that was not also a continuation character — `@` before a bracket — made the
+ * scanner's identifier branch advance by nothing, and the loop spun on the same character forever.
+ * Nothing threw, so there was no stack and no toast and no log: the interface thread simply stopped,
+ * and the only way out was closing OpenCode. One line of one file in this repository did it.
+ *
+ * So the test is not "handle `@`". It is that every character advances, on every language.
+ */
+describe("a scanner that stops moving takes the session with it", () => {
+  const LANGUAGES = ["typescript", "json", "shell", "python", "go", "rust", "curly", "sql", "css", "html"]
+
+  test("the line that froze the review", () => {
+    const line = String.raw`  const ctrl = /^(?:ctrl|control|c)[+-]([a-z@[\\\]^_])$/.exec(key)`
+    expect(text(line, "typescript")).toBe(line)
+  })
+
+  test("every printable character, in every language, in three positions", () => {
+    for (let code = 32; code < 127; code++) {
+      const char = String.fromCharCode(code)
+      for (const language of LANGUAGES) {
+        for (const line of [char, `x ${char} y`, `x${char}`, `${char}${char}`, `(${char})`]) {
+          expect(text(line, language)).toBe(line)
+        }
+      }
+    }
+  })
+
+  test("every pair of printable characters, where one branch hands off to another", () => {
+    /** `@[` was the pair that did it: a word starts, and the next character is not part of one. */
+    for (let first = 32; first < 127; first++) {
+      for (let second = 32; second < 127; second++) {
+        const line = String.fromCharCode(first) + String.fromCharCode(second)
+        expect(text(line, "typescript")).toBe(line)
+      }
+    }
+  })
+
+  test("an unclosed block comment ends the line rather than the session", () => {
+    const first = tokenize("/* opened and never", "typescript")
+    expect(first.state.inBlockComment).toBe(true)
+    expect(text(" still going", "typescript")).toBe(" still going")
+  })
+
+  test("a docstring, whose opener and closer are the same characters", () => {
+    expect(text('"""one line"""', "python")).toBe('"""one line"""')
+    const opened = tokenize('    """', "python")
+    expect(opened.state.inBlockComment).toBe(true)
   })
 })

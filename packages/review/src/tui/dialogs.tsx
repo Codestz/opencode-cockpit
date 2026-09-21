@@ -1,7 +1,10 @@
 /** @jsxImportSource @opentui/solid */
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import type { Thread } from "../core/model/thread.ts"
-import { threadWhere } from "../core/model/thread.ts"
+import { cardRows } from "../core/view/card.ts"
+import type { Fill, Row, Tone } from "../core/view/rows.ts"
+import { languageOf, type SyntaxState, tokenize } from "../core/view/syntax/index.ts"
+import { fillColour, toneColour } from "./render/rows.ts"
 
 export interface AskOptions {
   title: string
@@ -23,6 +26,12 @@ export interface AskOptions {
  * **What is being answered is shown above the field.** The first version opened an empty box titled
  * "Reply", which is the same box you get for a new comment — so answering meant remembering what you
  * were answering, while the thing you were answering was hidden behind the dialog.
+ *
+ * **And it is shown the way the pane shows it.** The context here is built from the same `cardRows`
+ * and the same tokenizer as the review itself, so a thread looks identical whether you are reading it
+ * or replying to it. A dialog that renders the same content in a plainer style is a second design to
+ * keep in step, and the two had already drifted: the pane had badges and syntax colour while the
+ * dialog had a list of grey lines.
  */
 export function askForNote(
   api: TuiPluginApi,
@@ -33,26 +42,49 @@ export function askForNote(
   const DialogPrompt = api.ui.DialogPrompt
   const theme = () => api.theme.current
 
-  const context = () => {
-    const rows: { text: string; tone: "muted" | "accent" | "success" | "text" }[] = []
-    for (const line of quoted ?? []) rows.push({ text: line, tone: "muted" })
-    for (const entry of thread?.entries ?? []) {
-      rows.push({
-        text: entry.author === "agent" ? "agent" : "you",
-        tone: entry.author === "agent" ? "success" : "accent",
-      })
-      rows.push({ text: entry.body, tone: "text" })
-    }
-    return rows
+  /**
+   * Wide enough for code, narrow enough to stay a dialog rather than a second pane.
+   *
+   * The quote is the point of this box, and a quote of code that wraps mid-expression is worse than
+   * no quote at all — it reads as different code. So the width is a code width (96 columns, the same
+   * order as the diff pane it came from) rather than a dialog width, and long lines are *clipped*
+   * rather than wrapped: a line you can see the start of is still the line you commented on.
+   */
+  const width = () => Math.max(40, Math.min(96, api.renderer.width - 12))
+
+  /**
+   * The quoted code, coloured as code.
+   *
+   * On the band's own surface, so it reads as something being *shown to you* rather than something
+   * you are editing — the field below is the only place in this dialog that takes typing.
+   */
+  const quotedRows = (): Row[] => {
+    const lines = quoted ?? []
+    if (lines.length === 0) return []
+    const language = languageOf(thread?.file ?? "")
+    let state: SyntaxState = { inBlockComment: false }
+    const room = width() - 4
+    return lines.map((line) => {
+      const scanned = tokenize(line.slice(0, room), language, state)
+      state = scanned.state
+      const used = scanned.runs.reduce((sum, run) => sum + run.text.length, 0)
+      return {
+        runs: [
+          { text: "  ", fill: "comment" as Fill },
+          ...scanned.runs.map((run) => ({ ...run, fill: "comment" as Fill })),
+          { text: " ".repeat(Math.max(0, room - used + 2)), fill: "comment" as Fill },
+        ],
+      }
+    })
   }
 
-  const colour = (tone: "muted" | "accent" | "success" | "text") => {
-    const current = theme()
-    if (tone === "muted") return current.textMuted
-    if (tone === "accent") return current.accent
-    if (tone === "success") return current.success
-    return current.text
-  }
+  const context = (): Row[] => [
+    ...quotedRows(),
+    ...(thread ? cardRows(thread, { width: width(), height: 40 }, false, { inline: true }) : []),
+  ]
+
+  const colour = (tone: Tone | undefined) => toneColour(theme(), tone)
+  const behind = (fill: Fill | undefined) => fillColour(theme(), fill)
 
   api.ui.dialog.replace(
     () => (
@@ -63,14 +95,19 @@ export function askForNote(
             <text>
               <span style={{ fg: theme().textMuted }}>{description}</span>
             </text>
-            {thread ? (
-              <text>
-                <span style={{ fg: theme().textMuted }}>{`${threadWhere(thread)} · ${thread.status}`}</span>
-              </text>
-            ) : null}
             {context().map((row) => (
-              <text wrapMode="word">
-                <span style={{ fg: colour(row.tone) }}>{row.text}</span>
+              <text wrapMode="none">
+                {row.runs.map((run) => (
+                  <span
+                    style={{
+                      fg: colour(run.tone),
+                      ...(behind(run.fill) ? { bg: behind(run.fill) } : {}),
+                      ...(run.bold ? { bold: true } : {}),
+                    }}
+                  >
+                    {run.text}
+                  </span>
+                ))}
               </text>
             ))}
           </box>
