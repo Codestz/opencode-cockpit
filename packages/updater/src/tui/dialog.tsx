@@ -202,7 +202,7 @@ export function UpdaterDialog(props: UpdaterDialogProps) {
         break
       case "list": {
         out.push(titleRow("Plugins", "esc", w), { runs: fit([], w) })
-        const all = listRows(found()?.plans ?? [], w, { cursor: cursor(), selected: selected() })
+        const all = listRows(found()?.plans ?? [], w, { cursor: cursor(), selected: selected() }, props.home)
         const [header, ...body] = all
         // Keep the cursor in view without drawing more rows than fit.
         const start = Math.max(0, Math.min(cursor() - room() + 2, body.length - room()))

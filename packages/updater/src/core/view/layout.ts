@@ -9,10 +9,12 @@ import { parseSpec } from "../spec.ts"
 import type { Outcome } from "../verify.ts"
 import { cell, cellLeft, type Fill, fit, type Row, type Run } from "./rows.ts"
 
-const MARK = 4
+/** The cursor's margin cell, then `[x] `: four for the box and its gap, one for the margin. */
+const MARK = 5
 const RUNNING = 10
-const CONFIG = 16
 const PUBLISHED = 12
+/** Wide enough for `unreachable`, the longest thing the last column says. */
+const STATE = 12
 
 /** `~/.config/…` rather than `/Users/someone/.config/…`: the part that says something. */
 export function tildePath(path: string, home: string | undefined): string {
@@ -45,21 +47,41 @@ export interface Selection {
  * The list. With a `selection` it draws the mark column and the cursor, as the dialog does; without
  * one it is the CLI's table.
  */
-export function listRows(all: readonly PluginPlan[], width: number, selection?: Selection): Row[] {
+export function listRows(
+  all: readonly PluginPlan[],
+  width: number,
+  selection?: Selection,
+  home?: string,
+): Row[] {
   // OpenCode's own parts — its sidebar, its footer — are a dozen rows of nothing to do. One line says
   // they are there; listing them would bury the rows that need a decision.
   const plans = all.filter((plan) => plan.state !== "internal")
   const builtIn = all.length - plans.length
   const mark = selection ? MARK : 0
-  const name = Math.max(12, Math.min(30, width - mark - RUNNING - CONFIG - PUBLISHED - 4))
-  const rest = Math.max(0, width - mark - name - RUNNING - CONFIG - PUBLISHED)
+
+  /**
+   * Columns sized to what they hold, as Review's counts column is (docs/building/terminal-ui.md):
+   * the widest entry plus a gap, between a floor and a cap. Fixed widths cut a path to
+   * `…ages/opencode` while a third of the dialog stood empty; now spare width stays at the end of the
+   * row rather than opening gaps between columns, and the state column has a place of its own.
+   */
+  const configOf = (plan: PluginPlan): string => {
+    const label = configLabel(plan)
+    if (plan.state === "local") return tildePath(label, home)
+    return plan.frozen && (plan.state === "update" || plan.state === "pin") ? `${label}  ⚠` : label
+  }
+  const widest = (texts: string[], floor: number, cap: number) =>
+    Math.max(floor, Math.min(cap, Math.max(0, ...texts.map((t) => t.length)) + 2))
+  const name = widest(["plugin", ...plans.map((p) => p.label ?? p.name)], 12, 36)
+  const room = width - mark - name - RUNNING - PUBLISHED - STATE
+  const config = Math.max(10, Math.min(room, widest(["config", ...plans.map(configOf)], 10, 60)))
   const header: Row = {
     runs: fit(
       [
         { text: cell("", mark) },
         { text: cell("plugin", name), tone: "muted" },
         { text: cell("running", RUNNING), tone: "muted" },
-        { text: cell("config", CONFIG), tone: "muted" },
+        { text: cell("config", config), tone: "muted" },
         { text: cell("published", PUBLISHED), tone: "muted" },
       ],
       width,
@@ -76,7 +98,7 @@ export function listRows(all: readonly PluginPlan[], width: number, selection?: 
     const fill: Fill = selection?.cursor === i ? "cursor" : "none"
     const on = (run: Run): Run => ({ ...base, ...run, ...(fill === "none" ? {} : { fill }) })
 
-    const config = configLabel(plan)
+    const configText = configOf(plan)
     const state =
       plan.state === "update"
         ? { text: "↑", tone: "added" as const }
@@ -95,20 +117,23 @@ export function listRows(all: readonly PluginPlan[], width: number, selection?: 
             on({ text: cell(acting ? (selection.selected.has(plan.name) ? "[x]" : "[ ]") : "", mark - 1) }),
           ]
         : []),
-      // A path is cut from the left: its end is the part that says which plugin it is.
       on({ text: cell(plan.label ?? plan.name, name) }),
       on({ text: cell(plan.running ?? "", RUNNING) }),
       on(
         acting && plan.frozen
-          ? { text: cell(`${config}  ⚠`, CONFIG), tone: "warning" }
-          : { text: plan.state === "local" ? `${cellLeft(config, CONFIG - 2)}  ` : cell(config, CONFIG) },
+          ? { text: cell(configText, config), tone: "warning" }
+          : // A path is cut from the left: its end is the part that says which plugin it is.
+            {
+              text:
+                plan.state === "local" ? `${cellLeft(configText, config - 2)}  ` : cell(configText, config),
+            },
       ),
       on(
         plan.state === "unknown"
           ? { text: cell("?", PUBLISHED), tone: "warning" }
           : { text: cell(plan.published ?? "", PUBLISHED), ...(acting ? { tone: "added" as const } : {}) },
       ),
-      on({ ...state, text: cell(state.text, rest) }),
+      on({ ...state, text: cell(state.text, STATE) }),
     ]
     return { runs: fit(runs, width, fill), target: plan.name }
   })

@@ -42,8 +42,13 @@ export async function gather(io: GatherIo): Promise<Gathered> {
 
   const plugins = collectPlugins(listed, read.entries).map((plugin) => {
     if (plugin.source === "file") {
-      const label = packageNameAt(io.disk, plugin.name)
-      return label === undefined ? plugin : { ...plugin, label }
+      // A checkout has a name and a version too; "running" is as true of it as of anything from npm.
+      const found = packageAt(io.disk, plugin.name)
+      return {
+        ...plugin,
+        ...(found.name ? { label: found.name } : {}),
+        ...(found.version ? { running: found.version } : {}),
+      }
     }
     if (plugin.source !== "npm") return plugin
     const running = runningOf(io, root, plugin.name, listed, read.entries)
@@ -66,13 +71,20 @@ export async function gather(io: GatherIo): Promise<Gathered> {
   return { plans, errors: read.errors, warnings, files, root }
 }
 
-/** The name in the `package.json` at a local plugin's path, or beside the file it points at. */
-function packageNameAt(disk: Disk, path: string): string | undefined {
+/** The `package.json` at a local plugin's path, or beside the file it points at. */
+function packageAt(disk: Disk, path: string): { name?: string; version?: string } {
   for (const dir of [path, path.slice(0, path.lastIndexOf("/"))]) {
-    const name = (readJson(disk, join(dir, "package.json")) as { name?: unknown } | undefined)?.name
-    if (typeof name === "string") return name
+    const manifest = readJson(disk, join(dir, "package.json")) as
+      | { name?: unknown; version?: unknown }
+      | undefined
+    if (typeof manifest?.name === "string") {
+      return {
+        name: manifest.name,
+        ...(typeof manifest.version === "string" ? { version: manifest.version } : {}),
+      }
+    }
   }
-  return undefined
+  return {}
 }
 
 /**

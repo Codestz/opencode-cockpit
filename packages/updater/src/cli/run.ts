@@ -95,7 +95,7 @@ export async function update(argv: readonly string[], io: Io): Promise<number> {
   }
 
   io.write("\n")
-  say(listRows(plans, io.width))
+  say(listRows(plans, io.width, undefined, io.home))
   const chosen = plans.filter((p) => p.selected && (!args.only || p.name === args.only))
   if (chosen.length === 0) {
     io.write("\n")

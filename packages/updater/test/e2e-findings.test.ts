@@ -109,6 +109,9 @@ describe("seen against a real install", () => {
     expect(first?.runs[0]).toMatchObject({ text: "▌", tone: "accent" })
     expect(first?.runs[0]?.faint).toBeFalsy()
     expect(second?.runs[0]?.text).toBe(" ")
+    // The box keeps a gap before the name: `[x]opencode-cockpit` shipped once.
+    const selected = listRows(plans, 80, { cursor: 0, selected: new Set(["a"]) })
+    expect(selected.map((r) => r.runs.map((x) => x.text).join("")).join("\n")).not.toMatch(/\][a-z]/)
   })
 
   test("what the screen cannot act on is faint, not merely quiet", () => {
@@ -144,7 +147,8 @@ describe("seen against a real install", () => {
     const text = listRows(found.plans, 90)
       .map((r) => r.runs.map((run) => run.text).join(""))
       .join("\n")
-    expect(text).toMatch(/^opencode-cockpit +…\S*opencode +local/m)
+    // The path fits whole now the column is sized to it, and the checkout's version is shown.
+    expect(text).toMatch(/^opencode-cockpit +\/work\/cockpit\/packages\/opencode +local/m)
   })
 
   test("keys read like Shell and Review: [key] Label, and a hint never splits", () => {

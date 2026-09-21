@@ -123,8 +123,17 @@ describe("layout", () => {
 
   test("the list says what the mock says", () => {
     const text = paint(listRows(plans, 100), false)
-    expect(text).toContain("opencode-cockpit              0.1.2     latest  ⚠       0.5.0       ↑")
-    expect(text).toContain("priv                          1.0.0     @1.0.0          ?           unreachable")
+    expect(text).toContain("opencode-cockpit                    0.1.2     latest  ⚠  0.5.0       ↑")
+    expect(text).toContain("priv                                1.0.0     @1.0.0     ?           unreachable")
+    // Every column starts where its header does, whatever the widest entry made the widths.
+    const [head = "", ...body] = text.split("\n")
+    for (const title of ["running", "config", "published"]) {
+      const at = head.indexOf(title)
+      for (const line of body.filter((l) => l.startsWith("opencode-cockpit") || l.startsWith("priv"))) {
+        expect(line[at - 1]).toBe(" ")
+        expect(line[at]).not.toBe(" ")
+      }
+    }
     // OpenCode's own parts are one line, not a row each: in a real OpenCode there were twelve.
     expect(text).toContain("1 built into OpenCode")
     expect(text).not.toContain("auth")
