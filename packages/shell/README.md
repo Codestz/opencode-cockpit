@@ -29,10 +29,12 @@ drives, and that you watch and control without leaving the chat. Part of
 ## Install
 
 ```sh
-opencode plugin @opencode-cockpit/shell --global
+opencode plugin @opencode-cockpit/shell@0.4.3 --global --force
 ```
 
-Restart OpenCode. Requires OpenCode 1.18 or newer on macOS or Linux.
+Restart OpenCode. Requires OpenCode 1.18 or newer on macOS or Linux. The version is pinned on
+purpose: OpenCode never re-resolves a plugin spec, so `@latest` would stay on the first release it
+installed. To update, run `npx opencode-cockpit@latest update`.
 
 Shell is also included in [`opencode-cockpit`](https://www.npmjs.com/package/opencode-cockpit),
 which installs every cockpit feature. Install one or the other: if both are configured, the first
@@ -113,7 +115,6 @@ Things to ask:
 | `/shells-clear` | Remove finished shells |
 | `/shells-stop` | Stop the shells in view — this conversation, or the project |
 | `/shells-stop-all` | Stop every shell in the project, asking first about the ones you cannot see |
-| `/cockpit-update` | Update the plugin when a newer release exists |
 | `/shells-restart-daemon` | Restart `cockpitd` (asks first when shells are running) |
 
 Watched shells also show their health (`tsc ✓`, `vitest ✗`) in the panel, sidebar and console.

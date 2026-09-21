@@ -41,6 +41,7 @@
         "@opencode-cockpit/review": "workspace:*",
         "@opencode-cockpit/shell": "workspace:*",
         "@opencode-cockpit/status": "workspace:*",
+        "@opencode-cockpit/updater": "workspace:*",
       },
       "devDependencies": {
         "@opencode-cockpit/client": "workspace:*",
@@ -93,6 +94,24 @@
       "bin": {
         "opencode-statusline": "./dist/cli/preview.js",
         "status": "./dist/cli/preview.js",
+      },
+      "dependencies": {
+        "@opencode-ai/plugin": "1.18.31",
+        "@opencode-cockpit/client": "workspace:*",
+      },
+      "devDependencies": {
+        "@opentui/core": "0.4.5",
+        "@opentui/keymap": "0.4.5",
+        "@opentui/solid": "0.4.5",
+        "solid-js": "1.9.12",
+      },
+    },
+    "packages/updater": {
+      "name": "@opencode-cockpit/updater",
+      "version": "0.4.3",
+      "bin": {
+        "opencode-cockpit-update": "./dist/cli/update.js",
+        "updater": "./dist/cli/update.js",
       },
       "dependencies": {
         "@opencode-ai/plugin": "1.18.31",
@@ -220,6 +239,8 @@
     "@opencode-cockpit/shell": ["@opencode-cockpit/shell@workspace:packages/shell"],
 
     "@opencode-cockpit/status": ["@opencode-cockpit/status@workspace:packages/status"],
+
+    "@opencode-cockpit/updater": ["@opencode-cockpit/updater@workspace:packages/updater"],
 
     "@opentui/core": ["@opentui/core@0.4.5", "", { "dependencies": { "bun-ffi-structs": "0.2.4", "diff": "9.0.0", "marked": "17.0.1", "string-width": "7.2.0", "strip-ansi": "7.1.2" }, "optionalDependencies": { "@opentui/core-darwin-arm64": "0.4.5", "@opentui/core-darwin-x64": "0.4.5", "@opentui/core-linux-arm64": "0.4.5", "@opentui/core-linux-arm64-musl": "0.4.5", "@opentui/core-linux-x64": "0.4.5", "@opentui/core-linux-x64-musl": "0.4.5", "@opentui/core-win32-arm64": "0.4.5", "@opentui/core-win32-x64": "0.4.5" }, "peerDependencies": { "web-tree-sitter": "0.25.10" } }, "sha512-JsgRTPkA6e+Vxmumxai6SElOSlRQkbzNKHlCfemlArRiLhfC1IZ9RXJo2QH4xSu+uBOWAM90uss73/pPlkdEig=="],
 

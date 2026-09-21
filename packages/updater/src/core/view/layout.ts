@@ -1,0 +1,271 @@
+/**
+ * The three screens as rows: the list, the review, the result. Every row is exactly `width` wide.
+ *
+ * The approved mock is the reference: https://claude.ai/artifact/H34qPDuKGKaEaG4SCunmbo
+ */
+
+import type { Change, PluginPlan } from "../plan.ts"
+import { parseSpec } from "../spec.ts"
+import type { Outcome } from "../verify.ts"
+import { cell, cellLeft, type Fill, fit, type Row, type Run } from "./rows.ts"
+
+const MARK = 4
+const RUNNING = 10
+const CONFIG = 16
+const PUBLISHED = 12
+
+/** `~/.config/…` rather than `/Users/someone/.config/…`: the part that says something. */
+export function tildePath(path: string, home: string | undefined): string {
+  return home && path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path
+}
+
+/** What the config column says: the tag or the pin, never the whole spec. */
+export function configLabel(plan: PluginPlan): string {
+  if (plan.state === "internal") return "built in"
+  const labels = [
+    ...new Set(
+      plan.specs.map((raw) => {
+        const spec = parseSpec(raw)
+        if (spec.kind === "local") return raw
+        if (spec.pin.type === "exact") return `@${spec.pin.version}`
+        return spec.pin.type === "tag" ? spec.pin.tag : "latest"
+      }),
+    ),
+  ]
+  const [first = ""] = labels
+  return labels.length > 1 ? `${first} +${labels.length - 1}` : first
+}
+
+export interface Selection {
+  cursor: number
+  selected: ReadonlySet<string>
+}
+
+/**
+ * The list. With a `selection` it draws the mark column and the cursor, as the dialog does; without
+ * one it is the CLI's table.
+ */
+export function listRows(all: readonly PluginPlan[], width: number, selection?: Selection): Row[] {
+  // OpenCode's own parts — its sidebar, its footer — are a dozen rows of nothing to do. One line says
+  // they are there; listing them would bury the rows that need a decision.
+  const plans = all.filter((plan) => plan.state !== "internal")
+  const builtIn = all.length - plans.length
+  const mark = selection ? MARK : 0
+  const name = Math.max(12, Math.min(30, width - mark - RUNNING - CONFIG - PUBLISHED - 4))
+  const rest = Math.max(0, width - mark - name - RUNNING - CONFIG - PUBLISHED)
+  const header: Row = {
+    runs: fit(
+      [
+        { text: cell("", mark) },
+        { text: cell("plugin", name), tone: "muted" },
+        { text: cell("running", RUNNING), tone: "muted" },
+        { text: cell("config", CONFIG), tone: "muted" },
+        { text: cell("published", PUBLISHED), tone: "muted" },
+      ],
+      width,
+    ),
+  }
+  const rows = plans.map((plan, i): Row => {
+    const acting = plan.state === "update" || plan.state === "pin"
+    const quiet = plan.state === "current" || plan.state === "unknown"
+    const inert = plan.state === "internal" || plan.state === "local"
+    const base = {
+      tone: quiet || inert ? ("muted" as const) : ("text" as const),
+      ...(inert ? { faint: true } : {}),
+    }
+    const fill: Fill = selection?.cursor === i ? "cursor" : "none"
+    const on = (run: Run): Run => ({ ...base, ...run, ...(fill === "none" ? {} : { fill }) })
+
+    const config = configLabel(plan)
+    const state =
+      plan.state === "update"
+        ? { text: "↑", tone: "added" as const }
+        : plan.state === "pin"
+          ? { text: "pin", tone: "warning" as const }
+          : plan.state === "unknown"
+            ? { text: "unreachable" }
+            : plan.state === "local"
+              ? { text: "local" }
+              : { text: "" }
+    const runs: Run[] = [
+      ...(selection
+        ? [on({ text: cell(acting ? (selection.selected.has(plan.name) ? "[x]" : "[ ]") : "", mark) })]
+        : []),
+      // A path is cut from the left: its end is the part that says which plugin it is.
+      on({ text: plan.state === "local" ? `${cellLeft(plan.name, name - 2)}  ` : cell(plan.name, name) }),
+      on({ text: cell(plan.running ?? "", RUNNING) }),
+      on(
+        acting && plan.frozen
+          ? { text: cell(`${config}  ⚠`, CONFIG), tone: "warning" }
+          : { text: plan.state === "local" ? `${cellLeft(config, CONFIG - 2)}  ` : cell(config, CONFIG) },
+      ),
+      on(
+        plan.state === "unknown"
+          ? { text: cell("?", PUBLISHED), tone: "warning" }
+          : { text: cell(plan.published ?? "", PUBLISHED), ...(acting ? { tone: "added" as const } : {}) },
+      ),
+      on({ ...state, text: cell(state.text, rest) }),
+    ]
+    return { runs: fit(runs, width, fill), target: plan.name }
+  })
+  const summary: Row[] =
+    builtIn > 0
+      ? [
+          {
+            runs: fit(
+              [
+                { text: cell("", mark) },
+                { text: `${builtIn} built into OpenCode`, tone: "muted", faint: true },
+              ],
+              width,
+            ),
+          },
+        ]
+      : []
+  return [header, ...rows, ...summary]
+}
+
+function band(plan: PluginPlan, width: number): Row {
+  const runs: Run[] = [
+    { text: cell(plan.name, Math.min(30, width)), bold: true, fill: "band" },
+    ...(plan.running ? [{ text: plan.running, tone: "muted" as const, fill: "band" as const }] : []),
+    { text: "  →  ", fill: "band" },
+    { text: plan.published ?? "", tone: "added", fill: "band" },
+  ]
+  return { runs: fit(runs, width, "band"), target: plan.name }
+}
+
+interface Columns {
+  path: number
+  from: number
+}
+
+function changeRow(change: Change, width: number, home: string | undefined, columns: Columns): Row {
+  const tag =
+    change.file.owner === "manual"
+      ? [{ text: "   edit by hand", tone: "warning" as const }]
+      : change.file.scope === "project"
+        ? [{ text: "   project", tone: "muted" as const }]
+        : []
+  return {
+    runs: fit(
+      [
+        { text: "  " },
+        { text: `${cellLeft(tildePath(change.file.path, home), columns.path - 2)}  `, tone: "muted" },
+        { text: cell(change.from, columns.from), tone: "muted" },
+        { text: "→   " },
+        { text: change.to, tone: "added" },
+        ...tag,
+      ],
+      width,
+    ),
+  }
+}
+
+/** What an update would do, before it does it. */
+export function reviewRows(plans: readonly PluginPlan[], width: number, home?: string): Row[] {
+  const rows: Row[] = []
+  // Sized to what they hold: a spec cut to `opencode-cockpit@late…` hides the one word that matters.
+  const changes = plans.flatMap((plan) => plan.changes)
+  const widest = (texts: string[], cap: number) =>
+    Math.min(cap, Math.max(0, ...texts.map((t) => t.length)) + 2)
+  const columns: Columns = {
+    path: widest(
+      changes.map((c) => tildePath(c.file.path, home)),
+      44,
+    ),
+    from: widest(
+      changes.map((c) => c.from),
+      32,
+    ),
+  }
+  plans.forEach((plan, i) => {
+    if (i > 0) rows.push({ runs: fit([], width) })
+    rows.push(band(plan, width))
+    for (const change of plan.changes) rows.push(changeRow(change, width, home, columns))
+    for (const dir of plan.remove) {
+      rows.push({
+        runs: fit(
+          [
+            { text: "  " },
+            { text: "remove", tone: "removed" },
+            { text: "  " },
+            { text: cellLeft(tildePath(dir, home), width - 10), tone: "muted" },
+          ],
+          width,
+        ),
+      })
+    }
+  })
+  return rows
+}
+
+/**
+ * What disk said afterwards, and for anything wrong, the command that fixes it.
+ *
+ * One problem that fits goes on the plugin's own line, as in the mock; otherwise every problem gets
+ * a line of its own underneath. Fix lines can be cut at the edge here — the dialog copies them whole,
+ * and the CLI prints them again uncut, because a command is only useful if it can be pasted.
+ */
+export function resultRows(plans: readonly PluginPlan[], outcomes: readonly Outcome[], width: number): Row[] {
+  const rows: Row[] = []
+  const inline = 30 + 20 + 3
+  const indent = "     "
+  outcomes.forEach((outcome, i) => {
+    const plan = plans.find((p) => p.name === outcome.name)
+    const running = plan?.running ?? ""
+    const published = plan?.published ?? ""
+    const gap = " ".repeat(Math.max(1, 20 - running.length - 3 - published.length))
+    const [only] = outcome.problems
+    const oneLine = outcome.problems.length === 1 && only !== undefined && inline + only.length <= width
+    const summary = outcome.ok
+      ? { text: outcome.confirmed.join(" · "), tone: "muted" as const }
+      : oneLine
+        ? { text: only }
+        : { text: `${outcome.problems.length} problem${outcome.problems.length === 1 ? "" : "s"}` }
+    if (i > 0) rows.push({ runs: fit([], width) })
+    rows.push({
+      runs: fit(
+        [
+          { text: cell(outcome.name, 30) },
+          { text: running, tone: "muted" },
+          { text: " → " },
+          { text: published + gap, tone: "added" },
+          outcome.ok ? { text: "✓  ", tone: "added" } : { text: "!  ", tone: "removed" },
+          summary,
+        ],
+        width,
+      ),
+      target: outcome.name,
+    })
+    for (const problem of oneLine ? [] : outcome.problems) {
+      rows.push({ runs: fit([{ text: indent }, { text: problem }], width) })
+    }
+    for (const fix of outcome.fixes) {
+      rows.push({ runs: fit([{ text: indent }, { text: "fix  ", tone: "muted" }, { text: fix }], width) })
+    }
+  })
+  return rows
+}
+
+/** A screen's first line: what it is on the left, a quiet note on the right. */
+export function titleRow(title: string, note: string, width: number): Row {
+  const gap = Math.max(1, width - title.length - note.length)
+  return {
+    runs: fit([{ text: title, bold: true }, { text: " ".repeat(gap) }, { text: note, tone: "muted" }], width),
+  }
+}
+
+/** The footer's keys, `[key] Label` spaced, dropping from the right when the row is too narrow. */
+export function keyRow(keys: readonly (readonly [string, string])[], width: number): Row {
+  const runs: Run[] = []
+  let used = 0
+  for (const [key, label] of keys) {
+    const size = key.length + 2 + 1 + label.length + (runs.length > 0 ? 3 : 0)
+    if (used + size > width) break
+    if (runs.length > 0) runs.push({ text: "   " })
+    runs.push({ text: ` ${key} `, fill: "key" }, { text: ` ${label}` })
+    used += size
+  }
+  return { runs: fit(runs, width) }
+}

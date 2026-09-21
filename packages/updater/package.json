@@ -1,0 +1,64 @@
+{
+  "name": "@opencode-cockpit/updater",
+  "version": "0.4.3",
+  "description": "Every OpenCode plugin you have installed: what actually runs, what is published, and an update that is checked against disk",
+  "type": "module",
+  "license": "MIT",
+  "author": "Codestz",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Codestz/opencode-cockpit.git",
+    "directory": "packages/updater"
+  },
+  "homepage": "https://github.com/Codestz/opencode-cockpit#readme",
+  "bugs": {
+    "url": "https://github.com/Codestz/opencode-cockpit/issues"
+  },
+  "keywords": [
+    "opencode",
+    "opencode-plugin",
+    "update",
+    "plugins"
+  ],
+  "exports": {
+    "./tui": {
+      "types": "./types/tui/index.d.ts",
+      "default": "./dist/tui/index.js"
+    },
+    "./core": {
+      "types": "./types/core/index.d.ts",
+      "default": "./dist/core/index.js"
+    },
+    "./cli": {
+      "types": "./types/cli/main.d.ts",
+      "default": "./dist/cli/main.js"
+    }
+  },
+  "engines": {
+    "opencode": ">=1.18.0",
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "types",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "opencode-cockpit-update": "./dist/cli/update.js",
+    "updater": "./dist/cli/update.js"
+  },
+  "dependencies": {
+    "@opencode-cockpit/client": "workspace:*",
+    "@opencode-ai/plugin": "1.18.31"
+  },
+  "devDependencies": {
+    "@opentui/core": "0.4.5",
+    "@opentui/keymap": "0.4.5",
+    "@opentui/solid": "0.4.5",
+    "solid-js": "1.9.12"
+  }
+}

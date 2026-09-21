@@ -64,6 +64,7 @@ try {
         "@opencode-cockpit/shell": file("opencode-cockpit-shell-"),
         "@opencode-cockpit/status": file("opencode-cockpit-status-"),
         "@opencode-cockpit/review": file("opencode-cockpit-review-"),
+        "@opencode-cockpit/updater": file("opencode-cockpit-updater-"),
       },
       overrides: {
         "@opencode-cockpit/protocol": file("opencode-cockpit-protocol-"),
@@ -91,7 +92,11 @@ try {
   const bay = (name: string) => join(install, "node_modules", "@opencode-cockpit", name)
   for (const [name, schema, plugins] of [
     ["opencode.json", "https://opencode.ai/config.json", [bay("shell")]],
-    ["tui.json", "https://opencode.ai/tui.json", [bay("shell"), bay("status"), bay("review")]],
+    [
+      "tui.json",
+      "https://opencode.ai/tui.json",
+      [bay("shell"), bay("status"), bay("review"), bay("updater")],
+    ],
   ] as const) {
     await Bun.write(join(config, "opencode", name), JSON.stringify({ $schema: schema, plugin: plugins }))
   }
@@ -170,7 +175,25 @@ try {
    */
   await type("\x18v", 3000)
   const review = await screen()
+  await type("\x18v", 1500) // close the review again
+
+  /**
+   * The updater's dialog, opened by its slash name and by the old one it replaced — two slash names
+   * for one surface is exactly what docs/opencode/keys-and-commands.md warns can break the popup.
+   * Every plugin here is a local path, so the list must say so, and nothing may be written.
+   */
+  const slash = async (name: string) => {
+    await type(`/${name}`, 1200)
+    await type("\r", 4000)
+    const drawn = await screen()
+    await type("\x1b", 1000)
+    return drawn
+  }
+  const updater = await slash("plugins-update")
+  const legacy = await slash("cockpit-update")
   proc.kill("SIGKILL")
+  // `SMOKE_SHOW=1 bun run smoke:tui` prints the updater's frame: a marker proves it drew, not how.
+  if (process.env.SMOKE_SHOW) console.log(updater)
 
   /**
    * The statusline half. It shares this run rather than having its own, because what is being
@@ -192,6 +215,15 @@ try {
     if (!review.includes(marker)) throw new Error(`${what}:\n${review}`)
   }
 
+  for (const [what, text] of [
+    ["/plugins-update", updater],
+    ["/cockpit-update", legacy],
+  ] as const) {
+    for (const marker of ["Plugins", "published", "local", "Review"]) {
+      if (!text.includes(marker)) throw new Error(`${what} did not draw "${marker}":\n${text}`)
+    }
+  }
+
   const ticks = (text: string) => [...text.matchAll(/tick (\d+)/g)].map((m) => Number(m[1]))
   const firstMax = Math.max(0, ...ticks(first))
   const secondMax = Math.max(0, ...ticks(second))
@@ -202,7 +234,7 @@ try {
     )
   }
   console.log(
-    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; console and its keys drew; statusline drew; review drew its diff`,
+    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; console and its keys drew; statusline drew; review drew its diff; updater drew from both slash names`,
   )
 } finally {
   rmSync(work, { recursive: true, force: true })

@@ -1,5 +1,5 @@
 /** Every feature the bundle can load. Adding one: list it here and wire it in server.ts / tui.ts. */
-export const FEATURES = ["shell", "status", "review"] as const
+export const FEATURES = ["shell", "status", "review", "updater"] as const
 export type Feature = (typeof FEATURES)[number]
 
 export interface CockpitOptions {
@@ -9,6 +9,7 @@ export interface CockpitOptions {
   shell?: Record<string, unknown>
   status?: Record<string, unknown>
   review?: Record<string, unknown>
+  updater?: Record<string, unknown>
   [key: string]: unknown
 }
 

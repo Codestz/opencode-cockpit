@@ -15,7 +15,7 @@ import { FEATURES } from "../packages/opencode/src/features.ts"
 
 const root = join(import.meta.dir, "..")
 // Dependency order, matching the release workflow.
-const PACKAGES = ["protocol", "daemon", "client", "shell", "status", "review", "opencode"]
+const PACKAGES = ["protocol", "daemon", "client", "shell", "status", "review", "updater", "opencode"]
 const work = mkdtempSync(join(tmpdir(), "cockpit-pack-"))
 const tarballs = join(work, "tarballs")
 // Short: unix socket paths are limited to 104 bytes on macOS.
@@ -125,6 +125,27 @@ try {
     )
     run(["bun", "install"], dir)
     await verifyInstall(dir, install)
+    verifyRescue(dir, install)
+  }
+
+  /**
+   * The rescue command runs under **Node**, from what was installed: `npx` may run where there is no
+   * `bun`, and people reach for this exactly when everything else has failed — a bin that cannot
+   * start there is the worst place to find out. `--help` proves the entry, its compiled imports and
+   * the bundle's hand-off to the updater all resolve, without touching anyone's config.
+   */
+  function verifyRescue(dir: string, install: { name: string; packages: string[] }) {
+    const bins = install.packages.includes("opencode-cockpit")
+      ? [["opencode-cockpit", "update", "--help"]]
+      : install.packages.includes("@opencode-cockpit/updater")
+        ? [["updater", "--help"]]
+        : []
+    for (const [bin, ...args] of bins) {
+      const out = run(["node", join(dir, "node_modules", ".bin", bin as string), ...args], dir)
+      if (!out.includes("Usage: npx"))
+        throw new Error(`${install.name}: ${bin} ${args.join(" ")} printed:\n${out}`)
+      console.log(`  ${install.name}: \`${bin} ${args.join(" ")}\` runs under node`)
+    }
   }
 
   /**

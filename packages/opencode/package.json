@@ -52,9 +52,13 @@
     "@opencode-cockpit/shell": "workspace:*",
     "@opencode-ai/plugin": "1.18.31",
     "@opencode-cockpit/review": "workspace:*",
-    "@opencode-cockpit/status": "workspace:*"
+    "@opencode-cockpit/status": "workspace:*",
+    "@opencode-cockpit/updater": "workspace:*"
   },
   "devDependencies": {
     "@opencode-cockpit/client": "workspace:*"
+  },
+  "bin": {
+    "opencode-cockpit": "./dist/bin.js"
   }
 }
