@@ -51,6 +51,7 @@
   "dependencies": {
     "@opencode-cockpit/shell": "workspace:*",
     "@opencode-ai/plugin": "1.18.31",
+    "@opencode-cockpit/review": "workspace:*",
     "@opencode-cockpit/status": "workspace:*"
   },
   "devDependencies": {

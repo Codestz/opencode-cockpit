@@ -5,6 +5,7 @@
 export const nav = {
   links: [
     { label: "What's fitted", href: "#bays" },
+    { label: "Review", href: "#review" },
     { label: "Shell", href: "#shell" },
     { label: "Statusline", href: "#status" },
     { label: "Platform", href: "#platform" },
@@ -100,12 +101,46 @@ export const platform = {
 export const bays = {
   number: "01",
   kicker: "What is fitted",
-  title: "Two instruments today. One switch each.",
+  title: "Three instruments today. One switch each.",
   intro:
     "Every bay is its own npm package with a switch in config. They share the daemon, the config " +
     "file and the keys, so the second costs nothing and moving between them changes nothing you " +
     "have already set up.",
   items: [
+    {
+      id: "review",
+      name: "Review",
+      tagline: "A pull request in the terminal",
+      state: "live",
+      status: "Available",
+      gains: { agent: "Comments it can answer and resolve", you: "The diff, with notes on the lines" },
+      blurb:
+        "Reviewing what an agent wrote means reading a diff in a chat log and describing your " +
+        "objection in prose. Review gives you the diff where the work happened, comments on the " +
+        "lines they are about, and an agent that can read them, answer them and mark them resolved " +
+        "— which a chat message cannot do.",
+      points: [
+        "Comment on a line, a range, or a whole file",
+        "The agent reads them as data, not as prose",
+        "A resolve is checked against the file before it counts",
+        "Notes live on the branch, so they outlive the chat",
+        "The agent can leave notes of its own",
+        "Uncommitted, the branch, or just this conversation",
+      ],
+      foot: ["3 agent tools", "12 filetypes", "@opencode-cockpit/review"],
+      docs: "/review/overview/",
+      media: {
+        kind: "casts" as const,
+        clips: [
+          {
+            cast: "review",
+            label: "A review, answered",
+            hint: "comment → submit → resolved",
+            caption: "tapes/review.ts · a real branch, a real turn — only the waiting is cut",
+          },
+        ],
+      },
+    },
     {
       id: "shell",
       name: "Shell",
@@ -178,19 +213,12 @@ export const next = {
     "time, shipped before the next is announced.",
   items: [
     {
-      name: "Review",
+      name: "Doctor",
       state: "next",
       blurb:
-        "A pull request in the terminal. Comment on a line, comment on a file, mark a file read, " +
-        "suggest the change instead of describing it — and none of it reaches the chat until you " +
-        "submit, when it arrives as one message instead of six interruptions.",
-      why: "session.diff carries each file's before and after in full; session.revert undoes one part.",
-    },
-    {
-      name: "Doctor",
-      state: "later",
-      blurb: "One command that checks your setup and tells you how to fix it.",
-      why: "",
+        "One command that checks your setup and says how to fix it: which halves are loaded, which " +
+        "keys collide, whether a daemon is running code older than the plugin that is talking to it.",
+      why: "Every answer it needs is already on disk or on the wire; nothing new has to be exposed.",
     },
   ],
 }

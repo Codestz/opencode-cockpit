@@ -37,6 +37,16 @@ export default defineConfig({
           ],
         },
         {
+          label: "Review",
+          items: [
+            { label: "Overview", slug: "review/overview" },
+            { label: "Agent tools", slug: "review/tools" },
+            { label: "Notes and threads", slug: "review/notes" },
+            { label: "Reading a branch", slug: "review/reading" },
+            { label: "Panel and keys", slug: "review/interface" },
+          ],
+        },
+        {
           label: "Shell",
           items: [
             { label: "Overview", slug: "shell/overview" },

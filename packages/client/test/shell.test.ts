@@ -256,6 +256,47 @@ describe("daemon lifecycle", () => {
     rmSync(local.paths.home, { recursive: true, force: true })
   })
 
+  /**
+   * `~/.cache/opencode-cockpit` is exactly where a cleanup tool aims, and a unix socket is held by its
+   * inode rather than by its name — so deleting it leaves the daemon listening on a path that no
+   * longer exists. The next client finds no socket and starts a second daemon, while this one keeps
+   * its shells alive where nothing can see or stop them.
+   */
+  test("a daemon whose socket is gone stops rather than stranding its shells", async () => {
+    const local = await startDaemon(tempHome(), 0, {}, 50)
+    let stopped = false
+    void local.daemon.stopped.then(() => {
+      stopped = true
+    })
+    const c = local.client()
+    await c.connect()
+    /** Busy: with a shell running, nothing else would ever shut this daemon down. */
+    const info = await c.call("shell.start", bash("sleep 30"))
+    expect(info.status).toBe("running")
+    c.close()
+
+    rmSync(local.paths.home, { recursive: true, force: true })
+    await Promise.race([local.daemon.stopped, Bun.sleep(5000)])
+    expect(stopped).toBe(true)
+  })
+
+  /** A daemon that still owns its socket carries on, however long it sits there. */
+  test("but one whose socket is still its own carries on", async () => {
+    const local = await startDaemon(tempHome(), 0, {}, 50)
+    let stopped = false
+    void local.daemon.stopped.then(() => {
+      stopped = true
+    })
+    const c = local.client()
+    await c.connect()
+    await Bun.sleep(300)
+    expect(stopped).toBe(false)
+    expect(existsSync(local.paths.socket)).toBe(true)
+    c.close()
+    await local.daemon.stop()
+    rmSync(local.paths.home, { recursive: true, force: true })
+  })
+
   test("client reconnects and restores subscriptions after daemon restart", async () => {
     const paths = tempHome()
     const first = await startDaemon(paths)

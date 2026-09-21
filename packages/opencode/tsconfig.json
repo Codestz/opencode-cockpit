@@ -14,6 +14,9 @@
     },
     {
       "path": "../status"
+    },
+    {
+      "path": "../review"
     }
   ]
 }

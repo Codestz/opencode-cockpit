@@ -50,7 +50,7 @@ const casts = bay.media.kind === "casts" ? bay.media.clips : []
             <button
               type="button"
               aria-pressed={i === 0}
-              data-src={`${base}/casts/${clip.cast}.cast`}
+              data-src={`${base}/casts/${clip.cast}.cast.json`}
               data-caption={clip.caption}
             >{clip.label}<small class="mono">{clip.hint}</small></button>
           ))}

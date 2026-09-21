@@ -38,6 +38,7 @@
       "version": "0.3.2",
       "dependencies": {
         "@opencode-ai/plugin": "1.18.31",
+        "@opencode-cockpit/review": "workspace:*",
         "@opencode-cockpit/shell": "workspace:*",
         "@opencode-cockpit/status": "workspace:*",
       },
@@ -50,6 +51,24 @@
       "version": "0.3.2",
       "dependencies": {
         "zod": "4.6.5",
+      },
+    },
+    "packages/review": {
+      "name": "@opencode-cockpit/review",
+      "version": "0.3.2",
+      "bin": {
+        "opencode-review": "./dist/cli/preview.js",
+        "review": "./dist/cli/preview.js",
+      },
+      "dependencies": {
+        "@opencode-ai/plugin": "1.18.31",
+        "@opencode-cockpit/client": "workspace:*",
+      },
+      "devDependencies": {
+        "@opentui/core": "0.4.5",
+        "@opentui/keymap": "0.4.5",
+        "@opentui/solid": "0.4.5",
+        "solid-js": "1.9.12",
       },
     },
     "packages/shell": {
@@ -71,6 +90,10 @@
     "packages/status": {
       "name": "@opencode-cockpit/status",
       "version": "0.3.2",
+      "bin": {
+        "opencode-statusline": "./dist/cli/preview.js",
+        "status": "./dist/cli/preview.js",
+      },
       "dependencies": {
         "@opencode-ai/plugin": "1.18.31",
         "@opencode-cockpit/client": "workspace:*",
@@ -191,6 +214,8 @@
     "@opencode-cockpit/daemon": ["@opencode-cockpit/daemon@workspace:packages/daemon"],
 
     "@opencode-cockpit/protocol": ["@opencode-cockpit/protocol@workspace:packages/protocol"],
+
+    "@opencode-cockpit/review": ["@opencode-cockpit/review@workspace:packages/review"],
 
     "@opencode-cockpit/shell": ["@opencode-cockpit/shell@workspace:packages/shell"],
 

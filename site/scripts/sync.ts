@@ -13,7 +13,15 @@ const site = resolve(import.meta.dir, "..")
 const casts = join(site, "public", "casts")
 mkdirSync(casts, { recursive: true })
 const tapes = readdirSync(join(root, "tapes")).filter((f) => f.endsWith(".cast"))
-for (const file of tapes) copyFileSync(join(root, "tapes", file), join(casts, file))
+/**
+ * Published as `.cast.json`, not `.cast`.
+ *
+ * A cast is JSON, but nothing serving it knows that from the extension: GitHub Pages calls an unknown
+ * one `application/octet-stream` and does not compress those. The recordings are 80% escape sequences
+ * and compress about 15:1 — the review tape is 750KB served raw and 50KB served as JSON. Same bytes,
+ * same player, one suffix.
+ */
+for (const file of tapes) copyFileSync(join(root, "tapes", file), join(casts, `${file}.json`))
 
 // Screenshots live in media/ alongside the recordings, and are served from the site's own origin
 // so a page renders the same locally as it does once deployed.

@@ -6,8 +6,35 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **A file containing `@` before a bracket or a space no longer freezes the interface.** The Review
+  syntax scanner accepted `@` as the start of a word but not as part of one, so it advanced by zero
+  characters and looped forever — at 100% CPU, with no error, no stack and no way out but killing
+  OpenCode. Ctrl+C did not help either: a synchronous loop never reaches a signal handler. Every
+  branch of the scanner must now advance, and the test is every printable character in ten
+  languages plus all 9,025 two-character pairs.
+- **A daemon whose socket has been deleted now stops instead of stranding its shells.** A unix socket
+  is held by its inode rather than by its name, so removing `~/.cache/opencode-cockpit` — where
+  cleanup tools aim — left the daemon running and listening on a path that no longer existed. The
+  next client found no socket, started a second daemon, and the first kept its shells alive where
+  nothing could see or stop them: a dev server holding a port, findable only with `ps`. There is no
+  way back from that state, since a client can only reach the daemon through the path, so it shuts
+  down and lets its shells go rather than leaving them stranded for the rest of the session.
+
 ### Added
 
+- **Review — a pull request in the terminal.** Bay 02, `@opencode-cockpit/review`. The diff where
+  the work happened, comments on the lines they are about, and an agent that can read them, answer
+  them and mark them resolved. Comments live on the branch rather than in the chat, so they outlive
+  the conversation; `s` hands the review over, and the notes travel as structured data through
+  `review_list` rather than as prose the agent has to parse back out of a message. A resolve is
+  checked against the file before it counts: an agent that claims "done" over an untouched file has
+  its reply kept, the thread left open, and is told so plainly. It can open notes of its own with
+  `review_open`, which appear in the panel beside yours. `<leader>v` opens it.
+- **`bun run clean:daemons`** stops cockpit daemons that nothing can reach any more — orphans whose
+  home is gone, and daemons left behind by an interrupted test run. `test` and `check` run it first,
+  because a leftover daemon does not fail a suite, it hangs one.
 - **The line reports its own failures, on the line.** A module that would not load draws a `⚠` row
   naming it, and a column that ran out of room draws a dim `↳ N more — raise maxRows`. Both used to
   end as segments that were simply not there, which is indistinguishable from a segment that had

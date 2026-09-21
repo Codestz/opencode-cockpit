@@ -26,21 +26,17 @@ already wrote for Claude Code, colours and all. See
 opencode plugin @opencode-cockpit/status --global
 ```
 
-## Review — next
+## Review — available
 
-A turn ends and you read the whole diff at once, or you read none of it and hope.
+A pull request in the terminal: the diff where the work happened, comments on the lines they are
+about, and an agent that can read them, answer them and mark them resolved. A resolve is checked
+against the file before it counts. See [Review](/opencode-cockpit/review/overview/).
 
-GitHub solved the reading part years ago, and the shape transfers: comment on a line, comment on a
-file, mark a file read so the next turn starts smaller, suggest the change rather than describing
-it — and none of it reaches the author until you submit the review. Here the review goes to the
-chat as one message instead of six interruptions, and a part you reject can be reverted on its own
-rather than costing you the turn.
+```sh
+opencode plugin @opencode-cockpit/review --global
+```
 
-What it needs already exists: `session.diff` returns each file's `before` and `after` in full,
-`session.revert` undoes a single message or part, and a plugin can write to the prompt. What is
-missing is the view and the keys.
-
-## Doctor — after that
+## Doctor — next
 
 One command that checks your setup and says how to fix it.
 

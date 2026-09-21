@@ -1,6 +1,6 @@
 ---
 title: Your first session
-description: Ask for something long-running and watch where it goes.
+description: Two minutes — ask for something long-running, read what came back, and review it.
 ---
 
 import Cast from "../../../components/Cast.astro"
@@ -31,8 +31,36 @@ ends, and it shows up in the panel and the sidebar.
 | <kbd>/</kbd> | Filter the log, in the console |
 | <kbd>?</kbd> | Details for the selected shell |
 
+## Now ask it to change something
+
+> add a coupon code to the checkout total
+
+When it finishes, do not read the diff in the chat. Press <kbd>ctrl+x</kbd> <kbd>v</kbd> — or type
+`/changes` — and read it where the work happened.
+
+<Cast name="review" caption="Unedited except for the waiting: a comment, a handover, and the agent resolving it." />
+
+Move with <kbd>j</kbd> and <kbd>k</kbd>, <kbd>enter</kbd> into a file, and when a line is wrong press
+<kbd>c</kbd> and say why. Nothing has been sent yet. <kbd>space</kbd> marks a file read and moves you
+to the next one; <kbd>s</kbd> hands the whole review over.
+
+Then watch what the agent does with it: `review_list` gives it every comment with the code each one
+is about, it changes what needs changing, and `review_reply resolved=true` closes the thread — which
+only counts if the file actually changed. Your comments stay on the branch, so tomorrow's
+conversation still has them.
+
+## And the line under the prompt
+
+If you installed the bundle you already have the statusline: how full the context is, where the
+tokens went, what the session has cost, what has changed. It answers the questions you would
+otherwise ask by leaving — and every part of it is a segment you can reshape, recolour or write
+yourself.
+
 ## What to try next
 
 - *"Run the test suite in the background and tell me if it fails."*
 - *"Watch tsc and let me know when it breaks."*
 - *"Open a node REPL and check what `new URL('..', import.meta.url)` returns."*
+- Leave a comment on a line you disagree with, submit, and let it answer — then look at the thread.
+- *"Read the diff and leave review comments on anything you would want a second opinion on."* The
+  agent can open threads of its own, and they outlive the conversation.

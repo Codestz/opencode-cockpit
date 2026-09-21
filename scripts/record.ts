@@ -30,6 +30,21 @@ export interface Tape {
   rows?: number
   /** Files to write into the throwaway project before OpenCode starts. */
   files?: Record<string, string>
+  /**
+   * Shell lines run in the project before OpenCode starts.
+   *
+   * For a bay that reads the repository rather than the session: Review has nothing to show without
+   * a git history and a working tree that differs from it.
+   */
+  setup?: string[]
+  /**
+   * Files written under the throwaway `COCKPIT_HOME`, by path relative to it.
+   *
+   * A review that is half-answered says more about the bay than an empty one, and the agent's half of
+   * it is on disk — so a tape can arrive mid-conversation without waiting on a live model turn. The
+   * keystrokes are still real; only the history is prepared, exactly as it would have been written.
+   */
+  data?: Record<string, string>
   /** Settings for the plugin under test, written as the project's .cockpit.json. */
   config?: unknown
   /** Seconds to wait for OpenCode to start and load plugins before recording begins. */
@@ -87,6 +102,17 @@ async function record(tape: Tape): Promise<string> {
     const file = join(project, name)
     mkdirSync(dirname(file), { recursive: true })
     writeFileSync(file, content, { mode: name.endsWith(".sh") ? 0o755 : 0o644 })
+  }
+  for (const [name, content] of Object.entries(tape.data ?? {})) {
+    const file = join(work, "home", name)
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(file, content, { mode: 0o600 })
+  }
+  for (const line of tape.setup ?? []) {
+    const done = Bun.spawnSync(["bash", "-lc", line], { cwd: project })
+    if (done.exitCode !== 0) {
+      throw new Error(`setup failed: ${line}\n${Buffer.from(done.stderr).toString("utf8")}`)
+    }
   }
 
   // asciicast v2: a header line, then [seconds, "o", output] events. Written as the session runs.

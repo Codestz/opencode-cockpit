@@ -11,10 +11,11 @@
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, realpathSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
+import { FEATURES } from "../packages/opencode/src/features.ts"
 
 const root = join(import.meta.dir, "..")
 // Dependency order, matching the release workflow.
-const PACKAGES = ["protocol", "daemon", "client", "shell", "status", "opencode"]
+const PACKAGES = ["protocol", "daemon", "client", "shell", "status", "review", "opencode"]
 const work = mkdtempSync(join(tmpdir(), "cockpit-pack-"))
 const tarballs = join(work, "tarballs")
 // Short: unix socket paths are limited to 104 bytes on macOS.
@@ -92,10 +93,17 @@ try {
    * They used to share one, which meant the bundle's dependencies could satisfy the standalone
    * package and hide a missing one — exactly the install the docs recommend for a single bay.
    */
+  /**
+   * Every bay, on its own, and the bundle — derived from the bundle's own feature list rather than
+   * written out here. Review shipped while this was a hand-kept list of two: its tarball was built
+   * and published by the same run that never once loaded it.
+   */
   const installs = [
     { name: "bundle", packages: ["opencode-cockpit"] },
-    { name: "shell alone", packages: ["@opencode-cockpit/shell"] },
-    { name: "status alone", packages: ["@opencode-cockpit/status"] },
+    ...FEATURES.map((feature) => ({
+      name: `${feature} alone`,
+      packages: [`@opencode-cockpit/${feature}`],
+    })),
   ]
 
   for (const install of installs) {
@@ -136,7 +144,7 @@ try {
 
     // Each bay draws with Solid, so each bay's published entry has to be transformed output.
     const bays = install.packages.includes("opencode-cockpit")
-      ? ["@opencode-cockpit/shell", "@opencode-cockpit/status"]
+      ? FEATURES.map((feature) => `@opencode-cockpit/${feature}`)
       : install.packages
     for (const bay of bays) {
       const entry = Bun.resolveSync(`${bay}/tui`, dir)
@@ -146,8 +154,17 @@ try {
           throw new Error(`${install.name}: ${entry} is not Solid-compiled output (missing ${marker})`)
         }
       }
-      if (!compiled.includes('from "solid-js"')) {
-        throw new Error(`${install.name}: ${bay}/tui should import solid-js by name, for OpenCode to rewrite`)
+      /**
+       * Solid, if used at all, must be imported *by name* so OpenCode can rewrite it to the host's
+       * copy — two reactive runtimes in one window is the frozen-panel bug.
+       *
+       * Not every bay uses it. Review drives its panel by assignment rather than by signals, because
+       * a slot's tree is read exactly once and nothing inside it is reactive; its compiled entry
+       * therefore imports `@opentui/solid` for `createComponent` and no Solid primitives at all.
+       * Requiring the import would be requiring a dependency for its own sake.
+       */
+      if (compiled.includes("solid-js") && !compiled.includes('from "solid-js"')) {
+        throw new Error(`${install.name}: ${bay}/tui must import solid-js by name, for OpenCode to rewrite`)
       }
     }
     if (install.packages.includes("opencode-cockpit")) {
