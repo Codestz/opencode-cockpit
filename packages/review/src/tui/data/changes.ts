@@ -5,7 +5,7 @@
  * you actually want to read something: you usually open a conversation about work that already exists.
  * Branch is the default for that reason.
  *
- * Plain callbacks, no signals. The panel is driven by assignment (see `render/rows.ts`), so a store
+ * Plain callbacks, no signals. The panel is driven by assignment (see `view/pool.ts`), so a store
  * that pushed reactive state into a slot would be pushing it somewhere nothing reads it.
  */
 

@@ -1,10 +1,56 @@
 /** @jsxImportSource @opentui/solid */
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
-import type { Thread } from "../core/model/thread.ts"
-import { cardRows } from "../core/view/card.ts"
-import type { Fill, Row, Tone } from "../core/view/rows.ts"
-import { languageOf, type SyntaxState, tokenize } from "../core/view/syntax/index.ts"
-import { fillColour, toneColour } from "./render/rows.ts"
+import { type Thread, threadWhere } from "../../core/model/thread.ts"
+import { cardRows } from "../../core/view/card.ts"
+import type { Fill, Row, Tone } from "../../core/view/rows.ts"
+import { languageOf, type SyntaxState, tokenize } from "../../core/view/syntax/index.ts"
+import { fillColour, toneColour } from "../view/pool.ts"
+
+/**
+ * What each dialog says.
+ *
+ * Kept here rather than beside the verbs that open them: a verb is about what changes, and none of
+ * these sentences change anything. They were three blocks of copy in the middle of `panel/actions.ts`,
+ * which is how "nothing is sent until you submit the review" ended up written three slightly
+ * different ways.
+ */
+export const noteFields = (
+  file: string,
+  where: { from?: number; to?: number; existing?: Thread; quoted?: string[] },
+): AskOptions => ({
+  title: where.existing
+    ? `Reply · ${file}:${threadWhere(where.existing)}`
+    : where.from === undefined
+      ? `Note on ${file}`
+      : where.to !== undefined && where.to > where.from
+        ? `Note on ${file}:${where.from}-${where.to}`
+        : `Note on ${file}:${where.from}`,
+  description: where.existing
+    ? "Continues the thread. Nothing is sent until you submit."
+    : where.from === undefined
+      ? "About the file as a whole. Nothing is sent until you submit."
+      : "Nothing is sent until you submit the review.",
+  ...(where.existing ? { thread: where.existing } : {}),
+  /** The lines being commented on, so a note is not written blind either. */
+  ...(where.quoted ? { quoted: where.quoted } : {}),
+})
+
+export const replyFields = (thread: Thread): AskOptions => ({
+  title: `Reply · ${thread.file}`,
+  description:
+    thread.status === "resolved"
+      ? "Replying reopens this thread, so the agent sees it again."
+      : "Continues the thread. Nothing is sent until you submit.",
+  thread,
+  ...(thread.quoted ? { quoted: thread.quoted } : {}),
+})
+
+/** A covering sentence is optional, so this is the one dialog that accepts an empty answer. */
+export const submitFields = (label: string, comments: number): AskOptions => ({
+  title: `Submit · ${label}`,
+  description: `${comments} comment${comments === 1 ? "" : "s"} go to the agent. A sentence of your own is optional.`,
+  allowEmpty: true,
+})
 
 export interface AskOptions {
   title: string

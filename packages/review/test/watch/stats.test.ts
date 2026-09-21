@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { createMeter } from "../../src/core/perf.ts"
-import { footerRows } from "../../src/core/view/layout.ts"
+import { footerRows } from "../../src/core/view/chrome.ts"
 import { hitRate, statsLines, statsRuns } from "../../src/core/view/stats.ts"
 
 const text = (runs: { text: string }[]) => runs.map((run) => run.text).join("")

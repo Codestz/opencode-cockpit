@@ -174,3 +174,16 @@ export function wrapText(text: string, width: number): string[] {
 
 /** Total width of a row, for asserting that nothing draws wider than the space it was given. */
 export const rowWidth = (row: Row): number => row.runs.reduce((sum, run) => sum + run.text.length, 0)
+
+/**
+ * Everything on these rows, drawn dimmer.
+ *
+ * How an inactive pane says so. The alternative — a bright border around the active one — adds a line
+ * to look at in order to say something about the pane you are already looking at, and two bright
+ * borders on screen at once is how a terminal UI starts to look like a cockpit warning panel.
+ *
+ * Applied after windowing, like the cursor, so it costs the rows on screen and not the file.
+ */
+export function faint(rows: readonly Row[]): Row[] {
+  return rows.map((row) => ({ ...row, runs: row.runs.map((run) => ({ ...run, faint: true })) }))
+}

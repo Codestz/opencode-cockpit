@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { emptyReview, open } from "../../src/core/model/review.ts"
-import { diffRows, layout } from "../../src/core/view/layout.ts"
+import { diffRows } from "../../src/core/view/diff.ts"
+import { layout } from "../../src/core/view/layout.ts"
 import { rowWidth } from "../../src/core/view/rows.ts"
 
 /**

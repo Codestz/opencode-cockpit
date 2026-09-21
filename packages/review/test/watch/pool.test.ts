@@ -3,7 +3,7 @@ import type { TuiThemeCurrent } from "@opencode-ai/plugin/tui"
 import type { TextRenderable } from "@opentui/core"
 import { metrics } from "../../src/core/perf.ts"
 import type { Row } from "../../src/core/view/rows.ts"
-import { createRowPool } from "../../src/tui/render/rows.ts"
+import { createRowPool } from "../../src/tui/view/pool.ts"
 
 /**
  * The pool is where a frame is actually spent: composing rows measures at well under a tenth of a
