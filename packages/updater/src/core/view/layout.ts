@@ -74,7 +74,9 @@ export function listRows(
     Math.max(floor, Math.min(cap, Math.max(0, ...texts.map((t) => t.length)) + 2))
   const name = widest(["plugin", ...plans.map((p) => p.label ?? p.name)], 12, 36)
   const room = width - mark - name - RUNNING - PUBLISHED - STATE
-  const config = Math.max(10, Math.min(room, widest(["config", ...plans.map(configOf)], 10, 60)))
+  // Capped low on purpose: a spec is a word, and one long checkout path must not push every version
+  // away from its spec. The path is the least important thing here, so it is what gets cut.
+  const config = Math.max(10, Math.min(room, widest(["config", ...plans.map(configOf)], 10, 30)))
   const header: Row = {
     runs: fit(
       [

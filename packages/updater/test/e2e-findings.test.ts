@@ -147,8 +147,8 @@ describe("seen against a real install", () => {
     const text = listRows(found.plans, 90)
       .map((r) => r.runs.map((run) => run.text).join(""))
       .join("\n")
-    // The path fits whole now the column is sized to it, and the checkout's version is shown.
-    expect(text).toMatch(/^opencode-cockpit +\/work\/cockpit\/packages\/opencode +local/m)
+    // A long path is cut from the left, keeping the end that names the package.
+    expect(text).toMatch(/^opencode-cockpit +…\S*packages\/opencode +local/m)
   })
 
   test("keys read like Shell and Review: [key] Label, and a hint never splits", () => {
@@ -193,5 +193,29 @@ describe("seen against a real install", () => {
     const narrow = paint(reviewRows(plan ? [plan] : [], 90, "/home/me"), false)
     expect(narrow).toContain("opencode-subagent-statusline@1.3.0")
     expect(narrow).toMatch(/…\S*tui\.json/)
+  })
+
+  test("one long local path does not push every version away from its spec", () => {
+    const f = { path: "/c/o.json", scope: "global" as const, owner: "command" as const, cwd: "/" }
+    const long = "/Users/someone/Documents/PersonalProjects/opencode-cockpit/packages/opencode"
+    const plans = buildPlan({
+      plugins: [
+        { name: "x", source: "npm", running: "1.2.3" },
+        { name: long, source: "file", label: "opencode-cockpit" },
+      ],
+      entries: [
+        { file: f, spec: parseSpec("x@latest") },
+        { file: f, spec: parseSpec(long) },
+      ],
+      published: new Map([["x", "1.3.0"]]),
+      cacheDirs: new Map(),
+    })
+    const row = paint(listRows(plans, 110), false)
+      .split("\n")
+      .find((l) => l.startsWith("x "))
+    expect(row).toBeDefined()
+    // `latest  ⚠` and `1.3.0` sit within a few columns of each other, whatever the path's length.
+    const gap = (row ?? "").indexOf("1.3.0") - ((row ?? "").indexOf("⚠") + 1)
+    expect(gap).toBeLessThanOrEqual(24)
   })
 })
