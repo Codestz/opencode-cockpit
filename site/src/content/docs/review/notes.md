@@ -59,6 +59,32 @@ handing it back would be asking for the same work twice.
 
 ## When the code moves
 
-A thread whose quoted lines no longer read the same is marked as having moved, in the panel and in
-what the agent is told. It is still readable and still answerable; the point of saying so is that an
-answer about code that has changed may be answering a question that no longer exists.
+A comment is anchored to **the lines it quoted**, never to a commit. Committing does not change the
+code, only where git keeps it — so a comment anchored to a commit would be orphaned by the act it
+most needs to survive, and every amend would rewrite the id it hung from. The commit is recorded on
+the thread as provenance and nothing looks it up to find anything.
+
+That gives three answers rather than two:
+
+| | what it means | what happens |
+| --- | --- | --- |
+| **current** | the quoted lines are still where they were | nothing |
+| **moved** | the same lines, elsewhere in the file | the comment follows the code; the agent is told the new line |
+| **outdated** | the lines are not in the file at all | `[OUTDATED]`, muted, and **held back from a submit** |
+
+The distinction matters in both directions. An edit above a comment must not make the comment look
+broken, so *moved* re-anchors silently. A comment about code that no longer exists must stop being
+handed over as work, so *outdated* is held back — and the panel says how many it held back, because
+a comment that quietly did not go is worse than one that went.
+
+The lines are matched as a block, never line by line. A single `}` matches in fifty places, and
+re-anchoring to the wrong one is worse than admitting the comment is lost.
+
+## When the file leaves the diff
+
+Commit the work you were reviewing and the worktree diff empties. The comments are still true and
+still on disk; what they lost is a file to be drawn against.
+
+They appear at the foot of the file list, under the files that do have a diff, showing the code each
+one quoted — which the thread has carried all along. Usually they are one source away: press
+<kbd>b</kbd> for the branch view and they are back against real code.

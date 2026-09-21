@@ -8,7 +8,7 @@
 
 **Give [OpenCode](https://opencode.ai) the instruments it does not ship with.**
 
-**[Documentation →](https://codestz.github.io/opencode-cockpit/)**  ·  [Install](https://codestz.github.io/opencode-cockpit/start/install/)  ·  [Shell](https://codestz.github.io/opencode-cockpit/shell/overview/)  ·  [Statusline](https://codestz.github.io/opencode-cockpit/status/overview/)  ·  [Changelog](CHANGELOG.md)
+**[Documentation →](https://codestz.github.io/opencode-cockpit/)**  ·  [Install](https://codestz.github.io/opencode-cockpit/start/install/)  ·  [Shell](https://codestz.github.io/opencode-cockpit/shell/overview/)  ·  [Review](https://codestz.github.io/opencode-cockpit/review/overview/)  ·  [Statusline](https://codestz.github.io/opencode-cockpit/status/overview/)  ·  [Changelog](CHANGELOG.md)
 
 A tool call has to finish. A dev server does not, and neither does the context window filling up
 behind you. Cockpit is the instrument panel: things your agent can use, and things that tell you
@@ -34,6 +34,22 @@ every one of them reports its own health.
 ships.*
 
 **9 agent tools · 35 watch presets · [docs](https://codestz.github.io/opencode-cockpit/shell/overview/) · [`@opencode-cockpit/shell`](packages/shell)**
+
+---
+
+### 🔍  Review — a pull request in the terminal
+
+Reviewing what your agent wrote means reading a diff in a chat log and describing your objection in
+prose. **Review** gives you the diff where the work happened, comments on the lines they are about,
+and an agent that can read them, answer them and mark them resolved — which a chat message cannot do.
+
+Comments live on the branch rather than in the chat, so they outlive the conversation. `s` hands them
+over; the agent fetches them with `review_list`, changes the code, and answers with
+`review_reply resolved=true`. That resolve is **checked against the file**: a thread remembers the
+lines it was written against, so "done" over an untouched file is recorded as a reply and the thread
+stays open for you.
+
+**3 agent tools · 12 filetypes · [docs](https://codestz.github.io/opencode-cockpit/review/overview/) · [`@opencode-cockpit/review`](packages/review)**
 
 ---
 
@@ -205,17 +221,8 @@ Each shell's output feeds three views at once: a normalized **log** for the agen
 
 Not a roadmap of promises — the next thing, and why it is next.
 
-**Review — a pull request, in the terminal.** A turn ends and you read the whole diff at once, or
-you read none of it and hope. GitHub solved the reading part years ago: comment on a line, comment
-on a file, mark a file read, suggest the change instead of describing it — and nothing reaches the
-author until you press *submit review*. The same shape fits here, with the review going to the chat
-as one message instead of six interruptions.
-
-OpenCode already exposes what it needs: `session.diff` returns each file's `before` and `after` in
-full, `session.revert` undoes a single message or part, and a plugin can write to the prompt. What
-is missing is the view and the keys.
-
-**Doctor.** One command that checks your setup and says how to fix it.
+**Doctor.** One command that checks your setup and says how to fix it: which halves are loaded,
+which keys collide, whether a daemon is running code older than the plugin talking to it.
 
 ## Contributing
 

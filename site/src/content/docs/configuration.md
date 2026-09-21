@@ -3,6 +3,10 @@ title: Configuration
 description: One file for both halves of the plugin — every section, with examples.
 ---
 
+This page is Shell's configuration. The other bays carry their own, because they are their own
+packages: [Statusline](/opencode-cockpit/status/configuration/) and
+[Review](/opencode-cockpit/review/interface/#settings).
+
 Everything is optional. Settings are merged from three places, later winning key by key:
 
 ```

@@ -6,7 +6,8 @@ description: Where the panel sits, every key that drives it, and what the footer
 ## Where it sits
 
 <kbd>&lt;leader&gt;v</kbd> opens and closes the review; <kbd>&lt;leader&gt;r</kbd> cycles where it
-sits. `<leader>` is OpenCode's own prefix, `ctrl+x` unless you changed it.
+sits. `<leader>` is OpenCode's own prefix, `ctrl+x` unless you changed it. From the palette it is
+`/changes` — `/review` and `/diff` belong to OpenCode itself.
 
 | Placement | What it is for |
 | --- | --- |
@@ -15,6 +16,35 @@ sits. `<leader>` is OpenCode's own prefix, `ctrl+x` unless you changed it.
 
 <kbd>w</kbd> switches between them from inside the panel. At half width the file list stays — it
 narrows rather than disappearing, because a review you cannot change file in is a diff viewer.
+
+## Settings
+
+Three, all optional, given where the plugin is listed:
+
+```json title="opencode.json"
+{
+  "plugin": [
+    ["@opencode-cockpit/review", { "variant": "full", "source": "branch" }]
+  ]
+}
+```
+
+| | |
+| --- | --- |
+| `variant` | `right` (default) or `full` — where it opens |
+| `source` | `worktree` (default), `branch`, or `session` — what it opens on |
+| `keybinds` | overrides for the two global keys, e.g. `{ "cockpit.review.open": "<leader>d" }` |
+
+Through the bundle, the same options go under a `review` key:
+
+```json title="opencode.json"
+{
+  "plugin": [["opencode-cockpit", { "review": { "variant": "full" } }]]
+}
+```
+
+The keys *inside* the panel are not configurable. They are a closed set that only exists while the
+panel is open, and the panel gives them straight back when it closes.
 
 ## Keys
 
