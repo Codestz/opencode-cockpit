@@ -173,4 +173,25 @@ describe("seen against a real install", () => {
     // "[enter] Review" does not fit in what is left of 28: it is dropped whole, not cut.
     expect(row.runs.some((r) => r.text.startsWith("[enter]"))).toBe(false)
   })
+
+  test("the review never cuts the new spec: the path gives way first, from the left", () => {
+    const tui = {
+      path: "/home/me/.config/opencode/tui.json",
+      scope: "global" as const,
+      owner: "command" as const,
+      cwd: "/",
+    }
+    const [plan] = buildPlan({
+      plugins: [{ name: "opencode-subagent-statusline", source: "npm", running: "1.2.3" }],
+      entries: [{ file: tui, spec: parseSpec("opencode-subagent-statusline@latest") }],
+      published: new Map([["opencode-subagent-statusline", "1.3.0"]]),
+      cacheDirs: new Map(),
+    })
+    const text = paint(reviewRows(plan ? [plan] : [], 100, "/home/me"), false)
+    expect(text).toContain("opencode-subagent-statusline@latest")
+    expect(text).toContain("opencode-subagent-statusline@1.3.0")
+    const narrow = paint(reviewRows(plan ? [plan] : [], 90, "/home/me"), false)
+    expect(narrow).toContain("opencode-subagent-statusline@1.3.0")
+    expect(narrow).toMatch(/…\S*tui\.json/)
+  })
 })

@@ -194,20 +194,26 @@ function changeRow(change: Change, width: number, home: string | undefined, colu
 /** What an update would do, before it does it. */
 export function reviewRows(plans: readonly PluginPlan[], width: number, home?: string): Row[] {
   const rows: Row[] = []
-  // Sized to what they hold: a spec cut to `opencode-cockpit@late…` hides the one word that matters.
+  /**
+   * Widths by importance, not by position. The new spec is the point of this screen and is never cut;
+   * the old spec comes next; the path gives way first, cut from the left so the file name survives
+   * (`…/opencode/tui.json`). A spec cut to `opencode-subagent-statusli…` hid the one value that
+   * mattered, on a real config, at a real width.
+   */
   const changes = plans.flatMap((plan) => plan.changes)
-  const widest = (texts: string[], cap: number) =>
-    Math.min(cap, Math.max(0, ...texts.map((t) => t.length)) + 2)
-  const columns: Columns = {
-    path: widest(
-      changes.map((c) => tildePath(c.file.path, home)),
-      44,
-    ),
-    from: widest(
-      changes.map((c) => c.from),
-      32,
-    ),
-  }
+  const longest = (texts: string[]) => Math.max(0, ...texts.map((t) => t.length))
+  const tagRoom = changes.some((c) => c.file.owner === "manual")
+    ? 15
+    : changes.some((c) => c.file.scope === "project")
+      ? 10
+      : 0
+  const to = longest(changes.map((c) => c.to))
+  let from = longest(changes.map((c) => c.from)) + 2
+  let path = longest(changes.map((c) => tildePath(c.file.path, home))) + 2
+  const over = () => 2 + path + from + 4 + to + tagRoom - width
+  if (over() > 0) path = Math.max(14, path - over())
+  if (over() > 0) from = Math.max(14, from - over())
+  const columns: Columns = { path, from }
   plans.forEach((plan, i) => {
     if (i > 0) rows.push({ runs: fit([], width) })
     rows.push(band(plan, width))
