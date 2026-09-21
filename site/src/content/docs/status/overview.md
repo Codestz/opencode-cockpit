@@ -89,7 +89,7 @@ Use the first that fits.
 ## Install
 
 ```sh
-opencode plugin @opencode-cockpit/status --global
+opencode plugin @opencode-cockpit/status@0.4.3 --global --force
 ```
 
 Or get it with every other bay through the `opencode-cockpit` bundle.

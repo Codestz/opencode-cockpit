@@ -3,13 +3,12 @@
 import { createBindingLookup, type TuiPlugin, type TuiPluginModule } from "@opencode-ai/plugin/tui"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
 import { createSignal } from "solid-js"
-import pkg from "../../package.json" with { type: "json" }
 import { createClient } from "../connect.ts"
 import { type CockpitConfig, loadConfig } from "../core/config.ts"
 import { Console } from "./components/console.tsx"
 import { Dock } from "./components/dock.tsx"
 import { SidebarShells } from "./components/sidebar.tsx"
-import { announceUpdate, newShell, offerUpdate, pickShell, restartDaemon, stopShells } from "./dialogs.tsx"
+import { newShell, pickShell, restartDaemon, stopShells } from "./dialogs.tsx"
 import { createShellStore } from "./state/store.ts"
 
 const DEFAULT_KEYS = {
@@ -21,7 +20,6 @@ const DEFAULT_KEYS = {
 export type ShellTuiOptions = NonNullable<CockpitConfig["ui"]>
 
 const SHELL_PACKAGE = "@opencode-cockpit/shell"
-const _PACKAGE_NAME = pkg.name
 
 /** Shell's TUI half as a factory, so bundles such as `opencode-cockpit` can include it. */
 export function createShellTui({ source = SHELL_PACKAGE }: { source?: string } = {}): TuiPlugin {
@@ -42,7 +40,7 @@ export function createShellTui({ source = SHELL_PACKAGE }: { source?: string } =
   }
 }
 
-const shellTui: TuiPlugin = async (api, rawOptions, meta) => {
+const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
   // Settings come from the shared config file; plugin-entry options still win, flat or under "ui".
   const config = loadConfig(api.state.path.directory, rawOptions)
   const options: ShellTuiOptions = config.ui ?? {}
@@ -146,14 +144,6 @@ const shellTui: TuiPlugin = async (api, rawOptions, meta) => {
         },
       },
       {
-        name: "cockpit.shells.update",
-        title: "Update opencode-cockpit",
-        category: "Shells",
-        namespace: "palette",
-        slashName: "cockpit-update",
-        run: () => offerUpdate(api, meta, pkg.version),
-      },
-      {
         name: "cockpit.shells.restartDaemon",
         title: "Restart shell daemon",
         category: "Shells",
@@ -211,7 +201,6 @@ const shellTui: TuiPlugin = async (api, rawOptions, meta) => {
   })
 
   // OpenCode never re-resolves an installed plugin spec, so check for a newer release ourselves.
-  if (options.updateCheck !== false) void announceUpdate(api, meta, pkg.version)
 
   // A daemon from older plugin code is kept only while it runs shells; say so once.
   const offOutdated = client.onOutdated((info) => {

@@ -20,6 +20,9 @@
       "path": "packages/review"
     },
     {
+      "path": "packages/updater"
+    },
+    {
       "path": "packages/opencode"
     }
   ]

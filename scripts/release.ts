@@ -37,7 +37,17 @@ function revert(): void {
   if (!mutated || dryRun) return
   mutated = false
   const restore = Bun.spawnSync(
-    ["git", "checkout", "--", "package.json", "packages", "bun.lock", "CHANGELOG.md"],
+    [
+      "git",
+      "checkout",
+      "--",
+      "package.json",
+      "packages",
+      "bun.lock",
+      "CHANGELOG.md",
+      "README.md",
+      "site/src",
+    ],
     { cwd: root, stdout: "pipe", stderr: "pipe" },
   )
   console.error(

@@ -48,6 +48,31 @@ for (const dir of packageDirs()) {
 }
 await Bun.write(lockPath, lock)
 
+/**
+ * Install lines pin the version, because OpenCode never re-resolves a plugin spec: a bare name or
+ * `@latest` stays on whatever it installed first. So every pinned line has to name the release being
+ * cut — a stale pin is the same frozen install with extra steps. Only lines that already carry a
+ * version are touched; the site's changelog is history and keeps what it said.
+ */
+const docs = [
+  join(root, "README.md"),
+  ...packageDirs().map((dir) => join(root, "packages", dir, "README.md")),
+  ...[...new Bun.Glob("site/src/content/docs/**/*.{md,mdx}").scanSync(root)]
+    .filter((file) => !file.endsWith("help/changelog.md"))
+    .map((file) => join(root, file)),
+  join(root, "site/src/data/landing.ts"),
+]
+const pinned = /(opencode plugin (?:opencode-cockpit|@opencode-cockpit\/[a-z]+))@\d+\.\d+\.\d+(?:-[\w.]+)?/g
+for (const file of docs) {
+  if (!existsSync(file)) continue
+  const text = await Bun.file(file).text()
+  const next = text.replace(pinned, `$1@${version}`)
+  if (next !== text) {
+    await Bun.write(file, next)
+    console.log(`${file.slice(root.length + 1)}: install lines → ${version}`)
+  }
+}
+
 const verify = Bun.spawnSync(["bun", "install", "--frozen-lockfile"], {
   cwd: root,
   stdout: "inherit",

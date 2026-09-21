@@ -15,13 +15,15 @@ OpenCode is an excellent terminal agent flying without instruments. Cockpit is t
 | --- | --- | --- |
 | **[Shell](/opencode-cockpit/shell/overview/)** | Terminals that keep running — it starts them, waits for "ready", reads the part that matters | A live panel of every process, with health it reports itself |
 | **[Statusline](/opencode-cockpit/status/overview/)** | — | The session at a glance: how full the context is, where the tokens went, what changed, how long |
+| **[Review](/opencode-cockpit/review/overview/)** | Comments it can read, answer and resolve — a resolve is checked against the file | The diff where the work happened, with notes on the lines they are about |
+| **[Updater](/opencode-cockpit/updater/overview/)** | — | Every plugin you have: what is really running, what is published, and an update checked against disk |
 
 Each is its own npm package with a switch in config. Take the suite or a single bay; either way it
 is the same daemon, the same config file and the same keys, so moving between them changes nothing
 you have already set up.
 
-**[Review](/opencode-cockpit/platform/bays/)** is next: a pull request in the terminal, where
-comments on lines and files batch up and reach the chat as one message.
+**[Doctor](/opencode-cockpit/platform/bays/)** is next: one command that checks your setup and says
+how to fix it.
 
 ## Why a platform and not two plugins
 

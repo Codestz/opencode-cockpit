@@ -28,8 +28,16 @@ A newer plugin connected, but shells were running so the daemon was kept. Run
 
 ## I updated but nothing changed
 
-OpenCode resolves an unpinned plugin spec once and caches it. Run `/cockpit-update`, which clears the
-cache entry, then restart. To check which build is actually running:
+OpenCode resolves a plugin spec once and caches it for ever, so `@latest` — or no version at all —
+stays on the release it first installed. Run `/plugins-update`, or from a shell, whatever version you
+are on:
+
+```sh
+npx opencode-cockpit@latest update
+```
+
+It pins the newest version, clears the stale cache, and checks both files; then restart. To check
+which build is actually running:
 
 ```sh
 grep '"daemon started"' ~/.cache/opencode-cockpit/cockpitd.log | tail -1

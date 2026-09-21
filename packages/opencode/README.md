@@ -93,7 +93,7 @@ keeping line numbers and highlighting matches — and output keeps the colours t
 | `ctrl+x i` · `/shell` | Open the shell console |
 | `/shell-new` | Start a shell yourself |
 | `/shells-clear` | Remove finished shells |
-| `/cockpit-update` | Update the plugin when a newer release exists |
+| `/plugins-update` | Every plugin you have installed: what runs, what is published, and an update checked against disk |
 
 Status reads the same everywhere — `RUN` (with a spinner), `FAIL`, `STOP`, `DONE` — running shells
 and recent failures stay in view, the rest folds behind `▸ N more`. In the console: `i` types
@@ -105,13 +105,24 @@ switches between the live screen and the scrollback, `?` shows details.
 **Everything**
 
 ```sh
-opencode plugin opencode-cockpit --global
+opencode plugin opencode-cockpit@0.4.3 --global --force
 ```
 
 **Only what you want**
 
 ```sh
-opencode plugin @opencode-cockpit/shell --global
+opencode plugin @opencode-cockpit/shell@0.4.3 --global --force
+```
+
+The version is pinned on purpose. OpenCode resolves a plugin spec once and never again, so a
+bare `opencode-cockpit` or `@latest` stays on whatever it installed first. `--force` replaces an
+entry you already have, so the same line is also how you move to a newer release.
+
+**Stuck on an old version?** This runs outside OpenCode, from npm, so it works whatever you have
+installed — and shows every plugin you have, not just this one:
+
+```sh
+npx opencode-cockpit@latest update     # or: bunx opencode-cockpit@latest update
 ```
 
 Restart OpenCode. Requires OpenCode 1.18+ on macOS or Linux. Install a feature either through

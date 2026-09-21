@@ -51,6 +51,14 @@ export interface Tape {
   startupMs?: number
   /** Plugin spec to load. Defaults to this checkout; an npm spec tests what users actually get. */
   plugin?: string
+  /**
+   * Give this session a plugin cache of its own, and an npm cache with it.
+   *
+   * Off by default: every other tape loads this checkout and has no use for one. The updater's tape
+   * needs a plugin frozen behind `@latest`, and that must never be arranged in the plugin cache of
+   * the machine doing the recording. `setup` sees the same directories, so it can `opencode plugin`.
+   */
+  sandboxCache?: boolean
   /** Driven before recording starts: setup nobody needs to watch (starting the shells, say). */
   warmup?: Step[]
   steps: Step[]
@@ -108,8 +116,17 @@ async function record(tape: Tape): Promise<string> {
     mkdirSync(dirname(file), { recursive: true })
     writeFileSync(file, content, { mode: 0o600 })
   }
+  /** Where this session keeps its state — the same for `setup` as for OpenCode itself. */
+  const sandbox: Record<string, string> = {
+    XDG_CONFIG_HOME: join(work, "config"),
+    XDG_DATA_HOME: join(work, "data"),
+    COCKPIT_HOME: join(work, "home"),
+    ...(tape.sandboxCache
+      ? { XDG_CACHE_HOME: join(work, "cache"), npm_config_cache: join(work, "npm-cache") }
+      : {}),
+  }
   for (const line of tape.setup ?? []) {
-    const done = Bun.spawnSync(["bash", "-lc", line], { cwd: project })
+    const done = Bun.spawnSync(["bash", "-lc", line], { cwd: project, env: { ...process.env, ...sandbox } })
     if (done.exitCode !== 0) {
       throw new Error(`setup failed: ${line}\n${Buffer.from(done.stderr).toString("utf8")}`)
     }
@@ -131,9 +148,7 @@ async function record(tape: Tape): Promise<string> {
     cwd: project,
     env: {
       ...process.env,
-      XDG_CONFIG_HOME: join(work, "config"),
-      XDG_DATA_HOME: join(work, "data"),
-      COCKPIT_HOME: join(work, "home"),
+      ...sandbox,
       TERM: "xterm-256color",
       COLORTERM: "truecolor",
     },
