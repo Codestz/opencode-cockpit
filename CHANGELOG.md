@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-21
+
 ### Fixed
 
 - **A file containing `@` before a bracket or a space no longer freezes the interface.** The Review
@@ -379,7 +381,8 @@ All notable changes to this project are documented here. The format follows
 - Daemon lifecycle: on-demand start, single instance under concurrent starts, idle shutdown,
   replacement of outdated idle daemons, orphan reaping after crashes.
 
-[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.3.2...HEAD
+[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/Codestz/opencode-cockpit/compare/v0.3.2...v0.4.0
 [0.3.2]: https://github.com/Codestz/opencode-cockpit/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/Codestz/opencode-cockpit/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/Codestz/opencode-cockpit/compare/v0.2.2...v0.3.0
