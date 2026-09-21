@@ -15,6 +15,8 @@ function ink(theme: TuiThemeCurrent, tone: Tone | undefined) {
       return theme.diffRemoved
     case "warning":
       return theme.warning
+    case "accent":
+      return theme.accent
     default:
       return theme.text
   }
@@ -37,9 +39,13 @@ export function Rows(props: { theme: () => TuiThemeCurrent; rows: () => Row[] })
                 return (
                   <span
                     style={{
-                      fg: run.faint ? props.theme().textMuted : ink(props.theme(), run.tone),
+                      fg: ink(props.theme(), run.tone),
                       ...(bg ? { bg } : {}),
                       ...(run.bold ? { bold: true } : {}),
+                      // Faint is the terminal's own DIM bit, not a second grey: a row this screen
+                      // cannot act on recedes behind rows that are merely quiet. The host's span takes
+                      // `bold`/`dim` flags; a raw `attributes` number was measured to draw neither.
+                      ...(run.faint ? { dim: true } : {}),
                     }}
                   >
                     {run.text}

@@ -8,10 +8,11 @@ import { paint } from "../src/cli/ansi.ts"
 import { type Io, update } from "../src/cli/run.ts"
 import { installedVersion, specDir } from "../src/core/cache.ts"
 import { memoryDisk } from "../src/core/disk.ts"
+import { gather } from "../src/core/gather.ts"
 import { buildPlan, collectPlugins } from "../src/core/plan.ts"
 import { fetchLatest } from "../src/core/registry.ts"
 import { parseSpec } from "../src/core/spec.ts"
-import { reviewRows } from "../src/core/view/layout.ts"
+import { keyRow, listRows, reviewRows } from "../src/core/view/layout.ts"
 
 const CACHE = "/home/me/.cache/opencode"
 
@@ -87,5 +88,85 @@ describe("seen against a real install", () => {
       ],
     )
     expect(plugins).toEqual([{ name: "/work/plugins/shell", source: "file" }])
+  })
+
+  // Seen in a real OpenCode, against the approved mock (a screenshot, not a smoke test: text alone
+  // cannot show any of these).
+  test("the cursor is an accent mark in the margin, as in the mock", () => {
+    const plans = buildPlan({
+      plugins: [
+        { name: "a", source: "npm", running: "1.0.0" },
+        { name: "b", source: "npm", running: "1.0.0" },
+      ],
+      entries: [],
+      published: new Map([
+        ["a", "1.0.0"],
+        ["b", "1.0.0"],
+      ]),
+      cacheDirs: new Map(),
+    })
+    const [, first, second] = listRows(plans, 80, { cursor: 0, selected: new Set() })
+    expect(first?.runs[0]).toMatchObject({ text: "▌", tone: "accent" })
+    expect(first?.runs[0]?.faint).toBeFalsy()
+    expect(second?.runs[0]?.text).toBe(" ")
+  })
+
+  test("what the screen cannot act on is faint, not merely quiet", () => {
+    const plans = buildPlan({
+      plugins: [
+        { name: "current", source: "npm", running: "1.0.0" },
+        { name: "/work/plugin", source: "file" },
+      ],
+      entries: [],
+      published: new Map([["current", "1.0.0"]]),
+      cacheDirs: new Map(),
+    })
+    const rows = listRows(plans, 80)
+    const row = (name: string) => rows.find((r) => r.target === name)
+    expect(row("current")?.runs.every((run) => !run.faint)).toBe(true)
+    expect(
+      row("/work/plugin")
+        ?.runs.filter((run) => run.text.trim())
+        .every((run) => run.faint),
+    ).toBe(true)
+  })
+
+  test("a local plugin is called by its package name, and its path is the config", async () => {
+    const found = await gather({
+      env: {},
+      home: "/home/me",
+      disk: memoryDisk({
+        "/home/me/.config/opencode/tui.json": '{"plugin": ["/work/cockpit/packages/opencode"]}',
+        "/work/cockpit/packages/opencode/package.json": '{"name": "opencode-cockpit"}',
+      }),
+      fetchLatest: async () => new Map(),
+    })
+    const text = listRows(found.plans, 90)
+      .map((r) => r.runs.map((run) => run.text).join(""))
+      .join("\n")
+    expect(text).toMatch(/^opencode-cockpit +…\S*opencode +local/m)
+  })
+
+  test("keys read like Shell and Review: [key] Label, and a hint never splits", () => {
+    const row = keyRow(
+      [
+        ["space", "Select"],
+        ["enter", "Review"],
+        ["esc", "Close"],
+      ],
+      28,
+    )
+    expect(
+      row.runs
+        .map((r) => r.text)
+        .join("")
+        .trimEnd(),
+    ).toBe("[space] Select")
+    expect(row.runs.slice(0, 2)).toEqual([
+      { text: "[space]", tone: "accent", bold: true },
+      { text: " Select", tone: "muted" },
+    ])
+    // "[enter] Review" does not fit in what is left of 28: it is dropped whole, not cut.
+    expect(row.runs.some((r) => r.text.startsWith("[enter]"))).toBe(false)
   })
 })

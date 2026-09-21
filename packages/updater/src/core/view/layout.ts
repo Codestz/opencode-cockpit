@@ -89,10 +89,14 @@ export function listRows(all: readonly PluginPlan[], width: number, selection?: 
               : { text: "" }
     const runs: Run[] = [
       ...(selection
-        ? [on({ text: cell(acting ? (selection.selected.has(plan.name) ? "[x]" : "[ ]") : "", mark) })]
+        ? [
+            // The cursor is one coloured cell in the margin — the whole focus treatment, as in Review.
+            on(selection.cursor === i ? { text: "▌", tone: "accent", faint: false } : { text: " " }),
+            on({ text: cell(acting ? (selection.selected.has(plan.name) ? "[x]" : "[ ]") : "", mark - 1) }),
+          ]
         : []),
       // A path is cut from the left: its end is the part that says which plugin it is.
-      on({ text: plan.state === "local" ? `${cellLeft(plan.name, name - 2)}  ` : cell(plan.name, name) }),
+      on({ text: cell(plan.label ?? plan.name, name) }),
       on({ text: cell(plan.running ?? "", RUNNING) }),
       on(
         acting && plan.frozen
@@ -256,15 +260,19 @@ export function titleRow(title: string, note: string, width: number): Row {
   }
 }
 
-/** The footer's keys, `[key] Label` spaced, dropping from the right when the row is too narrow. */
+/**
+ * The footer's keys in the shape Shell and Review use: `[key]` in the accent, the label muted, three
+ * spaces between. A bracketed key is recognised rather than read. Hints drop from the right when the
+ * row is too narrow, never cut in half.
+ */
 export function keyRow(keys: readonly (readonly [string, string])[], width: number): Row {
   const runs: Run[] = []
   let used = 0
   for (const [key, label] of keys) {
-    const size = key.length + 2 + 1 + label.length + (runs.length > 0 ? 3 : 0)
+    const size = (runs.length > 0 ? 3 : 0) + key.length + 2 + 1 + label.length
     if (used + size > width) break
     if (runs.length > 0) runs.push({ text: "   " })
-    runs.push({ text: ` ${key} `, fill: "key" }, { text: ` ${label}` })
+    runs.push({ text: `[${key}]`, tone: "accent", bold: true }, { text: ` ${label}`, tone: "muted" })
     used += size
   }
   return { runs: fit(runs, width) }

@@ -3,6 +3,7 @@
  * no host, and the dialog, which also knows what the host loaded.
  */
 
+import { join } from "node:path"
 import {
   cacheDirsFor,
   cacheRoot,
@@ -12,7 +13,7 @@ import {
   runningVersion,
 } from "./cache.ts"
 import { type ConfigFile, configFiles, readConfigs, type Where } from "./configs.ts"
-import type { Disk } from "./disk.ts"
+import { type Disk, readJson } from "./disk.ts"
 import { buildPlan, collectPlugins, type Listed, type PluginPlan } from "./plan.ts"
 import { parseSpec } from "./spec.ts"
 
@@ -40,6 +41,10 @@ export async function gather(io: GatherIo): Promise<Gathered> {
   const listed = io.listed ?? []
 
   const plugins = collectPlugins(listed, read.entries).map((plugin) => {
+    if (plugin.source === "file") {
+      const label = packageNameAt(io.disk, plugin.name)
+      return label === undefined ? plugin : { ...plugin, label }
+    }
     if (plugin.source !== "npm") return plugin
     const running = runningOf(io, root, plugin.name, listed, read.entries)
     return running === undefined ? plugin : { ...plugin, running }
@@ -59,6 +64,15 @@ export async function gather(io: GatherIo): Promise<Gathered> {
     )
   }
   return { plans, errors: read.errors, warnings, files, root }
+}
+
+/** The name in the `package.json` at a local plugin's path, or beside the file it points at. */
+function packageNameAt(disk: Disk, path: string): string | undefined {
+  for (const dir of [path, path.slice(0, path.lastIndexOf("/"))]) {
+    const name = (readJson(disk, join(dir, "package.json")) as { name?: unknown } | undefined)?.name
+    if (typeof name === "string") return name
+  }
+  return undefined
 }
 
 /**

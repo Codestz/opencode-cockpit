@@ -14,14 +14,14 @@ export type Tone =
   | "removed"
   /** A spec that will not move on its own; a registry that did not answer. */
   | "warning"
+  /** The cursor's margin: the whole focus treatment, one cell wide. */
+  | "accent"
 
 export type Fill =
   | "none"
   /** A plugin's heading in the review and the result: the band is the boundary, no box needed. */
   | "band"
   | "cursor"
-  /** A key in the footer: recognised as a shape rather than read. */
-  | "key"
 
 export interface Run {
   text: string

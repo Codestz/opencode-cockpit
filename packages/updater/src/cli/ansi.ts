@@ -5,8 +5,15 @@
 
 import type { Fill, Row, Run, Tone } from "../core/view/rows.ts"
 
-const TONE: Record<Tone, string> = { text: "", muted: "90", added: "32", removed: "31", warning: "33" }
-const FILL: Record<Fill, string> = { none: "", band: "48;5;236", cursor: "48;5;237", key: "48;5;238" }
+const TONE: Record<Tone, string> = {
+  text: "",
+  muted: "90",
+  added: "32",
+  removed: "31",
+  warning: "33",
+  accent: "36",
+}
+const FILL: Record<Fill, string> = { none: "", band: "48;5;236", cursor: "48;5;237" }
 
 function paintRun(run: Run): string {
   const codes = [

@@ -16,6 +16,8 @@ export interface Plugin {
   source: Source
   /** What is actually running; undefined when nothing says (a server-only plugin not yet read). */
   running?: string
+  /** What to call it when its name is a path: the package name found there. */
+  label?: string
 }
 
 /** What `api.plugins.list()` hands back, minus what the plan does not need. */
@@ -52,6 +54,8 @@ export interface Change {
 
 export interface PluginPlan {
   name: string
+  /** Shown in place of `name` when the name is a path. */
+  label?: string
   source: Source
   running?: string
   published?: string
@@ -162,6 +166,7 @@ export function buildPlan(input: PlanInput): PluginPlan[] {
 
     return {
       name: plugin.name,
+      ...(plugin.label === undefined ? {} : { label: plugin.label }),
       source: plugin.source,
       ...(plugin.running === undefined ? {} : { running: plugin.running }),
       ...(published === undefined ? {} : { published }),
