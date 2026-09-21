@@ -275,4 +275,34 @@ describe("seen against a real install", () => {
     expect(outcome.fixes).toEqual(['sudo chown -R "$(whoami)" ~/.npm', "opencode plugin hooks@0.7.1 -f -g"])
     expect(removed).toEqual([]) // the old copy stays: it is the one that still runs
   })
+
+  test("one config says, two configs say", async () => {
+    const global = {
+      path: "/c/opencode.jsonc",
+      scope: "global" as const,
+      owner: "command" as const,
+      cwd: "/",
+    }
+    const files: Record<string, string> = { "/c/opencode.jsonc": '{"plugin": ["hooks@0.6.1"]}' }
+    const [plan] = buildPlan({
+      plugins: [{ name: "hooks", source: "npm", running: "0.6.1" }],
+      entries: [{ file: global, spec: parseSpec("hooks@0.6.1") }],
+      published: new Map([["hooks", "0.7.1"]]),
+      cacheDirs: new Map(),
+    })
+    if (!plan) throw new Error("no plan")
+    const outcome = await applyPlan(
+      plan,
+      { root: "/cache", files: [global] },
+      {
+        disk: memoryDisk(files),
+        opencode: async () => {
+          files["/c/opencode.jsonc"] = '{"plugin": ["hooks@0.7.1"]}'
+          return { status: 0, output: "" }
+        },
+        remove: () => {},
+      },
+    )
+    expect(outcome.confirmed).toEqual(["1 config says @0.7.1"])
+  })
 })

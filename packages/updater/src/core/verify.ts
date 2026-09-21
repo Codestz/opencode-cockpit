@@ -65,7 +65,7 @@ export function verify(plan: PluginPlan, after: After): Outcome {
   }
   if (pinned > 0) {
     const version = plan.published ?? ""
-    confirmed.push(`${pinned} config${pinned === 1 ? "" : "s"} say @${version}`)
+    confirmed.push(pinned === 1 ? `1 config says @${version}` : `${pinned} configs say @${version}`)
   }
 
   const left = plan.remove.filter((dir) => after.dirs.includes(dir))
