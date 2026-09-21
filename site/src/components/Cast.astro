@@ -15,7 +15,7 @@ interface Props {
   loop?: boolean
 }
 const { name, caption, speed = 1.4, idle = 0.9, autoplay = true, loop = true } = Astro.props
-const src = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/casts/${name}.cast`
+const src = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/casts/${name}.cast.json`
 const id = `cast-${name}-${Math.random().toString(36).slice(2, 8)}`
 ---
 

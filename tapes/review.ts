@@ -86,8 +86,9 @@ const DIR = "review/ck-rec-review-project-main"
 export default {
   name: "review",
   title: "A review of the agent's work, with the agent answering",
-  cols: 132,
-  rows: 34,
+  /** Smaller than the other tapes: fewer cells means fewer escape sequences, and it embeds larger. */
+  cols: 120,
+  rows: 32,
   startupMs: 16_000,
   files: {
     "src/checkout/types.ts": TYPES,

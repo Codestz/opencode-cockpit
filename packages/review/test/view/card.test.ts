@@ -167,3 +167,19 @@ describe("in the room it has", () => {
     }
   })
 })
+
+/**
+ * Found by watching the loop run: the agent resolved a thread by changing the very lines it quoted,
+ * and the panel called the result OUTDATED — erasing the one word that says the thread is finished.
+ */
+describe("when a resolved thread's code has changed", () => {
+  test("it is resolved, which is the whole point", () => {
+    const done = thread({ status: "resolved" })
+    expect(heading(cardRows(done, { width: 70, height: 20 }, "outdated"))).toContain("[RESOLVED]")
+    expect(heading(cardRows(done, { width: 70, height: 20 }, "outdated"))).not.toContain("OUTDATED")
+  })
+
+  test("while one still waiting says so", () => {
+    expect(heading(cardRows(thread(), { width: 70, height: 20 }, "outdated"))).toContain("[OUTDATED]")
+  })
+})

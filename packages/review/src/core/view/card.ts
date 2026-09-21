@@ -45,14 +45,20 @@ const toneFor = (thread: Thread, state: AnchorState): Tone => {
 
 const statusWord = (thread: Thread, state: AnchorState): string => {
   /**
-   * Moved is an aside; outdated replaces the status entirely.
+   * Resolved outranks everything the code has done since.
    *
-   * A thread whose code is gone is not waiting on anybody — there is nothing left to do about it,
-   * and "WAITING · OUTDATED" invites somebody to try.
+   * A resolved thread whose quoted lines are gone is the *expected* ending, not a problem: the agent
+   * changed the code, which is why it is resolved. Saying OUTDATED there erases the one word that
+   * tells you the thread is finished — and it is what this panel drew after the first real run of
+   * the loop, which is how the rule was found.
+   */
+  if (thread.status === "resolved") return "RESOLVED"
+  /**
+   * For anything still waiting, outdated replaces the status entirely. Such a thread is not waiting
+   * on anybody — there is nothing left to do about it — and "WAITING · OUTDATED" invites a try.
    */
   if (state === "outdated") return "OUTDATED"
-  const base =
-    thread.status === "resolved" ? "RESOLVED" : waitingOn(thread) === "you" ? "YOUR TURN" : "WAITING"
+  const base = waitingOn(thread) === "you" ? "YOUR TURN" : "WAITING"
   return state === "moved" ? `${base} · MOVED` : base
 }
 

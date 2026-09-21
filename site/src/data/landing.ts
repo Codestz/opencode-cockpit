@@ -5,6 +5,7 @@
 export const nav = {
   links: [
     { label: "What's fitted", href: "#bays" },
+    { label: "Review", href: "#review" },
     { label: "Shell", href: "#shell" },
     { label: "Statusline", href: "#status" },
     { label: "Platform", href: "#platform" },
