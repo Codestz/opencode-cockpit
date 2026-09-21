@@ -25,7 +25,7 @@ import {
   threadsOnLine,
   toggleRead,
 } from "../../core/model/review.ts"
-import { submission, toolsConfigured } from "../../core/model/submit.ts"
+import { submission, toolsConfigured, waitingOnAgent } from "../../core/model/submit.ts"
 import type { Persistence } from "../../core/store/persist.ts"
 import { keepCursorVisible, navigableRows } from "../../core/view/list.ts"
 import type { Store } from "../data/changes.ts"
@@ -316,13 +316,34 @@ export function createActions(deps: ActionDeps): Actions {
    * leaving a review open over the answer to it is leaving the screen on the wrong thing.
    */
   const submit = () => {
-    const ready = submission(surface.review, { label: queries.label(), tools: hasTools() })
+    /**
+     * The files go in from the first call, so what the dialog counts is what will be sent.
+     *
+     * They were left out here once, which meant the count offered and the count handed over could
+     * differ by however many comments had gone outdated since they were written.
+     */
+    const ready = submission(surface.review, {
+      label: queries.label(),
+      tools: hasTools(),
+      files: queries.contents(),
+    })
     if (!ready) {
-      api.ui.toast({
-        variant: "info",
-        title: "Review",
-        message: "Nothing to hand over — every comment has been answered.",
-      })
+      /**
+       * Three ways to have nothing to submit, and they need three different sentences.
+       *
+       * "Every comment has been answered" was said in all three, including to someone who had not
+       * written a comment yet — which reads as the feature being broken rather than unused.
+       */
+      const waiting = waitingOnAgent(surface.review)
+      const message =
+        surface.review.threads.length === 0
+          ? "Nothing to submit yet — press c on a line to leave a comment."
+          : waiting.length === 0
+            ? "Nothing to hand over — every comment has been answered."
+            : waiting.length === 1
+              ? "Nothing to hand over — the code the last comment is about is gone."
+              : `Nothing to hand over — the code all ${waiting.length} comments are about is gone.`
+      api.ui.toast({ variant: "info", title: "Review", message })
       return
     }
     const id = sessionID()
@@ -406,7 +427,7 @@ export function createActions(deps: ActionDeps): Actions {
     draw()
   }
 
-  /** Branch, uncommitted, this conversation — in that order, round and round. */
+  /** Uncommitted, then the branch, round and round. */
   const nextSource = () => {
     store.setSource(SOURCES[(SOURCES.indexOf(store.source()) + 1) % SOURCES.length] ?? "branch")
     deps.refresh()

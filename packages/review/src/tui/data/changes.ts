@@ -1,9 +1,14 @@
 /**
  * What is under review, and where it came from.
  *
- * Three sources, because `session.diff` — what *this conversation* changed — is empty most of the time
- * you actually want to read something: you usually open a conversation about work that already exists.
- * Branch is the default for that reason.
+ * Two questions a reviewer asks, and git answers both: what have I not committed, and what does this
+ * branch change. Branch is the default, because the work you want to read is usually already
+ * committed by the time you go looking for it.
+ *
+ * There was a third source once — what *this conversation* changed — and it is gone. The host's
+ * `session.diff` returns an empty list for a session whose own snapshots plainly differ, so the mode
+ * could only ever promise something it did not deliver. Cockpit could record the agent's edits itself,
+ * and may yet; until it does, nothing here claims to know which changes were the agent's.
  *
  * Plain callbacks, no signals. The panel is driven by assignment (see `view/pool.ts`), so a store
  * that pushed reactive state into a slot would be pushing it somewhere nothing reads it.
@@ -11,7 +16,7 @@
 
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import { branchChanges, withCounts, worktreeChanges } from "../../core/git/sources.ts"
-import type { ChangeSet, FileChange, Source } from "../../core/model/review.ts"
+import type { ChangeSet, Source } from "../../core/model/review.ts"
 
 export interface Loaded {
   changes: ChangeSet
@@ -39,22 +44,6 @@ export function createStore(api: TuiPluginApi, initial: Source = "branch"): Stor
 
   const directory = () => api.state.path.worktree || api.state.path.directory
 
-  const sessionID = () => {
-    const route = api.route.current
-    return route.name === "session" ? (route.params as { sessionID?: string }).sessionID : undefined
-  }
-
-  /**
-   * The conversation's own changes. `session.diff` hands back every file's before and after in full,
-   * which is what lets the hunks be computed here and the line numbers stay honest.
-   */
-  const fromSession = async (): Promise<Loaded> => {
-    const id = sessionID()
-    if (!id) return { changes: empty("session"), notice: "No conversation open." }
-    const diff = (await api.client.session.diff({ sessionID: id })) as unknown as FileChange[]
-    return { changes: { source: "session", files: withCounts(diff ?? []) } }
-  }
-
   const fromGit = async (which: "worktree" | "branch"): Promise<Loaded> => {
     const cwd = directory()
     const result =
@@ -77,7 +66,7 @@ export function createStore(api: TuiPluginApi, initial: Source = "branch"): Stor
       const ticket = ++inFlight
       busy = true
       try {
-        const loaded = source === "session" ? await fromSession() : await fromGit(source)
+        const loaded = await fromGit(source)
         /** A slower earlier read must not overwrite a faster later one. */
         if (ticket === inFlight) latest = loaded
         return latest

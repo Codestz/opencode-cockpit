@@ -74,4 +74,11 @@ export interface ViewState {
    * set — and the list must not start reaching for one to draw the other.
    */
   elsewhere?: readonly string[]
+  /**
+   * How many comments are waiting on the agent — what pressing `s` would hand over.
+   *
+   * On the footer rather than in a dialog, because the question "is there anything to submit" is one
+   * you have while reading, and the answer was previously only available by pressing the key.
+   */
+  waiting?: number
 }

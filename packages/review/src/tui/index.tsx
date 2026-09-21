@@ -32,7 +32,7 @@ const REVIEW_PACKAGE = "@opencode-cockpit/review"
 /** Above Shell's dock (150), below the statusline (200). */
 const SLOT_ORDER = 180
 
-const SOURCES: Source[] = ["worktree", "branch", "session"]
+const SOURCES: Source[] = ["worktree", "branch"]
 
 export interface ReviewTuiOptions {
   /** Which placement to open in: right | full. */

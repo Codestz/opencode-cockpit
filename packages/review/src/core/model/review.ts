@@ -13,7 +13,6 @@ import {
   anchorOf,
   type Entry,
   hasDrifted,
-  type Range,
   reply,
   type Thread,
   threadId,
@@ -22,8 +21,8 @@ import {
 
 export type { Anchor, Author, Entry, Range, Thread } from "./thread.ts"
 
-/** Session: what this conversation changed. Worktree: what is uncommitted. Branch: vs its base. */
-export type Source = "session" | "worktree" | "branch"
+/** Worktree: what is uncommitted. Branch: what this branch changes against its base. */
+export type Source = "worktree" | "branch"
 
 export interface FileChange {
   path: string
@@ -31,11 +30,6 @@ export interface FileChange {
   after: string
   additions: number
   deletions: number
-  /**
-   * Line ranges this session wrote, for telling an agent's work from what was already on the branch.
-   * Empty while the only source is the session — everything shown is the agent's.
-   */
-  marked?: Range[]
 }
 
 export interface ChangeSet {

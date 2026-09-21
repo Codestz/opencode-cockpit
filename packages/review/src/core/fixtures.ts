@@ -47,7 +47,7 @@ export const FIXTURES: Record<string, { about: string; changes: ChangeSet }> = {
   turn: {
     about: "one turn's work — three files, a mix of edits",
     changes: {
-      source: "session",
+      source: "worktree",
       files: [
         { path: "src/core/config.ts", before: TS_BEFORE, after: TS_AFTER, additions: 11, deletions: 3 },
         {
@@ -72,7 +72,7 @@ export const FIXTURES: Record<string, { about: string; changes: ChangeSet }> = {
   created: {
     about: "a new file, and a deleted one",
     changes: {
-      source: "session",
+      source: "worktree",
       files: [
         { path: "src/core/notices.ts", before: "", after: TS_AFTER, additions: 18, deletions: 0 },
         { path: "src/old/legacy.ts", before: TS_BEFORE, after: "", additions: 0, deletions: 10 },
@@ -84,7 +84,7 @@ export const FIXTURES: Record<string, { about: string; changes: ChangeSet }> = {
   sprawl: {
     about: "forty files — the list is the problem, not the diff",
     changes: {
-      source: "session",
+      source: "worktree",
       files: Array.from({ length: 40 }, (_, i) => ({
         path: `packages/app/src/module-${String(i + 1).padStart(2, "0")}/index.ts`,
         before: lines(12, "old"),
@@ -99,7 +99,7 @@ export const FIXTURES: Record<string, { about: string; changes: ChangeSet }> = {
   huge: {
     about: "a three-thousand-line file with two edits far apart",
     changes: {
-      source: "session",
+      source: "worktree",
       files: [
         {
           path: "src/generated/schema.ts",
@@ -118,7 +118,7 @@ export const FIXTURES: Record<string, { about: string; changes: ChangeSet }> = {
   awkward: {
     about: "no trailing newline, a whitespace-only change, a rewritten file",
     changes: {
-      source: "session",
+      source: "worktree",
       files: [
         {
           path: "src/no-newline.ts",
@@ -148,7 +148,7 @@ export const FIXTURES: Record<string, { about: string; changes: ChangeSet }> = {
   /** Nothing to review. The first thing anyone sees, and the easiest to leave looking broken. */
   clean: {
     about: "no changes at all — what you see before the agent has done anything",
-    changes: { source: "session", files: [] },
+    changes: { source: "worktree", files: [] },
   },
 }
 

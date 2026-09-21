@@ -108,8 +108,28 @@ export function footerRows(width: number, _columns: Columns, state: ViewState = 
           ...hint("space", "Read"),
         ]
 
+  /**
+   * Submit says how much there is to submit.
+   *
+   * The key stays on screen at zero rather than disappearing: a key that comes and goes cannot be
+   * learned, and this row exists to teach the keys. Dimmed and without a number it reads as "nothing
+   * to hand over", which is both true and exactly what pressing it will say.
+   */
+  const submitHint = (waiting: number | undefined): Run[] =>
+    waiting
+      ? [
+          { text: "[s]", tone: "accent", bold: true },
+          { text: ` Submit ${waiting}`, tone: "muted" },
+          { text: "   " },
+        ]
+      : [
+          { text: "[s]", tone: "muted", faint: true },
+          { text: " Submit", tone: "muted", faint: true },
+          { text: "   " },
+        ]
+
   const tail: Run[] = [
-    ...hint("s", "Submit"),
+    ...submitHint(state.waiting),
     ...hint("b", "Source"),
     ...hint("w", "Width"),
     ...hint("q", "Close"),

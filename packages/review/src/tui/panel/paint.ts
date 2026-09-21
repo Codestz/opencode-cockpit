@@ -11,6 +11,7 @@ import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import type { BoxRenderable } from "@opentui/core"
 import type { Guard } from "../../core/guard.ts"
 import { filesElsewhere } from "../../core/model/review.ts"
+import { waitingOnAgent } from "../../core/model/submit.ts"
 import { metrics } from "../../core/perf.ts"
 import { frameBounds } from "../../core/view/frame.ts"
 import { layout } from "../../core/view/layout.ts"
@@ -86,7 +87,15 @@ export function createPainter(deps: PaintDeps): Painter {
       if (surface.open) api.renderer.setCursorPosition(0, 0, false)
     }, 0)
 
-    const trouble = deps.notice()
+    /**
+     * The guard's trouble first, then the store's.
+     *
+     * The source layer has always set a `notice` — "No conversation open.", a git error, a file too
+     * large — and nothing ever read it, so every one of those failures reached the screen as an empty
+     * pane with no explanation. A diagnostic written to a field nobody renders is worse than none: it
+     * looks like the feature simply does not work.
+     */
+    const trouble = deps.notice() ?? store.current().notice
     const thread = queries.hereThreadId()
     const away = filesElsewhere(surface.review, store.current().changes)
     const rows = layout(
@@ -95,6 +104,7 @@ export function createPainter(deps: PaintDeps): Painter {
       {
         ...surface.view,
         label: queries.label(),
+        waiting: waitingOnAgent(surface.review).length,
         ...(thread ? { thread } : {}),
         ...(away.length > 0 ? { elsewhere: away } : {}),
         /** Trouble outranks the numbers; both outrank the keys, and the footer stays two rows. */
