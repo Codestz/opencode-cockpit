@@ -29,7 +29,7 @@ drives, and that you watch and control without leaving the chat. Part of
 ## Install
 
 ```sh
-opencode plugin @opencode-cockpit/shell@0.5.0 --global --force
+opencode plugin @opencode-cockpit/shell@0.5.1 --global --force
 ```
 
 Restart OpenCode. Requires OpenCode 1.18 or newer on macOS or Linux. The version is pinned on
