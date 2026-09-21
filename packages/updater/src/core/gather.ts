@@ -7,7 +7,9 @@ import { join } from "node:path"
 import {
   cacheDirsFor,
   cacheRoot,
+  installedManifest,
   installedVersion,
+  isPluginManifest,
   KNOWN_LAYOUT,
   layoutVersion,
   runningVersion,
@@ -52,7 +54,12 @@ export async function gather(io: GatherIo): Promise<Gathered> {
     }
     if (plugin.source !== "npm") return plugin
     const running = runningOf(io, root, plugin.name, listed, read.entries)
-    return running === undefined ? plugin : { ...plugin, running }
+    const notPlugin = !loadedByHost(plugin.name, listed) && isNotPlugin(io, root, plugin.name, read.entries)
+    return {
+      ...plugin,
+      ...(running === undefined ? {} : { running }),
+      ...(notPlugin ? { notPlugin } : {}),
+    }
   })
   const npm = plugins.filter((p) => p.source === "npm").map((p) => p.name)
   const published = await io.fetchLatest(npm)
@@ -85,6 +92,32 @@ function packageAt(disk: Disk, path: string): { name?: string; version?: string 
     }
   }
   return {}
+}
+
+/** The host loaded it, so it is a plugin by definition — nothing on disk is asked. */
+function loadedByHost(name: string, listed: readonly (Listed & { target?: string })[]): boolean {
+  return listed.some((item) => {
+    const spec = parseSpec(item.spec)
+    return spec.kind === "npm" && spec.name === name
+  })
+}
+
+/**
+ * True only when a manifest was installed and it has no plugin entry points. A manifest that cannot
+ * be read proves nothing, and nothing is claimed about it.
+ */
+function isNotPlugin(
+  io: GatherIo,
+  root: string,
+  name: string,
+  entries: ReturnType<typeof readConfigs>["entries"],
+): boolean {
+  for (const { spec } of entries) {
+    if (spec.kind !== "npm" || spec.name !== name) continue
+    const manifest = installedManifest(io.disk, root, spec.raw, name)
+    if (manifest) return !isPluginManifest(manifest)
+  }
+  return false
 }
 
 /**

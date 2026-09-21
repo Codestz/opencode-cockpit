@@ -13,8 +13,8 @@ import { cell, cellLeft, type Fill, fit, type Row, type Run } from "./rows.ts"
 const MARK = 5
 const RUNNING = 10
 const PUBLISHED = 12
-/** Wide enough for `unreachable`, the longest thing the last column says. */
-const STATE = 12
+/** Wide enough for `not a plugin`, the longest thing the last column says. */
+const STATE = 13
 
 /** `~/.config/…` rather than `/Users/someone/.config/…`: the part that says something. */
 export function tildePath(path: string, home: string | undefined): string {
@@ -110,7 +110,9 @@ export function listRows(
             ? { text: "unreachable" }
             : plan.state === "local"
               ? { text: "local" }
-              : { text: "" }
+              : plan.state === "not-plugin"
+                ? { text: "not a plugin", tone: "warning" as const }
+                : { text: "" }
     const runs: Run[] = [
       ...(selection
         ? [
@@ -157,12 +159,22 @@ export function listRows(
 }
 
 function band(plan: PluginPlan, width: number): Row {
-  const runs: Run[] = [
-    { text: cell(plan.name, Math.min(30, width)), bold: true, fill: "band" },
-    ...(plan.running ? [{ text: plan.running, tone: "muted" as const, fill: "band" as const }] : []),
-    { text: "  →  ", fill: "band" },
-    { text: plan.published ?? "", tone: "added", fill: "band" },
-  ]
+  // A pin changes the spec, not the version: `0.4.1 → 0.4.1` read as a bug to the first person who
+  // saw one. Say what it is for instead.
+  const frozen = configLabel(plan)
+  const runs: Run[] =
+    plan.state === "pin"
+      ? [
+          { text: cell(plan.name, Math.min(30, width)), bold: true, fill: "band" },
+          { text: plan.published ?? "", tone: "added", fill: "band" },
+          { text: `  ·  pin, so ${frozen} cannot freeze again`, tone: "muted", fill: "band" },
+        ]
+      : [
+          { text: cell(plan.name, Math.min(30, width)), bold: true, fill: "band" },
+          ...(plan.running ? [{ text: plan.running, tone: "muted" as const, fill: "band" as const }] : []),
+          { text: "  →  ", fill: "band" },
+          { text: plan.published ?? "", tone: "added", fill: "band" },
+        ]
   return { runs: fit(runs, width, "band"), target: plan.name }
 }
 
@@ -309,4 +321,31 @@ export function keyRow(keys: readonly (readonly [string, string])[], width: numb
     used += size
   }
   return { runs: fit(runs, width) }
+}
+
+/**
+ * What a person has to do that this screen will not: an entry that names a package OpenCode cannot
+ * load. Said under the list, once per entry, with the file to edit — the updater never writes config.
+ */
+export function noteRows(plans: readonly PluginPlan[], width: number, home?: string): Row[] {
+  return plans
+    .filter((plan) => plan.state === "not-plugin")
+    .map((plan) => {
+      const said = ` is not an OpenCode plugin — remove it from `
+      const files = plan.files.map((f) => tildePath(f, home)).join(" and ")
+      // The file is the point of the sentence, so a long path gives way from the left, never the end.
+      const room = Math.max(12, width - 2 - plan.name.length - said.length)
+      return {
+        runs: fit(
+          [
+            { text: "⚠ ", tone: "warning" },
+            { text: plan.name, bold: true },
+            { text: said, tone: "muted" },
+            { text: files.length > room ? cellLeft(files, room).trimEnd() : files, tone: "muted" },
+          ],
+          width,
+        ),
+        target: plan.name,
+      }
+    })
 }
