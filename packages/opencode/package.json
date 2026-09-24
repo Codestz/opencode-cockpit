@@ -40,6 +40,8 @@
     "bun": ">=1.3.5"
   },
   "files": [
+    "server.js",
+    "tui.js",
     "dist",
     "types",
     "README.md",
@@ -49,9 +51,10 @@
     "access": "public"
   },
   "dependencies": {
-    "@opencode-cockpit/shell": "workspace:*",
     "@opencode-ai/plugin": "1.18.31",
+    "@opencode-cockpit/client": "workspace:*",
     "@opencode-cockpit/review": "workspace:*",
+    "@opencode-cockpit/shell": "workspace:*",
     "@opencode-cockpit/status": "workspace:*",
     "@opencode-cockpit/updater": "workspace:*"
   },

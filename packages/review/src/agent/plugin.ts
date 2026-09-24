@@ -1,5 +1,10 @@
-import type { Hooks, Plugin, PluginInput } from "@opencode-ai/plugin"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
+import {
+  dualServer,
+  type ServerHost,
+  type ServerParts,
+  type ServerStart,
+} from "@opencode-cockpit/client/server"
 import { waitingOn } from "../core/model/thread.ts"
 import { reviewPaths } from "../core/store/paths.ts"
 import { createPersistence, type Persistence } from "../core/store/persist.ts"
@@ -26,30 +31,20 @@ export interface ReviewServerOptions {
 }
 
 /** Review's server half as a factory, so bundles such as `opencode-cockpit` can include it. */
-export function createReviewServer({ source = REVIEW_PACKAGE }: ReviewServerOptions = {}): Plugin {
-  return async (input) => {
-    const claim = claimFeature(input, "review", source)
+export function createReviewServer({ source = REVIEW_PACKAGE }: ReviewServerOptions = {}): ServerStart {
+  return async (host) => {
+    const claim = claimFeature(host.scope, "review", source)
     if (!claim.active) {
-      // Logging through the server during plugin initialisation could wait on ourselves; defer it.
-      setTimeout(() => {
-        void input.client.app
-          .log({
-            body: {
-              service: "opencode-cockpit",
-              level: "warn",
-              message: duplicateFeatureMessage("Review", claim.owner, source),
-            },
-          })
-          .catch(() => {})
-      }, 0)
+      host.log.warn(duplicateFeatureMessage("Review", claim.owner, source))
       return {}
     }
-    const hooks = await reviewHooks(input)
-    return { ...hooks, dispose: async () => claim.release() }
+    const parts = await reviewParts(host)
+    return { ...parts, dispose: () => claim.release() }
   }
 }
 
-async function reviewHooks({ client: opencode, directory }: PluginInput): Promise<Hooks> {
+async function reviewParts(host: ServerHost): Promise<ServerParts> {
+  const { directory } = host
   /**
    * The branch is asked for per call, not cached.
    *
@@ -70,27 +65,23 @@ async function reviewHooks({ client: opencode, directory }: PluginInput): Promis
   const store = async (): Promise<Persistence> => createPersistence(reviewPaths(directory, await branchOf()))
 
   /**
-   * A file's text as it is now, for checking a resolve.
+   * A file's text as it is now, for checking a resolve — read through the host, which refuses a path
+   * outside the project.
    *
-   * Read through OpenCode rather than the filesystem so it sees the same content the session does,
-   * and so a path outside the project is refused by something that already knows how.
-   */
-  /**
    * The host resolves the path, so a read that succeeds is a path that exists in this project — and
    * that is the path the review files things under. A suffix the host cannot resolve comes back
    * undefined, and the tools say so rather than filing a note nobody will see.
    */
   const contentsOf = async (path: string): Promise<FileContents | undefined> => {
-    const result = await opencode.file.read({ query: { path } }).catch(() => undefined)
-    const content = (result?.data as { content?: string } | undefined)?.content
-    return typeof content === "string" ? { path, text: content } : undefined
+    const text = await host.readFile(path)
+    return text === undefined ? undefined : { path, text }
   }
 
   return {
-    tool: createTools({ opencode, directory, store, contentsOf }),
+    tools: createTools({ directory, store, contentsOf }),
     /** Said once per conversation, the way Shell explains its shells. */
-    "experimental.chat.system.transform": async (_input, output) => {
-      output.system.push(GUIDANCE)
+    system: async () => {
+      const system = [GUIDANCE]
 
       /**
        * And what is actually waiting, so the agent does not have to ask to find out there is nothing.
@@ -104,10 +95,13 @@ async function reviewHooks({ client: opencode, directory }: PluginInput): Promis
         .catch(() => [])
       if (waiting.length > 0) {
         const files = [...new Set(waiting.map((thread) => thread.file))]
-        output.system.push(
+        system.push(
           `${waiting.length} review comment${waiting.length === 1 ? "" : "s"} are waiting on you in ${files.join(", ")}. Read them with review_list.`,
         )
       }
+      return system
     },
   }
 }
+
+export default dualServer("opencode-cockpit.review", createReviewServer())

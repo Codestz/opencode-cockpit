@@ -136,9 +136,15 @@ try {
    */
   function verifyRescue(dir: string, install: { name: string; packages: string[] }) {
     const bins = install.packages.includes("opencode-cockpit")
-      ? [["opencode-cockpit", "update", "--help"]]
+      ? [
+          ["opencode-cockpit", "update", "--help"],
+          ["opencode-cockpit", "doctor", "--help"],
+        ]
       : install.packages.includes("@opencode-cockpit/updater")
-        ? [["updater", "--help"]]
+        ? [
+            ["updater", "--help"],
+            ["updater", "doctor", "--help"],
+          ]
         : []
     for (const [bin, ...args] of bins) {
       const out = run(["node", join(dir, "node_modules", ".bin", bin as string), ...args], dir)

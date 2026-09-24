@@ -1,48 +1,42 @@
-/** @jsxImportSource @opentui/solid */
-
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { Host } from "@opencode-cockpit/client/host"
 import { order, shellListItem } from "./lib/view.ts"
 import type { ShellStore } from "./state/store.ts"
 
-export function newShell(api: TuiPluginApi, store: ShellStore, open: (id?: string) => void) {
-  const DialogPrompt = api.ui.DialogPrompt
-  api.ui.dialog.replace(() => (
-    <DialogPrompt
-      title="New background shell"
-      placeholder="npm run dev"
-      onConfirm={(value) => {
-        const command = value.trim()
-        if (!command) return api.ui.dialog.clear()
-        const shell =
-          process.env.SHELL && /(bash|zsh|fish|sh)$/.test(process.env.SHELL) ? process.env.SHELL : "/bin/bash"
-        store.client
-          .call("shell.start", {
-            command: shell,
-            args: ["-c", command],
-            cwd: store.project(),
-            title: command.slice(0, 60),
-            owner: { project: store.project(), session: store.session() },
-            reuse: true,
-          })
-          .then((info) => {
-            void store.refresh()
-            open(info.id)
-          })
-          .catch((err) => {
-            api.ui.dialog.clear()
-            api.ui.toast({
-              variant: "error",
-              title: "Shell",
-              message: err instanceof Error ? err.message : String(err),
-            })
-          })
-      }}
-      onCancel={() => api.ui.dialog.clear()}
-    />
-  ))
+/**
+ * The dialogs are the host's own — a prompt, a confirmation, a list — reached through `Host`, so the
+ * same code opens v1's components and v2's promise dialogs.
+ */
+export function newShell(api: Host, store: ShellStore, open: (id?: string) => void) {
+  void api.ui.prompt({ title: "New background shell", placeholder: "npm run dev" }).then((value) => {
+    const command = value?.trim()
+    if (!command) return
+    const shell =
+      process.env.SHELL && /(bash|zsh|fish|sh)$/.test(process.env.SHELL) ? process.env.SHELL : "/bin/bash"
+    store.client
+      .call("shell.start", {
+        command: shell,
+        args: ["-c", command],
+        cwd: store.project(),
+        title: command.slice(0, 60),
+        owner: { project: store.project(), session: store.session() },
+        reuse: true,
+      })
+      .then((info) => {
+        void store.refresh()
+        open(info.id)
+      })
+      .catch((error) => {
+        api.log.error("shell: start failed", { error })
+        api.ui.toast({
+          variant: "error",
+          title: "Shell",
+          message: error instanceof Error ? error.message : String(error),
+        })
+      })
+  })
 }
 
-export function restartDaemon(api: TuiPluginApi, store: ShellStore) {
+export function restartDaemon(api: Host, store: ShellStore) {
   const running = store.shells().filter((s) => s.status === "running").length
   const restart = (force: boolean) => {
     api.ui.dialog.clear()
@@ -56,25 +50,27 @@ export function restartDaemon(api: TuiPluginApi, store: ShellStore) {
           message: ok ? "Shell daemon restarted" : "Shells are running; restart was not forced",
         })
       })
-      .catch((err) => api.ui.toast({ variant: "error", title: "Shells", message: String(err) }))
+      .catch((error) => {
+        api.log.error("shell: daemon restart failed", { error })
+        api.ui.toast({ variant: "error", title: "Shells", message: String(error) })
+      })
   }
   if (running === 0) return restart(false)
-  const DialogConfirm = api.ui.DialogConfirm
-  api.ui.dialog.replace(() => (
-    <DialogConfirm
-      title="Restart shell daemon?"
-      message={`${running} running shell${running === 1 ? "" : "s"} will be stopped.`}
-      onConfirm={() => restart(true)}
-      onCancel={() => api.ui.dialog.clear()}
-    />
-  ))
+  void api.ui
+    .confirm({
+      title: "Restart shell daemon?",
+      message: `${running} running shell${running === 1 ? "" : "s"} will be stopped.`,
+    })
+    .then((yes) => {
+      if (yes) restart(true)
+    })
 }
 
 /**
  * Stopping shells in bulk. Two commands rather than one, because "everything I can see" and
  * "everything, including what I cannot" are different intentions — and the second one asks first.
  */
-export function stopShells(api: TuiPluginApi, store: ShellStore, reach: "view" | "project"): void {
+export function stopShells(api: Host, store: ShellStore, reach: "view" | "project"): void {
   const list = (reach === "view" ? store.shells() : store.all()).filter((s) => s.status === "running")
   if (list.length === 0) {
     api.ui.toast({ title: "Shells", message: "Nothing is running.", duration: 3000 })
@@ -103,15 +99,14 @@ export function stopShells(api: TuiPluginApi, store: ShellStore, reach: "view" |
     return
   }
 
-  const DialogConfirm = api.ui.DialogConfirm
-  api.ui.dialog.replace(() => (
-    <DialogConfirm
-      title="Stop every shell in this project?"
-      message={`${list.length} running · ${elsewhere} from other conversations.`}
-      onConfirm={stop}
-      onCancel={() => api.ui.dialog.clear()}
-    />
-  ))
+  void api.ui
+    .confirm({
+      title: "Stop every shell in this project?",
+      message: `${list.length} running · ${elsewhere} from other conversations.`,
+    })
+    .then((yes) => {
+      if (yes) stop()
+    })
 }
 
 /**
@@ -123,16 +118,15 @@ export function stopShells(api: TuiPluginApi, store: ShellStore, reach: "view" |
  */
 const NEW_SHELL = "\0new"
 
-export function pickShell(api: TuiPluginApi, store: ShellStore, open: (id?: string) => void) {
-  const DialogSelect = api.ui.DialogSelect
+export function pickShell(api: Host, store: ShellStore, open: (id?: string) => void) {
   /** Every shell in the project: this is where you go to find one, whichever conversation started it. */
   const shells = order(store.all())
-  api.ui.dialog.replace(() => (
-    <DialogSelect
-      title="Shells"
-      placeholder="Search shells"
-      current={store.selected()?.id ?? NEW_SHELL}
-      options={[
+  void api.ui
+    .select<string>({
+      title: "Shells",
+      placeholder: "Search shells",
+      current: store.selected()?.id ?? NEW_SHELL,
+      options: [
         {
           title: "+ New shell",
           value: NEW_SHELL,
@@ -146,14 +140,14 @@ export function pickShell(api: TuiPluginApi, store: ShellStore, open: (id?: stri
             value: s.id,
             description: item.description,
             category: item.category,
-            /** Plain text: the host draws the footer inside its own text node. */
             footer: `● ${item.status}`,
           }
         }),
-      ]}
-      onSelect={(option) =>
-        option.value === NEW_SHELL ? newShell(api, store, open) : open(option.value as string)
-      }
-    />
-  ))
+      ],
+    })
+    .then((value) => {
+      if (value === undefined) return
+      if (value === NEW_SHELL) newShell(api, store, open)
+      else open(value)
+    })
 }

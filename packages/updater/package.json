@@ -39,6 +39,7 @@
     "node": ">=18"
   },
   "files": [
+    "tui.js",
     "dist",
     "types",
     "README.md",

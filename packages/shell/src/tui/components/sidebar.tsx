@@ -1,12 +1,12 @@
 /** @jsxImportSource @opentui/solid */
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { Host } from "@opencode-cockpit/client/host"
 import { createMemo, For, Show } from "solid-js"
 import { kindOf, shortDetail, truncate, watchColor, watchLabel } from "../lib/view.ts"
 import type { ShellStore } from "../state/store.ts"
 import { Badge } from "./badge.tsx"
 
 export interface SidebarProps {
-  api: TuiPluginApi
+  api: Host
   store: ShellStore
   /** Rows shown before the rest folds away; the sidebar is a narrow, shared column. */
   rows?: number

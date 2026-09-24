@@ -9,7 +9,7 @@
  */
 
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
-import { useBindings } from "@opentui/keymap/solid"
+import { useApiLayer } from "@opencode-cockpit/client/host"
 import { useTerminalDimensions } from "@opentui/solid"
 import { createMemo, createSignal, onCleanup } from "solid-js"
 import type { Readiness } from "../core/apply.ts"
@@ -163,10 +163,23 @@ export function UpdaterDialog(props: UpdaterDialogProps) {
   )
   onCleanup(release)
 
-  useBindings(() => ({
+  /** Not `useBindings`: `@opentui/keymap` cannot be imported under OpenCode 2 (docs/opencode/v2.md). */
+  useApiLayer(props.api, () => ({
     commands: [
-      { name: "cockpit.updater.down", title: "Next plugin", run: () => phase() === "list" && move(1) },
-      { name: "cockpit.updater.up", title: "Previous plugin", run: () => phase() === "list" && move(-1) },
+      {
+        name: "cockpit.updater.down",
+        title: "Next plugin",
+        run: () => {
+          if (phase() === "list") move(1)
+        },
+      },
+      {
+        name: "cockpit.updater.up",
+        title: "Previous plugin",
+        run: () => {
+          if (phase() === "list") move(-1)
+        },
+      },
       { name: "cockpit.updater.toggle", title: "Select plugin", run: () => phase() === "list" && toggle() },
       {
         name: "cockpit.updater.all",

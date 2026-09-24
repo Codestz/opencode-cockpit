@@ -10,7 +10,7 @@
  * lets a key change without touching what it does.
  */
 
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { Host } from "@opencode-cockpit/client/host"
 import { baseCandidates } from "../../core/git/sources.ts"
 import type { Guard } from "../../core/guard.ts"
 import {
@@ -45,7 +45,7 @@ import type { Queries } from "./queries.ts"
 import type { Surface } from "./surface.ts"
 
 export interface ActionDeps {
-  api: TuiPluginApi
+  api: Host
   surface: Surface
   store: Store
   guard: Guard
@@ -418,7 +418,9 @@ export function createActions(deps: ActionDeps): Actions {
    * an agent to "run review_list" when it has no such tool is worse than sending it too much. When
    * the server half is not installed the whole review travels as prose instead.
    */
-  const hasTools = (): boolean => toolsConfigured(api.state.config.plugin, REVIEW_PACKAGE)
+  const hasTools = (): boolean =>
+    /** On OpenCode 2 the tools arrive with this package's own server half, which v2 always loads. */
+    api.v1 ? toolsConfigured(api.v1.state.config.plugin, REVIEW_PACKAGE) : true
 
   /** The conversation this review would be handed to. */
   const sessionID = (): string | undefined => {
@@ -486,10 +488,7 @@ export function createActions(deps: ActionDeps): Actions {
         })
         if (!said) return
         guard.task("submit", async () => {
-          await api.client.session.promptAsync({
-            sessionID: id,
-            parts: [{ type: "text", text: said.text }],
-          })
+          await api.promptSession(id, said.text)
         })
         api.ui.toast({
           variant: "success",

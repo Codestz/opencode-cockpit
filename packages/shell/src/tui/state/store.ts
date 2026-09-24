@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs"
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import type { CockpitClient } from "@opencode-cockpit/client"
+import type { Host } from "@opencode-cockpit/client/host"
 import type { ScreenResult, ShellInfo } from "@opencode-cockpit/protocol/shell"
 import { type Accessor, createEffect, createMemo, createRoot, createSignal, on, onCleanup } from "solid-js"
 import { createStore, reconcile } from "solid-js/store"
@@ -45,11 +45,7 @@ export interface StoreOptions {
   scope?: Scope
 }
 
-export function createShellStore(
-  api: TuiPluginApi,
-  client: CockpitClient,
-  options: StoreOptions = {},
-): ShellStore {
+export function createShellStore(api: Host, client: CockpitClient, options: StoreOptions = {}): ShellStore {
   return createRoot((dispose) => {
     const [state, setState] = createStore<{ list: ShellInfo[] }>({ list: [] })
     const [connected, setConnected] = createSignal(false)

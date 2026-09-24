@@ -1,27 +1,20 @@
 /** @jsxImportSource @opentui/solid */
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
-import { useBindings } from "@opentui/keymap/solid"
+import type { Host } from "@opencode-cockpit/client/host"
 import { For } from "solid-js"
 import type { Row } from "../lib/console.ts"
 import { fillColour, toneColour } from "../view/pool.ts"
 
-/** The shared table's commands and bindings, and when they apply — all `useBindings` needs. */
-export interface DialogKeys {
-  commands: Layer["commands"]
-  bindings: Layer["bindings"]
-  enabled: () => boolean
-}
-type Layer = Parameters<TuiPluginApi["keymap"]["registerLayer"]>[0]
+type Layer = Parameters<Host["keymap"]["registerLayer"]>[0]
 
 export interface ConsoleProps {
-  api: TuiPluginApi
+  api: Host
   /** The console's rows at the dialog's size — the same rows full screen draws, smaller. */
   rows: () => Row[]
   /**
    * The console's one key table (`panel/keys.ts`). Registered from inside the dialog: while the
    * host's dialog is open it takes the keys, so a global layer never hears them.
    */
-  keys: () => DialogKeys
+  keys: () => Layer
 }
 
 /**
@@ -33,14 +26,8 @@ export interface ConsoleProps {
  */
 export function Console(props: ConsoleProps) {
   const theme = () => props.api.theme.current
-  useBindings(() => {
-    const keys = props.keys()
-    return { commands: keys.commands, bindings: keys.bindings, enabled: keys.enabled } as Parameters<
-      typeof useBindings
-    >[0] extends () => infer L
-      ? L
-      : never
-  })
+  /** Owned by this component, so the keys go when the dialog does — on either OpenCode. */
+  props.api.keymap.useLayer(props.keys)
   return (
     <box flexDirection="column" overflow="hidden">
       <For each={props.rows()}>

@@ -1,9 +1,9 @@
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { Host } from "@opencode-cockpit/client/host"
 import type { BoxRenderable } from "@opentui/core"
 import { bodyHeight, type ConsoleInput, consoleRows } from "../lib/console.ts"
 import { order } from "../lib/view.ts"
 import type { ShellStore } from "../state/store.ts"
-import type { RowPool } from "../view/pool.ts"
+import { type RowPool, solidSurface } from "../view/pool.ts"
 import type { Feed } from "./feed.ts"
 import type { Surface } from "./surface.ts"
 
@@ -14,7 +14,7 @@ export interface Boxes {
 }
 
 export interface PaintDeps {
-  api: TuiPluginApi
+  api: Host
   store: ShellStore
   surface: Surface
   feed: Feed
@@ -112,6 +112,8 @@ export function createPainter(deps: PaintDeps): Painter {
     const { backdrop, pool } = deps.boxes()
     const full = surface.open && surface.full
     if (backdrop && pool) {
+      /** Opaque whatever the theme says, or the conversation shows through (transparent themes). */
+      backdrop.backgroundColor = solidSurface(api.theme.current)
       backdrop.width = api.renderer.width
       backdrop.height = full ? api.renderer.height : 0
       backdrop.visible = full

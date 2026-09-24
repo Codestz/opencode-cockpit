@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 
-import { createBindingLookup, type TuiPlugin, type TuiPluginModule } from "@opencode-ai/plugin/tui"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
+import { bindingLookup, dualTui, type Host } from "@opencode-cockpit/client/host"
 import type { BoxRenderable } from "@opentui/core"
 import { headOf } from "../core/git/sources.ts"
 import type { Source } from "../core/model/review.ts"
@@ -59,8 +59,8 @@ export interface ReviewTuiOptions {
  * the same handful of mutable variables, so nothing could be moved out without taking the state with
  * it. Giving that state a name — `Surface` — is what let everything else leave.
  */
-export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string } = {}): TuiPlugin {
-  return async (api, rawOptions) => {
+export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string } = {}) {
+  return async (api: Host, rawOptions?: unknown) => {
     // The renderer is shared by every TUI plugin in this OpenCode window.
     const claim = claimFeature(api.renderer, "review", source)
     if (!claim.active) {
@@ -75,7 +75,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
     api.lifecycle.onDispose(() => claim.release())
 
     const options = (rawOptions ?? {}) as ReviewTuiOptions
-    const keys = createBindingLookup({ ...DEFAULT_KEYS, ...options.keybinds })
+    const keys = bindingLookup({ ...DEFAULT_KEYS, ...options.keybinds })
     const store = createStore(api, options.source ?? "worktree")
     const surface = createSurface(options.variant ?? "right")
 
@@ -310,8 +310,5 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
   }
 }
 
-const plugin: TuiPluginModule & { id: string } = {
-  id: "opencode-cockpit.review",
-  tui: createReviewTui(),
-}
-export default plugin
+/** One entry for both OpenCodes: v1 calls `tui`, v2 calls `setup` (docs/opencode/v2.md). */
+export default dualTui("opencode-cockpit.review", createReviewTui())

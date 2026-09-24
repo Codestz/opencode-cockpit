@@ -1,5 +1,5 @@
 /** @jsxImportSource @opentui/solid */
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { Host } from "@opencode-cockpit/client/host"
 import type { BaseCandidate } from "../../core/git/sources.ts"
 import { type Thread, threadWhere } from "../../core/model/thread.ts"
 import { cardRows } from "../../core/view/card.ts"
@@ -88,12 +88,11 @@ export interface AskOptions {
  * dialog had a list of grey lines.
  */
 export function askForNote(
-  api: TuiPluginApi,
+  api: Host,
   { title, description, thread, quoted, value, allowEmpty }: AskOptions,
   onConfirm: (text: string) => void,
   onClose?: () => void,
 ): void {
-  const DialogPrompt = api.ui.DialogPrompt
   const theme = () => api.theme.current
 
   /**
@@ -140,49 +139,56 @@ export function askForNote(
   const colour = (tone: Tone | undefined) => toneColour(theme(), tone)
   const behind = (fill: Fill | undefined) => fillColour(theme(), fill)
 
-  api.ui.dialog.replace(
-    () => (
-      <DialogPrompt
-        title={title}
-        description={() => (
-          <box flexDirection="column">
-            <text>
-              <span style={{ fg: theme().textMuted }}>{description}</span>
-            </text>
-            {context().map((row) => (
-              <text wrapMode="none">
-                {row.runs.map((run) => (
-                  <span
-                    style={{
-                      fg: colour(run.tone),
-                      ...(behind(run.fill) ? { bg: behind(run.fill) } : {}),
-                      ...(run.bold ? { bold: true } : {}),
-                    }}
-                  >
-                    {run.text}
-                  </span>
-                ))}
-              </text>
-            ))}
-          </box>
-        )}
-        placeholder="what should change, and why"
-        value={value ?? ""}
-        onConfirm={(text: string) => {
-          api.ui.dialog.clear()
-          onClose?.()
-          const trimmed = text.trim()
-          if (trimmed || allowEmpty) onConfirm(trimmed)
-        }}
-        onCancel={() => {
-          api.ui.dialog.clear()
-          onClose?.()
-        }}
-      />
-    ),
-    /** Dismissed any other way — escape, a click outside — still has to give the keys back. */
-    () => onClose?.(),
+  const rich = () => (
+    <box flexDirection="column">
+      <text>
+        <span style={{ fg: theme().textMuted }}>{description}</span>
+      </text>
+      {context().map((row) => (
+        <text wrapMode="none">
+          {row.runs.map((run) => (
+            <span
+              style={{
+                fg: colour(run.tone),
+                ...(behind(run.fill) ? { bg: behind(run.fill) } : {}),
+                ...(run.bold ? { bold: true } : {}),
+              }}
+            >
+              {run.text}
+            </span>
+          ))}
+        </text>
+      ))}
+    </box>
   )
+  /** The same context in words, for a host whose prompt takes only text (OpenCode 2). */
+  const plain = [
+    description,
+    ...context().map((row) =>
+      row.runs
+        .map((run) => run.text)
+        .join("")
+        .trimEnd(),
+    ),
+  ]
+    .filter((line, index) => index === 0 || line.trim())
+    .join("\n")
+
+  void api.ui
+    .prompt({
+      title,
+      description: plain,
+      rich,
+      placeholder: "what should change, and why",
+      value: value ?? "",
+    })
+    .then((text) => {
+      /** However it closed, the keys come back. */
+      onClose?.()
+      if (text === undefined) return
+      const trimmed = text.trim()
+      if (trimmed || allowEmpty) onConfirm(trimmed)
+    })
 }
 
 /**
@@ -193,7 +199,7 @@ export function askForNote(
  * how many commits of yours it would show, which is the number that decides it.
  */
 export function askForBase(
-  api: TuiPluginApi,
+  api: Host,
   {
     current,
     guessed,
@@ -202,33 +208,27 @@ export function askForBase(
   onSelect: (base: string | undefined) => void,
   onClose?: () => void,
 ): void {
-  const DialogSelect = api.ui.DialogSelect
   const AUTO = "\0auto"
   const plural = (n: number) => `${n} commit${n === 1 ? "" : "s"}`
-  api.ui.dialog.replace(
-    () => (
-      <DialogSelect
-        title="Compare the branch against"
-        current={current ?? AUTO}
-        options={[
-          {
-            title: "auto: nearest parent",
-            value: AUTO,
-            description: guessed ? `currently ${guessed}` : "the branch this one grew from",
-          },
-          ...candidates.map((each) => ({
-            title: each.ref,
-            value: each.ref,
-            description: `${plural(each.own)} of yours${each.other ? ` · it is ${plural(each.other)} ahead` : ""}`,
-          })),
-        ]}
-        onSelect={(option) => {
-          api.ui.dialog.clear()
-          onClose?.()
-          onSelect(option.value === AUTO ? undefined : (option.value as string))
-        }}
-      />
-    ),
-    () => onClose?.(),
-  )
+  void api.ui
+    .select<string>({
+      title: "Compare the branch against",
+      current: current ?? AUTO,
+      options: [
+        {
+          title: "auto: nearest parent",
+          value: AUTO,
+          description: guessed ? `currently ${guessed}` : "the branch this one grew from",
+        },
+        ...candidates.map((each) => ({
+          title: each.ref,
+          value: each.ref,
+          description: `${plural(each.own)} of yours${each.other ? ` · it is ${plural(each.other)} ahead` : ""}`,
+        })),
+      ],
+    })
+    .then((value) => {
+      onClose?.()
+      if (value !== undefined) onSelect(value === AUTO ? undefined : value)
+    })
 }

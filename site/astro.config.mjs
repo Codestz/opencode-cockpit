@@ -33,6 +33,7 @@ export default defineConfig({
           items: [
             { label: "What Cockpit is", slug: "start/what-cockpit-is" },
             { label: "Install", slug: "start/install" },
+            { label: "OpenCode 1 and 2", slug: "start/opencode-versions" },
             { label: "Your first session", slug: "start/first-session" },
           ],
         },
@@ -81,6 +82,7 @@ export default defineConfig({
         {
           label: "Help",
           items: [
+            { label: "Doctor", slug: "help/doctor" },
             { label: "Troubleshooting", slug: "help/troubleshooting" },
             { label: "Changelog", slug: "help/changelog" },
           ],

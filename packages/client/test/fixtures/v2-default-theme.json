@@ -1,0 +1,1279 @@
+{
+  "hue": {
+    "gray": {
+      "100": {
+        "hex": "#ffffffff",
+        "hue": "gray",
+        "step": 100
+      },
+      "200": {
+        "hex": "#eeeeeeff",
+        "hue": "gray",
+        "step": 200
+      },
+      "300": {
+        "hex": "#b5b5b5ff",
+        "hue": "gray",
+        "step": 300
+      },
+      "400": {
+        "hex": "#808080ff",
+        "hue": "gray",
+        "step": 400
+      },
+      "500": {
+        "hex": "#4c4c4cff",
+        "hue": "gray",
+        "step": 500
+      },
+      "600": {
+        "hex": "#1e1e1eff",
+        "hue": "gray",
+        "step": 600
+      },
+      "700": {
+        "hex": "#141414ff",
+        "hue": "gray",
+        "step": 700
+      },
+      "800": {
+        "hex": "#0a0a0aff",
+        "hue": "gray",
+        "step": 800
+      },
+      "900": {
+        "hex": "#030303ff",
+        "hue": "gray",
+        "step": 900
+      }
+    },
+    "red": {
+      "100": {
+        "hex": "#fd7e87ff",
+        "hue": "red",
+        "step": 100
+      },
+      "200": {
+        "hex": "#e06c75ff",
+        "hue": "red",
+        "step": 200
+      },
+      "300": {
+        "hex": "#c35a63ff",
+        "hue": "red",
+        "step": 300
+      },
+      "400": {
+        "hex": "#a74952ff",
+        "hue": "red",
+        "step": 400
+      },
+      "500": {
+        "hex": "#8c3941ff",
+        "hue": "red",
+        "step": 500
+      },
+      "600": {
+        "hex": "#722931ff",
+        "hue": "red",
+        "step": 600
+      },
+      "700": {
+        "hex": "#591921ff",
+        "hue": "red",
+        "step": 700
+      },
+      "800": {
+        "hex": "#410a13ff",
+        "hue": "red",
+        "step": 800
+      },
+      "900": {
+        "hex": "#280207ff",
+        "hue": "red",
+        "step": 900
+      }
+    },
+    "orange": {
+      "100": {
+        "hex": "#fddac5ff",
+        "hue": "orange",
+        "step": 100
+      },
+      "200": {
+        "hex": "#fab283ff",
+        "hue": "orange",
+        "step": 200
+      },
+      "300": {
+        "hex": "#d8976cff",
+        "hue": "orange",
+        "step": 300
+      },
+      "400": {
+        "hex": "#b67c56ff",
+        "hue": "orange",
+        "step": 400
+      },
+      "500": {
+        "hex": "#966341ff",
+        "hue": "orange",
+        "step": 500
+      },
+      "600": {
+        "hex": "#774a2cff",
+        "hue": "orange",
+        "step": 600
+      },
+      "700": {
+        "hex": "#593319ff",
+        "hue": "orange",
+        "step": 700
+      },
+      "800": {
+        "hex": "#3d1d06ff",
+        "hue": "orange",
+        "step": 800
+      },
+      "900": {
+        "hex": "#1f0b01ff",
+        "hue": "orange",
+        "step": 900
+      }
+    },
+    "yellow": {
+      "100": {
+        "hex": "#ffffffff",
+        "hue": "yellow",
+        "step": 100
+      },
+      "200": {
+        "hex": "#eeeeeeff",
+        "hue": "yellow",
+        "step": 200
+      },
+      "300": {
+        "hex": "#b5b5b5ff",
+        "hue": "yellow",
+        "step": 300
+      },
+      "400": {
+        "hex": "#808080ff",
+        "hue": "yellow",
+        "step": 400
+      },
+      "500": {
+        "hex": "#4c4c4cff",
+        "hue": "yellow",
+        "step": 500
+      },
+      "600": {
+        "hex": "#1e1e1eff",
+        "hue": "yellow",
+        "step": 600
+      },
+      "700": {
+        "hex": "#141414ff",
+        "hue": "yellow",
+        "step": 700
+      },
+      "800": {
+        "hex": "#0a0a0aff",
+        "hue": "yellow",
+        "step": 800
+      },
+      "900": {
+        "hex": "#030303ff",
+        "hue": "yellow",
+        "step": 900
+      }
+    },
+    "green": {
+      "100": {
+        "hex": "#96f7a7ff",
+        "hue": "green",
+        "step": 100
+      },
+      "200": {
+        "hex": "#7fd88fff",
+        "hue": "green",
+        "step": 200
+      },
+      "300": {
+        "hex": "#68b977ff",
+        "hue": "green",
+        "step": 300
+      },
+      "400": {
+        "hex": "#539c61ff",
+        "hue": "green",
+        "step": 400
+      },
+      "500": {
+        "hex": "#3d7f4bff",
+        "hue": "green",
+        "step": 500
+      },
+      "600": {
+        "hex": "#296336ff",
+        "hue": "green",
+        "step": 600
+      },
+      "700": {
+        "hex": "#144922ff",
+        "hue": "green",
+        "step": 700
+      },
+      "800": {
+        "hex": "#00300fff",
+        "hue": "green",
+        "step": 800
+      },
+      "900": {
+        "hex": "#011705ff",
+        "hue": "green",
+        "step": 900
+      }
+    },
+    "cyan": {
+      "100": {
+        "hex": "#68d0ddff",
+        "hue": "cyan",
+        "step": 100
+      },
+      "200": {
+        "hex": "#56b6c2ff",
+        "hue": "cyan",
+        "step": 200
+      },
+      "300": {
+        "hex": "#449da7ff",
+        "hue": "cyan",
+        "step": 300
+      },
+      "400": {
+        "hex": "#33848eff",
+        "hue": "cyan",
+        "step": 400
+      },
+      "500": {
+        "hex": "#226c75ff",
+        "hue": "cyan",
+        "step": 500
+      },
+      "600": {
+        "hex": "#0f555dff",
+        "hue": "cyan",
+        "step": 600
+      },
+      "700": {
+        "hex": "#093e44ff",
+        "hue": "cyan",
+        "step": 700
+      },
+      "800": {
+        "hex": "#02292eff",
+        "hue": "cyan",
+        "step": 800
+      },
+      "900": {
+        "hex": "#001518ff",
+        "hue": "cyan",
+        "step": 900
+      }
+    },
+    "blue": {
+      "100": {
+        "hex": "#82b4fbff",
+        "hue": "blue",
+        "step": 100
+      },
+      "200": {
+        "hex": "#5c9cf5ff",
+        "hue": "blue",
+        "step": 200
+      },
+      "300": {
+        "hex": "#4c86d6ff",
+        "hue": "blue",
+        "step": 300
+      },
+      "400": {
+        "hex": "#3c70b8ff",
+        "hue": "blue",
+        "step": 400
+      },
+      "500": {
+        "hex": "#2c5b9bff",
+        "hue": "blue",
+        "step": 500
+      },
+      "600": {
+        "hex": "#1d477fff",
+        "hue": "blue",
+        "step": 600
+      },
+      "700": {
+        "hex": "#0f3364ff",
+        "hue": "blue",
+        "step": 700
+      },
+      "800": {
+        "hex": "#02214aff",
+        "hue": "blue",
+        "step": 800
+      },
+      "900": {
+        "hex": "#01112bff",
+        "hue": "blue",
+        "step": 900
+      }
+    },
+    "purple": {
+      "100": {
+        "hex": "#b38ff4ff",
+        "hue": "purple",
+        "step": 100
+      },
+      "200": {
+        "hex": "#9d7cd8ff",
+        "hue": "purple",
+        "step": 200
+      },
+      "300": {
+        "hex": "#8869bdff",
+        "hue": "purple",
+        "step": 300
+      },
+      "400": {
+        "hex": "#7357a2ff",
+        "hue": "purple",
+        "step": 400
+      },
+      "500": {
+        "hex": "#5f4688ff",
+        "hue": "purple",
+        "step": 500
+      },
+      "600": {
+        "hex": "#4b356fff",
+        "hue": "purple",
+        "step": 600
+      },
+      "700": {
+        "hex": "#392557ff",
+        "hue": "purple",
+        "step": 700
+      },
+      "800": {
+        "hex": "#271640ff",
+        "hue": "purple",
+        "step": 800
+      },
+      "900": {
+        "hex": "#17072bff",
+        "hue": "purple",
+        "step": 900
+      }
+    },
+    "accent": {
+      "100": {
+        "hex": "#b38ff4ff",
+        "hue": "accent",
+        "step": 100
+      },
+      "200": {
+        "hex": "#9d7cd8ff",
+        "hue": "accent",
+        "step": 200
+      },
+      "300": {
+        "hex": "#8869bdff",
+        "hue": "accent",
+        "step": 300
+      },
+      "400": {
+        "hex": "#7357a2ff",
+        "hue": "accent",
+        "step": 400
+      },
+      "500": {
+        "hex": "#5f4688ff",
+        "hue": "accent",
+        "step": 500
+      },
+      "600": {
+        "hex": "#4b356fff",
+        "hue": "accent",
+        "step": 600
+      },
+      "700": {
+        "hex": "#392557ff",
+        "hue": "accent",
+        "step": 700
+      },
+      "800": {
+        "hex": "#271640ff",
+        "hue": "accent",
+        "step": 800
+      },
+      "900": {
+        "hex": "#17072bff",
+        "hue": "accent",
+        "step": 900
+      }
+    },
+    "interactive": {
+      "100": {
+        "hex": "#fddac5ff",
+        "hue": "interactive",
+        "step": 100
+      },
+      "200": {
+        "hex": "#fab283ff",
+        "hue": "interactive",
+        "step": 200
+      },
+      "300": {
+        "hex": "#d8976cff",
+        "hue": "interactive",
+        "step": 300
+      },
+      "400": {
+        "hex": "#b67c56ff",
+        "hue": "interactive",
+        "step": 400
+      },
+      "500": {
+        "hex": "#966341ff",
+        "hue": "interactive",
+        "step": 500
+      },
+      "600": {
+        "hex": "#774a2cff",
+        "hue": "interactive",
+        "step": 600
+      },
+      "700": {
+        "hex": "#593319ff",
+        "hue": "interactive",
+        "step": 700
+      },
+      "800": {
+        "hex": "#3d1d06ff",
+        "hue": "interactive",
+        "step": 800
+      },
+      "900": {
+        "hex": "#1f0b01ff",
+        "hue": "interactive",
+        "step": 900
+      }
+    },
+    "neutral": {
+      "100": {
+        "hex": "#ffffffff",
+        "hue": "neutral",
+        "step": 100
+      },
+      "200": {
+        "hex": "#eeeeeeff",
+        "hue": "neutral",
+        "step": 200
+      },
+      "300": {
+        "hex": "#b5b5b5ff",
+        "hue": "neutral",
+        "step": 300
+      },
+      "400": {
+        "hex": "#808080ff",
+        "hue": "neutral",
+        "step": 400
+      },
+      "500": {
+        "hex": "#4c4c4cff",
+        "hue": "neutral",
+        "step": 500
+      },
+      "600": {
+        "hex": "#1e1e1eff",
+        "hue": "neutral",
+        "step": 600
+      },
+      "700": {
+        "hex": "#141414ff",
+        "hue": "neutral",
+        "step": 700
+      },
+      "800": {
+        "hex": "#0a0a0aff",
+        "hue": "neutral",
+        "step": 800
+      },
+      "900": {
+        "hex": "#030303ff",
+        "hue": "neutral",
+        "step": 900
+      }
+    }
+  },
+  "text": {
+    "base": {
+      "hex": "#eeeeeeff",
+      "hue": "neutral",
+      "step": 200
+    },
+    "muted": {
+      "hex": "#808080ff",
+      "hue": "neutral",
+      "step": 400
+    },
+    "action": {
+      "primary": {
+        "base": {
+          "hex": "#eeeeeeff",
+          "hue": "neutral",
+          "step": 200
+        },
+        "focused": {
+          "hex": "#0a0a0aff",
+          "hue": "neutral",
+          "step": 800
+        },
+        "selected": {
+          "hex": "#fab283ff",
+          "hue": "interactive",
+          "step": 200
+        },
+        "disabled": {
+          "hex": "#808080ff",
+          "hue": "neutral",
+          "step": 400
+        },
+        "pressed": {
+          "hex": "#eeeeeeff",
+          "hue": "neutral",
+          "step": 200
+        },
+        "hovered": {
+          "hex": "#eeeeeeff",
+          "hue": "neutral",
+          "step": 200
+        }
+      },
+      "secondary": {
+        "base": {
+          "hex": "#808080ff",
+          "hue": "neutral",
+          "step": 400
+        },
+        "hovered": {
+          "hex": "#eeeeeeff",
+          "hue": "neutral",
+          "step": 200
+        },
+        "disabled": {
+          "hex": "#808080ff",
+          "hue": "neutral",
+          "step": 400
+        },
+        "pressed": {
+          "hex": "#808080ff",
+          "hue": "neutral",
+          "step": 400
+        },
+        "focused": {
+          "hex": "#808080ff",
+          "hue": "neutral",
+          "step": 400
+        },
+        "selected": {
+          "hex": "#808080ff",
+          "hue": "neutral",
+          "step": 400
+        }
+      },
+      "destructive": {
+        "base": {
+          "hex": "#0a0a0aff",
+          "hue": "neutral",
+          "step": 800
+        },
+        "disabled": {
+          "hex": "#808080ff",
+          "hue": "neutral",
+          "step": 400
+        },
+        "pressed": {
+          "hex": "#0a0a0aff",
+          "hue": "neutral",
+          "step": 800
+        },
+        "focused": {
+          "hex": "#0a0a0aff",
+          "hue": "neutral",
+          "step": 800
+        },
+        "selected": {
+          "hex": "#0a0a0aff",
+          "hue": "neutral",
+          "step": 800
+        },
+        "hovered": {
+          "hex": "#0a0a0aff",
+          "hue": "neutral",
+          "step": 800
+        }
+      }
+    },
+    "formfield": {
+      "base": {
+        "hex": "#eeeeeeff",
+        "hue": "neutral",
+        "step": 200
+      },
+      "hovered": {
+        "hex": "#fab283ff",
+        "hue": "interactive",
+        "step": 200
+      },
+      "focused": {
+        "hex": "#fab283ff",
+        "hue": "interactive",
+        "step": 200
+      },
+      "pressed": {
+        "hex": "#fab283ff",
+        "hue": "interactive",
+        "step": 200
+      },
+      "selected": {
+        "hex": "#fab283ff",
+        "hue": "interactive",
+        "step": 200
+      },
+      "disabled": {
+        "hex": "#808080ff",
+        "hue": "neutral",
+        "step": 400
+      }
+    },
+    "feedback": {
+      "error": {
+        "base": {
+          "hex": "#e06c75ff",
+          "hue": "red",
+          "step": 200
+        },
+        "muted": {
+          "hex": "#e06c75ff",
+          "hue": "red",
+          "step": 200
+        }
+      },
+      "warning": {
+        "base": {
+          "hex": "#f5a742ff"
+        },
+        "muted": {
+          "hex": "#f5a742ff"
+        }
+      },
+      "success": {
+        "base": {
+          "hex": "#7fd88fff",
+          "hue": "green",
+          "step": 200
+        },
+        "muted": {
+          "hex": "#7fd88fff",
+          "hue": "green",
+          "step": 200
+        }
+      },
+      "info": {
+        "base": {
+          "hex": "#56b6c2ff",
+          "hue": "cyan",
+          "step": 200
+        },
+        "muted": {
+          "hex": "#56b6c2ff",
+          "hue": "cyan",
+          "step": 200
+        }
+      }
+    }
+  },
+  "background": {
+    "base": {
+      "hex": "#0a0a0aff",
+      "hue": "neutral",
+      "step": 800
+    },
+    "raised": {
+      "base": {
+        "hex": "#141414ff",
+        "hue": "neutral",
+        "step": 700
+      },
+      "high": {
+        "hex": "#1e1e1eff",
+        "hue": "neutral",
+        "step": 600
+      },
+      "max": {
+        "hex": "#4c4c4cff",
+        "hue": "neutral",
+        "step": 500
+      }
+    },
+    "action": {
+      "primary": {
+        "base": {
+          "hex": "#00000000"
+        },
+        "hovered": {
+          "hex": "#141414ff",
+          "hue": "neutral",
+          "step": 700
+        },
+        "focused": {
+          "hex": "#fab283ff",
+          "hue": "interactive",
+          "step": 200
+        },
+        "selected": {
+          "hex": "#00000000"
+        },
+        "disabled": {
+          "hex": "#00000000"
+        },
+        "pressed": {
+          "hex": "#00000000"
+        }
+      },
+      "secondary": {
+        "base": {
+          "hex": "#00000000"
+        },
+        "disabled": {
+          "hex": "#00000000"
+        },
+        "pressed": {
+          "hex": "#00000000"
+        },
+        "focused": {
+          "hex": "#00000000"
+        },
+        "selected": {
+          "hex": "#00000000"
+        },
+        "hovered": {
+          "hex": "#00000000"
+        }
+      },
+      "destructive": {
+        "base": {
+          "hex": "#e06c75ff",
+          "hue": "red",
+          "step": 200
+        },
+        "disabled": {
+          "hex": "#e06c75ff",
+          "hue": "red",
+          "step": 200
+        },
+        "pressed": {
+          "hex": "#e06c75ff",
+          "hue": "red",
+          "step": 200
+        },
+        "focused": {
+          "hex": "#e06c75ff",
+          "hue": "red",
+          "step": 200
+        },
+        "selected": {
+          "hex": "#e06c75ff",
+          "hue": "red",
+          "step": 200
+        },
+        "hovered": {
+          "hex": "#e06c75ff",
+          "hue": "red",
+          "step": 200
+        }
+      }
+    },
+    "formfield": {
+      "base": {
+        "hex": "#0a0a0aff",
+        "hue": "neutral",
+        "step": 800
+      },
+      "disabled": {
+        "hex": "#0a0a0aff",
+        "hue": "neutral",
+        "step": 800
+      },
+      "pressed": {
+        "hex": "#0a0a0aff",
+        "hue": "neutral",
+        "step": 800
+      },
+      "focused": {
+        "hex": "#0a0a0aff",
+        "hue": "neutral",
+        "step": 800
+      },
+      "selected": {
+        "hex": "#0a0a0aff",
+        "hue": "neutral",
+        "step": 800
+      },
+      "hovered": {
+        "hex": "#0a0a0aff",
+        "hue": "neutral",
+        "step": 800
+      }
+    },
+    "feedback": {
+      "error": {
+        "base": {
+          "hex": "#0a0a0aff",
+          "hue": "neutral",
+          "step": 800
+        }
+      },
+      "warning": {
+        "base": {
+          "hex": "#0a0a0aff",
+          "hue": "neutral",
+          "step": 800
+        }
+      },
+      "success": {
+        "base": {
+          "hex": "#0a0a0aff",
+          "hue": "neutral",
+          "step": 800
+        }
+      },
+      "info": {
+        "base": {
+          "hex": "#0a0a0aff",
+          "hue": "neutral",
+          "step": 800
+        }
+      }
+    }
+  },
+  "border": {
+    "base": {
+      "hex": "#484848ff"
+    }
+  },
+  "scrollbar": {
+    "base": {
+      "hex": "#606060ff"
+    }
+  },
+  "diff": {
+    "text": {
+      "added": {
+        "hex": "#4fd6beff"
+      },
+      "removed": {
+        "hex": "#c53b53ff"
+      },
+      "context": {
+        "hex": "#828bb8ff"
+      },
+      "hunkHeader": {
+        "hex": "#828bb8ff"
+      }
+    },
+    "background": {
+      "added": {
+        "hex": "#20303bff"
+      },
+      "removed": {
+        "hex": "#37222cff"
+      },
+      "context": {
+        "hex": "#141414ff",
+        "hue": "neutral",
+        "step": 700
+      }
+    },
+    "highlight": {
+      "added": {
+        "hex": "#b8db87ff"
+      },
+      "removed": {
+        "hex": "#e26a75ff"
+      }
+    },
+    "lineNumber": {
+      "text": {
+        "hex": "#8f8f8fff"
+      },
+      "background": {
+        "added": {
+          "hex": "#1b2b34ff"
+        },
+        "removed": {
+          "hex": "#2d1f26ff"
+        }
+      }
+    }
+  },
+  "syntax": {
+    "comment": {
+      "hex": "#808080ff",
+      "hue": "neutral",
+      "step": 400
+    },
+    "keyword": {
+      "hex": "#9d7cd8ff",
+      "hue": "accent",
+      "step": 200
+    },
+    "function": {
+      "hex": "#fab283ff",
+      "hue": "interactive",
+      "step": 200
+    },
+    "variable": {
+      "hex": "#e06c75ff",
+      "hue": "red",
+      "step": 200
+    },
+    "string": {
+      "hex": "#7fd88fff",
+      "hue": "green",
+      "step": 200
+    },
+    "number": {
+      "hex": "#f5a742ff"
+    },
+    "type": {
+      "hex": "#e5c07bff"
+    },
+    "operator": {
+      "hex": "#56b6c2ff",
+      "hue": "cyan",
+      "step": 200
+    },
+    "punctuation": {
+      "hex": "#eeeeeeff",
+      "hue": "neutral",
+      "step": 200
+    }
+  },
+  "markdown": {
+    "text": {
+      "hex": "#eeeeeeff",
+      "hue": "neutral",
+      "step": 200
+    },
+    "heading": {
+      "hex": "#9d7cd8ff",
+      "hue": "accent",
+      "step": 200
+    },
+    "link": {
+      "hex": "#fab283ff",
+      "hue": "interactive",
+      "step": 200
+    },
+    "linkText": {
+      "hex": "#56b6c2ff",
+      "hue": "cyan",
+      "step": 200
+    },
+    "code": {
+      "hex": "#7fd88fff",
+      "hue": "green",
+      "step": 200
+    },
+    "blockQuote": {
+      "hex": "#e5c07bff"
+    },
+    "emphasis": {
+      "hex": "#e5c07bff"
+    },
+    "strong": {
+      "hex": "#f5a742ff"
+    },
+    "horizontalRule": {
+      "hex": "#808080ff",
+      "hue": "neutral",
+      "step": 400
+    },
+    "listItem": {
+      "hex": "#fab283ff",
+      "hue": "interactive",
+      "step": 200
+    },
+    "listEnumeration": {
+      "hex": "#56b6c2ff",
+      "hue": "cyan",
+      "step": 200
+    },
+    "image": {
+      "hex": "#fab283ff",
+      "hue": "interactive",
+      "step": 200
+    },
+    "imageText": {
+      "hex": "#56b6c2ff",
+      "hue": "cyan",
+      "step": 200
+    },
+    "codeBlock": {
+      "hex": "#eeeeeeff",
+      "hue": "neutral",
+      "step": 200
+    }
+  },
+  "categorical": {
+    "0": {
+      "100": {
+        "hex": "#82b4fbff",
+        "hue": "blue",
+        "step": 100
+      },
+      "200": {
+        "hex": "#5c9cf5ff",
+        "hue": "blue",
+        "step": 200
+      },
+      "300": {
+        "hex": "#4c86d6ff",
+        "hue": "blue",
+        "step": 300
+      },
+      "400": {
+        "hex": "#3c70b8ff",
+        "hue": "blue",
+        "step": 400
+      },
+      "500": {
+        "hex": "#2c5b9bff",
+        "hue": "blue",
+        "step": 500
+      },
+      "600": {
+        "hex": "#1d477fff",
+        "hue": "blue",
+        "step": 600
+      },
+      "700": {
+        "hex": "#0f3364ff",
+        "hue": "blue",
+        "step": 700
+      },
+      "800": {
+        "hex": "#02214aff",
+        "hue": "blue",
+        "step": 800
+      },
+      "900": {
+        "hex": "#01112bff",
+        "hue": "blue",
+        "step": 900
+      }
+    },
+    "1": {
+      "100": {
+        "hex": "#b38ff4ff",
+        "hue": "purple",
+        "step": 100
+      },
+      "200": {
+        "hex": "#9d7cd8ff",
+        "hue": "purple",
+        "step": 200
+      },
+      "300": {
+        "hex": "#8869bdff",
+        "hue": "purple",
+        "step": 300
+      },
+      "400": {
+        "hex": "#7357a2ff",
+        "hue": "purple",
+        "step": 400
+      },
+      "500": {
+        "hex": "#5f4688ff",
+        "hue": "purple",
+        "step": 500
+      },
+      "600": {
+        "hex": "#4b356fff",
+        "hue": "purple",
+        "step": 600
+      },
+      "700": {
+        "hex": "#392557ff",
+        "hue": "purple",
+        "step": 700
+      },
+      "800": {
+        "hex": "#271640ff",
+        "hue": "purple",
+        "step": 800
+      },
+      "900": {
+        "hex": "#17072bff",
+        "hue": "purple",
+        "step": 900
+      }
+    },
+    "2": {
+      "100": {
+        "hex": "#96f7a7ff",
+        "hue": "green",
+        "step": 100
+      },
+      "200": {
+        "hex": "#7fd88fff",
+        "hue": "green",
+        "step": 200
+      },
+      "300": {
+        "hex": "#68b977ff",
+        "hue": "green",
+        "step": 300
+      },
+      "400": {
+        "hex": "#539c61ff",
+        "hue": "green",
+        "step": 400
+      },
+      "500": {
+        "hex": "#3d7f4bff",
+        "hue": "green",
+        "step": 500
+      },
+      "600": {
+        "hex": "#296336ff",
+        "hue": "green",
+        "step": 600
+      },
+      "700": {
+        "hex": "#144922ff",
+        "hue": "green",
+        "step": 700
+      },
+      "800": {
+        "hex": "#00300fff",
+        "hue": "green",
+        "step": 800
+      },
+      "900": {
+        "hex": "#011705ff",
+        "hue": "green",
+        "step": 900
+      }
+    },
+    "3": {
+      "100": {
+        "hex": "#fddac5ff",
+        "hue": "orange",
+        "step": 100
+      },
+      "200": {
+        "hex": "#fab283ff",
+        "hue": "orange",
+        "step": 200
+      },
+      "300": {
+        "hex": "#d8976cff",
+        "hue": "orange",
+        "step": 300
+      },
+      "400": {
+        "hex": "#b67c56ff",
+        "hue": "orange",
+        "step": 400
+      },
+      "500": {
+        "hex": "#966341ff",
+        "hue": "orange",
+        "step": 500
+      },
+      "600": {
+        "hex": "#774a2cff",
+        "hue": "orange",
+        "step": 600
+      },
+      "700": {
+        "hex": "#593319ff",
+        "hue": "orange",
+        "step": 700
+      },
+      "800": {
+        "hex": "#3d1d06ff",
+        "hue": "orange",
+        "step": 800
+      },
+      "900": {
+        "hex": "#1f0b01ff",
+        "hue": "orange",
+        "step": 900
+      }
+    },
+    "4": {
+      "100": {
+        "hex": "#fd7e87ff",
+        "hue": "red",
+        "step": 100
+      },
+      "200": {
+        "hex": "#e06c75ff",
+        "hue": "red",
+        "step": 200
+      },
+      "300": {
+        "hex": "#c35a63ff",
+        "hue": "red",
+        "step": 300
+      },
+      "400": {
+        "hex": "#a74952ff",
+        "hue": "red",
+        "step": 400
+      },
+      "500": {
+        "hex": "#8c3941ff",
+        "hue": "red",
+        "step": 500
+      },
+      "600": {
+        "hex": "#722931ff",
+        "hue": "red",
+        "step": 600
+      },
+      "700": {
+        "hex": "#591921ff",
+        "hue": "red",
+        "step": 700
+      },
+      "800": {
+        "hex": "#410a13ff",
+        "hue": "red",
+        "step": 800
+      },
+      "900": {
+        "hex": "#280207ff",
+        "hue": "red",
+        "step": 900
+      }
+    }
+  }
+}

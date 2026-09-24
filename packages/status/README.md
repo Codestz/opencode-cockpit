@@ -1,6 +1,6 @@
 # @opencode-cockpit/status
 
-A statusline for [OpenCode](https://opencode.ai) you can actually configure — declarative segments,
+A statusline for [OpenCode](https://opencode.ai) you can actually configure: declarative segments,
 your own TypeScript, or the statusline script you already wrote for Claude Code.
 
 ![The statusline under an OpenCode conversation: a context bar at 40%, the token total with its cache, input and output parts, the session diff, elapsed time and todo progress](https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/statusline.png)
@@ -292,9 +292,29 @@ Without them the `cost` and `context` segments stay silent instead of reporting 
 If your proxy knows the real spend — LiteLLM's `/spend` endpoints do — a `command` segment can read
 it, which is better than any locally multiplied estimate.
 
+## Troubleshooting
+
+```sh
+npx opencode-cockpit@latest doctor
+```
+
+checks OpenCode, its config, Cockpit's logs and the daemon, and prints the fix for anything wrong —
+on OpenCode 1 and 2, and when Cockpit will not load at all ([what it checks](https://codestz.github.io/opencode-cockpit/help/doctor/)).
+
+Everything Cockpit does inside OpenCode goes to one file — which OpenCode loaded which bay, and every
+error with its stack:
+
+```sh
+tail -50 ~/.cache/opencode-cockpit/cockpit.log
+```
+
+`COCKPIT_DEBUG=1 opencode` adds the detail. [Troubleshooting](https://codestz.github.io/opencode-cockpit/help/troubleshooting/) covers
+the failures people hit and what to attach to an issue; [OpenCode 1 and 2](https://codestz.github.io/opencode-cockpit/start/opencode-versions/)
+covers what differs between the two.
+
 ## Requirements
 
-OpenCode 1.18+ and Bun 1.3.5+.
+OpenCode 1.18+ or 2.0.15+, and Bun 1.3.5+.
 
 ## Licence
 

@@ -19,10 +19,15 @@
       "name": "@opencode-cockpit/client",
       "version": "0.5.2",
       "dependencies": {
+        "@opencode-ai/plugin": "1.18.31",
         "@opencode-cockpit/protocol": "workspace:*",
       },
       "devDependencies": {
         "@opencode-cockpit/daemon": "workspace:*",
+        "@opentui/core": "0.4.5",
+        "@opentui/keymap": "0.4.5",
+        "@opentui/solid": "0.4.5",
+        "solid-js": "1.9.12",
       },
     },
     "packages/daemon": {
@@ -36,8 +41,12 @@
     "packages/opencode": {
       "name": "opencode-cockpit",
       "version": "0.5.2",
+      "bin": {
+        "opencode-cockpit": "./dist/bin.js",
+      },
       "dependencies": {
         "@opencode-ai/plugin": "1.18.31",
+        "@opencode-cockpit/client": "workspace:*",
         "@opencode-cockpit/review": "workspace:*",
         "@opencode-cockpit/shell": "workspace:*",
         "@opencode-cockpit/status": "workspace:*",

@@ -115,6 +115,15 @@ claim.release()
 | `claimFeature`, `duplicateFeatureMessage`, `FeatureClaim` | First-one-wins guard for duplicate loads |
 | `SpawnOptions` | `entry`, `execPath`, `env` |
 
+Subpaths, for bays:
+
+| Import | What it is |
+| --- | --- |
+| `@opencode-cockpit/client/host` | `Host`, `dualTui` — the interface half of a bay, written once for OpenCode 1 and 2 |
+| `@opencode-cockpit/client/server` | `ServerHost`, `dualServer`, `composeParts` — the agent half, the same way |
+| `@opencode-cockpit/client/log` | `createLog`, `Log` — the shared `cockpit.log`; `COCKPIT_DEBUG=1` for detail |
+| `@opencode-cockpit/client/feature` | the duplicate-load guard on its own |
+
 ## Requirements
 
 Bun ≥ 1.3.5. macOS and Linux.

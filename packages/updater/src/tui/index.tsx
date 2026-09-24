@@ -3,8 +3,9 @@
 import { rmSync } from "node:fs"
 import { homedir } from "node:os"
 import { basename } from "node:path"
-import type { TuiPlugin, TuiPluginApi, TuiPluginModule } from "@opencode-ai/plugin/tui"
+import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
+import { dualTui, type Host } from "@opencode-cockpit/client/host"
 import { type ApplyIo, applyPlan, manualSteps, readiness } from "../core/apply.ts"
 import { nodeDisk } from "../core/disk.ts"
 import { type GatherIo, gather } from "../core/gather.ts"
@@ -94,11 +95,11 @@ async function announce(api: TuiPluginApi): Promise<void> {
 }
 
 /** The Updater's TUI as a factory, so bundles such as `opencode-cockpit` can include it. */
-export function createUpdaterTui({ source = UPDATER_PACKAGE }: { source?: string } = {}): TuiPlugin {
-  return async (api, options, _meta) => {
-    const claim = claimFeature(api.renderer, "updater", source)
+export function createUpdaterTui({ source = UPDATER_PACKAGE }: { source?: string } = {}) {
+  return async (host: Host, options?: unknown) => {
+    const claim = claimFeature(host.renderer, "updater", source)
     if (!claim.active) {
-      api.ui.toast({
+      host.ui.toast({
         variant: "warning",
         title: "opencode-cockpit",
         message: duplicateFeatureMessage("Updater", claim.owner, source),
@@ -106,9 +107,26 @@ export function createUpdaterTui({ source = UPDATER_PACKAGE }: { source?: string
       })
       return
     }
-    api.lifecycle.onDispose(() => claim.release())
+    host.lifecycle.onDispose(() => claim.release())
 
-    api.keymap.registerLayer({
+    /**
+     * The updater edits OpenCode 1's files through OpenCode 1's `opencode plugin <spec> --force`;
+     * OpenCode 2 has neither. Its `opencode plugin update` needs its background service and was not
+     * measured on a pinned entry, so the commands say what is known to work: change the version in
+     * the entry. They stay, so the habit still lands somewhere.
+     */
+    const api = host.v1
+    const open = api
+      ? () => openUpdater(api)
+      : () =>
+          host.ui.toast({
+            title: "Plugins",
+            message:
+              "On OpenCode 2, change the version in your opencode.json plugin entry, then restart OpenCode.",
+            duration: 10_000,
+          })
+
+    host.keymap.registerLayer({
       commands: [
         {
           name: "cockpit.updater.open",
@@ -116,7 +134,7 @@ export function createUpdaterTui({ source = UPDATER_PACKAGE }: { source?: string
           category: "Plugins",
           namespace: "palette",
           slashName: "plugins-update",
-          run: () => openUpdater(api),
+          run: open,
         },
         {
           // Old toasts, old docs and habit all say /cockpit-update; it now opens the same screen.
@@ -125,11 +143,12 @@ export function createUpdaterTui({ source = UPDATER_PACKAGE }: { source?: string
           category: "Plugins",
           namespace: "palette",
           slashName: "cockpit-update",
-          run: () => openUpdater(api),
+          run: open,
         },
       ],
       bindings: [],
     })
+    if (!api) return
 
     // Never in the way of starting up, and never loud about failing: offline is not news.
     const where = { env: process.env, home: homedir(), directory: api.state.path.directory }
@@ -139,5 +158,5 @@ export function createUpdaterTui({ source = UPDATER_PACKAGE }: { source?: string
   }
 }
 
-const plugin: TuiPluginModule & { id: string } = { id: UPDATER_PACKAGE, tui: createUpdaterTui() }
-export default plugin
+/** One entry for both OpenCodes: v1 calls `tui`, v2 calls `setup` (docs/opencode/v2.md). */
+export default dualTui("opencode-cockpit.updater", createUpdaterTui())

@@ -1,6 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 
-import type { TuiPluginApi, TuiThemeCurrent } from "@opencode-ai/plugin/tui"
+import type { TuiThemeCurrent } from "@opencode-ai/plugin/tui"
+import type { Host } from "@opencode-cockpit/client/host"
 import type { JSX } from "solid-js"
 import { For, Show } from "solid-js"
 import type { Run, Segment, Tone } from "../../core/segments.ts"
@@ -65,7 +66,7 @@ function decorate(run: Run): JSX.Element {
 }
 
 export interface StatusLineProps {
-  api: TuiPluginApi
+  api: Host
   segments: () => Segment[]
   separator: string
   /** Across the window, or down a column. */

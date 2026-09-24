@@ -32,7 +32,7 @@ drives, and that you watch and control without leaving the chat. Part of
 opencode plugin @opencode-cockpit/shell@0.5.2 --global --force
 ```
 
-Restart OpenCode. Requires OpenCode 1.18 or newer on macOS or Linux. The version is pinned on
+Restart OpenCode. Requires OpenCode 1.18+ or 2.0.15+ on macOS or Linux. The version is pinned on
 purpose: OpenCode never re-resolves a plugin spec, so `@latest` would stay on the first release it
 installed. To update, run `npx opencode-cockpit@latest update`.
 
@@ -220,15 +220,18 @@ is exactly why the config file exists.
 
 | Problem | Look at |
 |---|---|
+| Anything — start here | `npx opencode-cockpit@latest doctor`, then `~/.cache/opencode-cockpit/cockpit.log` (`COCKPIT_DEBUG=1 opencode` for detail) |
 | Tools fail with "did not start" | `~/.cache/opencode-cockpit/cockpitd.log` |
 | Plugin not loading | newest file in `~/.local/share/opencode/log/` |
-| Warning: "Shell is configured twice" | Remove either `opencode-cockpit` or `@opencode-cockpit/shell` from `opencode.json` and `tui.json` |
+| Warning: "Shell is configured twice" | Remove either `opencode-cockpit` or `@opencode-cockpit/shell` from `opencode.json` (and `tui.json` on OpenCode 1) |
 | Panel says the daemon runs older code | `/shells-restart-daemon` once your shells are done |
+
+More in [Troubleshooting](https://codestz.github.io/opencode-cockpit/help/troubleshooting/).
 
 ## How it works
 
-OpenCode runs its interface and its server in separate threads, so the plugin's two halves can't
-share memory. Both talk to `cockpitd`, which owns every process. Each shell's output feeds a line
+OpenCode runs its interface and its server apart — threads on OpenCode 1, processes on OpenCode 2 —
+so the plugin's two halves can't share memory. Both talk to `cockpitd`, which owns every process. Each shell's output feeds a line
 normalizer (the agent's log), a headless terminal emulator (the screen you see) and a raw ring
 buffer (replay for late viewers). See
 [CONTRIBUTING.md](https://github.com/Codestz/opencode-cockpit/blob/main/CONTRIBUTING.md).

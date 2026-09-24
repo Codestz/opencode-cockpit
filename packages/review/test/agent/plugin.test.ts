@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { Hooks, PluginInput } from "@opencode-ai/plugin"
+import { partsToV1Hooks, serverFromV1 } from "@opencode-cockpit/client/server"
 import { createReviewServer } from "../../src/agent/plugin.ts"
 import type { Thread } from "../../src/core/model/thread.ts"
 import { reviewPaths } from "../../src/core/store/paths.ts"
@@ -32,6 +33,10 @@ const input = (): PluginInput =>
       file: { read: async () => ({ data: undefined }) },
     },
   }) as unknown as PluginInput
+
+/** Review's server half, as v1 would load it. */
+const start = async (): Promise<Hooks> =>
+  partsToV1Hooks(await createReviewServer()(serverFromV1(input()), undefined))
 
 /** The branch is whatever git says in a directory that is not a repository: nothing. */
 const store = () => createPersistence(reviewPaths(home, undefined, { COCKPIT_HOME: home }))
@@ -63,12 +68,12 @@ afterEach(async () => {
 
 describe("what the agent is told", () => {
   test("the three tools, and nothing it has to be told about twice", async () => {
-    const hooks = (await createReviewServer()(input())) as Hooks
+    const hooks = await start()
     expect(Object.keys(hooks.tool ?? {}).sort()).toEqual(["review_list", "review_open", "review_reply"])
   })
 
   test("how the review works, once per conversation", async () => {
-    const hooks = (await createReviewServer()(input())) as Hooks
+    const hooks = await start()
     const system = await systemOf(hooks)
     expect(system.join("\n")).toContain("review_list")
     expect(system.join("\n")).toContain("review_reply")
@@ -76,7 +81,7 @@ describe("what the agent is told", () => {
 
   /** The guidance says the agent can leave notes of its own, so the tool for it has to exist. */
   test("nothing the guidance promises is missing from the tools", async () => {
-    const hooks = (await createReviewServer()(input())) as Hooks
+    const hooks = await start()
     const system = (await systemOf(hooks)).join("\n")
     for (const name of Object.keys(hooks.tool ?? {})) {
       if (system.includes(name)) expect(hooks.tool?.[name]).toBeDefined()
@@ -87,7 +92,7 @@ describe("what the agent is told", () => {
 
   /** The count is a second line, added only when there is one to add — so it is counted, not matched. */
   test("and what is actually waiting, so it does not have to ask to find out there is nothing", async () => {
-    const hooks = (await createReviewServer()(input())) as Hooks
+    const hooks = await start()
     expect(await systemOf(hooks)).toHaveLength(1)
 
     await store().save(thread())
@@ -110,13 +115,13 @@ describe("what the agent is told", () => {
         entries: [{ author: "agent", body: "noted", at: 2 }],
       }),
     )
-    const hooks = (await createReviewServer()(input())) as Hooks
+    const hooks = await start()
     expect(await systemOf(hooks)).toHaveLength(1)
   })
 
   test("a review it cannot read is no reason to fail a conversation", async () => {
     await rm(home, { recursive: true, force: true })
-    const hooks = (await createReviewServer()(input())) as Hooks
+    const hooks = await start()
     expect((await systemOf(hooks)).length).toBeGreaterThan(0)
   })
 })
@@ -124,11 +129,11 @@ describe("what the agent is told", () => {
 describe("two copies of Review", () => {
   /** One from the bundle, one installed directly: the second stands down rather than double-register. */
   test("the second registers nothing, and says why in the log", async () => {
-    const host = input()
-    const first = (await createReviewServer({ source: "opencode-cockpit" })(host)) as Hooks
-    const second = (await createReviewServer({ source: "@opencode-cockpit/review" })(host)) as Hooks
-    expect(Object.keys(first.tool ?? {})).toHaveLength(3)
-    expect(second.tool).toBeUndefined()
+    const host = serverFromV1(input())
+    const first = await createReviewServer({ source: "opencode-cockpit" })(host, undefined)
+    const second = await createReviewServer({ source: "@opencode-cockpit/review" })(host, undefined)
+    expect(Object.keys(first.tools ?? {})).toHaveLength(3)
+    expect(second.tools).toBeUndefined()
     await Bun.sleep(5)
     expect(logged.join(" ")).toContain("Review")
   })

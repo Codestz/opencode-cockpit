@@ -1,5 +1,5 @@
 /** @jsxImportSource @opentui/solid */
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { Host } from "@opencode-cockpit/client/host"
 import type { ShellInfo } from "@opencode-cockpit/protocol/shell"
 import { BADGE_RULE, badgeText, kindColor, kindOf } from "../lib/view.ts"
 
@@ -10,7 +10,7 @@ import { BADGE_RULE, badgeText, kindColor, kindOf } from "../lib/view.ts"
  * them reads as a wall of colour rather than as a list of shells; the rule carries the same
  * meaning in one column.
  */
-export function Badge(props: { api: TuiPluginApi; shell: ShellInfo; frame: number }) {
+export function Badge(props: { api: Host; shell: ShellInfo; frame: number }) {
   const theme = () => props.api.theme.current
   const kind = () => kindOf(props.shell)
   const colour = () => kindColor(theme(), kind())

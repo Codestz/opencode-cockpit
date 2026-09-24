@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 
-import { createBindingLookup, type TuiPlugin, type TuiPluginModule } from "@opencode-ai/plugin/tui"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
+import { bindingLookup, dualTui, type Host } from "@opencode-cockpit/client/host"
 import type { BoxRenderable } from "@opentui/core"
 import { createSignal } from "solid-js"
 import { createClient } from "../connect.ts"
@@ -12,7 +12,6 @@ import { SidebarShells } from "./components/sidebar.tsx"
 import { newShell, pickShell, restartDaemon, stopShells } from "./dialogs.tsx"
 import { screenCols } from "./lib/console.ts"
 import { isReleaseKey, keyToBytes } from "./lib/keys.ts"
-import { trace } from "./lib/trace.ts"
 import { createActions, HISTORY } from "./panel/actions.ts"
 import { createFeed } from "./panel/feed.ts"
 import { consoleLayer } from "./panel/keys.ts"
@@ -33,8 +32,8 @@ export type ShellTuiOptions = NonNullable<CockpitConfig["ui"]>
 const SHELL_PACKAGE = "@opencode-cockpit/shell"
 
 /** Shell's TUI half as a factory, so bundles such as `opencode-cockpit` can include it. */
-export function createShellTui({ source = SHELL_PACKAGE }: { source?: string } = {}): TuiPlugin {
-  return async (api, rawOptions, meta) => {
+export function createShellTui({ source = SHELL_PACKAGE }: { source?: string } = {}) {
+  return async (api: Host, rawOptions?: unknown) => {
     // The renderer is shared by every TUI plugin in this OpenCode window.
     const claim = claimFeature(api.renderer, "shell", source)
     if (!claim.active) {
@@ -47,17 +46,18 @@ export function createShellTui({ source = SHELL_PACKAGE }: { source?: string } =
       return
     }
     api.lifecycle.onDispose(() => claim.release())
-    await shellTui(api, rawOptions, meta)
+    await shellTui(api, rawOptions)
   }
 }
 
-const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
+const shellTui = async (api: Host, rawOptions?: unknown) => {
   // Settings come from the shared config file; plugin-entry options still win, flat or under "ui".
+  const log = api.log.child("shell")
   const config = loadConfig(api.state.path.directory, rawOptions)
   const options: ShellTuiOptions = config.ui ?? {}
   const client = createClient("opencode-cockpit/tui")
   const store = createShellStore(api, client, { historyMinutes: options.historyMinutes })
-  const keys = createBindingLookup({ ...DEFAULT_KEYS, ...options.keybinds })
+  const keys = bindingLookup({ ...DEFAULT_KEYS, ...options.keybinds })
 
   // An explicit `ui.dockOpen` says how the panel should start; without one, whatever you last left
   // it as. Remembered state that overrides a written setting is a setting that appears to do nothing.
@@ -69,10 +69,7 @@ const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
     setDockOpen(next)
     api.kv.set("cockpit.dock.open", next)
   }
-  const shortcut = (command: string) => {
-    const bindings = api.keymap.getCommandBindings({ visibility: "registered", commands: [command] })
-    return api.keys.formatBindings(bindings.get(command)) ?? ""
-  }
+  const shortcut = (command: string) => api.keymap.shortcut(command)
 
   /**
    * The console: one surface, one feed, one painter, one key table — at two sizes.
@@ -151,14 +148,10 @@ const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
             version()
             return painter.rows()
           }}
-          keys={() => {
-            const layer = consoleLayer(actions)
-            return {
-              commands: layer.commands,
-              bindings: layer.bindings,
-              enabled: () => !surface.typing && !surface.searching,
-            }
-          }}
+          keys={() => ({
+            ...consoleLayer(actions),
+            enabled: () => !surface.typing && !surface.searching,
+          })}
         />
       ),
       /** Closed by the host — escape, a click outside — is the console closing, unless we swapped. */
@@ -174,7 +167,7 @@ const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
 
   const closeConsole = () => {
     if (!surface.open) return
-    trace("console: close", { full: surface.full })
+    log.debug("console: close", { full: surface.full })
     Object.assign(surface, { open: false, typing: false, searching: false, notice: undefined })
     disposeKeys?.()
     disposeKeys = undefined
@@ -197,7 +190,7 @@ const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
     swapping = true
     surface.full = !surface.full
     api.kv.set(FULL_KEY, surface.full)
-    trace("console: resize", { full: surface.full })
+    log.debug("console: resize", { full: surface.full })
     if (surface.full) {
       api.ui.dialog.clear()
       disposeKeys ??= api.keymap.registerLayer(consoleLayer(actions))
@@ -225,7 +218,6 @@ const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
 
   /** Search and typing take keys before the layer: a query or a program must get every key. */
   api.keymap.intercept(
-    "key",
     (ctx) => {
       if (!surface.open) return
       const event = ctx.event
@@ -259,7 +251,7 @@ const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
 
   const openConsole = (id?: string, typeInto = false) => {
     if (id) store.select(id)
-    trace("console: open", { id, full: surface.full })
+    log.debug("console: open", { id, full: surface.full })
     const already = surface.open
     Object.assign(surface, {
       open: true,
@@ -340,7 +332,10 @@ const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
                 message: `Cleared ${n} finished shell${n === 1 ? "" : "s"}`,
               }),
             )
-            .catch((err) => api.ui.toast({ variant: "error", title: "Shells", message: String(err) }))
+            .catch((error) => {
+              log.error("clear failed", { error })
+              api.ui.toast({ variant: "error", title: "Shells", message: String(error) })
+            })
         },
       },
       {
@@ -389,7 +384,7 @@ const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
               onReady={(parts) => {
                 backdrop = parts.backdrop
                 pool = createRowPool(parts.lines)
-                trace("full: mounted")
+                log.debug("full: mounted")
                 draw()
               }}
               onScroll={(delta) => actions.scroll(delta)}
@@ -434,5 +429,5 @@ const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
   })
 }
 
-const plugin: TuiPluginModule & { id: string } = { id: "opencode-cockpit.shell", tui: createShellTui() }
-export default plugin
+/** One entry for both OpenCodes: v1 calls `tui`, v2 calls `setup` (docs/opencode/v2.md). */
+export default dualTui("opencode-cockpit.shell", createShellTui())

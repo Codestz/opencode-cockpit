@@ -27,6 +27,18 @@
     "./feature": {
       "types": "./types/feature.d.ts",
       "default": "./dist/feature.js"
+    },
+    "./host": {
+      "types": "./types/host.d.ts",
+      "default": "./dist/host.js"
+    },
+    "./server": {
+      "types": "./types/server.d.ts",
+      "default": "./dist/server.js"
+    },
+    "./log": {
+      "types": "./types/log.d.ts",
+      "default": "./dist/log.js"
     }
   },
   "files": [
@@ -39,10 +51,15 @@
     "access": "public"
   },
   "dependencies": {
-    "@opencode-cockpit/protocol": "workspace:*"
+    "@opencode-cockpit/protocol": "workspace:*",
+    "@opencode-ai/plugin": "1.18.31"
   },
   "devDependencies": {
-    "@opencode-cockpit/daemon": "workspace:*"
+    "@opencode-cockpit/daemon": "workspace:*",
+    "@opentui/core": "0.4.5",
+    "@opentui/keymap": "0.4.5",
+    "@opentui/solid": "0.4.5",
+    "solid-js": "1.9.12"
   },
   "engines": {
     "bun": ">=1.3.5"

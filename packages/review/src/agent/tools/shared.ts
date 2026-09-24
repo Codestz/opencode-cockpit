@@ -6,7 +6,6 @@
  * almost never touch the same bytes.
  */
 
-import type { PluginInput } from "@opencode-ai/plugin"
 import type { Thread } from "../../core/model/thread.ts"
 import type { Persistence } from "../../core/store/persist.ts"
 
@@ -20,7 +19,6 @@ export interface FileContents {
 }
 
 export interface ToolDeps {
-  opencode: PluginInput["client"]
   directory: string
   /** The threads for whatever branch is checked out now, re-resolved per call. */
   store: () => Promise<Persistence>

@@ -1,5 +1,5 @@
 /** @jsxImportSource @opentui/solid */
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { Host } from "@opencode-cockpit/client/host"
 import { useTerminalDimensions } from "@opentui/solid"
 import { createMemo, For, Show } from "solid-js"
 import {
@@ -18,7 +18,7 @@ import { useScreen } from "../state/store.ts"
 import { Badge } from "./badge.tsx"
 
 export interface DockProps {
-  api: TuiPluginApi
+  api: Host
   store: ShellStore
   height: number
   /** Paint the colours programs print (config: ui.colors). */
