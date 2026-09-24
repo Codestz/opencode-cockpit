@@ -12,7 +12,7 @@ Background terminals with a real PTY. Nine agent tools, 35 watch presets, three 
 shell, log search, limits and log files. See [Shell](/opencode-cockpit/shell/overview/).
 
 ```sh
-opencode plugin @opencode-cockpit/shell@0.5.1 --global --force
+opencode plugin @opencode-cockpit/shell@0.5.2 --global --force
 ```
 
 ## Statusline — available
@@ -23,7 +23,7 @@ already wrote for Claude Code, colours and all. See
 [Statusline](/opencode-cockpit/status/overview/).
 
 ```sh
-opencode plugin @opencode-cockpit/status@0.5.1 --global --force
+opencode plugin @opencode-cockpit/status@0.5.2 --global --force
 ```
 
 ## Review — available
@@ -33,7 +33,7 @@ about, and an agent that can read them, answer them and mark them resolved. A re
 against the file before it counts. See [Review](/opencode-cockpit/review/overview/).
 
 ```sh
-opencode plugin @opencode-cockpit/review@0.5.1 --global --force
+opencode plugin @opencode-cockpit/review@0.5.2 --global --force
 ```
 
 ## Updater — available
@@ -45,7 +45,7 @@ spec once and `@latest` never moves again. From a shell, on any version:
 `npx opencode-cockpit@latest update`. See [Updater](/opencode-cockpit/updater/overview/).
 
 ```sh
-opencode plugin @opencode-cockpit/updater@0.5.1 --global --force
+opencode plugin @opencode-cockpit/updater@0.5.2 --global --force
 ```
 
 ## Doctor — next
