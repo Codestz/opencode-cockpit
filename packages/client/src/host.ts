@@ -13,8 +13,8 @@
 
 import type { TuiDialogSelectOption, TuiPluginApi, TuiThemeCurrent } from "@opencode-ai/plugin/tui"
 import type { CliRenderer, KeyEvent } from "@opentui/core"
-import { useBindings } from "@opentui/keymap/solid"
-import { createComponent, createRoot, type JSX } from "solid-js"
+import { createComponent, createRoot, getOwner, type JSX, type Owner, onCleanup } from "solid-js"
+import { cockpitVersion, createLog, type Log, silentLog } from "./log.ts"
 
 type V1Layer = Parameters<TuiPluginApi["keymap"]["registerLayer"]>[0]
 export type Layer = V1Layer
@@ -99,6 +99,8 @@ export interface Host {
     register(input: { order?: number; slots: Partial<Record<SlotName, SlotRender>> }): void
   }
   readonly lifecycle: { onDispose(fn: () => void): void }
+  /** The shared log (`cockpit.log`), scoped `tui`; a bay takes `log.child("shell")`. */
+  readonly log: Log
   /** Hands text to a conversation, as if the person had sent it. */
   promptSession(sessionID: string, text: string): Promise<void>
   /** The v1 API itself, for the calls that have no v2 equivalent. */
@@ -107,9 +109,47 @@ export interface Host {
   readonly v2?: V2Context
 }
 
+/* ─── keys, without @opentui/keymap ───────────────────────────────────────────────────────────── */
+
+/**
+ * OpenCode 2 lets a plugin import `@opentui/core` and `solid-js` and nothing else of OpenTUI: an
+ * import of `@opentui/keymap` fails, and a plugin whose module fails to load is skipped without a
+ * word (measured on 2.0.15). So the two keymap helpers the bays used are re-made here from nothing.
+ */
+
+/** A configured key: a key string, several, an object with a `key`, or `false`/"none" for unbound. */
+export type BindingValue = string | false | { key: string } | readonly (string | { key: string })[]
+export interface Binding {
+  key: string
+  cmd: string
+  [field: string]: unknown
+}
+
+/** `createBindingLookup` as the bays used it: config `{ command: key }` → `{ key, cmd }` bindings. */
+export function bindingLookup(config: Readonly<Record<string, BindingValue | undefined>>) {
+  const byCommand = new Map<string, Binding[]>()
+  for (const [cmd, value] of Object.entries(config)) {
+    if (value === undefined || value === false || value === "none") continue
+    const items = (Array.isArray(value) ? value : [value]) as (string | { key: string })[]
+    const bindings = items.map((item) => (typeof item === "string" ? { key: item, cmd } : { ...item, cmd }))
+    if (bindings.length > 0) byCommand.set(cmd, bindings)
+  }
+  return {
+    get: (command: string): Binding[] => byCommand.get(command) ?? [],
+    gather: (_name: string, commands: readonly string[]): Binding[] =>
+      commands.flatMap((command) => byCommand.get(command) ?? []),
+  }
+}
+
+/** A v1 layer owned by the calling component: registered now, disposed when the component goes. */
+export function useApiLayer(api: TuiPluginApi, layer: () => Layer): void {
+  const dispose = api.keymap.registerLayer(layer())
+  onCleanup(dispose)
+}
+
 /* ─── v1 ─────────────────────────────────────────────────────────────────────────────────────── */
 
-export function fromV1(api: TuiPluginApi): Host {
+export function fromV1(api: TuiPluginApi, log: Log = silentLog): Host {
   const pick = <Value>(
     options: Parameters<Host["ui"]["select"]>[0] & { options: SelectOption<Value>[] },
   ): Promise<Value | undefined> =>
@@ -205,7 +245,7 @@ export function fromV1(api: TuiPluginApi): Host {
     },
     keymap: {
       registerLayer: (layer) => api.keymap.registerLayer(layer),
-      useLayer: (layer) => useBindings(layer as never),
+      useLayer: (layer) => useApiLayer(api, layer),
       intercept: (handler, options) => api.keymap.intercept("key", handler as never, options),
       shortcut: (command) => {
         const bindings = api.keymap.getCommandBindings({ visibility: "registered", commands: [command] })
@@ -214,6 +254,7 @@ export function fromV1(api: TuiPluginApi): Host {
     },
     slots: { register: (input) => api.slots.register(input as never) },
     lifecycle: api.lifecycle,
+    log,
     promptSession: async (sessionID, text) => {
       await api.client.session.promptAsync({ sessionID, parts: [{ type: "text", text }] })
     },
@@ -289,21 +330,28 @@ export interface V2Context {
 }
 
 type Colour = TuiThemeCurrent["text"]
+type States = { base: Colour } & Record<string, unknown>
 interface V2Theme {
   text: {
     base: Colour
     muted: Colour
-    action: { primary: Colour; secondary: Colour }
-    feedback: { error: Colour; warning: Colour; success: Colour; info: Colour }
+    /** A colour per state (`base`, `hovered`, `focused`…), not a colour. */
+    action: { primary: States; secondary: States }
+    feedback: { error: States; warning: States; success: States; info: States }
   }
   background: { base: Colour; raised: { base: Colour; high: Colour; max: Colour } }
   border: { base: Colour }
+  scrollbar?: { base: Colour }
   diff: {
     text: { added: Colour; removed: Colour; context: Colour; hunkHeader: Colour }
     background: { added: Colour; removed: Colour; context: Colour }
     highlight: { added: Colour; removed: Colour }
-    lineNumber: { text: Colour; background: Colour }
+    lineNumber: { text: Colour; background: { added: Colour; removed: Colour } & Record<string, Colour> }
   }
+  /** The palettes the tokens are built from: `hue.accent[200]`… Shades are relative to the mode. */
+  hue?: Record<string, Record<string, Colour>>
+  /** Which palette and shade a token was built from. */
+  source?: (colour: Colour) => { hue: string; step: number | string } | undefined
   syntax: Record<
     | "comment"
     | "keyword"
@@ -341,13 +389,29 @@ interface V2Layer {
  * v2's token theme under v1's names, so every bay's colour table keeps working. Each read goes to
  * the live theme, so a theme switch is picked up on the next paint.
  */
+/** An OpenTUI colour: v1's and v2's both keep their channels in a `buffer`. */
+const isColour = (value: unknown): value is Colour =>
+  typeof value === "object" && value !== null && "buffer" in value
+
 export function themeFromV2(theme: () => V2Theme): Theme {
-  const map: Record<string, (t: V2Theme) => Colour> = {
+  /**
+   * v2 has no token for v1's accent, primary or secondary: they are palettes (`hue.accent`,
+   * `hue.interactive`, `hue.blue`), and the shade that reads as text is the one `text.base` is built
+   * from — 200 in both dark and light mode, where shades count from the text's end. `text.action.*`
+   * looked right and is not: it is the text *on* an action, white in the default theme, and took
+   * every accent in Review and the key hints with it. Measured against 2.0.15's default theme in
+   * both modes, next to v1 1.18.32's (docs/opencode/v2.md).
+   */
+  const palette = (t: V2Theme, hue: string, fallback: Colour | States) => {
+    const step = t.source?.(t.text.base)?.step ?? 200
+    return t.hue?.[hue]?.[String(step)] ?? fallback
+  }
+  const map: Record<string, (t: V2Theme) => Colour | States> = {
     text: (t) => t.text.base,
     textMuted: (t) => t.text.muted,
-    primary: (t) => t.text.action.primary,
-    secondary: (t) => t.text.action.secondary,
-    accent: (t) => t.text.action.primary,
+    primary: (t) => palette(t, "interactive", t.text.action.primary),
+    secondary: (t) => palette(t, "blue", t.text.action.secondary),
+    accent: (t) => palette(t, "accent", t.syntax.keyword),
     error: (t) => t.text.feedback.error,
     warning: (t) => t.text.feedback.warning,
     success: (t) => t.text.feedback.success,
@@ -357,8 +421,11 @@ export function themeFromV2(theme: () => V2Theme): Theme {
     backgroundElement: (t) => t.background.raised.high,
     backgroundMenu: (t) => t.background.raised.high,
     border: (t) => t.border.base,
+    /** v1's subtle border has no v2 twin; the one border there is the nearest. */
     borderSubtle: (t) => t.border.base,
-    borderActive: (t) => t.text.action.primary,
+    /** Same grey as v1's in the default theme. */
+    borderActive: (t) => t.scrollbar?.base ?? t.border.base,
+    selectedListItemText: (t) => t.background.base,
     diffAdded: (t) => t.diff.text.added,
     diffRemoved: (t) => t.diff.text.removed,
     diffContext: (t) => t.diff.text.context,
@@ -369,8 +436,9 @@ export function themeFromV2(theme: () => V2Theme): Theme {
     diffRemovedBg: (t) => t.diff.background.removed,
     diffContextBg: (t) => t.diff.background.context,
     diffLineNumber: (t) => t.diff.lineNumber.text,
-    diffAddedLineNumberBg: (t) => t.diff.highlight.added,
-    diffRemovedLineNumberBg: (t) => t.diff.highlight.removed,
+    /** A tint, not the highlight: the highlight drew the gutter as a solid green or red block. */
+    diffAddedLineNumberBg: (t) => t.diff.lineNumber.background.added,
+    diffRemovedLineNumberBg: (t) => t.diff.lineNumber.background.removed,
     syntaxComment: (t) => t.syntax.comment,
     syntaxKeyword: (t) => t.syntax.keyword,
     syntaxFunction: (t) => t.syntax.function,
@@ -381,15 +449,31 @@ export function themeFromV2(theme: () => V2Theme): Theme {
     syntaxOperator: (t) => t.syntax.operator,
     syntaxPunctuation: (t) => t.syntax.punctuation,
   }
+  /** v1's markdown names that v2 spells differently; the rest only lose the prefix. */
+  const MARKDOWN: Record<string, string> = { markdownEmph: "emphasis" }
+  /**
+   * v2's action and feedback tokens are not colours but a colour per state — `{ base, hovered,
+   * focused, … }` — and a bay handed one of those passed it on as a colour. `base` is the colour at
+   * rest; anything else that is not a colour falls back to the text colour rather than breaking a
+   * paint.
+   */
+  const colour = (value: unknown): Colour => {
+    const found = isColour(value)
+      ? value
+      : isColour((value as { base?: unknown })?.base)
+        ? (value as { base: Colour }).base
+        : undefined
+    return found ?? theme().text.base
+  }
   return new Proxy({} as Theme, {
     get: (_target, key) => {
       if (typeof key !== "string") return undefined
       const read = map[key]
-      if (read) return read(theme())
+      if (read) return colour(read(theme()))
       /** markdownText, markdownHeading…: v2 keeps them under `markdown`. */
       if (key.startsWith("markdown")) {
-        const name = key.slice(8, 9).toLowerCase() + key.slice(9)
-        return theme().markdown[name] ?? theme().text.base
+        const name = MARKDOWN[key] ?? key.slice(8, 9).toLowerCase() + key.slice(9)
+        return colour(theme().markdown[name])
       }
       return theme().text.base
     },
@@ -445,7 +529,7 @@ export function layerToV2(layer: Layer): V2Layer {
   }
 }
 
-export function fromV2(ctx: V2Context, onCleanup: (fn: () => void) => void): Host {
+export function fromV2(ctx: V2Context, onCleanup: (fn: () => void) => void, log: Log = silentLog): Host {
   const location = () => ctx.location ?? ctx.data.location.default()
   void ctx.data.location.vcs.sync(location()).catch(() => {})
   const [values, update] = ctx.storage.store<{ values: Record<string, unknown> }>("cockpit", {
@@ -453,12 +537,42 @@ export function fromV2(ctx: V2Context, onCleanup: (fn: () => void) => void): Hos
   })
   let depth = 0
 
-  /** v2 owns layers through the component that creates them: a root stands in, so it can be disposed. */
-  const ownedLayer = (layer: Layer): (() => void) =>
-    createRoot((dispose: () => void) => {
-      ctx.keymap.layer(() => layerToV2(layer))
-      return dispose
-    })
+  /**
+   * v2 creates a key layer through the component that owns it, and finds the keymap in that
+   * component's context — a layer made from `setup` fails with "Keymap.Provider is missing". So one
+   * invisible claim on the `app` slot is mounted, its owner kept, and every global layer is made in
+   * a root of its own under it: disposable on its own, and inside the host's context. Layers asked
+   * for before that component has rendered wait for it.
+   */
+  let keyOwner: Owner | undefined
+  const waiting: (() => void)[] = []
+  onCleanup(
+    ctx.ui.slot({
+      append: "app",
+      render: () => {
+        keyOwner = getOwner() ?? undefined
+        for (const start of waiting.splice(0)) start()
+        return null as unknown as JSX.Element
+      },
+    }),
+  )
+  const ownedLayer = (layer: Layer): (() => void) => {
+    let dispose: (() => void) | undefined
+    let gone = false
+    const start = () => {
+      if (gone) return
+      dispose = createRoot((done: () => void) => {
+        ctx.keymap.layer(() => layerToV2(layer))
+        return done
+      }, keyOwner)
+    }
+    if (keyOwner) start()
+    else waiting.push(start)
+    return () => {
+      gone = true
+      dispose?.()
+    }
+  }
 
   return {
     version: 2,
@@ -545,6 +659,7 @@ export function fromV2(ctx: V2Context, onCleanup: (fn: () => void) => void): Hos
       },
     },
     lifecycle: { onDispose: onCleanup },
+    log,
     promptSession: async (sessionID, text) => {
       await ctx.data.session.prompt?.({ sessionID, text })
     },
@@ -561,23 +676,45 @@ export type Start = (host: Host, options: Record<string, unknown> | undefined) =
  * returned cleanup when it unloads the plugin.
  */
 export function dualTui(id: string, start: Start) {
+  /**
+   * What loaded, where, and anything that stopped it: written before the bay runs, so a bay that never
+   * draws still says it was loaded and on which OpenCode, and one that throws leaves its stack.
+   */
+  const run = async (
+    host: Host,
+    options: Record<string, unknown> | undefined,
+    opencode: string | undefined,
+  ) => {
+    host.log.info("start", {
+      entry: id,
+      opencode: host.version,
+      opencodeVersion: opencode,
+      cockpit: cockpitVersion(),
+    })
+    try {
+      await start(host, options)
+    } catch (error) {
+      host.log.error("start failed", { entry: id, error })
+      throw error
+    }
+  }
   return {
     id,
     tui: async (api: TuiPluginApi, options?: unknown) => {
-      await start(fromV1(api), options as Record<string, unknown> | undefined)
+      const host = fromV1(api, createLog("tui"))
+      await run(host, options as Record<string, unknown> | undefined, api.app?.version)
     },
     setup: async (ctx: V2Context) => {
       const cleanups: (() => void)[] = []
-      await start(
-        fromV2(ctx, (fn) => cleanups.push(fn)),
-        ctx.options as Record<string, unknown>,
-      )
+      const host = fromV2(ctx, (fn) => cleanups.push(fn), createLog("tui"))
+      await run(host, ctx.options as Record<string, unknown>, undefined)
       return () => {
         for (const fn of cleanups.reverse()) {
           try {
             fn()
-          } catch {
+          } catch (error) {
             // one bay's cleanup failing must not keep the others from running
+            host.log.warn("cleanup failed", { entry: id, error })
           }
         }
       }

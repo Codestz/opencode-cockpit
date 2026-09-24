@@ -31,6 +31,14 @@
     "./host": {
       "types": "./types/host.d.ts",
       "default": "./dist/host.js"
+    },
+    "./server": {
+      "types": "./types/server.d.ts",
+      "default": "./dist/server.js"
+    },
+    "./log": {
+      "types": "./types/log.d.ts",
+      "default": "./dist/log.js"
     }
   },
   "files": [

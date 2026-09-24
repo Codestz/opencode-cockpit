@@ -16,7 +16,11 @@ const daemon = new Daemon({
     shell: { registryFile: join(paths.home, "shells.json"), logDir: join(paths.home, "logs") },
   }),
   idleTimeoutMs: Number(env.COCKPIT_IDLE_TIMEOUT_MS ?? 10 * 60_000),
-  logLevel: (env.COCKPIT_LOG_LEVEL as Level | undefined) ?? "info",
+  /** The same switches as the plugin's log (`client/src/log.ts`), so one `COCKPIT_DEBUG=1` covers both. */
+  logLevel:
+    env.COCKPIT_DEBUG && env.COCKPIT_DEBUG !== "0" && env.COCKPIT_DEBUG !== "false"
+      ? "debug"
+      : ((env.COCKPIT_LOG_LEVEL as Level | undefined) ?? "info"),
   logToFile: !foreground,
 })
 

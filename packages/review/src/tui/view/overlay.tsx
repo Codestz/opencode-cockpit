@@ -86,7 +86,6 @@ export function Overlay(props: OverlayProps): JSX.Element {
         flexShrink={0}
         flexDirection="column"
         backgroundColor={theme().backgroundPanel}
-        titleColor={theme().accent}
         /** Kept from reaching the backdrop, whose mouse-down dismisses the review. */
         onMouseDown={(event: MouseEvent) => event.stopPropagation()}
         /**

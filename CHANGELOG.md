@@ -6,6 +6,35 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Cockpit runs on OpenCode 2.** Every package now loads on OpenCode 1.18+ and 2.0.15+ from the
+  same entry: the panels, console, Review, statusline and updater in the interface, and the `shell_*`
+  and `review_*` tools, system guidance and exit notifications on the agent side. Each bay is written
+  once against a host (`@opencode-cockpit/client/host` and `/server`) that each version supplies. On
+  OpenCode 2, `/plugins-update` says to change the version in `opencode.json`: the updater edits
+  OpenCode 1's files only.
+
+- **One log for everything Cockpit does inside OpenCode.** Both halves of every bay write JSON lines
+  to `~/.cache/opencode-cockpit/cockpit.log`, beside the daemon's `cockpitd.log`: which OpenCode
+  (v1 or v2, and its version) loaded which entry, every error with its stack — including ones that
+  used to be a toast and nothing else — and every tool that failed. `COCKPIT_DEBUG=1 opencode` adds
+  the detail (console actions, each tool call and how long it took) and turns the daemon's debug
+  lines on too. The file moves to `cockpit.log.1` past 5 MB.
+
+- **`npx opencode-cockpit@latest doctor`.** Checks a setup and prints the fix for anything wrong,
+  for the OpenCode you have: its version; every Cockpit entry in `opencode.json`, `tui.json` and
+  `cli.json` in either OpenCode's spelling — a bay configured twice, a half missing on OpenCode 1, a
+  pin older than the newest release, a checkout OpenCode 2 cannot load; what the log says last ran,
+  and on which OpenCode; recent errors; the daemon; `git` and `ps`; settings files and statusline
+  modules. Runs under Node outside OpenCode, so it works when Cockpit will not load. `--json` for an
+  issue; exits 1 when something must be fixed.
+
+### Changed
+
+- `createShellServer` and `createReviewServer` return a feature for `dualServer` rather than a v1
+  plugin function.
+
 ### Fixed
 
 - **Full-screen shell console and the Review pane were see-through on transparent themes.** A theme

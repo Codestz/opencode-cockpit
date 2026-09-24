@@ -1,3 +1,4 @@
 [test]
 # Tests run real PTYs and a real daemon; shared CI runners can be slow to spawn processes.
 timeout = 20000
+preload = ["./scripts/test-env.ts"]

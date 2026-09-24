@@ -7,17 +7,20 @@ import { dualTui, fromV1, fromV2, layerToV2, themeFromV2, type V2Context } from 
  * OpenCode cannot show going wrong until someone's key does nothing.
  */
 
-const colour = (name: string) => ({ name }) as never
+/** Colours carry a `buffer`, as OpenTUI's do; the name is only there to tell them apart. */
+const colour = (name: string) => ({ name, buffer: [] }) as never
+/** Action and feedback tokens are a colour per state in OpenCode 2.0.15 — measured, not assumed. */
+const states = (name: string) => ({ base: colour(name), hovered: colour(`${name}:hovered`) })
 const theme = {
   text: {
     base: colour("text"),
     muted: colour("muted"),
-    action: { primary: colour("primary"), secondary: colour("secondary") },
+    action: { primary: states("primary"), secondary: states("secondary") },
     feedback: {
-      error: colour("error"),
-      warning: colour("warning"),
-      success: colour("success"),
-      info: colour("info"),
+      error: states("error"),
+      warning: states("warning"),
+      success: { base: colour("success"), muted: colour("success:muted") },
+      info: states("info"),
     },
   },
   background: {
@@ -137,12 +140,20 @@ describe("v2's token theme under v1's names", () => {
   test("maps each name a bay reads", () => {
     expect(current.text?.name).toBe("text")
     expect(current.textMuted?.name).toBe("muted")
-    expect(current.accent?.name).toBe("primary")
+    /** No palettes in this theme, so the accent falls back to the token built from it. */
+    expect(current.accent?.name).toBe("keyword")
     expect(current.backgroundPanel?.name).toBe("panel")
     expect(current.backgroundElement?.name).toBe("element")
     expect(current.diffAddedBg?.name).toBe("addedBg")
     expect(current.syntaxPunctuation?.name).toBe("punct")
     expect(current.markdownHeading?.name).toBe("heading")
+  })
+  /** Handing a bay the whole group made Review's paint throw on every frame. */
+  test("a token with a colour per state reads as its colour at rest", () => {
+    expect(current.primary?.name).toBe("primary")
+    expect(current.error?.name).toBe("error")
+    expect(current.success?.name).toBe("success")
+    expect("buffer" in (current.warning as object)).toBe(true)
   })
   test("a name v2 has no token for falls back to the text colour rather than nothing", () => {
     expect(current.somethingNew?.name).toBe("text")
@@ -174,11 +185,13 @@ describe("the v2 host", () => {
     const cleanups: unknown[] = []
     const host = fromV2(ctx, (fn) => cleanups.push(fn))
     host.slots.register({ slots: { app_bottom: () => null as never, sidebar_content: () => null as never } })
+    /** The first claim is the host's own: an invisible `app` render that owns the key layers. */
     expect(calls.slot.map((claim) => (claim as { append: string }).append)).toEqual([
+      "app",
       "app",
       "sidebar.content",
     ])
-    expect(cleanups).toHaveLength(2)
+    expect(cleanups).toHaveLength(3)
   })
 })
 
@@ -263,4 +276,44 @@ describe("the v1 host's dialogs", () => {
     handler(seen, "prompt", "onCancel")()
     expect(await answer).toBeUndefined()
   })
+})
+
+/**
+ * The mapping against the real thing: OpenCode 2.0.15's default theme and v1 1.18.32's, as each
+ * version handed them to a plugin (captured by a probe plugin; see docs/opencode/v2.md). The first
+ * mapping was written from v2's docs and put a white where every accent should be — right shape,
+ * wrong colour, and no test could tell. This one compares colours.
+ */
+describe("v2's default theme, read under v1's names, is v1's default theme", async () => {
+  type Node = { hex?: string; hue?: string; step?: number } & Record<string, unknown>
+  const v1 = (await Bun.file(`${import.meta.dir}/fixtures/v1-default-theme.json`).json()) as Record<
+    string,
+    string
+  >
+  const raw = (await Bun.file(`${import.meta.dir}/fixtures/v2-default-theme.json`).json()) as Node
+
+  /** Colours as OpenTUI's: a `buffer`, and a source the theme can be asked for. */
+  const sources = new Map<object, { hue: string; step: number }>()
+  const build = (node: Node): unknown => {
+    if (typeof node.hex === "string") {
+      const h = node.hex
+      const colour = {
+        buffer: [1, 3, 5, 7].map((i) => Number.parseInt(h.slice(i, i + 2), 16)),
+        hex: h.slice(0, 7),
+      }
+      if (node.hue && node.step !== undefined) sources.set(colour, { hue: node.hue, step: node.step })
+      return colour
+    }
+    return Object.fromEntries(Object.entries(node).map(([key, value]) => [key, build(value as Node)]))
+  }
+  const live = { ...(build(raw) as object), source: (colour: object) => sources.get(colour) }
+  const current = themeFromV2(() => live as never) as unknown as Record<string, { hex: string }>
+
+  /** No v2 token has v1's subtle-border grey; the nearest border stands in, a shade lighter. */
+  const nearest = new Set(["borderSubtle"])
+
+  for (const [name, hex] of Object.entries(v1)) {
+    if (nearest.has(name)) continue
+    test(name, () => expect(current[name]?.hex).toBe(hex))
+  }
 })

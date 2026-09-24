@@ -58,6 +58,12 @@ const DEFAULT_PRIORITY = 45
 
 /** The specifier a module is written against, which is the whole point of the failure below. */
 const AUTHORING = "@opencode-cockpit/status/segment"
+/**
+ * What the failure names. v1 says `Cannot find module '@opencode-cockpit/status/segment'`; v2 names
+ * only the package — `Cannot find package '@opencode-cockpit/status'` — and matching the full
+ * specifier left every module outside a project unloaded there.
+ */
+const AUTHORING_PACKAGE = "@opencode-cockpit/status"
 
 /**
  * Loading a module that lives outside a project.
@@ -125,7 +131,7 @@ export async function loadCustomSegments(
       } catch (err) {
         // Only the one failure is worth retrying; anything else is the module's own problem.
         const message = err instanceof Error ? err.message : String(err)
-        if (!message.includes(AUTHORING)) throw err
+        if (!message.includes(AUTHORING_PACKAGE)) throw err
         loaded = (await importWithAuthoring(full)) as { default?: CustomModule } & CustomModule
       }
       const module = loaded.default ?? loaded

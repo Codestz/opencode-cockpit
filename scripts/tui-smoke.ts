@@ -23,6 +23,14 @@ if (!opencode) {
   process.exit(1)
 }
 
+/** Which OpenCode this is decides where plugins are configured and how it is started. */
+const v2 = Bun.spawnSync([opencode, "--version"])
+  .stdout.toString()
+  .trim()
+  .replace(/^opencode\s+v?/, "")
+  .startsWith("2")
+console.log(`smoke against OpenCode ${v2 ? "2" : "1"} (${opencode})`)
+
 const work = mkdtempSync("/tmp/ck-smoke-")
 const install = join(work, "install")
 const project = join(work, "project")
@@ -33,6 +41,66 @@ const run = (cmd: string[], cwd: string) => {
   const result = Bun.spawnSync(cmd, { cwd, stdout: "pipe", stderr: "pipe" })
   if (result.exitCode !== 0) throw new Error(`$ ${cmd.join(" ")}\n${result.stdout}\n${result.stderr}`)
   return result.stdout.toString()
+}
+
+/**
+ * `AGENT=1`: one real turn, by a free OpenCode Zen model, against the server halves — the only proof
+ * that the tools registered and the system prompt carries the guidance, on either version. Needs the
+ * network and a model willing to follow instructions, so it is opt-in.
+ */
+function agentTurn(env: Record<string, string | undefined>) {
+  const prompt = [
+    "Call the tool shell_start with command 'echo AGENT-SHELL-OK' and description 'agent probe', then call review_list.",
+    "Your system prompt has a heading line starting with '## Background shells' and one starting with '## Review comments'.",
+    "Quote both heading lines exactly in your reply.",
+  ].join(" ")
+  const args = [
+    opencode as string,
+    "run",
+    ...(v2 ? ["--standalone", "--auto"] : []),
+    "-m",
+    "opencode/space-bunny-free",
+  ]
+  const result = Bun.spawnSync([...args, "--format", "json", prompt], {
+    cwd: project,
+    env,
+    stdout: "pipe",
+    stderr: "pipe",
+  })
+  const events = result.stdout
+    .toString()
+    .split("\n")
+    .filter((line) => line.startsWith("{"))
+    .map((line) => JSON.parse(line) as { type: string; part?: Record<string, never> })
+  /** v2 runs plugin tools through Code Mode: the calls are listed on its `execute` part. */
+  const called = events
+    .filter((event) => event.type === "tool_use")
+    .flatMap((event) => {
+      const part = event.part as unknown as {
+        tool: string
+        state: {
+          status: string
+          metadata?: { metadata?: { toolCalls?: { tool: string; status: string }[] } }
+        }
+      }
+      return [
+        { tool: part.tool, status: part.state.status },
+        ...(part.state.metadata?.metadata?.toolCalls ?? []),
+      ]
+    })
+    .filter((call) => call.status === "completed")
+    .map((call) => call.tool)
+  const said = events
+    .filter((event) => event.type === "text")
+    .map((event) => (event.part as unknown as { text: string }).text)
+    .join("\n")
+  const report = `${result.stdout}\n${result.stderr}`.slice(-3000)
+  for (const name of ["shell_start", "review_list"]) {
+    if (!called.includes(name)) throw new Error(`the agent never completed ${name}:\n${report}`)
+  }
+  for (const heading of ["## Background shells", "## Review comments"]) {
+    if (!said.includes(heading)) throw new Error(`the agent was never told "${heading}":\n${report}`)
+  }
 }
 
 const cols = 150
@@ -91,15 +159,27 @@ try {
 
   // The plugins must live under node_modules: that is what disables OpenCode's Solid transform.
   const bay = (name: string) => join(install, "node_modules", "@opencode-cockpit", name)
-  for (const [name, schema, plugins] of [
-    ["opencode.json", "https://opencode.ai/config.json", [bay("shell")]],
-    [
-      "tui.json",
-      "https://opencode.ai/tui.json",
-      [bay("shell"), bay("status"), bay("review"), bay("updater")],
-    ],
-  ] as const) {
-    await Bun.write(join(config, "opencode", name), JSON.stringify({ $schema: schema, plugin: plugins }))
+  const tuiBays = [bay("shell"), bay("status"), bay("review"), bay("updater")]
+  const serverBays = [bay("shell"), bay("review")]
+  /**
+   * v1 reads `plugin` from opencode.json and tui.json; v2 reads `plugins` from opencode.json and
+   * cli.json (docs/opencode/v2.md). The same packages go in either way.
+   */
+  const files: [string, string, string, string[]][] = v2
+    ? [
+        ["opencode.json", "https://opencode.ai/config.json", "plugins", serverBays],
+        ["cli.json", "https://opencode.ai/cli.json", "plugins", tuiBays],
+      ]
+    : [
+        ["opencode.json", "https://opencode.ai/config.json", "plugin", serverBays],
+        ["tui.json", "https://opencode.ai/tui.json", "plugin", tuiBays],
+      ]
+  for (const [name, schema, key, plugins] of files) {
+    /** v1's schema URLs mean nothing to v2, whose loader skipped files carrying them. */
+    await Bun.write(
+      join(config, "opencode", name),
+      JSON.stringify(v2 ? { [key]: plugins } : { $schema: schema, [key]: plugins }),
+    )
   }
   /**
    * A statusline whose value has to come from somewhere the plugin cannot fake: a literal marker
@@ -120,16 +200,18 @@ try {
     }),
   )
 
-  const proc = Bun.spawn([opencode], {
+  const env = {
+    ...process.env,
+    XDG_CONFIG_HOME: config,
+    /** OpenCode's kv lives here: without its own, a run writes plugin state into the user's real one. */
+    XDG_STATE_HOME: join(work, "state"),
+    COCKPIT_HOME: home,
+    TERM: "xterm-256color",
+  }
+  /** v2 would attach to the user's background service; a private server keeps the run to itself. */
+  const proc = Bun.spawn(v2 ? [opencode, "--standalone"] : [opencode], {
     cwd: project,
-    env: {
-      ...process.env,
-      XDG_CONFIG_HOME: config,
-      /** OpenCode's kv lives here: without its own, a run writes plugin state into the user's real one. */
-      XDG_STATE_HOME: join(work, "state"),
-      COCKPIT_HOME: home,
-      TERM: "xterm-256color",
-    },
+    env,
     terminal: {
       cols,
       rows,
@@ -163,6 +245,21 @@ try {
   await type("?", 1500)
   const consoleDetails = await screen()
   await type("\x1b", 800) // esc, back to the conversation
+
+  /**
+   * Full screen, which neither version's run opened before — so on OpenCode 2 it could draw nothing
+   * and still pass. `w` swaps the dialog for it and is remembered, so it is swapped back before leaving.
+   */
+  await type("\x18i", 3000)
+  await type("w", 2500)
+  const fullScreen = await screen()
+  await type("w", 1500)
+  await type("\x1b", 800)
+  if (process.env.SMOKE_SHOW) console.log(fullScreen)
+  /** The dialog sits inside the host's frame; only full screen puts the header on the top row. */
+  if (!fullScreen.split("\n")[0]?.includes("RUN") || !/^ {2}│ tick \d+/m.test(fullScreen)) {
+    throw new Error(`full screen never drew the console across the window:\n${fullScreen}`)
+  }
 
   for (const [what, marker] of [
     ["the console never drew its keys", "[?]"],
@@ -227,9 +324,15 @@ try {
     ["/plugins-update", updater],
     ["/cockpit-update", legacy],
   ] as const) {
-    for (const marker of ["Plugins", "published", "local", "Review"]) {
+    /** OpenCode 2 updates plugins itself; there the commands point at it instead of opening the dialog. */
+    for (const marker of v2 ? ["change the version"] : ["Plugins", "published", "local", "Review"]) {
       if (!text.includes(marker)) throw new Error(`${what} did not draw "${marker}":\n${text}`)
     }
+  }
+
+  /** A plugin OpenCode could not load says so in the footer, whichever half it was. */
+  for (const text of [first, second, consoleScreen, fullScreen, review, updater]) {
+    if (/plugins? failed/.test(text)) throw new Error(`OpenCode could not load a plugin:\n${text}`)
   }
 
   const ticks = (text: string) => [...text.matchAll(/tick (\d+)/g)].map((m) => Number(m[1]))
@@ -241,9 +344,12 @@ try {
       `the panel froze: still at tick ${firstMax} after 4s (published JSX not Solid-compiled?)\n${second}`,
     )
   }
+  if (process.env.AGENT) agentTurn(env)
   console.log(
-    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; console and its keys drew; statusline drew; review drew its diff; updater drew from both slash names`,
+    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; console and its keys drew; full screen drew; statusline drew; review drew its diff; updater answered both slash names${process.env.AGENT ? "; an agent called both bays' tools and was told about them" : ""}`,
   )
 } finally {
-  rmSync(work, { recursive: true, force: true })
+  /** KEEP=1 leaves the install and project behind, to inspect what a run actually loaded. */
+  if (process.env.KEEP) console.log(`kept ${work}`)
+  else rmSync(work, { recursive: true, force: true })
 }

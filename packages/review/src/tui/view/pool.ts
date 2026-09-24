@@ -191,7 +191,9 @@ const soften = (ink: RGBA, behind: RGBA): RGBA => {
   let byBack = softened.get(ink)
   const known = byBack?.get(behind)
   if (known) return known
-  const Colour = ink.constructor as unknown as { clone: (colour: RGBA) => RGBA }
+  const Colour = ink.constructor as unknown as { clone?: (colour: RGBA) => RGBA }
+  /** Something that is not a colour is drawn as it came rather than taking the whole paint down. */
+  if (typeof Colour.clone !== "function" || typeof behind?.r !== "number") return ink
   const out = Colour.clone(ink)
   out.r = ink.r + (behind.r - ink.r) * SOFTEN
   out.g = ink.g + (behind.g - ink.g) * SOFTEN

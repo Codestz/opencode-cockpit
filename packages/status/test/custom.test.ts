@@ -242,6 +242,24 @@ describe("a module that lives outside a project", () => {
     expect(segmentText(drawn as Segment)).toBe("used 2k")
   })
 
+  /**
+   * OpenCode 2 words the failure differently: it names the package, not the subpath, and matching
+   * the subpath left every module outside a project unloaded there.
+   */
+  test("OpenCode 2's wording of the failure is retried too", async () => {
+    const { dir, file } = moduleIn(`
+      import { compact } from "@opencode-cockpit/status/segment"
+      export default { segments: { one: () => compact(3000) } }
+    `)
+    const v2 = async () => {
+      throw new Error(`Cannot find package '@opencode-cockpit/status' imported from ${file}`)
+    }
+    const { segments, errors } = await loadCustomSegments([file], dir, v2)
+    expect(errors).toEqual([])
+    const [drawn] = buildSegments(ctx(), [{ type: "one" }], { custom: segments })
+    expect(segmentText(drawn as Segment)).toBe("3k")
+  })
+
   // Only the authoring import is worth retrying; a module's own failure is reported as itself.
   test("a module that fails for its own reasons still reports that reason", async () => {
     const { dir, file } = moduleIn(`throw new Error("module said no")\nexport default {}`)

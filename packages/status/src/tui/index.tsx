@@ -52,6 +52,7 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
        */
       moduleErrors.push(...loaded.errors)
       for (const error of loaded.errors) {
+        api.log.error("status: module failed to load", { error })
         api.ui.toast({ variant: "error", title: "Statusline", message: error, duration: 10_000 })
         void api.v1?.client.app
           .log({
@@ -148,8 +149,10 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
              * like a command that did nothing.
              */
             setTimeout(() => {
-              const failed = () =>
+              const failed = () => {
+                api.log.warn("status: could not reach the prompt")
                 api.ui.toast({ variant: "error", title: "Statusline", message: "could not reach the prompt" })
+              }
               if (api.v1) {
                 const tui = api.v1.client.tui
                 void tui
@@ -199,4 +202,4 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
 }
 
 /** One entry for both OpenCodes: v1 calls `tui`, v2 calls `setup` (docs/opencode/v2.md). */
-export default dualTui(STATUS_PACKAGE, createStatusTui())
+export default dualTui("opencode-cockpit.status", createStatusTui())

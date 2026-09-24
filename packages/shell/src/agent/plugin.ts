@@ -1,5 +1,10 @@
-import type { Hooks, Plugin, PluginInput, PluginModule } from "@opencode-ai/plugin"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
+import {
+  dualServer,
+  type ServerHost,
+  type ServerParts,
+  type ServerStart,
+} from "@opencode-cockpit/client/server"
 import type { ShellInfo } from "@opencode-cockpit/protocol/shell"
 import { createClient } from "../connect.ts"
 import { loadConfig } from "../core/config.ts"
@@ -20,37 +25,27 @@ export interface ShellServerOptions {
 }
 
 /** Shell's server half as a factory, so bundles such as `opencode-cockpit` can include it. */
-export function createShellServer({ source = SHELL_PACKAGE }: ShellServerOptions = {}): Plugin {
-  return async (input, options) => {
-    const claim = claimFeature(input, "shell", source)
+export function createShellServer({ source = SHELL_PACKAGE }: ShellServerOptions = {}): ServerStart {
+  return async (host, options) => {
+    const claim = claimFeature(host.scope, "shell", source)
     if (!claim.active) {
-      // Logging through the server during plugin initialisation could wait on ourselves; defer it.
-      setTimeout(() => {
-        void input.client.app
-          .log({
-            body: {
-              service: "opencode-cockpit",
-              level: "warn",
-              message: duplicateFeatureMessage("Shell", claim.owner, source),
-            },
-          })
-          .catch(() => {})
-      }, 0)
+      host.log.warn(duplicateFeatureMessage("Shell", claim.owner, source))
       return {}
     }
-    const hooks = await shellHooks(input, options)
-    const dispose = hooks.dispose
+    const parts = await shellParts(host, options)
     return {
-      ...hooks,
+      ...parts,
       dispose: async () => {
         claim.release()
-        await dispose?.()
+        await parts.dispose?.()
       },
     }
   }
 }
 
-async function shellHooks({ client: opencode, directory }: PluginInput, options?: unknown): Promise<Hooks> {
+async function shellParts(host: ServerHost, options?: unknown): Promise<ServerParts> {
+  const { directory } = host
+  const log = host.log.child("shell")
   const config = loadConfig(directory, options)
   // Identifies this OpenCode window to the daemon, so shells can end with it.
   const instance = crypto.randomUUID()
@@ -84,8 +79,7 @@ async function shellHooks({ client: opencode, directory }: PluginInput, options?
     if (hit && Date.now() - hit.at < 60_000) return hit.root
     let at = sessionID
     for (let hop = 0; hop < 8; hop++) {
-      const result = await opencode.session.get({ path: { id: at } }).catch(() => undefined)
-      const parent = (result?.data as { parentID?: string } | undefined)?.parentID
+      const parent = (await host.session.get(at))?.parentID
       if (!parent || parent === at) break
       at = parent
     }
@@ -98,8 +92,7 @@ async function shellHooks({ client: opencode, directory }: PluginInput, options?
   const sessionTitle = async (sessionID: string): Promise<string | undefined> => {
     const hit = titles.get(sessionID)
     if (hit && Date.now() - hit.at < 60_000) return hit.title
-    const result = await opencode.session.get({ path: { id: sessionID } }).catch(() => undefined)
-    const title = (result?.data as { title?: string } | undefined)?.title
+    const title = (await host.session.get(sessionID))?.title
     titles.set(sessionID, { title, at: Date.now() })
     return title
   }
@@ -108,7 +101,7 @@ async function shellHooks({ client: opencode, directory }: PluginInput, options?
   cockpit.on("shell.exited", (info) => {
     if (info.owner.instance !== instance || !info.owner.session) return
     if (quiet.delete(info.id) || config.notify?.exit === false) return
-    void notifyExit(info).catch(() => {})
+    void notifyExit(info).catch((error) => log.warn("exit notice not delivered", { shell: info.id, error }))
   })
 
   // A watcher's health changed. This is the whole point of watching: one message per change, never
@@ -128,12 +121,9 @@ async function shellHooks({ client: opencode, directory }: PluginInput, options?
     ]
       .filter(Boolean)
       .join("\n")
-    void opencode.session
-      .promptAsync({
-        path: { id: info.owner.session },
-        body: { parts: [{ type: "text", text, synthetic: true } as never] },
-      })
-      .catch(() => {})
+    void host.session
+      .notify(info.owner.session, text)
+      .catch((error) => log.warn("health notice not delivered", { shell: info.id, error }))
   })
 
   async function notifyExit(info: ShellInfo): Promise<void> {
@@ -152,14 +142,11 @@ async function shellHooks({ client: opencode, directory }: PluginInput, options?
         ? `Investigate with shell_read id=${info.id} grep="error|fail" if the failure matters to the task.`
         : `Full output: shell_read id=${info.id}.`,
     ].join("\n")
-    await opencode.session.promptAsync({
-      path: { id: session },
-      body: { parts: [{ type: "text", text, synthetic: true } as never] },
-    })
+    await host.session.notify(session, text)
   }
 
   return {
-    tool: createTools({
+    tools: createTools({
       client: cockpit,
       instance,
       quiet,
@@ -170,17 +157,18 @@ async function shellHooks({ client: opencode, directory }: PluginInput, options?
       shellCommand: (command) => ({ command: userShell, args: ["-c", command] }),
     }),
 
-    "experimental.chat.system.transform": async (input, output) => {
-      if (config.guidance !== false) output.system.push(GUIDANCE)
+    system: async (sessionID) => {
+      const system: string[] = []
+      if (config.guidance !== false) system.push(GUIDANCE)
       /** Shells are owned by the conversation, so "is this mine?" has to ask about the same thing. */
-      const here = (await rootSession(input.sessionID).catch(() => undefined)) ?? input.sessionID
+      const here = (await rootSession(sessionID).catch(() => undefined)) ?? sessionID
       const listLimit = config.listRunningShells ?? 15
-      if (listLimit <= 0) return
+      if (listLimit <= 0) return system
       const running = await cockpit
         .call("shell.list", { owner: { project: directory }, includeExited: false })
         .catch(() => [] as ShellInfo[])
       if (running.length > 0) {
-        output.system.push(
+        system.push(
           `Background shells currently running in this project:\n${running
             .slice(0, listLimit)
             .map((s) => {
@@ -195,11 +183,10 @@ async function shellHooks({ client: opencode, directory }: PluginInput, options?
             .join("\n")}`,
         )
       }
+      return system
     },
 
-    event: async ({ event }) => {
-      if (event.type !== "session.deleted") return
-      const sessionID = event.properties.info.id
+    sessionDeleted: async (sessionID) => {
       const owned = await cockpit
         .call("shell.list", { owner: { session: sessionID } })
         .catch(() => [] as ShellInfo[])
@@ -215,5 +202,4 @@ async function shellHooks({ client: opencode, directory }: PluginInput, options?
   }
 }
 
-const plugin: PluginModule & { id: string } = { id: "opencode-cockpit.shell", server: createShellServer() }
-export default plugin
+export default dualServer("opencode-cockpit.shell", createShellServer())

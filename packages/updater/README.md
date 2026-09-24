@@ -17,6 +17,8 @@ A plugin cannot fix that for itself. Its fix only reaches people who already upd
 
 ## From a shell — works on any version, including a stuck one
 
+**OpenCode 1 only.** On OpenCode 2, change the version in your `opencode.json` entry and restart.
+
 ```sh
 npx opencode-cockpit@latest update
 # or
@@ -72,3 +74,23 @@ never "current".
 | key | |
 | --- | --- |
 | `updateCheck` | `false` stops the daily check. Default `true`. |
+
+## Troubleshooting
+
+```sh
+npx opencode-cockpit@latest doctor
+```
+
+checks OpenCode, its config, Cockpit's logs and the daemon, and prints the fix for anything wrong —
+on OpenCode 1 and 2, and when Cockpit will not load at all ([what it checks](https://codestz.github.io/opencode-cockpit/help/doctor/)).
+
+Everything Cockpit does inside OpenCode goes to one file — which OpenCode loaded which bay, and every
+error with its stack:
+
+```sh
+tail -50 ~/.cache/opencode-cockpit/cockpit.log
+```
+
+`COCKPIT_DEBUG=1 opencode` adds the detail. [Troubleshooting](https://codestz.github.io/opencode-cockpit/help/troubleshooting/) covers
+the failures people hit and what to attach to an issue; [OpenCode 1 and 2](https://codestz.github.io/opencode-cockpit/start/opencode-versions/)
+covers what differs between the two.

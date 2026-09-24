@@ -1,8 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 
-import { createBindingLookup } from "@opencode-ai/plugin/tui"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
-import { dualTui, type Host } from "@opencode-cockpit/client/host"
+import { bindingLookup, dualTui, type Host } from "@opencode-cockpit/client/host"
 import type { BoxRenderable } from "@opentui/core"
 import { createSignal } from "solid-js"
 import { createClient } from "../connect.ts"
@@ -13,7 +12,6 @@ import { SidebarShells } from "./components/sidebar.tsx"
 import { newShell, pickShell, restartDaemon, stopShells } from "./dialogs.tsx"
 import { screenCols } from "./lib/console.ts"
 import { isReleaseKey, keyToBytes } from "./lib/keys.ts"
-import { trace } from "./lib/trace.ts"
 import { createActions, HISTORY } from "./panel/actions.ts"
 import { createFeed } from "./panel/feed.ts"
 import { consoleLayer } from "./panel/keys.ts"
@@ -54,11 +52,12 @@ export function createShellTui({ source = SHELL_PACKAGE }: { source?: string } =
 
 const shellTui = async (api: Host, rawOptions?: unknown) => {
   // Settings come from the shared config file; plugin-entry options still win, flat or under "ui".
+  const log = api.log.child("shell")
   const config = loadConfig(api.state.path.directory, rawOptions)
   const options: ShellTuiOptions = config.ui ?? {}
   const client = createClient("opencode-cockpit/tui")
   const store = createShellStore(api, client, { historyMinutes: options.historyMinutes })
-  const keys = createBindingLookup({ ...DEFAULT_KEYS, ...options.keybinds })
+  const keys = bindingLookup({ ...DEFAULT_KEYS, ...options.keybinds })
 
   // An explicit `ui.dockOpen` says how the panel should start; without one, whatever you last left
   // it as. Remembered state that overrides a written setting is a setting that appears to do nothing.
@@ -168,7 +167,7 @@ const shellTui = async (api: Host, rawOptions?: unknown) => {
 
   const closeConsole = () => {
     if (!surface.open) return
-    trace("console: close", { full: surface.full })
+    log.debug("console: close", { full: surface.full })
     Object.assign(surface, { open: false, typing: false, searching: false, notice: undefined })
     disposeKeys?.()
     disposeKeys = undefined
@@ -191,7 +190,7 @@ const shellTui = async (api: Host, rawOptions?: unknown) => {
     swapping = true
     surface.full = !surface.full
     api.kv.set(FULL_KEY, surface.full)
-    trace("console: resize", { full: surface.full })
+    log.debug("console: resize", { full: surface.full })
     if (surface.full) {
       api.ui.dialog.clear()
       disposeKeys ??= api.keymap.registerLayer(consoleLayer(actions))
@@ -252,7 +251,7 @@ const shellTui = async (api: Host, rawOptions?: unknown) => {
 
   const openConsole = (id?: string, typeInto = false) => {
     if (id) store.select(id)
-    trace("console: open", { id, full: surface.full })
+    log.debug("console: open", { id, full: surface.full })
     const already = surface.open
     Object.assign(surface, {
       open: true,
@@ -333,7 +332,10 @@ const shellTui = async (api: Host, rawOptions?: unknown) => {
                 message: `Cleared ${n} finished shell${n === 1 ? "" : "s"}`,
               }),
             )
-            .catch((err) => api.ui.toast({ variant: "error", title: "Shells", message: String(err) }))
+            .catch((error) => {
+              log.error("clear failed", { error })
+              api.ui.toast({ variant: "error", title: "Shells", message: String(error) })
+            })
         },
       },
       {
@@ -382,7 +384,7 @@ const shellTui = async (api: Host, rawOptions?: unknown) => {
               onReady={(parts) => {
                 backdrop = parts.backdrop
                 pool = createRowPool(parts.lines)
-                trace("full: mounted")
+                log.debug("full: mounted")
                 draw()
               }}
               onScroll={(delta) => actions.scroll(delta)}

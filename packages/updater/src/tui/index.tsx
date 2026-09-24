@@ -110,9 +110,10 @@ export function createUpdaterTui({ source = UPDATER_PACKAGE }: { source?: string
     host.lifecycle.onDispose(() => claim.release())
 
     /**
-     * OpenCode 2 checks and updates plugins itself (`opencode plugin check|update`), and resolves
-     * unpinned ones on start — the freeze this bay exists for does not happen there. The commands stay,
-     * so the habit still lands somewhere, and point at the host's own.
+     * The updater edits OpenCode 1's files through OpenCode 1's `opencode plugin <spec> --force`;
+     * OpenCode 2 has neither. Its `opencode plugin update` needs its background service and was not
+     * measured on a pinned entry, so the commands say what is known to work: change the version in
+     * the entry. They stay, so the habit still lands somewhere.
      */
     const api = host.v1
     const open = api
@@ -121,7 +122,7 @@ export function createUpdaterTui({ source = UPDATER_PACKAGE }: { source?: string
           host.ui.toast({
             title: "Plugins",
             message:
-              "OpenCode 2 updates plugins itself: run `opencode plugin check`, then `opencode plugin update`.",
+              "On OpenCode 2, change the version in your opencode.json plugin entry, then restart OpenCode.",
             duration: 10_000,
           })
 
@@ -158,4 +159,4 @@ export function createUpdaterTui({ source = UPDATER_PACKAGE }: { source?: string
 }
 
 /** One entry for both OpenCodes: v1 calls `tui`, v2 calls `setup` (docs/opencode/v2.md). */
-export default dualTui(UPDATER_PACKAGE, createUpdaterTui())
+export default dualTui("opencode-cockpit.updater", createUpdaterTui())

@@ -77,7 +77,7 @@ export const platform = {
       icon: "config",
       title: "One config for both halves",
       body:
-        "Agent plugins are configured in <code>opencode.json</code>, interface plugins in <code>tui.json</code>. " +
+        "On OpenCode 1, agent plugins are configured in <code>opencode.json</code>, interface plugins in <code>tui.json</code>. " +
         "Cockpit reads a single file — global, then project, then plugin entry — and ignores a broken one " +
         "rather than failing.",
     },
@@ -255,12 +255,13 @@ export const next = {
     "time, shipped before the next is announced.",
   items: [
     {
-      name: "Doctor",
+      name: "Review and the console in OpenCode 2's panel",
       state: "next",
       blurb:
-        "One command that checks your setup and says how to fix it: which halves are loaded, which " +
-        "keys collide, whether a daemon is running code older than the plugin that is talking to it.",
-      why: "Every answer it needs is already on disk or on the wire; nothing new has to be exposed.",
+        "OpenCode 2 has a side panel of its own — with focus, a width that follows the window, and a " +
+        "full-screen toggle. Review and the full-screen console draw their own today; on OpenCode 2 " +
+        "they can live in the host's, and behave like the rest of its interface.",
+      why: "OpenCode 2's plugin API offers the panel to plugins, with focus and a full-screen toggle built in.",
     },
   ],
 }
@@ -287,15 +288,24 @@ export const install = {
         "Just this bay. Same daemon, same config file, same interface slots — add the rest later without " +
         "changing anything you already set up.",
     },
+    {
+      id: "v2",
+      label: "OpenCode 2",
+      command: "opencode plugin add opencode-cockpit@0.5.2",
+      note:
+        "The same package — it carries a half for each OpenCode. One entry in <code>opencode.json</code> " +
+        'loads both halves. <a href="/opencode-cockpit/start/opencode-versions/">What differs on OpenCode 2</a>.',
+    },
   ],
   steps: [
-    "Run the command above — it writes both plugin entries for you.",
+    "Run the command above — on OpenCode 1 it writes both plugin entries, on OpenCode 2 one entry loads both halves.",
     "Restart OpenCode. The daemon starts on first use and exits when idle.",
     "Optional: put kinds, watch presets and defaults in <code>~/.config/opencode-cockpit/config.json</code>.",
+    "Something off? <code>npx opencode-cockpit@latest doctor</code> checks your setup and prints the fix.",
   ],
 }
 
 export const closing = {
   title: "Stop babysitting your terminal.",
-  body: "OpenCode 1.18+ on macOS and Linux. MIT licensed, every bay its own package.",
+  body: "OpenCode 1.18+ and 2.0.15+ on macOS and Linux. MIT licensed, every bay its own package.",
 }

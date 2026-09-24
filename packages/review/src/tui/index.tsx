@@ -1,8 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 
-import { createBindingLookup } from "@opencode-ai/plugin/tui"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
-import { dualTui, type Host } from "@opencode-cockpit/client/host"
+import { bindingLookup, dualTui, type Host } from "@opencode-cockpit/client/host"
 import type { BoxRenderable } from "@opentui/core"
 import { headOf } from "../core/git/sources.ts"
 import type { Source } from "../core/model/review.ts"
@@ -76,7 +75,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
     api.lifecycle.onDispose(() => claim.release())
 
     const options = (rawOptions ?? {}) as ReviewTuiOptions
-    const keys = createBindingLookup({ ...DEFAULT_KEYS, ...options.keybinds })
+    const keys = bindingLookup({ ...DEFAULT_KEYS, ...options.keybinds })
     const store = createStore(api, options.source ?? "worktree")
     const surface = createSurface(options.variant ?? "right")
 

@@ -42,8 +42,8 @@ nothing needs it.
 
 ## One config for both halves
 
-Agent plugins are configured in `opencode.json`, interface plugins in `tui.json`. Without help, every
-setting has to be written twice.
+On OpenCode 1, agent plugins are configured in `opencode.json` and interface plugins in `tui.json`.
+Without help, every setting has to be written twice.
 
 Cockpit reads **one file**, merging global → project → plugin entry, and hands the result to both
 halves. See [Configuration](/opencode-cockpit/configuration/).

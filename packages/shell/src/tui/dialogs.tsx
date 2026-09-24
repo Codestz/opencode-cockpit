@@ -25,11 +25,12 @@ export function newShell(api: Host, store: ShellStore, open: (id?: string) => vo
         void store.refresh()
         open(info.id)
       })
-      .catch((err) => {
+      .catch((error) => {
+        api.log.error("shell: start failed", { error })
         api.ui.toast({
           variant: "error",
           title: "Shell",
-          message: err instanceof Error ? err.message : String(err),
+          message: error instanceof Error ? error.message : String(error),
         })
       })
   })
@@ -49,7 +50,10 @@ export function restartDaemon(api: Host, store: ShellStore) {
           message: ok ? "Shell daemon restarted" : "Shells are running; restart was not forced",
         })
       })
-      .catch((err) => api.ui.toast({ variant: "error", title: "Shells", message: String(err) }))
+      .catch((error) => {
+        api.log.error("shell: daemon restart failed", { error })
+        api.ui.toast({ variant: "error", title: "Shells", message: String(error) })
+      })
   }
   if (running === 0) return restart(false)
   void api.ui

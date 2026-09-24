@@ -56,13 +56,20 @@ export function createTrouble({
     meter: metrics,
     context: situation,
     report: (trouble, detail) => {
+      const where = reviewPaths(api.state.path.worktree || api.state.path.directory, api.state.vcs?.branch)
+      /** The one line everyone's log has; the full report — perf, geometry — stays in the review's own file. */
+      api.log.error("review: trouble", {
+        where: trouble.where,
+        message: trouble.message,
+        stack: trouble.stack,
+        report: where.log,
+      })
       api.ui.toast({
         variant: "error",
         title: "Review",
         message: `${trouble.where}: ${trouble.message}`,
         duration: 8_000,
       })
-      const where = reviewPaths(api.state.path.worktree || api.state.path.directory, api.state.vcs?.branch)
       void mkdir(where.dir, { recursive: true })
         .then(() => appendFile(where.log, detail))
         .catch(() => {})

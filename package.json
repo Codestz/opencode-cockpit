@@ -20,7 +20,8 @@
     "record": "bun scripts/record.ts",
     "clean:daemons": "bun scripts/clean-daemons.ts",
     "preview": "bun packages/status/src/cli/preview.ts",
-    "capture": "bun scripts/capture.ts"
+    "capture": "bun scripts/capture.ts",
+    "dev:install": "bun run build && bun scripts/dev-install.ts"
   },
   "devDependencies": {
     "@babel/core": "7.28.0",

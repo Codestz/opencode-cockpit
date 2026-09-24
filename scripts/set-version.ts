@@ -62,7 +62,9 @@ const docs = [
     .map((file) => join(root, file)),
   join(root, "site/src/data/landing.ts"),
 ]
-const pinned = /(opencode plugin (?:opencode-cockpit|@opencode-cockpit\/[a-z]+))@\d+\.\d+\.\d+(?:-[\w.]+)?/g
+/** v1's `opencode plugin x@v`, v2's `opencode plugin add x@v`, and v2's `"package": "x@v"` entries. */
+const pinned =
+  /((?:opencode plugin (?:add )?|"package": ")(?:opencode-cockpit|@opencode-cockpit\/[a-z]+))@\d+\.\d+\.\d+(?:-[\w.]+)?/g
 for (const file of docs) {
   if (!existsSync(file)) continue
   const text = await Bun.file(file).text()
