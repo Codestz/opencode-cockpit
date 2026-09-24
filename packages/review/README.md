@@ -7,7 +7,7 @@ Part of [opencode-cockpit](https://github.com/Codestz/opencode-cockpit). Install
 through the bundle.
 
 ```sh
-opencode plugin @opencode-cockpit/review@0.5.2 --global --force
+opencode plugin @opencode-cockpit/review@0.6.0 --global --force
 ```
 
 ## What it does
