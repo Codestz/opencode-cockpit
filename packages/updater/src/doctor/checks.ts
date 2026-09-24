@@ -94,6 +94,18 @@ export function bayOf(name: string | undefined): Bay | "bundle" | undefined {
 
 const ours = (facts: Facts) => facts.entries.filter((entry) => bayOf(entry.name))
 
+/**
+ * Whether the OpenCode installed reads this entry's file. OpenCode 1 reads `opencode.json` and
+ * `tui.json`; OpenCode 2 reads `opencode.json` — for both halves — and `cli.json`. A `cli.json` entry
+ * does nothing on OpenCode 1, and a `tui.json` one is only copied into `cli.json` once, on OpenCode 2's
+ * first start.
+ */
+export function readBy(entry: Entry, v2: boolean): boolean {
+  const name = entry.file.split("/").pop() ?? ""
+  if (name.startsWith("opencode.")) return true
+  return v2 ? name.startsWith("cli.") : name.startsWith("tui.")
+}
+
 // ---------------------------------------------------------------------------------------------------
 
 export function checkOpencode(facts: Facts): Check {
@@ -158,17 +170,25 @@ export function checkConfig(facts: Facts): Check {
     }
   }
 
-  for (const entry of found) detail.push(`${entry.raw}  (${entry.file})`)
+  for (const entry of found) {
+    const ignored = readBy(entry, v2) ? "" : `  — not read by OpenCode ${v2 ? 2 : 1}`
+    detail.push(`${entry.raw}  (${entry.file})${ignored}`)
+  }
+  const read = found.filter((entry) => readBy(entry, v2))
 
-  // The same bay twice: the bundle and a standalone package, in the same half.
-  for (const half of ["server", "tui"] as const) {
-    const here = found.filter((entry) => entry.half === half)
-    const bundle = here.some((entry) => bayOf(entry.name) === "bundle")
+  /**
+   * The same bay twice: the bundle and a standalone package. On OpenCode 1 per half, since each half
+   * has its own file. On OpenCode 2 across every file it reads: `opencode.json` loads the interface
+   * too, so the bundle there and a bay in `cli.json` is the same bay loaded twice.
+   */
+  const groups = v2 ? [read] : [read.filter((e) => e.half === "server"), read.filter((e) => e.half === "tui")]
+  for (const here of groups) {
+    const bundle = here.find((entry) => bayOf(entry.name) === "bundle")
     for (const entry of here) {
       const bay = bayOf(entry.name)
       if (bundle && bay && bay !== "bundle") {
         raise("warn")
-        fix.push(`${entry.raw} is also inside ${BUNDLE}: remove one of them from ${entry.file}`)
+        fix.push(`${entry.raw} (${entry.file}) is also inside ${BUNDLE} (${bundle.file}): remove one of them`)
       }
     }
   }
@@ -176,8 +196,8 @@ export function checkConfig(facts: Facts): Check {
   // OpenCode 1 loads each half from its own file; OpenCode 2 loads both from opencode.json.
   if (!v2) {
     const halves = (bay: string) => ({
-      server: found.some((entry) => entry.half === "server" && bayOf(entry.name) === bay),
-      tui: found.some((entry) => entry.half === "tui" && bayOf(entry.name) === bay),
+      server: read.some((entry) => entry.half === "server" && bayOf(entry.name) === bay),
+      tui: read.some((entry) => entry.half === "tui" && bayOf(entry.name) === bay),
     })
     for (const bay of ["bundle", ...SERVER_BAYS]) {
       const { server, tui } = halves(bay)

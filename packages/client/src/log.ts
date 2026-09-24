@@ -62,8 +62,13 @@ function serialise(fields: Record<string, unknown> | undefined): Record<string, 
   return out
 }
 
-/** Files already prepared in this process: once per file is enough. */
-const checked = new Set<string>()
+/**
+ * Lines written per file since it was last prepared. Checking the size on every line would be a
+ * `stat` per line; checking once per process let an OpenCode left open for days with
+ * `COCKPIT_DEBUG=1` grow the file without bound. Every `RECHECK` lines is neither.
+ */
+const written = new Map<string, number>()
+const RECHECK = 256
 
 /**
  * The directory, then the size. On a fresh machine the cockpit home does not exist until the daemon
@@ -71,8 +76,9 @@ const checked = new Set<string>()
  * written to a directory that was not there yet, and lost.
  */
 function prepare(file: string): void {
-  if (checked.has(file)) return
-  checked.add(file)
+  const count = written.get(file)
+  written.set(file, (count ?? 0) + 1)
+  if (count !== undefined && count % RECHECK !== 0) return
   try {
     mkdirSync(dirname(file), { recursive: true, mode: 0o700 })
   } catch {
@@ -100,7 +106,9 @@ export function createLog(scope: string, options: LogOptions = {}): Log {
       const line = { t: new Date().toISOString(), lvl, scope, msg, pid: process.pid, ...serialise(fields) }
       appendFileSync(file, `${JSON.stringify(line)}\n`, { mode: 0o600 })
     } catch {
-      // Never let a log line take the interface down.
+      // Never let a log line take the interface down. Prepare again next time: the directory may
+      // have been removed under a running OpenCode (a cleared cache), and it would stay gone.
+      written.delete(file)
     }
   }
   return {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 import { createLog, levelFrom } from "../src/log.ts"
 
 /**
@@ -61,6 +61,27 @@ describe("the shared log", () => {
     createLog("tui", { file, level: "info" }).info("after")
     expect(existsSync(`${file}.1`)).toBe(true)
     expect(lines(file)).toHaveLength(1)
+  })
+
+  /** An OpenCode left open for days: the size is checked again as it writes, not only at start. */
+  test("a file that grows past its size while running also moves aside", () => {
+    const file = fresh()
+    const log = createLog("tui", { file, level: "info" })
+    log.info("first")
+    writeFileSync(file, "x".repeat(6 * 1024 * 1024))
+    for (let i = 0; i < 300; i++) log.info("more")
+    expect(existsSync(`${file}.1`)).toBe(true)
+    expect(lines(file).length).toBeLessThan(300)
+  })
+
+  test("a directory removed under a running log comes back", () => {
+    const file = fresh()
+    const log = createLog("tui", { file, level: "info" })
+    log.info("before")
+    rmSync(dirname(file), { recursive: true, force: true })
+    log.info("lost")
+    log.info("after")
+    expect(lines(file).map((line) => line.msg)).toEqual(["after"])
   })
 
   /** A fresh machine: the plugin's first lines come before the daemon has made the directory. */

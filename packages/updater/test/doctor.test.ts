@@ -145,6 +145,47 @@ describe("the config", () => {
     expect(found.Config?.fix?.join()).toContain("also inside opencode-cockpit")
   })
 
+  /** v1 never reads cli.json: panels configured only there do not show. */
+  test("on OpenCode 1, the interface configured only in cli.json is a missing half", async () => {
+    const found = await checks({
+      opencode: "1.18.32",
+      latest: { "opencode-cockpit": "0.6.0" },
+      files: {
+        [`${CONFIG}/opencode.json`]: json({ plugin: ["opencode-cockpit@0.6.0"] }),
+        [`${CONFIG}/cli.json`]: json({ plugins: ["opencode-cockpit@0.6.0"] }),
+      },
+    })
+    expect(found.Config?.state).toBe("warn")
+    expect(found.Config?.fix?.join()).toContain("not tui.json")
+    expect(found.Config?.detail?.join()).toContain("not read by OpenCode 1")
+  })
+
+  /** v2 loads the interface from opencode.json too, so the bundle there and a bay in cli.json clash. */
+  test("on OpenCode 2, the bundle in opencode.json and a bay in cli.json is the bay twice", async () => {
+    const found = await checks({
+      opencode: "2.0.15",
+      latest: { "opencode-cockpit": "0.6.0", "@opencode-cockpit/shell": "0.6.0" },
+      files: {
+        [`${CONFIG}/opencode.json`]: json({ plugins: ["opencode-cockpit@0.6.0"] }),
+        [`${CONFIG}/cli.json`]: json({ plugins: ["@opencode-cockpit/shell@0.6.0"] }),
+      },
+    })
+    expect(found.Config?.state).toBe("warn")
+    expect(found.Config?.fix?.join()).toContain("also inside opencode-cockpit")
+  })
+
+  test("the same package in opencode.json and cli.json on OpenCode 2 is fine: it loads once", async () => {
+    const found = await checks({
+      opencode: "2.0.15",
+      latest: { "opencode-cockpit": "0.6.0" },
+      files: {
+        [`${CONFIG}/opencode.json`]: json({ plugins: ["opencode-cockpit@0.6.0"] }),
+        [`${CONFIG}/cli.json`]: json({ plugins: ["opencode-cockpit@0.6.0"] }),
+      },
+    })
+    expect(found.Config?.state).toBe("ok")
+  })
+
   test("OpenCode 2 pointed at a checkout: the OPENTUI_FORCE_WCWIDTH failure, before it happens", async () => {
     const repo = "/src/opencode-cockpit"
     const found = await checks({
