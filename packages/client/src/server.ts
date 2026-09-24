@@ -176,7 +176,7 @@ export interface V2ServerContext {
   event: { subscribe(options: { signal: AbortSignal }): AsyncIterable<V2Event> }
 }
 
-interface V2Event {
+export interface V2Event {
   type: string
   data?: { sessionID?: string }
 }
@@ -303,6 +303,36 @@ function loggedTools(tools: Record<string, ToolDefinition> | undefined, log: Log
   return out
 }
 
+/**
+ * v2's event stream, kept open. A stream that ends or throws — a reloaded location, a restarted
+ * service — used to stay closed, and every session deleted after it left its shells behind until
+ * OpenCode restarted. It is opened again, waiting longer each time it fails straight away, and a
+ * stream that ran a while starts the wait over.
+ */
+export async function follow(
+  ctx: Pick<V2ServerContext, "event">,
+  signal: AbortSignal,
+  log: Log,
+  handle: (event: V2Event) => Promise<void>,
+  wait: (ms: number) => Promise<void> = (ms) => new Promise((done) => setTimeout(done, ms)),
+): Promise<void> {
+  let delay = 1_000
+  while (!signal.aborted) {
+    const opened = Date.now()
+    try {
+      for await (const event of ctx.event.subscribe({ signal })) await handle(event)
+      if (!signal.aborted) log.warn("event stream ended; opening it again", { waitMs: delay })
+    } catch (error) {
+      if (signal.aborted) return
+      log.warn("event stream failed; opening it again", { waitMs: delay, error })
+    }
+    if (signal.aborted) return
+    if (Date.now() - opened > 60_000) delay = 1_000
+    await wait(delay)
+    delay = Math.min(delay * 2, 30_000)
+  }
+}
+
 /** Starts a feature: what loaded and where first, so a feature that never answers still said it was loaded. */
 async function begin(
   id: string,
@@ -352,16 +382,14 @@ export function dualServer(id: string, start: ServerStart) {
       const stop = new AbortController()
       if (parts.sessionDeleted) {
         const deleted = parts.sessionDeleted
-        void (async () => {
-          for await (const event of ctx.event.subscribe({ signal: stop.signal })) {
-            const sessionID = event.data?.sessionID
-            if (event.type === "session.deleted" && sessionID) {
-              await deleted(sessionID).catch((error) =>
-                host.log.warn("session cleanup failed", { sessionID, error }),
-              )
-            }
+        void follow(ctx, stop.signal, host.log, async (event) => {
+          const sessionID = event.data?.sessionID
+          if (event.type === "session.deleted" && sessionID) {
+            await deleted(sessionID).catch((error) =>
+              host.log.warn("session cleanup failed", { sessionID, error }),
+            )
           }
-        })().catch((error) => host.log.warn("event stream ended", { error }))
+        })
       }
       return async () => {
         stop.abort()

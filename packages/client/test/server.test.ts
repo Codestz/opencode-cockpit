@@ -1,6 +1,14 @@
 import { describe, expect, test } from "bun:test"
 import { tool } from "@opencode-ai/plugin"
-import { composeParts, dualServer, partsToV1Hooks, type ServerParts, toolToV2 } from "../src/server.ts"
+import { silentLog } from "../src/log.ts"
+import {
+  composeParts,
+  dualServer,
+  follow,
+  partsToV1Hooks,
+  type ServerParts,
+  toolToV2,
+} from "../src/server.ts"
 
 /**
  * The server half of running on both: one feature's tools and hooks, handed to v1 as hooks and to
@@ -173,5 +181,39 @@ describe("one entry for both", () => {
     await entry.setup(fakeV2().ctx as never)
     await entry.setup(fakeV2().ctx as never)
     expect(scopes[0]).toBe(scopes[1])
+  })
+})
+
+describe("v2's event stream", () => {
+  /** A stream that closed stayed closed: sessions deleted afterwards left their shells behind. */
+  test("is opened again when it ends or fails, until the plugin stops", async () => {
+    const stop = new AbortController()
+    const seen: string[] = []
+    let opened = 0
+    const ctx = {
+      event: {
+        subscribe: async function* () {
+          opened++
+          if (opened === 1) {
+            yield { type: "session.deleted", data: { sessionID: "ses_1" } }
+            return
+          }
+          if (opened === 2) throw new Error("service restarted")
+          yield { type: "session.deleted", data: { sessionID: "ses_3" } }
+          stop.abort()
+        },
+      },
+    }
+    const waits: number[] = []
+    await follow(
+      ctx as never,
+      stop.signal,
+      silentLog,
+      async (event) => void seen.push(event.data?.sessionID ?? ""),
+      async (ms) => void waits.push(ms),
+    )
+    expect(seen).toEqual(["ses_1", "ses_3"])
+    expect(opened).toBe(3)
+    expect(waits).toEqual([1_000, 2_000])
   })
 })
