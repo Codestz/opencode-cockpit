@@ -107,12 +107,122 @@ export async function worktreeChanges(cwd: string, git: RunGit = runGit): Promis
   return { files, errors }
 }
 
+/** A branch this one could be compared against, and how far apart the two are. */
+export interface BaseCandidate {
+  ref: string
+  /** Commits on HEAD that `ref` lacks — what a pull request into `ref` would carry. */
+  own: number
+  /** Commits on `ref` that HEAD lacks — how far `ref` has moved on since the fork. */
+  other: number
+}
+
+/** Enough to cover every branch anyone is stacking on, few enough to stay one quick burst of git. */
+const MAX_CANDIDATES = 60
+const USUAL_BASES = ["main", "master", "origin/main", "origin/master"]
+
+/**
+ * Every branch HEAD could have come from, measured.
+ *
+ * Excluded: HEAD's own branch, its upstream and any `<remote>/<same name>` (comparing a branch to
+ * its pushed self is not a review), and anything that already contains HEAD — a branch stacked *on*
+ * this one, or a second name for this commit, is a child, never a parent.
+ */
+export async function baseCandidates(cwd: string, git: RunGit = runGit): Promise<BaseCandidate[]> {
+  const [current, upstream, refs] = await Promise.all([
+    git(["symbolic-ref", "--short", "-q", "HEAD"], cwd),
+    git(["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"], cwd),
+    git(
+      [
+        "for-each-ref",
+        "--no-contains=HEAD",
+        "--sort=-committerdate",
+        "--format=%(refname:short)%00%(symref)",
+        "refs/heads",
+        "refs/remotes",
+      ],
+      cwd,
+    ),
+  ])
+  if (!refs.ok) return []
+  const here = current.ok ? current.out.trim() : ""
+  const pushed = upstream.ok ? upstream.out.trim() : ""
+  const names = refs.out
+    .split("\n")
+    .map((line) => line.split("\0"))
+    .filter(([name, symref]) => name && !symref)
+    .map(([name]) => name as string)
+    .filter((name) => name !== here && name !== pushed && !(here && name.endsWith(`/${here}`)))
+    .slice(0, MAX_CANDIDATES)
+
+  const measured = await Promise.all(
+    names.map(async (ref): Promise<BaseCandidate | undefined> => {
+      const counted = await git(["rev-list", "--left-right", "--count", `${ref}...HEAD`], cwd)
+      const [other, own] = counted.out.trim().split(/\s+/).map(Number)
+      if (!counted.ok || own === undefined || other === undefined) return undefined
+      if (Number.isNaN(own) || Number.isNaN(other)) return undefined
+      return { ref, own, other }
+    }),
+  )
+  return measured.filter((each): each is BaseCandidate => each !== undefined)
+}
+
+/**
+ * The branch this one most likely targets: the nearest parent.
+ *
+ * On `main ← feature ← X`, comparing X with `main` also shows every commit of `feature` — the
+ * "everything mixed together" a stacked branch got before. The nearest parent is the one X has the
+ * fewest commits beyond, which is `feature`, and a PR from X into `feature` shows exactly that.
+ * The same rule drops a stale local `main` for a fresher `origin/main` without special-casing it.
+ */
+export function pickBase(candidates: readonly BaseCandidate[], preferred?: string): string | undefined {
+  const usual = (ref: string) => {
+    if (preferred && (ref === preferred || ref.endsWith(`/${preferred}`))) return 0
+    return USUAL_BASES.includes(ref) ? 1 : 2
+  }
+  const ranked = [...candidates].sort(
+    (a, b) =>
+      a.own - b.own ||
+      // Two bases at the same fork point give the same diff; the one a PR would target reads best.
+      usual(a.ref) - usual(b.ref) ||
+      // Then local over remote, so the label says `feature` rather than `origin/feature`.
+      Number(a.ref.includes("/")) - Number(b.ref.includes("/")) ||
+      a.other - b.other,
+  )
+  return ranked[0]?.ref
+}
+
+/**
+ * Whether HEAD is the branch everything else targets.
+ *
+ * There the nearest-parent search has nothing sensible to find — every old branch merged into
+ * `main` is an ancestor of it and would be "nearest" — so the answer is `main` itself.
+ */
+async function onDefault(cwd: string, git: RunGit, preferred?: string): Promise<boolean> {
+  const current = await git(["symbolic-ref", "--short", "-q", "HEAD"], cwd)
+  const here = current.ok ? current.out.trim() : ""
+  return here !== "" && (here === preferred || USUAL_BASES.includes(here))
+}
+
 /**
  * Everything this branch changes, against where it forked — what a reviewer on a pull request
  * reads, rather than what happens to be uncommitted right now. Committed work included.
+ *
+ * `base` is an explicit choice and is used as given; without one the nearest parent is found, with
+ * `preferred` (the repository's default branch) winning ties.
  */
-export async function branchChanges(cwd: string, base?: string, git: RunGit = runGit): Promise<GitResult> {
-  const candidates = base ? [base] : ["main", "master", "origin/main", "origin/master"]
+export async function branchChanges(
+  cwd: string,
+  base?: string,
+  git: RunGit = runGit,
+  preferred?: string,
+): Promise<GitResult> {
+  const nearest =
+    base || (await onDefault(cwd, git, preferred))
+      ? undefined
+      : pickBase(await baseCandidates(cwd, git), preferred)
+  // Nothing measurable — on the default branch itself, say — falls back to the usual names, where
+  // the merge-base is HEAD and only uncommitted work shows.
+  const candidates = base ? [base] : nearest ? [nearest] : [...(preferred ? [preferred] : []), ...USUAL_BASES]
   let fork: string | undefined
   let against: string | undefined
   for (const candidate of candidates) {
@@ -123,7 +233,8 @@ export async function branchChanges(cwd: string, base?: string, git: RunGit = ru
       break
     }
   }
-  if (!fork) return { files: [], errors: ["no base branch to compare against"] }
+  if (!fork)
+    return { files: [], errors: [base ? `no base branch "${base}"` : "no base branch to compare against"] }
 
   const listed = await git(["diff", "--name-only", "-z", fork], cwd)
   if (!listed.ok) return { files: [], errors: ["could not list the branch's changes"], base: against }

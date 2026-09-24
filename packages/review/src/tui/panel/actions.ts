@@ -11,12 +11,12 @@
  */
 
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import { baseCandidates } from "../../core/git/sources.ts"
 import type { Guard } from "../../core/guard.ts"
 import {
   drop,
   filesElsewhere,
   isRead,
-  nextUnread,
   open as openThread,
   type Source,
   say,
@@ -27,9 +27,20 @@ import {
 } from "../../core/model/review.ts"
 import { submission, toolsConfigured, waitingOnAgent } from "../../core/model/submit.ts"
 import type { Persistence } from "../../core/store/persist.ts"
+import { streamWidth } from "../../core/view/layout.ts"
 import { keepCursorVisible, navigableRows } from "../../core/view/list.ts"
+import type { Viewport } from "../../core/view/state.ts"
+import {
+  cursorRow,
+  segmentAt,
+  stopsOf,
+  streamOf,
+  streamOrder,
+  streamScroll,
+  streamWindow,
+} from "../../core/view/stream.ts"
 import type { Store } from "../data/changes.ts"
-import { askForNote, noteFields, replyFields, submitFields } from "../view/dialogs.tsx"
+import { askForBase, askForNote, noteFields, replyFields, submitFields } from "../view/dialogs.tsx"
 import type { Queries } from "./queries.ts"
 import type { Surface } from "./surface.ts"
 
@@ -61,6 +72,8 @@ export interface ActionDeps {
   sources: readonly Source[]
   /** The commit the working tree is on, for recording on a new thread. */
   head: () => string | undefined
+  /** The pane's size, which is what the stream's heights are measured against. */
+  viewport: () => Viewport
 }
 
 export interface Actions {
@@ -76,6 +89,13 @@ export interface Actions {
   uncomment: () => void
   markRead: () => void
   nextSource: () => void
+  chooseBase: () => void
+  /** Folds or unfolds a file — the one under the cursor, or the one named. */
+  toggleFold: (path?: string) => void
+  /** Marks a file viewed or not, without moving the cursor anywhere. */
+  toggleViewed: (path?: string) => void
+  /** A note on a whole file, from its heading. */
+  commentFile: (path: string) => void
   submit: () => void
   toggleStats: () => void
   cycle: () => void
@@ -113,7 +133,13 @@ export function createActions(deps: ActionDeps): Actions {
     if (!next) return
     surface.view = { ...surface.view, cursor: next.path }
     if (next.kind === "file")
-      surface.view = { ...surface.view, file: next.path, scroll: 0, line: undefined, anchor: undefined }
+      surface.view = {
+        ...surface.view,
+        file: next.path,
+        scroll: undefined,
+        line: undefined,
+        anchor: undefined,
+      }
     surface.view = {
       ...surface.view,
       listOffset: keepCursorVisible(store.current().changes, listState(), listHeight()),
@@ -121,27 +147,117 @@ export function createActions(deps: ActionDeps): Actions {
     draw()
   }
 
-  /** In the diff, the cursor walks lines of the new file — which is what a note attaches to. */
-  const moveLines = (delta: number) => {
-    const lines = queries.diffLines()
-    if (lines.length === 0) return
-    const at = surface.view.line === undefined ? 0 : lines.indexOf(surface.view.line)
-    const next = lines[Math.max(0, Math.min(lines.length - 1, (at < 0 ? 0 : at) + delta))]
-    if (next === undefined) return
-    surface.view = { ...surface.view, line: next, thread: undefined }
-    /** Keep the cursor in sight without yanking the view around it. */
-    const index = lines.indexOf(next)
+  /** The stream as the paint will draw it, for the keys to reason about. */
+  const width = () => streamWidth(deps.viewport())
+  const streamNow = () => streamOf(store.current().changes, surface.review, listState(), width())
+
+  /**
+   * Scrolls just enough to keep the cursor in view, and keeps the file list pointing at its file.
+   *
+   * One row of margin at the top, because the pinned heading covers the first row of the pane: a
+   * cursor on that row would be hidden under the name of its own file.
+   */
+  const follow = () => {
+    const stream = streamNow()
     const height = listHeight()
-    const scroll = surface.view.scroll ?? 0
-    if (index < scroll) surface.view = { ...surface.view, scroll: index }
-    else if (index > scroll + height - 3) surface.view = { ...surface.view, scroll: index - height + 3 }
+    const scroll = streamScroll(stream, surface.view, height)
+    const row = cursorRow(stream, surface.review, surface.view, width())
+    let next = scroll
+    if (row !== undefined) {
+      const top = surface.view.line === undefined ? row : row - 1
+      if (top < scroll) next = top
+      else if (row > scroll + height - 3) next = row - height + 3
+    }
+    surface.view = { ...surface.view, scroll: Math.max(0, next), cursor: surface.view.file }
+    surface.view = {
+      ...surface.view,
+      listOffset: keepCursorVisible(store.current().changes, listState(), listHeight()),
+    }
+  }
+
+  /**
+   * In the diff, the cursor walks the stream: a file's heading, then its lines, then the next file's
+   * heading. A folded file is one stop — its heading — so viewed files are stepped over in one press.
+   */
+  const moveLines = (delta: number) => {
+    const { segments } = streamNow()
+    if (segments.length === 0) return
+    let index = Math.max(
+      0,
+      segments.findIndex((segment) => segment.path === surface.view.file),
+    )
+    let segment = segments[index]
+    if (!segment) return
+    let stops = stopsOf(segment, surface.review, surface.view, width())
+    let at = Math.max(0, stops.indexOf(surface.view.line))
+    const step = Math.sign(delta)
+    for (let left = Math.abs(delta); left > 0; left--) {
+      if (at + step >= 0 && at + step < stops.length) {
+        at += step
+        continue
+      }
+      const neighbour = segments[index + step]
+      if (!neighbour) break
+      index += step
+      segment = neighbour
+      stops = stopsOf(segment, surface.review, surface.view, width())
+      at = step > 0 ? 0 : stops.length - 1
+    }
+    const moved = segment.path !== surface.view.file
+    surface.view = {
+      ...surface.view,
+      file: segment.path,
+      line: stops[at],
+      thread: undefined,
+      /** A selection is inside one file: leaving the file lets go of it. */
+      ...(moved ? { anchor: undefined } : {}),
+    }
+    follow()
     draw()
   }
 
   const move = (delta: number) => (surface.view.pane === "diff" ? moveLines(delta) : moveFiles(delta))
 
+  /**
+   * Scrolling moves the view, and the cursor only if the view leaves it behind — then it lands on the
+   * first thing in sight, so the next `j` carries on from what you are looking at rather than jumping
+   * back to where you were.
+   */
   const scroll = (delta: number) => {
-    surface.view = { ...surface.view, scroll: Math.max(0, (surface.view.scroll ?? 0) + delta) }
+    const stream = streamNow()
+    const height = listHeight()
+    const next = Math.max(0, streamScroll(stream, surface.view, height) + delta)
+    surface.view = {
+      ...surface.view,
+      scroll: streamScroll(stream, { ...surface.view, scroll: next }, height),
+    }
+    const at = surface.view.scroll ?? 0
+    const row = cursorRow(stream, surface.review, surface.view, width())
+    if (row === undefined || row < at || row >= at + height) {
+      const shown = streamWindow(store.current().changes, surface.review, listState(), width(), height)
+      /** Past the pinned heading, onto the first line of code in sight, if there is one. */
+      const landing = shown.slice(1).find((each) => each.line !== undefined || each.header) ?? shown[0]
+      const file = landing?.file ?? segmentAt(stream, at)?.path
+      if (file) {
+        surface.view = {
+          ...surface.view,
+          file,
+          cursor: file,
+          line: landing?.header ? undefined : landing?.line,
+          anchor: undefined,
+        }
+      }
+    }
+    /** The file list follows the diff: the file you are reading stays in sight on the left too. */
+    surface.view = {
+      ...surface.view,
+      cursor: surface.view.file,
+      listOffset: keepCursorVisible(
+        store.current().changes,
+        { ...listState(), cursor: surface.view.file },
+        height,
+      ),
+    }
     draw()
   }
 
@@ -159,19 +275,19 @@ export function createActions(deps: ActionDeps): Actions {
   /** Two panes, one keyboard: `tab` says which one `j` is talking to. */
   const swap = () => {
     surface.view = { ...surface.view, pane: surface.view.pane === "diff" ? "files" : "diff" }
-    if (surface.view.pane === "diff" && surface.view.line === undefined)
-      surface.view = { ...surface.view, line: queries.diffLines()[0] }
+    if (surface.view.pane === "diff" && surface.view.file === undefined)
+      surface.view = { ...surface.view, file: streamNow().segments[0]?.path, scroll: undefined }
     draw()
   }
 
   /** Enter on a folder folds it; on a file it opens it and moves you into the diff. */
   const enter = () => {
+    if (surface.view.pane === "diff") return toggleFold()
     const rows = navigableRows(store.current().changes, listState())
     const row = rows.find((candidate) => candidate.path === surface.view.cursor)
     if (!row) return
     if (row.kind === "file") {
-      surface.view = { ...surface.view, file: row.path, scroll: 0, pane: "diff", line: undefined }
-      surface.view = { ...surface.view, line: queries.diffLines()[0] }
+      surface.view = { ...surface.view, file: row.path, scroll: undefined, pane: "diff", line: undefined }
     } else {
       const collapsed = new Set(surface.view.collapsed ?? [])
       if (collapsed.has(row.path)) collapsed.delete(row.path)
@@ -189,7 +305,8 @@ export function createActions(deps: ActionDeps): Actions {
   const comment = (whole = false) => {
     const file = surface.view.file
     if (!file) return
-    const onFile = whole || surface.view.pane === "files"
+    /** On a file's heading there is no line: a note there is about the file. */
+    const onFile = whole || surface.view.pane === "files" || surface.view.line === undefined
     const from = onFile
       ? undefined
       : Math.min(surface.view.anchor ?? surface.view.line ?? 0, surface.view.line ?? 0)
@@ -264,7 +381,7 @@ export function createActions(deps: ActionDeps): Actions {
     if (surface.view.pane === "files")
       return threadsFor(surface.review, surface.view.file).find((each) => each.line === undefined)
     return surface.view.line === undefined
-      ? undefined
+      ? threadsFor(surface.review, surface.view.file).find((each) => each.line === undefined)
       : threadsOnLine(surface.review, surface.view.file, surface.view.line)[0]
   }
 
@@ -419,18 +536,105 @@ export function createActions(deps: ActionDeps): Actions {
   const markRead = () => {
     const file = surface.view.file
     if (!file) return
-    surface.review = toggleRead(surface.review, file)
+    viewed(file)
     if (isRead(surface.review, file)) {
-      const next = nextUnread(store.current().changes, surface.review, file)
-      if (next) surface.view = { ...surface.view, file: next, cursor: next, scroll: 0, line: undefined }
+      /**
+       * The next unread file after this one, in the order you are reading — or, with none left below,
+       * the nearest one above. Wrapping round to the top sent you back to the first file from
+       * wherever you were, which reads as the review losing your place.
+       */
+      const order = streamOrder(store.current().changes, listState())
+      const from = order.indexOf(file)
+      const unread = (path: string) => !isRead(surface.review, path)
+      const next =
+        order.slice(from + 1).find(unread) ?? order.slice(0, Math.max(0, from)).reverse().find(unread)
+      if (next) {
+        surface.view = { ...surface.view, file: next, cursor: next, scroll: undefined, line: undefined }
+        surface.view = { ...surface.view, scroll: streamScroll(streamNow(), surface.view, listHeight()) }
+      } else follow()
     }
     draw()
+  }
+
+  /**
+   * Viewed folds a file out of the way and unviewed brings it back — so a hand-set fold is let go of
+   * either way, and the default (open until viewed) takes over again.
+   */
+  const viewed = (path: string) => {
+    surface.review = toggleRead(surface.review, path)
+    const folded = new Set(surface.view.folded ?? [])
+    const opened = new Set(surface.view.opened ?? [])
+    folded.delete(path)
+    opened.delete(path)
+    surface.view = { ...surface.view, folded, opened }
+    /** On a line of a file that just folded, the cursor goes up to its heading. */
+    if (surface.view.file === path && isRead(surface.review, path))
+      surface.view = { ...surface.view, line: undefined }
+  }
+
+  const toggleViewed = (path = surface.view.file) => {
+    if (!path) return
+    viewed(path)
+    follow()
+    draw()
+  }
+
+  const toggleFold = (path = surface.view.file) => {
+    if (!path) return
+    const segment = streamNow().segments.find((each) => each.path === path)
+    if (!segment) return
+    const folded = new Set(surface.view.folded ?? [])
+    const opened = new Set(surface.view.opened ?? [])
+    if (segment.open) {
+      folded.add(path)
+      opened.delete(path)
+    } else {
+      opened.add(path)
+      folded.delete(path)
+    }
+    surface.view = { ...surface.view, folded, opened, file: path, line: undefined, anchor: undefined }
+    follow()
+    draw()
+  }
+
+  const commentFile = (path: string) => {
+    surface.view = { ...surface.view, file: path, line: undefined, anchor: undefined }
+    comment(true)
   }
 
   /** Uncommitted, then the branch, round and round. */
   const nextSource = () => {
     store.setSource(SOURCES[(SOURCES.indexOf(store.source()) + 1) % SOURCES.length] ?? "branch")
     deps.refresh()
+  }
+
+  /**
+   * Picks the branch to compare against, and switches to branch mode — choosing a base while looking
+   * at uncommitted work would change nothing you can see.
+   */
+  const chooseBase = () => {
+    const cwd = api.state.path.worktree || api.state.path.directory
+    void baseCandidates(cwd).then((found) => {
+      const candidates = [...found].sort((a, b) => a.own - b.own || a.ref.localeCompare(b.ref))
+      dropKeys()
+      askForBase(
+        api,
+        {
+          ...(store.base() ? { current: store.base() } : {}),
+          ...(store.current().changes.base ? { guessed: store.current().changes.base } : {}),
+          candidates,
+        },
+        (base) => {
+          store.setBase(base)
+          store.setSource("branch")
+          deps.refresh()
+        },
+        () => {
+          if (surface.open) takeKeys()
+          draw()
+        },
+      )
+    })
   }
 
   /**
@@ -459,6 +663,10 @@ export function createActions(deps: ActionDeps): Actions {
     uncomment,
     markRead,
     nextSource,
+    chooseBase,
+    toggleFold,
+    toggleViewed,
+    commentFile,
     submit,
     toggleStats,
     cycle: deps.cycle,

@@ -106,6 +106,7 @@ export function footerRows(width: number, _columns: Columns, state: ViewState = 
           ...hint("c", inDiff ? "Note Line" : "Note File"),
           ...(inDiff ? hint("f", "Note File") : []),
           ...hint("space", "Read"),
+          ...(inDiff ? hint("z", "Fold") : []),
         ]
 
   /**
@@ -131,6 +132,8 @@ export function footerRows(width: number, _columns: Columns, state: ViewState = 
   const tail: Run[] = [
     ...submitHint(state.waiting),
     ...hint("b", "Source"),
+    /** Shift-b: what the branch is compared against. Named here, or nobody finds it. */
+    ...hint("B", "Base"),
     ...hint("w", "Width"),
     ...hint("q", "Close"),
   ]

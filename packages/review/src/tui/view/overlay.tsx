@@ -87,7 +87,13 @@ export function Overlay(props: OverlayProps): JSX.Element {
         flexDirection="column"
         backgroundColor={theme().backgroundPanel}
         titleColor={theme().accent}
-        onMouseDown={(event: MouseEvent) => {
+        /** Kept from reaching the backdrop, whose mouse-down dismisses the review. */
+        onMouseDown={(event: MouseEvent) => event.stopPropagation()}
+        /**
+         * Acted on at release, not press. A heading's `+ note` opens a dialog, and on press the dialog
+         * was up in time to catch the release — landing on its backdrop, which closed it again.
+         */
+        onMouseUp={(event: MouseEvent) => {
           event.stopPropagation()
           props.onClick(event.x, event.y)
         }}

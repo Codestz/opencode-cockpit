@@ -9,11 +9,13 @@
 
 import type { BoxRenderable } from "@opentui/core"
 import { filesElsewhere } from "../../core/model/review.ts"
-import { splitColumns } from "../../core/view/geometry.ts"
-import { visibleDiffRows } from "../../core/view/layout.ts"
+import { DIVIDER, GUTTER, splitColumns } from "../../core/view/geometry.ts"
+import { streamWidth, visibleDiffRows } from "../../core/view/layout.ts"
 import { listScroll, navigableRows } from "../../core/view/list.ts"
 import type { Viewport } from "../../core/view/state.ts"
+import { headerZone } from "../../core/view/stream.ts"
 import type { Store } from "../data/changes.ts"
+import type { Actions } from "./actions.ts"
 import type { Surface } from "./surface.ts"
 
 export interface PointerDeps {
@@ -25,6 +27,7 @@ export interface PointerDeps {
   listTop: () => number
   listHeight: () => number
   viewport: () => Viewport
+  actions: Actions
 }
 
 export interface Pointer {
@@ -56,7 +59,14 @@ export function createPointer(deps: PointerDeps): Pointer {
         if (!entry) return
         surface.view = { ...surface.view, cursor: entry.path, pane: "files" }
         if (entry.kind === "file") {
-          surface.view = { ...surface.view, file: entry.path, scroll: 0, line: undefined, anchor: undefined }
+          /** Into the stream at that file's heading, the way GitHub's file tree jumps. */
+          surface.view = {
+            ...surface.view,
+            file: entry.path,
+            scroll: undefined,
+            line: undefined,
+            anchor: undefined,
+          }
         } else {
           const collapsed = new Set(surface.view.collapsed ?? [])
           if (collapsed.has(entry.path)) collapsed.delete(entry.path)
@@ -70,10 +80,26 @@ export function createPointer(deps: PointerDeps): Pointer {
       const drawn = visibleDiffRows(
         store.current().changes,
         surface.review,
-        { ...surface.view, pane: "diff" },
+        {
+          ...surface.view,
+          pane: "diff",
+          elsewhere: filesElsewhere(surface.review, store.current().changes),
+        },
         deps.viewport(),
       )
       const at = drawn[row]
+
+      /** A heading: the buttons on its right, and folding everywhere else on it. */
+      if (at?.header && at.file) {
+        const columns = splitColumns(panel.width)
+        const left = panel.x + 1 + GUTTER + (columns.list > 0 ? columns.list + DIVIDER : 0)
+        const zone = headerZone(streamWidth(deps.viewport()), x - left)
+        surface.view = { ...surface.view, pane: "diff", file: at.file, line: undefined, anchor: undefined }
+        if (zone === "viewed") deps.actions.toggleViewed(at.file)
+        else if (zone === "note") deps.actions.commentFile(at.file)
+        else deps.actions.toggleFold(at.file)
+        return
+      }
       const picked = at?.target?.startsWith("rv_") ? at.target : undefined
       const line = at?.line
       /**
@@ -82,11 +108,13 @@ export function createPointer(deps: PointerDeps): Pointer {
        * header or a note is not a click on a line at all; it moves the pane, not the cursor.
        */
       const keepAnchor = surface.view.anchor !== undefined
+      const moved = at?.file !== undefined && at.file !== surface.view.file
       surface.view = {
         ...surface.view,
         pane: "diff",
         thread: picked,
-        ...(line === undefined ? {} : { line, ...(keepAnchor ? {} : { anchor: undefined }) }),
+        ...(at?.file ? { file: at.file, cursor: at.file } : {}),
+        ...(line === undefined ? {} : { line, ...(keepAnchor && !moved ? {} : { anchor: undefined }) }),
       }
       draw()
     },
@@ -108,11 +136,9 @@ export function createPointer(deps: PointerDeps): Pointer {
           listOffset: Math.max(0, (surface.view.listOffset ?? 0) + delta),
         }
       } else {
-        surface.view = {
-          ...surface.view,
-          pane: "diff",
-          scroll: Math.max(0, (surface.view.scroll ?? 0) + delta),
-        }
+        surface.view = { ...surface.view, pane: "diff" }
+        deps.actions.scroll(delta)
+        return
       }
       draw()
     },

@@ -33,6 +33,8 @@ export type Count =
   | "builds"
   /** Diffs answered from the row cache instead. */
   | "hits"
+  /** Files counted for the stream's heights without being drawn. */
+  | "measures"
   /** Things that threw, and were caught. */
   | "errors"
 
@@ -45,7 +47,17 @@ export type Phase =
   /** Composing the rows that are on screen, cache hit or not. */
   | "layout"
 
-const COUNTS: Count[] = ["paints", "lines", "coalesced", "keys", "mouse", "builds", "hits", "errors"]
+const COUNTS: Count[] = [
+  "paints",
+  "lines",
+  "coalesced",
+  "keys",
+  "mouse",
+  "builds",
+  "hits",
+  "measures",
+  "errors",
+]
 const PHASES: Phase[] = ["paint", "build", "layout"]
 
 /** Enough samples to see a shape, few enough to hold forever. */

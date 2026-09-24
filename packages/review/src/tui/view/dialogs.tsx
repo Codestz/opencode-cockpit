@@ -1,5 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { BaseCandidate } from "../../core/git/sources.ts"
 import { type Thread, threadWhere } from "../../core/model/thread.ts"
 import { cardRows } from "../../core/view/card.ts"
 import type { Fill, Row, Tone } from "../../core/view/rows.ts"
@@ -180,6 +181,54 @@ export function askForNote(
       />
     ),
     /** Dismissed any other way — escape, a click outside — still has to give the keys back. */
+    () => onClose?.(),
+  )
+}
+
+/**
+ * Choosing what the branch is compared against.
+ *
+ * The nearest parent is a guess, and a good one, but only you know whether this stack is reviewed a
+ * layer at a time or all the way down to `main` — so "auto" is the first option, and each branch says
+ * how many commits of yours it would show, which is the number that decides it.
+ */
+export function askForBase(
+  api: TuiPluginApi,
+  {
+    current,
+    guessed,
+    candidates,
+  }: { current?: string; guessed?: string; candidates: readonly BaseCandidate[] },
+  onSelect: (base: string | undefined) => void,
+  onClose?: () => void,
+): void {
+  const DialogSelect = api.ui.DialogSelect
+  const AUTO = "\0auto"
+  const plural = (n: number) => `${n} commit${n === 1 ? "" : "s"}`
+  api.ui.dialog.replace(
+    () => (
+      <DialogSelect
+        title="Compare the branch against"
+        current={current ?? AUTO}
+        options={[
+          {
+            title: "auto: nearest parent",
+            value: AUTO,
+            description: guessed ? `currently ${guessed}` : "the branch this one grew from",
+          },
+          ...candidates.map((each) => ({
+            title: each.ref,
+            value: each.ref,
+            description: `${plural(each.own)} of yours${each.other ? ` · it is ${plural(each.other)} ahead` : ""}`,
+          })),
+        ]}
+        onSelect={(option) => {
+          api.ui.dialog.clear()
+          onClose?.()
+          onSelect(option.value === AUTO ? undefined : (option.value as string))
+        }}
+      />
+    ),
     () => onClose?.(),
   )
 }

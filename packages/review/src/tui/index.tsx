@@ -117,7 +117,8 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       height: api.renderer.height - 2,
     })
     /** Where the file list starts on screen, and how many rows of it there are. */
-    const listTop = () => (panel?.y ?? 0) + 1 + HEADER_ROWS
+    /** No border above the header any more, so the rows start right under it — not one row lower. */
+    const listTop = () => (panel?.y ?? 0) + HEADER_ROWS
     const listHeight = () => Math.max(1, (panel?.height ?? 20) - 2 - HEADER_ROWS - FOOTER_ROWS)
 
     const queries = createQueries(api, surface, store)
@@ -223,6 +224,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       reviewPackage: REVIEW_PACKAGE,
       sources: SOURCES,
       head: () => head,
+      viewport,
     })
 
     const pointer = createPointer({
@@ -233,6 +235,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       listTop,
       listHeight,
       viewport,
+      actions,
     })
 
     api.keymap.registerLayer({

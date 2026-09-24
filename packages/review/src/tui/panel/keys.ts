@@ -84,8 +84,18 @@ export function paneLayer(actions: Actions, guard: Guard): Layer {
       },
       {
         name: "cockpit.review.pane.source",
-        title: "Next source (branch → worktree → session)",
+        title: "Next source (uncommitted ↔ branch)",
         run: () => actions.nextSource(),
+      },
+      {
+        name: "cockpit.review.pane.base",
+        title: "Compare the branch against…",
+        run: () => actions.chooseBase(),
+      },
+      {
+        name: "cockpit.review.pane.fold",
+        title: "Fold or unfold this file",
+        run: () => actions.toggleFold(),
       },
       { name: "cockpit.review.pane.reload", title: "Reload the diff", run: () => actions.reload() },
       { name: "cockpit.review.pane.cycle", title: "Right pane or full screen", run: () => actions.cycle() },
@@ -117,8 +127,10 @@ export function paneLayer(actions: Actions, guard: Guard): Layer {
       { key: "h,left", cmd: "cockpit.review.pane.files", desc: "Back to the files" },
       { key: "x", cmd: "cockpit.review.pane.uncomment", desc: "Remove thread" },
       { key: "space,m", cmd: "cockpit.review.pane.read", desc: "Mark read" },
+      { key: "z", cmd: "cockpit.review.pane.fold", desc: "Fold" },
       /** Source is `b`, not `s`, because `s` submits — and a key that sends may not sit beside one that looks. */
       { key: "b", cmd: "cockpit.review.pane.source", desc: "Next source" },
+      { key: "shift+b", cmd: "cockpit.review.pane.base", desc: "Base" },
       { key: "g", cmd: "cockpit.review.pane.reload", desc: "Reload" },
       { key: "w", cmd: "cockpit.review.pane.cycle", desc: "Width" },
       { key: "p", cmd: "cockpit.review.pane.stats", desc: "Numbers" },

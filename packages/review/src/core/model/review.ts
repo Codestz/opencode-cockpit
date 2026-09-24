@@ -35,6 +35,8 @@ export interface FileChange {
 export interface ChangeSet {
   source: Source
   files: FileChange[]
+  /** For branch mode: what it was compared against, as git names it. */
+  base?: string
 }
 
 export interface Review {
