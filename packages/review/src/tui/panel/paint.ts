@@ -17,7 +17,7 @@ import { frameBounds } from "../../core/view/frame.ts"
 import { layout } from "../../core/view/layout.ts"
 import { statsRuns } from "../../core/view/stats.ts"
 import type { Store } from "../data/changes.ts"
-import type { RowPool } from "../view/pool.ts"
+import { type RowPool, solidSurface } from "../view/pool.ts"
 import type { Queries } from "./queries.ts"
 import type { Surface } from "./surface.ts"
 
@@ -58,6 +58,8 @@ export function createPainter(deps: PaintDeps): Painter {
     backdrop.height = surface.open ? screen.height : 0
     backdrop.visible = surface.open
 
+    /** Opaque whatever the theme says, or the conversation shows through (transparent themes). */
+    panel.backgroundColor = solidSurface(api.theme.current, "panel")
     panel.width = frame.width
     panel.height = surface.open ? screen.height : 0
     /**

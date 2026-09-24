@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Full-screen shell console and the Review pane were see-through on transparent themes.** A theme
+  that leaves its background transparent (OpenCode's "system" theme, which shows the terminal's own)
+  painted the full-window surface with nothing, and the conversation showed through it. They now use
+  the first opaque background the theme has, and a solid one when it has none.
+
 ## [0.5.2] - 2026-09-24
 
 ### Added

@@ -1,6 +1,6 @@
 # @opencode-cockpit/status
 
-A statusline for [OpenCode](https://opencode.ai) you can actually configure — declarative segments,
+A statusline for [OpenCode](https://opencode.ai) you can actually configure: declarative segments,
 your own TypeScript, or the statusline script you already wrote for Claude Code.
 
 ![The statusline under an OpenCode conversation: a context bar at 40%, the token total with its cache, input and output parts, the session diff, elapsed time and todo progress](https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/statusline.png)

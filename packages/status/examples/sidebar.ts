@@ -1,5 +1,5 @@
 /**
- * A small, quiet sidebar: a coloured context bar and the two figures behind it.
+ * A small, quiet sidebar: a colored context bar and the two figures behind it.
  *
  * The sidebar sits beside OpenCode's own Context block, which already gives you the token count,
  * the percentage and the spend. So this one does not repeat them -- it draws the bar those numbers

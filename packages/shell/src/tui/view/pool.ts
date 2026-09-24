@@ -37,6 +37,28 @@ export const toneColour = (theme: TuiThemeCurrent, name: Tone | undefined): RGBA
 export const fillColour = (theme: TuiThemeCurrent, run: Run): RGBA | undefined =>
   run.tone === "match" ? theme.warning : run.raised ? theme.backgroundElement : undefined
 
+/**
+ * A surface colour that is certain to paint.
+ *
+ * A theme may leave its backgrounds fully transparent — OpenCode's "system" theme lets the terminal's
+ * own background show through — and a full-window surface painted with one is not a surface at all:
+ * the conversation underneath shows through it. So the first opaque of the theme's backgrounds, and
+ * failing all of them, a solid near-black or near-white chosen against the text colour.
+ */
+export function solidSurface(theme: TuiThemeCurrent, prefer: "base" | "panel" = "base"): RGBA {
+  const order =
+    prefer === "panel"
+      ? [theme.backgroundPanel, theme.background, theme.backgroundElement]
+      : [theme.background, theme.backgroundPanel, theme.backgroundElement]
+  const found = order.find((colour) => colour !== undefined && colour.a > 0)
+  if (found) return found
+  const text = theme.text
+  const scale = Math.max(text.r, text.g, text.b) > 1 ? 255 : 1
+  const light = (0.2126 * text.r + 0.7152 * text.g + 0.0722 * text.b) / scale > 0.5
+  const Colour = text.constructor as unknown as { fromHex?: (hex: string) => RGBA }
+  return Colour.fromHex?.(light ? "#0b0b0e" : "#fafafa") ?? text
+}
+
 export interface RowPool {
   draw: (rows: readonly Row[], theme: TuiThemeCurrent) => void
   clear: () => void
