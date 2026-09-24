@@ -2,6 +2,7 @@
 
 import { createBindingLookup, type TuiPlugin, type TuiPluginModule } from "@opencode-ai/plugin/tui"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
+import type { BoxRenderable } from "@opentui/core"
 import { createSignal } from "solid-js"
 import { createClient } from "../connect.ts"
 import { type CockpitConfig, loadConfig } from "../core/config.ts"
@@ -9,7 +10,17 @@ import { Console } from "./components/console.tsx"
 import { Dock } from "./components/dock.tsx"
 import { SidebarShells } from "./components/sidebar.tsx"
 import { newShell, pickShell, restartDaemon, stopShells } from "./dialogs.tsx"
+import { screenCols } from "./lib/console.ts"
+import { isReleaseKey, keyToBytes } from "./lib/keys.ts"
+import { trace } from "./lib/trace.ts"
+import { createActions, HISTORY } from "./panel/actions.ts"
+import { createFeed } from "./panel/feed.ts"
+import { consoleLayer } from "./panel/keys.ts"
+import { createPainter } from "./panel/paint.ts"
+import { createSurface } from "./panel/surface.ts"
 import { createShellStore } from "./state/store.ts"
+import { Overlay } from "./view/overlay.tsx"
+import { createRowPool, type RowPool } from "./view/pool.ts"
 
 const DEFAULT_KEYS = {
   "cockpit.shells.dock": "<leader>o",
@@ -63,23 +74,212 @@ const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
     return api.keys.formatBindings(bindings.get(command)) ?? ""
   }
 
-  const openConsole = (id?: string, typing = false) => {
-    if (id) store.select(id)
+  /**
+   * The console: one surface, one feed, one painter, one key table — at two sizes.
+   *
+   * The dialog and full screen were two implementations and drifted within a day. Now both draw
+   * `consoleRows` from the same state; the dialog renders them in the host's dialog, full screen
+   * assigns them onto lines in a slot (Review's pattern — a slot is drawn once). `w` only changes the
+   * size, and full screen is remembered for next time.
+   */
+  const FULL_KEY = "cockpit.console.full"
+  const surface = createSurface(options.defaultView ?? "screen")
+  surface.full = api.kv.get(FULL_KEY, false)
+  let backdrop: BoxRenderable | undefined
+  let pool: RowPool | undefined
+  let disposeKeys: (() => void) | undefined
+  /** Bumped on every paint while the dialog shows; the dialog is the one place that re-renders. */
+  const [version, setVersion] = createSignal(0)
+  /** The dialog is being swapped for full screen or back: its closing is not the console closing. */
+  let swapping = false
+  /** Our dialog is the one on screen — not the new-shell prompt or the list that led here. */
+  let showing = false
+
+  /** What the daemon says is on screen: events and callbacks, never effects (see `panel/feed.ts`). */
+  let seen = 0
+  const feed = createFeed(client, () => {
+    /** Scrolled up, new output must not drag the view along: follow the rows as they scroll off. */
+    const history = feed.screen()?.history ?? 0
+    if (surface.up > 0 && seen > 0 && history > seen) surface.up += history - seen
+    seen = history
+    surface.log = feed.log()
+    painter.draw()
+  })
+  const painter = createPainter({
+    api,
+    store,
+    surface,
+    feed,
+    colors: options.colors !== false,
+    boxes: () => ({ ...(backdrop ? { backdrop } : {}), ...(pool ? { pool } : {}) }),
+    dialogChanged: () => setVersion((v) => v + 1),
+  })
+  /** The clock and the spinner, while the console is up — Review's `watching`. */
+  let ticking: ReturnType<typeof setInterval> | undefined
+
+  let typing = false
+  /** Every change ends here: the feed learns what to follow, then one paint. */
+  const draw = () => {
+    const selected = store.selected()
+    if (surface.typing && selected?.status !== "running") surface.typing = false
+    feed.follow(surface.open ? selected?.id : undefined, selected?.bytes)
+    /** Enough scrollback to fill the body, or all of it while scrolled up. */
+    feed.setHistory(surface.open ? (surface.up > 0 ? HISTORY : painter.body()) : 0)
+    feed.setLog(surface.open && surface.view === "log", surface.filter)
+    // Typing starts: size the program to what the console shows, at whichever size it has.
+    if (surface.typing && !typing && selected) {
+      void client
+        .call("shell.resize", {
+          id: selected.id,
+          cols: screenCols(painter.size().width),
+          rows: painter.body(),
+        })
+        .catch(() => {})
+    }
+    typing = surface.typing
+    painter.draw()
+  }
+
+  const showDialog = () => {
+    /** Replacing a dialog runs the old one's close handler: that is not the console closing. */
+    swapping = true
     api.ui.dialog.replace(
       () => (
         <Console
           api={api}
-          store={store}
-          typing={typing}
-          colors={options.colors}
-          defaultView={options.defaultView}
-          onClose={() => api.ui.dialog.clear()}
-          onNewShell={() => newShell(api, store, openConsole)}
+          rows={() => {
+            version()
+            return painter.rows()
+          }}
+          keys={() => {
+            const layer = consoleLayer(actions)
+            return {
+              commands: layer.commands,
+              bindings: layer.bindings,
+              enabled: () => !surface.typing && !surface.searching,
+            }
+          }}
         />
       ),
-      () => {},
+      /** Closed by the host — escape, a click outside — is the console closing, unless we swapped. */
+      () => {
+        showing = false
+        if (surface.open && !surface.full && !swapping) closeConsole()
+      },
     )
     api.ui.dialog.setSize("xlarge")
+    showing = true
+    swapping = false
+  }
+
+  const closeConsole = () => {
+    if (!surface.open) return
+    trace("console: close", { full: surface.full })
+    Object.assign(surface, { open: false, typing: false, searching: false, notice: undefined })
+    disposeKeys?.()
+    disposeKeys = undefined
+    clearInterval(ticking)
+    ticking = undefined
+    backdrop?.blur()
+    if (!surface.full) {
+      swapping = true
+      api.ui.dialog.clear()
+      swapping = false
+    }
+    draw()
+    /** The prompt wants its cursor back, exactly where the host had it. */
+    const at = api.renderer.getCursorState?.()
+    if (at) api.renderer.setCursorPosition(at.x, at.y, true)
+  }
+
+  /** `w`: the same console, the other size. */
+  const resizeConsole = () => {
+    swapping = true
+    surface.full = !surface.full
+    api.kv.set(FULL_KEY, surface.full)
+    trace("console: resize", { full: surface.full })
+    if (surface.full) {
+      api.ui.dialog.clear()
+      disposeKeys ??= api.keymap.registerLayer(consoleLayer(actions))
+      /** As Review's show does: focus leaves the prompt, and its cursor stops blinking through. */
+      backdrop?.focus()
+    } else {
+      disposeKeys?.()
+      disposeKeys = undefined
+      backdrop?.blur()
+      showDialog()
+    }
+    swapping = false
+    draw()
+  }
+
+  const actions = createActions({
+    store,
+    surface,
+    draw,
+    most: () => painter.most(),
+    close: closeConsole,
+    resize: resizeConsole,
+    newShell: () => newShell(api, store, openConsole),
+  })
+
+  /** Search and typing take keys before the layer: a query or a program must get every key. */
+  api.keymap.intercept(
+    "key",
+    (ctx) => {
+      if (!surface.open) return
+      const event = ctx.event
+      if (surface.searching) {
+        ctx.consume({ preventDefault: true, stopPropagation: true })
+        if (event.name === "escape") {
+          surface.searching = false
+          return draw()
+        }
+        if (event.name === "return" || event.name === "enter") {
+          Object.assign(surface, { filter: surface.draft.trim(), searching: false })
+          return draw()
+        }
+        if (event.name === "backspace") surface.draft = surface.draft.slice(0, -1)
+        else if (event.sequence && !event.ctrl && !event.meta && event.sequence >= " ")
+          surface.draft += event.sequence
+        return draw()
+      }
+      if (!surface.typing) return
+      ctx.consume({ preventDefault: true, stopPropagation: true })
+      if (isReleaseKey(event)) {
+        surface.typing = false
+        return draw()
+      }
+      const bytes = keyToBytes(event)
+      const shell = store.selected()?.id
+      if (bytes && shell) void client.call("shell.write", { id: shell, data: bytes }).catch(() => {})
+    },
+    { priority: 10_000 },
+  )
+
+  const openConsole = (id?: string, typeInto = false) => {
+    if (id) store.select(id)
+    trace("console: open", { id, full: surface.full })
+    const already = surface.open
+    Object.assign(surface, {
+      open: true,
+      up: 0,
+      typing: typeInto,
+      searching: false,
+      notice: undefined,
+      ...(already ? {} : { view: options.defaultView ?? "screen" }),
+    })
+    ticking ??= setInterval(draw, 120)
+    /** Full screen takes keys with a global layer; the dialog registers the same table itself. */
+    if (surface.full) disposeKeys ??= api.keymap.registerLayer(consoleLayer(actions))
+    if (surface.full) {
+      /** Whatever dialog led here — the new-shell prompt, the list — goes, or it sits over the console. */
+      swapping = true
+      api.ui.dialog.clear()
+      swapping = false
+      backdrop?.focus()
+    } else if (!already || api.ui.dialog.depth === 0 || !showing) showDialog()
+    draw()
   }
 
   api.keymap.registerLayer({
@@ -89,7 +289,7 @@ const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
         title: "Toggle shells panel",
         category: "Shells",
         namespace: "palette",
-        slashName: "shells",
+        slashName: "shells-dock",
         run: () => toggleDock(),
       },
       {
@@ -153,9 +353,10 @@ const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
       },
       {
         name: "cockpit.shells.pick",
-        title: "Switch shell",
+        title: "Shells: pick one, or start a new one",
         category: "Shells",
         namespace: "palette",
+        slashName: "shells",
         run: () => pickShell(api, store, openConsole),
       },
     ],
@@ -183,6 +384,16 @@ const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
                 onOpenConsole={(id) => openConsole(id)}
               />
             ) : null}
+            <Overlay
+              api={api}
+              onReady={(parts) => {
+                backdrop = parts.backdrop
+                pool = createRowPool(parts.lines)
+                trace("full: mounted")
+                draw()
+              }}
+              onScroll={(delta) => actions.scroll(delta)}
+            />
           </>
         )
       },
@@ -215,6 +426,8 @@ const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
   })
 
   api.lifecycle.onDispose(() => {
+    feed.dispose()
+    clearInterval(ticking)
     offOutdated()
     store.dispose()
     client.close()

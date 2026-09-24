@@ -12,6 +12,7 @@ import {
   panelHints,
   partition,
   relativeCwd,
+  shellListItem,
   statusDetail,
   wrapText,
 } from "../src/tui/lib/view.ts"
@@ -152,8 +153,8 @@ describe("the two tiers of keys", () => {
     expect(keyRows(panelHints(base), 96)).toEqual([
       ["keys", "tab  Screen          /    Search Log"],
       ["", "[ ]  Switch Shell    s    Whole Project"],
-      ["", "D    Clear Done      n    New Shell"],
-      ["", "esc  Close"],
+      ["", "D    Clear Done      w    Full Screen"],
+      ["", "n    New Shell       esc  Close"],
     ])
   })
 
@@ -270,5 +271,31 @@ describe("fitting the keys to the row", () => {
   test("a row that is not the whole list says so", () => {
     expect(fitHints(hints, 12).dropped).toBe(1)
     expect(fitHints(hints, 200).dropped).toBe(0)
+  })
+})
+
+describe("the /shells list", () => {
+  test("says the command only when the title does not, and groups by what needs attention", () => {
+    const same = shellListItem(shell({ title: "npm test" }), 5000, "/p")
+    expect(same.description).toBe("")
+    expect(same.category).toBe("Running")
+    expect(same.status.startsWith("RUN")).toBe(true)
+
+    const named = shellListItem(
+      shell({ title: "API server", cwd: "/p/api", status: "exited", exitCode: 1, endedAt: 3000 }),
+      5000,
+      "/p",
+    )
+    expect(named.description).toBe("$ npm test · in ./api")
+    expect(named.category).toBe("Failed")
+    expect(named.status.startsWith("FAIL exit 1")).toBe(true)
+
+    const watched = shellListItem(
+      shell({ title: "tsc", watch: { status: "pending", preset: "tsc" } }),
+      5000,
+      "/p",
+    )
+    expect(watched.category).toBe("Watching")
+    expect(watched.description).toContain("watch tsc")
   })
 })

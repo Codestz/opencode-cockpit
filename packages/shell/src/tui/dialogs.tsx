@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
-import { BADGE_LABEL, displayCommand, kindOf, order } from "./lib/view.ts"
+import { order, shellListItem } from "./lib/view.ts"
 import type { ShellStore } from "./state/store.ts"
 
 export function newShell(api: TuiPluginApi, store: ShellStore, open: (id?: string) => void) {
@@ -114,23 +114,46 @@ export function stopShells(api: TuiPluginApi, store: ShellStore, reach: "view" |
   ))
 }
 
+/**
+ * `/shells`: every shell in view, and a way to start one — the same list whatever is running.
+ *
+ * It used to toggle the dock, while `/shell` opened whichever shell was last selected; with several
+ * running, reaching a particular one meant opening the wrong one first. A list always, with "new" at
+ * the top, is one path to every shell.
+ */
+const NEW_SHELL = "\0new"
+
 export function pickShell(api: TuiPluginApi, store: ShellStore, open: (id?: string) => void) {
   const DialogSelect = api.ui.DialogSelect
-  const shells = order(store.shells())
-  if (shells.length === 0) {
-    api.ui.toast({ variant: "info", title: "Shells", message: "No shells in this project yet" })
-    return
-  }
+  /** Every shell in the project: this is where you go to find one, whichever conversation started it. */
+  const shells = order(store.all())
   api.ui.dialog.replace(() => (
     <DialogSelect
       title="Shells"
-      current={store.selected()?.id}
-      options={shells.map((s) => ({
-        title: s.title,
-        value: s.id,
-        description: `${BADGE_LABEL[kindOf(s)]} · ${displayCommand(s).slice(0, 60)}`,
-      }))}
-      onSelect={(option) => open(option.value as string)}
+      placeholder="Search shells"
+      current={store.selected()?.id ?? NEW_SHELL}
+      options={[
+        {
+          title: "+ New shell",
+          value: NEW_SHELL,
+          description: "run a command in the background",
+          category: "Start",
+        },
+        ...shells.map((s) => {
+          const item = shellListItem(s, store.now(), store.project())
+          return {
+            title: item.title,
+            value: s.id,
+            description: item.description,
+            category: item.category,
+            /** Plain text: the host draws the footer inside its own text node. */
+            footer: `● ${item.status}`,
+          }
+        }),
+      ]}
+      onSelect={(option) =>
+        option.value === NEW_SHELL ? newShell(api, store, open) : open(option.value as string)
+      }
     />
   ))
 }

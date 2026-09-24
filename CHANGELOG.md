@@ -6,6 +6,45 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Review reads like a pull request: every file in one scroll.** Each changed file is a card with a
+  heading you can fold — path, `+/−`, its notes, `+ note` and `[ ] viewed` — and the heading of the
+  file you are in stays pinned at the top. Marking a file viewed folds it and moves to the next
+  unviewed one (below, or the nearest above — never back to the start); `z` or `enter` folds by hand;
+  very large diffs start folded. Headings are clickable. Only what is on screen is drawn: a
+  two-hundred-file review scrolls at under a millisecond a frame, and each diff is worked out once.
+  The file list follows the diff as you scroll.
+- **Review compares a stacked branch with the branch it grew from.** On `main ← feature ← X`, branch
+  mode used to compare X with `main` and mix in every commit of `feature`; a stale local `main` mixed
+  in work already merged. It now finds the nearest parent — the branch X has the fewest commits
+  beyond — the way a pull request from X into `feature` reads. `B` picks another base, remembered per
+  branch.
+- **Shell console full screen (`w`).** The same console over the whole window — output, details,
+  search, every key — remembered for next time; `w` again for the dialog.
+- **Scroll back through a shell's screen.** `j`/`k` (or the wheel in full screen) scroll the screen
+  view through the terminal's history, not only the plain log; `G` follows the output again.
+- **Finished agent shells clean themselves up.** `lifecycle.removeFinishedAfterMinutes` (30 by
+  default, `0` keeps them) removes a shell the agent started that long after it exits cleanly. Failed
+  or killed shells stay until `/shells-clear`: those are the ones worth reading.
+- **Watchers look like watchers.** A watched shell says `watch tsc …` from the start — it used to look
+  like any other shell until its first run finished — and `/shells` groups them under *Watching*.
+
+### Changed
+
+- **`/shells` is a list:** every shell in the project, grouped by what needs attention, with "New
+  shell" first. The dock moved to `/shells-dock` (`ctrl+x o` unchanged); `/shell` still reopens the
+  last console.
+- **The pane without the cursor is dimmed less.** It blended into the background far enough to read as
+  disabled; it is now a gentle step back.
+- **`B` is in Review's key row**, and the shell console dialog is centred on screen.
+
+### Fixed
+
+- **Clicks in the Review pane landed one row off**, and `+ note` on a heading closed its own dialog on
+  mouse release.
+- **Opening the shell console while it was already open** left a dialog that `esc` could not close.
+
 ## [0.5.1] - 2026-09-21
 
 ### Fixed
