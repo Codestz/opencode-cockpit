@@ -23,13 +23,18 @@ export class Screen {
     this.term.reset()
   }
 
-  /** Waits until every pending write has been parsed, then renders the viewport. */
-  async snapshot(): Promise<ScreenResult> {
+  /**
+   * Waits until every pending write has been parsed, then renders the viewport — and, when asked,
+   * up to `history` rows of scrollback above it, so a console can scroll back through what a
+   * program printed without switching to the plain log.
+   */
+  async snapshot(history = 0): Promise<ScreenResult> {
     await new Promise<void>((resolve) => this.term.write("", resolve))
     const buffer = this.term.buffer.active
+    const above = Math.min(Math.max(0, history), buffer.baseY)
     const rows: string[] = []
     const styled: ScreenRun[][] = []
-    for (let y = 0; y < this.term.rows; y++) {
+    for (let y = -above; y < this.term.rows; y++) {
       const line = buffer.getLine(buffer.baseY + y)
       rows.push(line?.translateToString(true) ?? "")
       styled.push(line ? styleRuns(line, this.term.cols) : [])
@@ -44,6 +49,7 @@ export class Screen {
       rows: this.term.rows,
       cursor: { x: buffer.cursorX, y: buffer.cursorY },
       styled,
+      history: above,
     }
   }
 

@@ -641,6 +641,26 @@ describe("shells end with the window that started them", () => {
   })
 })
 
+describe("a shell that asked not to linger", () => {
+  test("is removed after a clean exit, while a failed one is kept", async () => {
+    const own = await startDaemon(tempHome(), 0, { orphanSweepMs: 120 })
+    try {
+      const client = own.client("agent", "window-here")
+      const clean = await client.call("shell.start", { ...bash("true"), owner, removeAfterMs: 1 })
+      const failed = await client.call("shell.start", { ...bash("exit 3"), owner, removeAfterMs: 1 })
+      const kept = await client.call("shell.start", { ...bash("true"), owner })
+
+      await Bun.sleep(900)
+      const ids = (await client.call("shell.list", {})).map((s) => s.id)
+      expect(ids).not.toContain(clean.id)
+      expect(ids).toContain(failed.id)
+      expect(ids).toContain(kept.id)
+    } finally {
+      await own.dispose()
+    }
+  })
+})
+
 describe("a shell whose window never comes back", () => {
   test("is stopped once it has been alone longer than it allows", async () => {
     // Its own daemon, sweeping often enough to watch it happen.

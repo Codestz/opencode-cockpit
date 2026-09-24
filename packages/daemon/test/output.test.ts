@@ -140,6 +140,32 @@ describe("Screen", () => {
   })
 })
 
+describe("Screen history", () => {
+  test("sends scrollback above the viewport only when asked", async () => {
+    const screen = new Screen(20, 3)
+    screen.write(new TextEncoder().encode(Array.from({ length: 10 }, (_, i) => `line ${i}`).join("\r\n")))
+    const plain = await screen.snapshot()
+    expect(plain.text.split("\n")).toEqual(["line 7", "line 8", "line 9"])
+    expect(plain.history).toBe(0)
+
+    const back = await screen.snapshot(4)
+    expect(back.history).toBe(4)
+    expect(back.text.split("\n")).toEqual([
+      "line 3",
+      "line 4",
+      "line 5",
+      "line 6",
+      "line 7",
+      "line 8",
+      "line 9",
+    ])
+    expect(back.styled).toHaveLength(7)
+    // More than exists is everything there is.
+    expect((await screen.snapshot(500)).history).toBe(7)
+    screen.dispose()
+  })
+})
+
 describe("Screen colours", () => {
   test("resolves ANSI colours and attributes into styled runs", async () => {
     const screen = new Screen(40, 4)
