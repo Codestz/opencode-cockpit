@@ -14,7 +14,7 @@
 import type { TuiDialogSelectOption, TuiPluginApi, TuiThemeCurrent } from "@opencode-ai/plugin/tui"
 import type { CliRenderer, KeyEvent } from "@opentui/core"
 import { useBindings } from "@opentui/keymap/solid"
-import { createRoot, type JSX } from "solid-js"
+import { createComponent, createRoot, type JSX } from "solid-js"
 
 type V1Layer = Parameters<TuiPluginApi["keymap"]["registerLayer"]>[0]
 export type Layer = V1Layer
@@ -72,9 +72,14 @@ export interface Host {
       current?: Value
       options: SelectOption<Value>[]
     }): Promise<Value | undefined>
+    /**
+     * Text from the person. `rich` draws above the field where the host can (v1's component dialog);
+     * elsewhere `description` says it in words.
+     */
     prompt(options: {
       title: string
       description?: string
+      rich?: () => JSX.Element
       placeholder?: string
       value?: string
     }): Promise<string | undefined>
@@ -98,6 +103,8 @@ export interface Host {
   promptSession(sessionID: string, text: string): Promise<void>
   /** The v1 API itself, for the calls that have no v2 equivalent. */
   readonly v1?: TuiPluginApi
+  /** The v2 context itself, likewise. */
+  readonly v2?: V2Context
 }
 
 /* ─── v1 ─────────────────────────────────────────────────────────────────────────────────────── */
@@ -115,16 +122,20 @@ export function fromV1(api: TuiPluginApi): Host {
       }
       api.ui.dialog.replace(
         () =>
-          api.ui.DialogSelect({
-            title: options.title,
-            ...(options.placeholder ? { placeholder: options.placeholder } : {}),
-            ...(options.current !== undefined ? { current: options.current } : {}),
-            options: options.options as TuiDialogSelectOption<Value>[],
-            onSelect: (option: TuiDialogSelectOption<Value>) => {
-              api.ui.dialog.clear()
-              finish(option.value)
-            },
-          } as never),
+          createComponent(
+            api.ui.DialogSelect as (props: never) => JSX.Element,
+            {
+              title: options.title,
+              ...(options.placeholder ? { placeholder: options.placeholder } : {}),
+              ...(options.current !== undefined ? { current: options.current } : {}),
+              options: options.options as TuiDialogSelectOption<Value>[],
+              /** Answer first: clearing fires the close handler, which would settle it as cancelled. */
+              onSelect: (option: TuiDialogSelectOption<Value>) => {
+                finish(option.value)
+                api.ui.dialog.clear()
+              },
+            } as never,
+          ),
         () => finish(undefined),
       )
     })
@@ -144,20 +155,28 @@ export function fromV1(api: TuiPluginApi): Host {
         new Promise((resolve) => {
           api.ui.dialog.replace(
             () =>
-              api.ui.DialogPrompt({
-                title: options.title,
-                ...(options.description ? { description: () => options.description } : {}),
-                placeholder: options.placeholder ?? "",
-                value: options.value ?? "",
-                onConfirm: (text: string) => {
-                  api.ui.dialog.clear()
-                  resolve(text)
-                },
-                onCancel: () => {
-                  api.ui.dialog.clear()
-                  resolve(undefined)
-                },
-              } as never),
+              createComponent(
+                api.ui.DialogPrompt as (props: never) => JSX.Element,
+                {
+                  title: options.title,
+                  ...(options.rich
+                    ? { description: options.rich }
+                    : options.description
+                      ? { description: () => options.description }
+                      : {}),
+                  placeholder: options.placeholder ?? "",
+                  value: options.value ?? "",
+                  /** Answer first: clearing fires the close handler, which would settle it as cancelled. */
+                  onConfirm: (text: string) => {
+                    resolve(text)
+                    api.ui.dialog.clear()
+                  },
+                  onCancel: () => {
+                    resolve(undefined)
+                    api.ui.dialog.clear()
+                  },
+                } as never,
+              ),
             () => resolve(undefined),
           )
         }),
@@ -165,18 +184,21 @@ export function fromV1(api: TuiPluginApi): Host {
         new Promise((resolve) => {
           api.ui.dialog.replace(
             () =>
-              api.ui.DialogConfirm({
-                title: options.title,
-                message: options.message,
-                onConfirm: () => {
-                  api.ui.dialog.clear()
-                  resolve(true)
-                },
-                onCancel: () => {
-                  api.ui.dialog.clear()
-                  resolve(false)
-                },
-              } as never),
+              createComponent(
+                api.ui.DialogConfirm as (props: never) => JSX.Element,
+                {
+                  title: options.title,
+                  message: options.message,
+                  onConfirm: () => {
+                    resolve(true)
+                    api.ui.dialog.clear()
+                  },
+                  onCancel: () => {
+                    resolve(false)
+                    api.ui.dialog.clear()
+                  },
+                } as never,
+              ),
             () => resolve(false),
           )
         }),
@@ -215,8 +237,19 @@ export interface V2Context {
         sync(location?: unknown): Promise<void>
         info(location?: unknown): { branch?: { current?: string; default?: string } } | undefined
       }
+      readonly model?: {
+        list(location?: unknown): unknown[] | undefined
+        sync(location?: unknown): Promise<void>
+      }
+      readonly mcp?: { readonly server: { list(location?: unknown): unknown[] | undefined } }
     }
-    readonly session: { prompt?(input: unknown): Promise<unknown> }
+    readonly session: {
+      prompt?(input: unknown): Promise<unknown>
+      get?(sessionID: string): unknown
+      status?(sessionID: string): unknown
+      sync?(sessionID: string): Promise<void>
+      readonly message?: { list(sessionID: string): unknown[]; sync(sessionID: string): Promise<void> }
+    }
   }
   readonly keymap: {
     layer(input: () => V2Layer): void
@@ -477,7 +510,7 @@ export function fromV2(ctx: V2Context, onCleanup: (fn: () => void) => void): Hos
         },
       },
       select: (options) => ctx.ui.dialog.select(options),
-      prompt: (options) => ctx.ui.dialog.prompt(options),
+      prompt: ({ rich: _rich, ...options }) => ctx.ui.dialog.prompt(options),
       confirm: async (options) => (await ctx.ui.dialog.confirm(options)) === true,
     },
     keymap: {
@@ -513,8 +546,9 @@ export function fromV2(ctx: V2Context, onCleanup: (fn: () => void) => void): Hos
     },
     lifecycle: { onDispose: onCleanup },
     promptSession: async (sessionID, text) => {
-      await ctx.data.session.prompt?.({ sessionID, parts: [{ type: "text", text }] })
+      await ctx.data.session.prompt?.({ sessionID, text })
     },
+    v2: ctx,
   }
 }
 

@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 
-import type { TuiPlugin, TuiPluginModule } from "@opencode-ai/plugin/tui"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
+import { dualTui, type Host } from "@opencode-cockpit/client/host"
 import { createMemo } from "solid-js"
 import pkg from "../../package.json" with { type: "json" }
 import { asSegmentConfig, loadStatusConfig, type ResolvedLine, resolveLines } from "../core/config.ts"
@@ -12,14 +12,14 @@ import { fit, fitColumn } from "../core/render.ts"
 import { buildReport } from "../core/report.ts"
 import { buildSegments, type SegmentDef } from "../core/segments.ts"
 import { StatusLine } from "./components/statusline.tsx"
-import { buildContext } from "./state/snapshot.ts"
+import { buildContext, currentSession } from "./state/snapshot.ts"
 import { createStatusStore } from "./state/store.ts"
 
 const STATUS_PACKAGE = "@opencode-cockpit/status"
 
 /** Status' TUI half as a factory, so bundles such as `opencode-cockpit` can include it. */
-export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string } = {}): TuiPlugin {
-  return async (api, rawOptions) => {
+export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string } = {}) {
+  return async (api: Host, rawOptions?: unknown) => {
     // The renderer is shared by every TUI plugin in this OpenCode window.
     const claim = claimFeature(api.renderer, "status", source)
     if (!claim.active) {
@@ -53,7 +53,7 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
       moduleErrors.push(...loaded.errors)
       for (const error of loaded.errors) {
         api.ui.toast({ variant: "error", title: "Statusline", message: error, duration: 10_000 })
-        void api.client.app
+        void api.v1?.client.app
           .log({
             service: "opencode-cockpit.status",
             level: "error",
@@ -148,16 +148,23 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
              * like a command that did nothing.
              */
             setTimeout(() => {
-              void api.client.tui
-                .appendPrompt({ text: brief })
-                .then(() => api.client.tui.submitPrompt())
-                .catch(() =>
-                  api.ui.toast({
-                    variant: "error",
-                    title: "Statusline",
-                    message: "could not reach the prompt",
-                  }),
-                )
+              const failed = () =>
+                api.ui.toast({ variant: "error", title: "Statusline", message: "could not reach the prompt" })
+              if (api.v1) {
+                const tui = api.v1.client.tui
+                void tui
+                  .appendPrompt({ text: brief })
+                  .then(() => tui.submitPrompt())
+                  .catch(failed)
+                return
+              }
+              /** OpenCode 2: straight to the conversation on screen, there being no prompt to fill. */
+              const session = currentSession(api)
+              if (!session) {
+                api.ui.toast({ title: "Statusline", message: "Open a conversation first." })
+                return
+              }
+              void api.promptSession(session, brief).catch(failed)
             }, 0)
           },
         },
@@ -191,8 +198,5 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
   }
 }
 
-const plugin: TuiPluginModule & { id: string } = {
-  id: STATUS_PACKAGE,
-  tui: createStatusTui(),
-}
-export default plugin
+/** One entry for both OpenCodes: v1 calls `tui`, v2 calls `setup` (docs/opencode/v2.md). */
+export default dualTui(STATUS_PACKAGE, createStatusTui())

@@ -16,7 +16,8 @@ import { Terminal } from "@xterm/headless"
 import { FEATURES } from "../packages/opencode/src/features.ts"
 
 const root = join(import.meta.dir, "..")
-const opencode = Bun.which("opencode")
+/** OPENCODE picks the binary, so the same test can drive v1 and v2 side by side. */
+const opencode = process.env.OPENCODE ?? Bun.which("opencode")
 if (!opencode) {
   console.error("opencode binary not found; install OpenCode to run this smoke test")
   process.exit(1)

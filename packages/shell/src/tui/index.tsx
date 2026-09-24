@@ -1,7 +1,8 @@
 /** @jsxImportSource @opentui/solid */
 
-import { createBindingLookup, type TuiPlugin, type TuiPluginModule } from "@opencode-ai/plugin/tui"
+import { createBindingLookup } from "@opencode-ai/plugin/tui"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
+import { dualTui, type Host } from "@opencode-cockpit/client/host"
 import type { BoxRenderable } from "@opentui/core"
 import { createSignal } from "solid-js"
 import { createClient } from "../connect.ts"
@@ -33,8 +34,8 @@ export type ShellTuiOptions = NonNullable<CockpitConfig["ui"]>
 const SHELL_PACKAGE = "@opencode-cockpit/shell"
 
 /** Shell's TUI half as a factory, so bundles such as `opencode-cockpit` can include it. */
-export function createShellTui({ source = SHELL_PACKAGE }: { source?: string } = {}): TuiPlugin {
-  return async (api, rawOptions, meta) => {
+export function createShellTui({ source = SHELL_PACKAGE }: { source?: string } = {}) {
+  return async (api: Host, rawOptions?: unknown) => {
     // The renderer is shared by every TUI plugin in this OpenCode window.
     const claim = claimFeature(api.renderer, "shell", source)
     if (!claim.active) {
@@ -47,11 +48,11 @@ export function createShellTui({ source = SHELL_PACKAGE }: { source?: string } =
       return
     }
     api.lifecycle.onDispose(() => claim.release())
-    await shellTui(api, rawOptions, meta)
+    await shellTui(api, rawOptions)
   }
 }
 
-const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
+const shellTui = async (api: Host, rawOptions?: unknown) => {
   // Settings come from the shared config file; plugin-entry options still win, flat or under "ui".
   const config = loadConfig(api.state.path.directory, rawOptions)
   const options: ShellTuiOptions = config.ui ?? {}
@@ -69,10 +70,7 @@ const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
     setDockOpen(next)
     api.kv.set("cockpit.dock.open", next)
   }
-  const shortcut = (command: string) => {
-    const bindings = api.keymap.getCommandBindings({ visibility: "registered", commands: [command] })
-    return api.keys.formatBindings(bindings.get(command)) ?? ""
-  }
+  const shortcut = (command: string) => api.keymap.shortcut(command)
 
   /**
    * The console: one surface, one feed, one painter, one key table — at two sizes.
@@ -151,14 +149,10 @@ const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
             version()
             return painter.rows()
           }}
-          keys={() => {
-            const layer = consoleLayer(actions)
-            return {
-              commands: layer.commands,
-              bindings: layer.bindings,
-              enabled: () => !surface.typing && !surface.searching,
-            }
-          }}
+          keys={() => ({
+            ...consoleLayer(actions),
+            enabled: () => !surface.typing && !surface.searching,
+          })}
         />
       ),
       /** Closed by the host — escape, a click outside — is the console closing, unless we swapped. */
@@ -225,7 +219,6 @@ const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
 
   /** Search and typing take keys before the layer: a query or a program must get every key. */
   api.keymap.intercept(
-    "key",
     (ctx) => {
       if (!surface.open) return
       const event = ctx.event
@@ -434,5 +427,5 @@ const shellTui: TuiPlugin = async (api, rawOptions, _meta) => {
   })
 }
 
-const plugin: TuiPluginModule & { id: string } = { id: "opencode-cockpit.shell", tui: createShellTui() }
-export default plugin
+/** One entry for both OpenCodes: v1 calls `tui`, v2 calls `setup` (docs/opencode/v2.md). */
+export default dualTui("opencode-cockpit.shell", createShellTui())

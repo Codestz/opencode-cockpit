@@ -11,12 +11,12 @@
  * disposed the moment the review closes.
  */
 
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { Host } from "@opencode-cockpit/client/host"
 import type { Guard } from "../../core/guard.ts"
 import { metrics } from "../../core/perf.ts"
 import type { Actions } from "./actions.ts"
 
-type Layer = Parameters<TuiPluginApi["keymap"]["registerLayer"]>[0]
+type Layer = Parameters<Host["keymap"]["registerLayer"]>[0]
 type Command = NonNullable<Layer["commands"]>[number]
 
 /**

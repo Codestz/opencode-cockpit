@@ -1,5 +1,6 @@
 import { homedir } from "node:os"
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { Host, V2Context } from "@opencode-cockpit/client/host"
 import type { SessionSnapshot, StatusContext, TokenCounts } from "../../core/context.ts"
 import type { DiffCounts } from "../../core/diff.ts"
 
@@ -17,7 +18,7 @@ function counted(tokens: TokenCounts): number {
 }
 
 /** The session the interface is showing, when it is showing one. */
-export function currentSession(api: TuiPluginApi): string | undefined {
+export function currentSession(api: Host): string | undefined {
   const route = api.route.current
   return route.name === "session" ? (route.params as { sessionID?: string }).sessionID : undefined
 }
@@ -107,8 +108,81 @@ function describeModel(
   }
 }
 
+/** Numbers read defensively: v2's records are typed, but a field missing must read as absent, not NaN. */
+const num = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) ? value : undefined
+
+/**
+ * The same snapshot from OpenCode 2's data.
+ *
+ * v2 keeps the running cost and the token total on the session record itself, and its assistant
+ * messages carry the same token shape v1's did — so the newest message that has reported is still
+ * what occupies the window. Todos are not a v2 concept, so there are none to count.
+ */
+export function sessionSnapshotV2(
+  ctx: V2Context,
+  id: string,
+  now: number,
+  diff: DiffCounts,
+): SessionSnapshot {
+  void ctx.data.session.sync?.(id).catch(() => {})
+  const session = ctx.data.session.get?.(id) as
+    | { title?: string; cost?: number; time?: { created?: number } }
+    | undefined
+  const status = ctx.data.session.status?.(id) as
+    | { type?: string; attempt?: number; message?: string; next?: number }
+    | undefined
+  const messages = (ctx.data.session.message?.list(id) ?? []) as {
+    type?: string
+    tokens?: TokenCounts
+    model?: { id?: string; providerID?: string }
+    cost?: number
+  }[]
+  let tokens: TokenCounts | undefined
+  let model: { id?: string; providerID?: string } | undefined
+  let summed = 0
+  for (const message of messages) {
+    if (message.type !== "assistant") continue
+    summed += num(message.cost) ?? 0
+    if (message.tokens && counted(message.tokens) > 0) tokens = message.tokens
+    if (message.model) model = message.model
+  }
+  const models = (ctx.data.location.model?.list(ctx.location) ?? []) as {
+    id?: string
+    providerID?: string
+    limit?: { context?: number }
+    cost?: unknown[]
+  }[]
+  const info = models.find((each) => each.id === model?.id && each.providerID === model?.providerID)
+  const limit = num(info?.limit?.context)
+  return {
+    id,
+    title: session?.title,
+    status: status?.type === "busy" ? "busy" : status?.type === "retry" ? "retry" : "idle",
+    ...(status?.type === "retry"
+      ? { retry: { attempt: status.attempt ?? 0, message: status.message ?? "", next: status.next ?? 0 } }
+      : {}),
+    ...(model?.id && model.providerID
+      ? {
+          model: {
+            providerID: model.providerID,
+            modelID: model.id,
+            ...(limit && limit > 0 ? { contextLimit: limit } : {}),
+          },
+        }
+      : {}),
+    ...(tokens ? { tokens } : {}),
+    cost: num(session?.cost) ?? summed,
+    priced: Array.isArray(info?.cost) && info.cost.length > 0,
+    messages: messages.length,
+    startedAt: num(session?.time?.created) ?? now,
+    diff,
+    todo: { total: 0, completed: 0 },
+  }
+}
+
 export function buildContext(
-  api: TuiPluginApi,
+  api: Host,
   options: {
     now: number
     width: number
@@ -127,9 +201,23 @@ export function buildContext(
     ...(api.state.vcs?.default_branch ? { defaultBranch: api.state.vcs.default_branch } : {}),
     version: options.version,
     ...(options.diff ? { diff: options.diff } : {}),
-    ...(sessionID ? { session: sessionSnapshot(api, sessionID, options.now, options.diff ?? NOTHING) } : {}),
-    lsp: api.state.lsp().map((item) => ({ name: item.id, status: String(item.status) })),
-    mcp: api.state.mcp().map((item) => ({ name: item.name, status: String(item.status) })),
+    ...(sessionID
+      ? {
+          session: api.v1
+            ? sessionSnapshot(api.v1, sessionID, options.now, options.diff ?? NOTHING)
+            : sessionSnapshotV2(api.v2 as V2Context, sessionID, options.now, options.diff ?? NOTHING),
+        }
+      : {}),
+    /** v2 runs no language servers; its MCP servers carry a name and a status as v1's did. */
+    lsp: api.v1 ? api.v1.state.lsp().map((item) => ({ name: item.id, status: String(item.status) })) : [],
+    mcp: api.v1
+      ? api.v1.state.mcp().map((item) => ({ name: item.name, status: String(item.status) }))
+      : (
+          (api.v2?.data.location.mcp?.server.list(api.v2.location) ?? []) as {
+            name?: string
+            status?: unknown
+          }[]
+        ).map((item) => ({ name: item.name ?? "", status: String(item.status ?? "") })),
     commands: options.commands,
     width: options.width,
   }

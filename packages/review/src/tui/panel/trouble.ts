@@ -8,7 +8,7 @@
  */
 
 import { appendFile, mkdir } from "node:fs/promises"
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { Host } from "@opencode-cockpit/client/host"
 import { createGuard, type Guard } from "../../core/guard.ts"
 import { metrics } from "../../core/perf.ts"
 import { reviewPaths } from "../../core/store/paths.ts"
@@ -27,7 +27,7 @@ export function createTrouble({
   surface,
   store,
 }: {
-  api: TuiPluginApi
+  api: Host
   surface: Surface
   store: Store
 }): Trouble {

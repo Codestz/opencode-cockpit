@@ -1,11 +1,11 @@
 /** @jsxImportSource @opentui/solid */
 // biome-ignore-all lint/a11y/noStaticElementInteractions: these are terminal boxes, not DOM elements
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { Host } from "@opencode-cockpit/client/host"
 import type { BoxRenderable, MouseEvent, TextRenderable } from "@opentui/core"
 import type { JSX } from "solid-js"
 
 export interface OverlayProps {
-  api: TuiPluginApi
+  api: Host
   /** Hands the boxes and the line pool up. Everything about them is set from the plugin. */
   onReady: (parts: { backdrop: BoxRenderable; panel: BoxRenderable; lines: TextRenderable[] }) => void
   /** A click landed outside the panel: dismiss, the way clicking off any overlay does. */

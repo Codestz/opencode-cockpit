@@ -14,7 +14,7 @@
  * that pushed reactive state into a slot would be pushing it somewhere nothing reads it.
  */
 
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { Host } from "@opencode-cockpit/client/host"
 import { branchChanges, withCounts, worktreeChanges } from "../../core/git/sources.ts"
 import type { ChangeSet, Source } from "../../core/model/review.ts"
 
@@ -39,7 +39,7 @@ export interface Store {
 
 const empty = (source: Source): ChangeSet => ({ source, files: [] })
 
-export function createStore(api: TuiPluginApi, initial: Source = "branch"): Store {
+export function createStore(api: Host, initial: Source = "branch"): Store {
   let source = initial
   let latest: Loaded = { changes: empty(initial) }
   let inFlight = 0

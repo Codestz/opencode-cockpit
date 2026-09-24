@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { dualTui, fromV2, layerToV2, themeFromV2, type V2Context } from "../src/host.ts"
+import { dualTui, fromV1, fromV2, layerToV2, themeFromV2, type V2Context } from "../src/host.ts"
 
 /**
  * The v2 half of the host, against a fake context shaped like OpenCode 2.0.15's (docs/opencode/v2.md).
@@ -197,5 +197,70 @@ describe("one entry for both", () => {
     expect(started).toBe(2)
     cleanup()
     expect(disposed).toEqual(["b", "a"])
+  })
+})
+
+/** The handler a fake dialog was given, or a failure that says which one never opened. */
+function handler(
+  seen: Record<string, Record<string, (...args: never[]) => void>>,
+  dialog: string,
+  name: string,
+): (...args: unknown[]) => void {
+  const found = seen[dialog]?.[name]
+  if (!found) throw new Error(`the ${dialog} dialog never opened with ${name}`)
+  return found as (...args: unknown[]) => void
+}
+
+describe("the v1 host's dialogs", () => {
+  /**
+   * v1's dialog calls its close handler when cleared. Clearing before answering settled every prompt
+   * as cancelled — the new-shell prompt took a command and started nothing.
+   */
+  function fakeV1() {
+    let onClose: (() => void) | undefined
+    const seen: Record<string, Record<string, (...args: never[]) => void>> = {}
+    const component = (name: string) => (props: Record<string, (...args: never[]) => void>) => {
+      seen[name] = props
+      return null
+    }
+    const api = {
+      ui: {
+        dialog: {
+          replace: (render: () => unknown, close?: () => void) => {
+            onClose = close
+            render()
+          },
+          clear: () => onClose?.(),
+        },
+        DialogPrompt: component("prompt"),
+        DialogConfirm: component("confirm"),
+        DialogSelect: component("select"),
+      },
+    }
+    return { host: fromV1(api as never), seen }
+  }
+
+  test("a prompt answers with what was typed", async () => {
+    const { host, seen } = fakeV1()
+    const answer = host.ui.prompt({ title: "New background shell" })
+    handler(seen, "prompt", "onConfirm")("npm run dev")
+    expect(await answer).toBe("npm run dev")
+  })
+
+  test("a confirmation answers yes, and a list answers with the choice", async () => {
+    const { host, seen } = fakeV1()
+    const yes = host.ui.confirm({ title: "Stop?", message: "3 running" })
+    handler(seen, "confirm", "onConfirm")()
+    expect(await yes).toBe(true)
+    const choice = host.ui.select({ title: "Shells", options: [{ title: "a", value: "sh_a" }] })
+    handler(seen, "select", "onSelect")({ value: "sh_a" })
+    expect(await choice).toBe("sh_a")
+  })
+
+  test("closing without answering is a cancel", async () => {
+    const { host, seen } = fakeV1()
+    const answer = host.ui.prompt({ title: "Name" })
+    handler(seen, "prompt", "onCancel")()
+    expect(await answer).toBeUndefined()
   })
 })

@@ -1,4 +1,4 @@
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { Host } from "@opencode-cockpit/client/host"
 import { type Accessor, createMemo, createRoot, createSignal } from "solid-js"
 import { type CommandRunner, createRunner, execShell } from "../../core/command.ts"
 import { resolveLines, type StatusConfig } from "../../core/config.ts"
@@ -26,7 +26,7 @@ export interface StoreOptions {
   exec?: (command: string, stdin: string, timeoutMs: number) => Promise<string>
   now?: () => number
   build: (
-    api: TuiPluginApi,
+    api: Host,
     input: {
       now: number
       width: number
@@ -37,11 +37,7 @@ export interface StoreOptions {
   ) => StatusContext
 }
 
-export function createStatusStore(
-  api: TuiPluginApi,
-  config: StatusConfig,
-  options: StoreOptions,
-): StatusStore {
+export function createStatusStore(api: Host, config: StatusConfig, options: StoreOptions): StatusStore {
   return createRoot((dispose) => {
     const clock = options.now ?? (() => Date.now())
     const [now, setNow] = createSignal(clock())

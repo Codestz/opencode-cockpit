@@ -23,6 +23,12 @@ interface FakeState {
   route?: string
 }
 
+/** What `fromV1` hands a bay on OpenCode 1: the host's own fields, and the v1 API itself beside them. */
+const v1Host = (state: FakeState = {}) => {
+  const v1 = api(state)
+  return Object.assign(v1, { v1 }) as unknown as Parameters<typeof buildContext>[0]
+}
+
 const api = (state: FakeState = {}): TuiPluginApi =>
   ({
     app: { version: "1.0.0" },
@@ -167,7 +173,7 @@ describe("the rest of the session", () => {
 
 describe("the whole context", () => {
   test("carries the branch, services and paths the segments read", () => {
-    const ctx = buildContext(api({ branch: "status-bay" }), {
+    const ctx = buildContext(v1Host({ branch: "status-bay" }), {
       now: 5000,
       width: 100,
       version: "0.2.2",
@@ -183,7 +189,7 @@ describe("the whole context", () => {
 
   // Off a session route there is no session to report on.
   test("has no session when the interface is not showing one", () => {
-    const ctx = buildContext(api({ route: "home" }), {
+    const ctx = buildContext(v1Host({ route: "home" }), {
       now: 5000,
       width: 100,
       version: "0.2.2",

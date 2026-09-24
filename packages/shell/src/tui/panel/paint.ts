@@ -1,4 +1,4 @@
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { Host } from "@opencode-cockpit/client/host"
 import type { BoxRenderable } from "@opentui/core"
 import { bodyHeight, type ConsoleInput, consoleRows } from "../lib/console.ts"
 import { order } from "../lib/view.ts"
@@ -14,7 +14,7 @@ export interface Boxes {
 }
 
 export interface PaintDeps {
-  api: TuiPluginApi
+  api: Host
   store: ShellStore
   surface: Surface
   feed: Feed

@@ -7,7 +7,7 @@
  * draw loop needs several of these and none of the verbs.
  */
 
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { Host } from "@opencode-cockpit/client/host"
 import type { FileChange } from "../../core/model/review.ts"
 import { threadsFor, threadsOnLine } from "../../core/model/review.ts"
 import type { Store } from "../data/changes.ts"
@@ -28,7 +28,7 @@ export interface Queries {
   contents: () => ReadonlyMap<string, string>
 }
 
-export function createQueries(api: TuiPluginApi, surface: Surface, store: Store): Queries {
+export function createQueries(api: Host, surface: Surface, store: Store): Queries {
   /**
    * What to call what is on screen.
    *

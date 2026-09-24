@@ -1,6 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 // biome-ignore-all lint/a11y/noStaticElementInteractions: these are terminal boxes, not DOM elements
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { Host } from "@opencode-cockpit/client/host"
 import type { BoxRenderable, MouseEvent, TextRenderable } from "@opentui/core"
 import type { JSX } from "solid-js"
 
@@ -8,7 +8,7 @@ import type { JSX } from "solid-js"
 export const MAX_LINES = 300
 
 export interface OverlayProps {
-  api: TuiPluginApi
+  api: Host
   onReady: (parts: { backdrop: BoxRenderable; lines: TextRenderable[] }) => void
   /** The wheel turned over the console: negative is up. */
   onScroll: (delta: number) => void

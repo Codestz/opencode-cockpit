@@ -7,10 +7,10 @@
  * given back the moment it closes. Typing and search take keys before this, in the host's intercept.
  */
 
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { Host } from "@opencode-cockpit/client/host"
 import type { Actions } from "./actions.ts"
 
-type Layer = Parameters<TuiPluginApi["keymap"]["registerLayer"]>[0]
+type Layer = Parameters<Host["keymap"]["registerLayer"]>[0]
 
 export function consoleLayer(actions: Actions): Layer {
   return {

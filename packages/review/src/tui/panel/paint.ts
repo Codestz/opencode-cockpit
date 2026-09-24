@@ -7,7 +7,7 @@
  * the faster you move.
  */
 
-import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import type { Host } from "@opencode-cockpit/client/host"
 import type { BoxRenderable } from "@opentui/core"
 import type { Guard } from "../../core/guard.ts"
 import { filesElsewhere } from "../../core/model/review.ts"
@@ -29,7 +29,7 @@ export interface Boxes {
 }
 
 export interface PaintDeps {
-  api: TuiPluginApi
+  api: Host
   surface: Surface
   store: Store
   guard: Guard
