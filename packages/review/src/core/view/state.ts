@@ -24,8 +24,20 @@ export interface ViewState {
   cursor?: string
   /** The file whose diff is showing. */
   file?: string
-  /** First visible row of the diff. */
+  /**
+   * First visible row of the diff — of the whole stream of files, not of one.
+   *
+   * Undefined means "wherever `file` starts", which is what opening a file asks for without having
+   * to know how tall everything above it is.
+   */
   scroll?: number
+  /**
+   * Files folded, or unfolded, by hand. Everything else follows the default: open until you mark it
+   * viewed, and a very large diff starts folded. The two sets override that default either way, the
+   * way GitHub's per-file toggle does.
+   */
+  folded?: ReadonlySet<string>
+  opened?: ReadonlySet<string>
   /** Unchanged lines kept either side of a change. */
   context?: number
   /** Folders whose contents are hidden, by path so toggling one cannot shift another. */

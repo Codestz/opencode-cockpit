@@ -100,6 +100,7 @@ export function shellStart(kit: ToolKit): ToolDefinition {
       // Nothing should outlive the window that asked for it by more than the user allows.
       const lifecycle = config.lifecycle ?? {}
       const orphanMinutes = lifecycle.orphanAfterMinutes ?? 60
+      const removeMinutes = lifecycle.removeFinishedAfterMinutes ?? 30
       const shell = deps.shellCommand(args.command)
       const info = await client.call("shell.start", {
         command: shell.command,
@@ -118,6 +119,7 @@ export function shellStart(kit: ToolKit): ToolDefinition {
         logFile: logFile === true,
         stopOnExit: (lifecycle.onExit ?? "stopMine") === "stopMine",
         orphanAfterMs: orphanMinutes > 0 ? orphanMinutes * 60_000 : undefined,
+        removeAfterMs: removeMinutes > 0 ? removeMinutes * 60_000 : undefined,
         reuse: true,
       })
       if (notifyOnExit === false) deps.quiet.add(info.id)

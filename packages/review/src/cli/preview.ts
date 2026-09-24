@@ -60,6 +60,7 @@ const FG: Record<Tone, string> = {
   punct: `${ESC}[38;2;147;153;178m`,
   /** Ink on a solid badge: the panel's own background. */
   inverse: `${ESC}[38;2;30;30;46m`,
+  edge: `${ESC}[38;2;49;50;68m`,
 }
 
 const BG: Record<Fill, string> = {
@@ -71,6 +72,7 @@ const BG: Record<Fill, string> = {
   comment: `${ESC}[48;2;49;50;68m`,
   selected: `${ESC}[48;2;62;63;84m`,
   panel: `${ESC}[48;2;30;30;46m`,
+  heading: `${ESC}[48;2;49;50;68m`,
   you: `${ESC}[48;2;148;226;213m`,
   agent: `${ESC}[48;2;250;179;135m`,
 }

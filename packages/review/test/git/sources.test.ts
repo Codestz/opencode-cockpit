@@ -2,7 +2,14 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { branchChanges, runGit, withCounts, worktreeChanges } from "../../src/core/git/sources.ts"
+import {
+  baseCandidates,
+  branchChanges,
+  pickBase,
+  runGit,
+  withCounts,
+  worktreeChanges,
+} from "../../src/core/git/sources.ts"
 
 /**
  * Driven against a real repository rather than a fake one.
@@ -124,6 +131,82 @@ describe("the branch", () => {
     const result = await branchChanges(repo, "no-such-branch")
     expect(result.files).toEqual([])
     expect(result.errors[0]).toContain("no base branch")
+  })
+})
+
+/** main ← feature ← stacked: the case that used to show feature's commits as stacked's own. */
+describe("a stacked branch", () => {
+  beforeAll(async () => {
+    await git("add", "-A")
+    await git("commit", "-m", "finish feature")
+    await git("checkout", "-q", "-b", "stacked")
+    write("stacked-only.ts", "stacked work\n")
+    await git("add", "-A")
+    await git("commit", "-m", "on the stack")
+  })
+
+  afterAll(async () => {
+    await git("checkout", "-q", "feature")
+  })
+
+  test("is compared with the branch it grew from, not the default one", async () => {
+    const result = await branchChanges(repo, undefined, runGit, "main")
+    expect(result.base).toBe("feature")
+    expect(paths(result.files)).toEqual(["stacked-only.ts"])
+  })
+
+  test("a branch stacked on top of this one is a child, never the parent", async () => {
+    await git("checkout", "-q", "-b", "grandchild")
+    write("grandchild.ts", "deeper\n")
+    await git("add", "-A")
+    await git("commit", "-m", "on the grandchild")
+    await git("checkout", "-q", "stacked")
+    const candidates = await baseCandidates(repo)
+    expect(candidates.map((each) => each.ref)).not.toContain("grandchild")
+    expect(pickBase(candidates, "main")).toBe("feature")
+  })
+
+  test("an explicit base still wins, for the whole stack at once", async () => {
+    const result = await branchChanges(repo, "main")
+    expect(result.base).toBe("main")
+    expect(paths(result.files)).toEqual(expect.arrayContaining(["on-branch.ts", "stacked-only.ts"]))
+  })
+})
+
+describe("choosing a base", () => {
+  test("the nearest fork wins, then the default branch, then local over remote", () => {
+    expect(
+      pickBase(
+        [
+          { ref: "main", own: 5, other: 0 },
+          { ref: "feature", own: 2, other: 1 },
+        ],
+        "main",
+      ),
+    ).toBe("feature")
+    expect(
+      pickBase(
+        [
+          { ref: "sibling", own: 3, other: 4 },
+          { ref: "origin/main", own: 3, other: 9 },
+          { ref: "main", own: 3, other: 0 },
+        ],
+        "main",
+      ),
+    ).toBe("main")
+  })
+
+  /** Local `main` left behind while `origin/main` moved on: the fresher one is the nearer fork. */
+  test("a stale local default loses to its fresher remote", () => {
+    expect(
+      pickBase(
+        [
+          { ref: "main", own: 12, other: 0 },
+          { ref: "origin/main", own: 2, other: 0 },
+        ],
+        "main",
+      ),
+    ).toBe("origin/main")
   })
 })
 

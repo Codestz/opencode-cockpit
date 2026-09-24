@@ -15,11 +15,23 @@
 import type { ChangeSet, Review } from "../model/review.ts"
 import { metrics } from "../perf.ts"
 import { footerRows, headerRows } from "./chrome.ts"
-import { awayRows, diffRows, withCursor } from "./diff.ts"
 import { FOOTER_ROWS, GUTTER, HEADER_ROWS, inset, splitColumns, window } from "./geometry.ts"
 import { fileRows, listScroll } from "./list.ts"
 import { cell, faint, type Row } from "./rows.ts"
 import type { Viewport, ViewState } from "./state.ts"
+import { streamWindow } from "./stream.ts"
+
+/**
+ * How wide the diff column is for a pane this size — one answer, used by the drawing, the clicks and
+ * the keys alike. Heights in the stream depend on it (a note wraps), so two widths would put a click
+ * on a different row from the one drawn under it.
+ */
+export function streamWidth(viewport: Viewport): number {
+  const inner = Math.max(0, viewport.width - 2)
+  const content = Math.max(1, inner - GUTTER * 2)
+  const columns = splitColumns(content + 2)
+  return columns.list === 0 ? content : columns.diff
+}
 
 export function layout(changes: ChangeSet, review: Review, state: ViewState, viewport: Viewport): Row[] {
   return metrics.time("layout", () => compose(changes, review, state, viewport))
@@ -39,15 +51,8 @@ function compose(changes: ChangeSet, review: Review, state: ViewState, viewport:
   )
 
   const body = Math.max(1, viewport.height - HEADER_ROWS - FOOTER_ROWS)
-  const file = changes.files.find((candidate) => candidate.path === state.file) ?? changes.files[0]
-  /** A file with comments but no diff is drawn from its threads alone. */
-  const away = state.file !== undefined && !changes.files.some((each) => each.path === state.file)
-  const bodyRows = (width: number): Row[] =>
-    away && state.file
-      ? awayRows(state.file, review, state, width)
-      : file
-        ? diffRows(file, review, state, width)
-        : []
+  /** Every file, one scroll: the window of it that fits, with the cursor drawn on. */
+  const stream = (width: number): Row[] => streamWindow(changes, review, state, width, body)
   const blank = (width: number): Row => ({ runs: [{ text: " ".repeat(width) }] })
 
   const close = (built: Row[]): Row[] => {
@@ -85,8 +90,10 @@ function compose(changes: ChangeSet, review: Review, state: ViewState, viewport:
 
   /** One column: the list, or the diff, never both squeezed into something unreadable. */
   if (columns.list === 0) {
-    const only = file || away ? bodyRows(content) : fileRows(changes, review, state, content)
-    const shown = withCursor(window(only, state.scroll ?? 0, body), state)
+    const shown =
+      state.file !== undefined
+        ? stream(content)
+        : window(fileRows(changes, review, state, content), listScroll(changes, state, body), body)
     for (let index = 0; index < body; index++) {
       const row = shown[index]
       rows.push(row ? inset(row, inner, row.runs[0]?.fill) : blank(inner))
@@ -101,7 +108,7 @@ function compose(changes: ChangeSet, review: Review, state: ViewState, viewport:
   const left = list(
     window(fileRows(changes, review, state, columns.list), listScroll(changes, state, body), body),
   )
-  const right = code(withCursor(window(bodyRows(columns.diff), state.scroll ?? 0, body), state))
+  const right = code(stream(columns.diff))
 
   for (let index = 0; index < body; index++) {
     const listRuns = left[index]?.runs ?? [{ text: " ".repeat(columns.list) }]
@@ -139,15 +146,13 @@ export function visibleDiffRows(
   review: Review,
   state: ViewState,
   viewport: Viewport,
-): { line?: number; target?: string }[] {
-  const columns = splitColumns(viewport.width)
-  const inner = Math.max(0, viewport.width - 2)
-  const width = columns.list === 0 ? inner : columns.diff
-  const file = changes.files.find((candidate) => candidate.path === state.file) ?? changes.files[0]
-  if (!file) return []
+): { line?: number; target?: string; file?: string; header?: boolean }[] {
+  const width = streamWidth(viewport)
   const body = Math.max(1, viewport.height - HEADER_ROWS - FOOTER_ROWS)
-  return window(diffRows(file, review, state, width), state.scroll ?? 0, body).map((row) => ({
+  return streamWindow(changes, review, state, width, body).map((row) => ({
     ...(row.line === undefined ? {} : { line: row.line }),
     ...(row.target === undefined ? {} : { target: row.target }),
+    ...(row.file === undefined ? {} : { file: row.file }),
+    ...(row.header ? { header: true } : {}),
   }))
 }

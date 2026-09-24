@@ -58,7 +58,10 @@ export class ShellModule implements Module<"shell"> {
     this.connected = ctx.instances
     // A shell whose window never comes back should not outlive the day. Checked rarely: the
     // decision is a timestamp comparison, and only shells that asked for it are considered.
-    this.sweepTimer = setInterval(() => this.sweepOrphans(), this.options.orphanSweepMs ?? 60_000)
+    this.sweepTimer = setInterval(() => {
+      this.sweepOrphans()
+      this.sweepFinished()
+    }, this.options.orphanSweepMs ?? 60_000)
     if (this.options.registryFile) {
       this.registry = new ProcessRegistry(this.options.registryFile, ctx.log)
       const reaped = this.registry.reap()
@@ -121,6 +124,25 @@ export class ShellModule implements Module<"shell"> {
     }
   }
 
+  /**
+   * Shells that finished cleanly and asked not to linger.
+   *
+   * Only a clean exit: a build that failed is the shell you come back to read, and removing it on a
+   * timer would take the evidence away exactly when it is wanted.
+   */
+  private sweepFinished(): void {
+    const now = Date.now()
+    for (const shell of [...this.shells.values()]) {
+      const after = shell.spec.removeAfterMs
+      if (!after || shell.running) continue
+      const info = shell.info()
+      if (info.status !== "exited" || info.exitCode !== 0) continue
+      if ((info.endedAt ?? now) + after > now) continue
+      this.log.info("removing finished shell", { id: shell.id, afterMs: now - (info.endedAt ?? now) })
+      this.forget(shell)
+    }
+  }
+
   busy(): boolean {
     for (const shell of this.shells.values()) if (shell.running) return true
     return false
@@ -140,6 +162,7 @@ export class ShellModule implements Module<"shell"> {
           owner: params.owner,
           stopOnExit: params.stopOnExit,
           orphanAfterMs: params.orphanAfterMs,
+          removeAfterMs: params.removeAfterMs,
         })
         this.spawn(previous)
         return previous.info()
@@ -162,6 +185,7 @@ export class ShellModule implements Module<"shell"> {
         logFile: params.logFile ? join(this.options.logDir ?? "/tmp", `${id}.log`) : undefined,
         stopOnExit: params.stopOnExit,
         orphanAfterMs: params.orphanAfterMs,
+        removeAfterMs: params.removeAfterMs,
       },
       this.backend,
       this.limits,

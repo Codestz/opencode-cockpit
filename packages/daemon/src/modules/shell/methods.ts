@@ -39,7 +39,7 @@ export function shellMethods(module: ShellModule): MethodTable<"shell"> {
       return { ...page, status: shell.status }
     },
 
-    screen: ({ id }) => module.require(id).snapshot(),
+    screen: ({ id, history }) => module.require(id).snapshot(history),
 
     write: ({ id, data }) => {
       const shell = module.require(id)

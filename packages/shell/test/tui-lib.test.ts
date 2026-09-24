@@ -139,12 +139,12 @@ describe("relative time", () => {
 describe("watch labels", () => {
   test("nothing to say while a watch is still pending", () => {
     expect(watchLabel(shell({}))).toBe("")
-    expect(watchLabel(shell({ watch: { status: "pending" } }))).toBe("")
+    expect(watchLabel(shell({ watch: { status: "pending" } }))).toBe("watch …")
   })
 
   test("the preset names itself and carries its mark", () => {
-    expect(watchLabel(shell({ watch: { status: "ok", preset: "tsc" } }))).toBe("tsc ✓")
-    expect(watchLabel(shell({ watch: { status: "fail", preset: "tsc" } }))).toBe("tsc ✗")
+    expect(watchLabel(shell({ watch: { status: "ok", preset: "tsc" } }))).toBe("watch tsc ✓")
+    expect(watchLabel(shell({ watch: { status: "fail", preset: "tsc" } }))).toBe("watch tsc ✗")
   })
 
   test("a rule without a preset is still labelled", () => {

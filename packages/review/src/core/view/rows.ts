@@ -35,6 +35,8 @@ export type Tone =
   | "punct"
   /** Dark text, for a run that sits on a solid badge. The theme's background, used as ink. */
   | "inverse"
+  /** The heading's own surface, used as ink: a half block in it reads as the heading's lower edge. */
+  | "edge"
 
 /**
  * Backgrounds, and there are three kinds of them in a diff rather than one.
@@ -55,6 +57,8 @@ export type Fill =
   | "comment"
   | "selected"
   | "panel"
+  /** A file's heading in the stream: a raised surface, so a file starts where the eye expects. */
+  | "heading"
   /** A solid badge: your name, the agent's. Paired with the `inverse` tone. */
   | "you"
   | "agent"
@@ -89,6 +93,13 @@ export interface Row {
   line?: number
   /** The thing this row stands for — a path, a note id — so a click knows what it landed on. */
   target?: string
+  /**
+   * The file a diff row belongs to. One pane scrolls through every file now, so a line number alone
+   * no longer says which file's line it is.
+   */
+  file?: string
+  /** A file's heading in the stream: what folds it, marks it viewed, or opens a note on it. */
+  header?: boolean
 }
 
 /**

@@ -40,6 +40,11 @@ export interface CockpitConfig {
     onExit?: "stopMine" | "keep"
     /** Stop a shell after this long with no window of its own connected. `0` never does. */
     orphanAfterMinutes?: number
+    /**
+     * Remove a shell the agent started this long after it exits cleanly (exit 0). Failed or killed
+     * shells stay until cleared. Default 30; `0` keeps every finished shell.
+     */
+    removeFinishedAfterMinutes?: number
   }
   /** What is allowed to interrupt the agent. */
   notify?: {

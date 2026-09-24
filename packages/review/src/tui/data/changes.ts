@@ -27,6 +27,9 @@ export interface Loaded {
 export interface Store {
   source: () => Source
   setSource: (next: Source) => void
+  /** The base chosen for this branch by hand, or undefined for the nearest parent. */
+  base: () => string | undefined
+  setBase: (next: string | undefined) => void
   /** Re-reads from the current source. Safe to call often; the last call in wins. */
   load: () => Promise<Loaded>
   /** The most recent result, for drawing without waiting. */
@@ -44,13 +47,28 @@ export function createStore(api: TuiPluginApi, initial: Source = "branch"): Stor
 
   const directory = () => api.state.path.worktree || api.state.path.directory
 
+  /**
+   * A base picked by hand, remembered per branch.
+   *
+   * Per branch because the answer is a fact about the branch — `stacked` targets `feature` whichever
+   * conversation you are in — and one global choice would follow you onto branches it is wrong for.
+   */
+  const baseKey = () => `cockpit.review.base:${directory()}:${api.state.vcs?.branch ?? ""}`
+  const base = (): string | undefined => api.kv.get<string | undefined>(baseKey(), undefined) || undefined
+
   const fromGit = async (which: "worktree" | "branch"): Promise<Loaded> => {
     const cwd = directory()
     const result =
       which === "worktree"
         ? await worktreeChanges(cwd)
-        : await branchChanges(cwd, api.state.vcs?.default_branch)
-    const loaded: Loaded = { changes: { source: which, files: withCounts(result.files) } }
+        : await branchChanges(cwd, base(), undefined, api.state.vcs?.default_branch)
+    const loaded: Loaded = {
+      changes: {
+        source: which,
+        files: withCounts(result.files),
+        ...(result.base ? { base: result.base } : {}),
+      },
+    }
     if (result.errors[0]) loaded.notice = result.errors[0]
     return loaded
   }
@@ -60,6 +78,8 @@ export function createStore(api: TuiPluginApi, initial: Source = "branch"): Stor
     setSource: (next) => {
       source = next
     },
+    base,
+    setBase: (next) => api.kv.set(baseKey(), next ?? ""),
     current: () => latest,
     loading: () => busy,
     async load() {

@@ -115,12 +115,20 @@ function stopWord(s: ShellInfo): string {
   }
 }
 
-/** Short health label for a watched shell, e.g. "tsc ✗" — empty when nothing is watching it. */
+/**
+ * Short health label for a watched shell, e.g. "watch tsc ✗" — empty only when nothing watches it.
+ *
+ * Shown while the watch is still pending too. It used to appear only once the first run finished,
+ * so a watched shell looked exactly like a plain one until then — and "is this one being watched"
+ * is the question you have before that, not after.
+ */
 export function watchLabel(s: ShellInfo): string {
   const watch = s.watch
-  if (!watch || watch.status === "pending") return ""
+  if (!watch) return ""
+  const name = watch.preset && watch.preset !== "watch" ? `watch ${watch.preset}` : "watch"
+  if (watch.status === "pending") return `${name} …`
   const mark = watch.status === "ok" ? "✓" : watch.status === "fail" ? "✗" : "?"
-  return `${watch.preset ?? "watch"} ${mark}`
+  return `${name} ${mark}`
 }
 
 export function watchColor(theme: TuiThemeCurrent, s: ShellInfo) {
@@ -129,6 +137,9 @@ export function watchColor(theme: TuiThemeCurrent, s: ShellInfo) {
       return theme.success
     case "fail":
       return theme.error
+    /** Pending: still unmistakably a watcher, in the colour the console uses for what is live. */
+    case "pending":
+      return theme.accent
     default:
       return theme.textMuted
   }
@@ -190,10 +201,19 @@ export function wrapText(text: string, width: number, maxLines: number): string[
   return lines
 }
 
-/** Last `rows` styled rows, each cut to `cols`, so colour survives the same trimming as text. */
-export function tailRuns(styled: ScreenRun[][] | undefined, rows: number, cols: number): ScreenRun[][] {
+/**
+ * Last `rows` styled rows, each cut to `cols`, so colour survives the same trimming as text.
+ * `up` moves the window that many rows back from the bottom, for scrolling through history.
+ */
+export function tailRuns(
+  styled: ScreenRun[][] | undefined,
+  rows: number,
+  cols: number,
+  up = 0,
+): ScreenRun[][] {
   if (!styled) return []
-  return styled.slice(Math.max(0, styled.length - rows)).map((row) => {
+  const end = Math.max(0, styled.length - Math.max(0, up))
+  return styled.slice(Math.max(0, end - rows), end).map((row) => {
     const out: ScreenRun[] = []
     let width = 0
     for (const run of row) {
@@ -206,12 +226,13 @@ export function tailRuns(styled: ScreenRun[][] | undefined, rows: number, cols: 
   })
 }
 
-/** Last `rows` lines of screen text, each cut to `cols`. */
-export function tailLines(text: string | undefined, rows: number, cols: number): string {
+/** Last `rows` lines of screen text, each cut to `cols`; `up` as for `tailRuns`. */
+export function tailLines(text: string | undefined, rows: number, cols: number, up = 0): string {
   if (!text) return ""
   const lines = text.split("\n")
+  const end = Math.max(0, lines.length - Math.max(0, up))
   return lines
-    .slice(Math.max(0, lines.length - rows))
+    .slice(Math.max(0, end - rows), end)
     .map((l) => (l.length > cols ? `${l.slice(0, Math.max(0, cols - 1))}…` : l))
     .join("\n")
 }
@@ -253,6 +274,8 @@ export interface ConsoleKeysState {
   scope: "session" | "project"
   /** Finished shells, which are the only ones `D` would clear. */
   finished: number
+  /** Over the whole window rather than in the dialog. */
+  full?: boolean
 }
 
 /** Only the keys that do something right now: no actions without a target, no concepts from elsewhere. */
@@ -284,6 +307,7 @@ export function consoleKeys(state: ConsoleKeysState): KeyHint[] {
     tier: "more",
   })
   if (state.finished > 0) keys.push({ key: "D", label: "Clear Done", tier: "more" })
+  keys.push({ key: "w", label: state.full ? "Dialog" : "Full Screen", tier: "more" })
   keys.push({ key: "n", label: "New Shell", tier: "more" }, { key: "esc", label: "Close", tier: "more" })
   return keys
 }
@@ -380,4 +404,32 @@ export function fitHints(hints: readonly KeyHint[], cols: number): FittedRow {
   const ellipsis = 2
   while (fitted.length > 0 && width() > cols - (fitted.length < hints.length ? ellipsis : 0)) fitted.pop()
   return { hints: fitted, dropped: hints.length - fitted.length }
+}
+
+/** What one row of the `/shells` list says, as data — the dialog only paints it. */
+export interface ShellListItem {
+  title: string
+  /** The command when the title does not already say it, then where it runs and its watch. */
+  description: string
+  /** Grouped the way the panel ranks them: what is running first, then what needs a look. */
+  category: "Running" | "Watching" | "Failed" | "Finished"
+  kind: Kind
+  /** `RUN 3m`, `DONE took 2s · 4m ago` — the badge, then the facts. */
+  status: string
+}
+
+export function shellListItem(s: ShellInfo, now: number, project: string): ShellListItem {
+  const kind = kindOf(s)
+  const command = displayCommand(s)
+  const where = relativeCwd(s.cwd, project)
+  const watch = watchLabel(s)
+  const said = s.title.trim() === command.trim() ? "" : `$ ${command}`
+  return {
+    title: s.title,
+    description: [said, where ? `in ${where}` : "", watch].filter(Boolean).join(" · "),
+    /** A watcher is a different kind of running: it is there to tell you when something breaks. */
+    category: kind === "run" ? (s.watch ? "Watching" : "Running") : kind === "fail" ? "Failed" : "Finished",
+    kind,
+    status: `${BADGE_LABEL[kind]} ${statusDetail(s, now)}`,
+  }
 }

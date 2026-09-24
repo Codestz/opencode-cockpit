@@ -10,7 +10,6 @@
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import type { FileChange } from "../../core/model/review.ts"
 import { threadsFor, threadsOnLine } from "../../core/model/review.ts"
-import { diffRows } from "../../core/view/diff.ts"
 import type { Store } from "../data/changes.ts"
 import type { Surface } from "./surface.ts"
 
@@ -25,7 +24,6 @@ export interface Queries {
   /** The lines a note is about, as they read right now. */
   quoteOf: (path: string, from: number | undefined, to?: number) => string[] | undefined
   /** The lines the diff is showing, in order, so the cursor has something to walk. */
-  diffLines: () => number[]
   /** Every changed file as it reads now, by path — what decides whether a comment still has code. */
   contents: () => ReadonlyMap<string, string>
 }
@@ -40,7 +38,7 @@ export function createQueries(api: TuiPluginApi, surface: Surface, store: Store)
   const label = () => {
     const vcs = api.state.vcs
     const here = vcs?.branch
-    const base = vcs?.default_branch
+    const base = store.current().changes.base
     if (store.source() === "worktree") return here ? `uncommitted on ${here}` : "uncommitted"
     return here && base && here !== base ? `${here} → ${base}` : (here ?? "branch")
   }
@@ -58,7 +56,10 @@ export function createQueries(api: TuiPluginApi, surface: Surface, store: Store)
     const { view, review } = surface
     if (!view.file) return undefined
     if (view.thread && review.threads.some((each) => each.id === view.thread)) return view.thread
-    if (view.pane !== "diff" || view.line === undefined) return undefined
+    if (view.pane !== "diff") return undefined
+    /** On the file's heading, the file's own thread is the one you are standing on. */
+    if (view.line === undefined)
+      return threadsFor(review, view.file).find((each) => each.line === undefined)?.id
     return threadsOnLine(review, view.file, view.line)[0]?.id
   }
 
@@ -90,23 +91,7 @@ export function createQueries(api: TuiPluginApi, surface: Surface, store: Store)
     return quoted.length > 0 ? quoted : undefined
   }
 
-  /**
-   * The lines the diff is showing, in order.
-   *
-   * Asked of the row builder rather than of the file, because a hunk hides unchanged lines and a note
-   * sits between two of them: the rows are the only thing that knows what the cursor can actually
-   * land on. The width is nominal — line numbers do not depend on it.
-   */
-  const diffLines = (): number[] => {
-    const { view, review } = surface
-    const file = files().find((candidate) => candidate.path === view.file)
-    if (!file) return []
-    return diffRows(file, review, { ...view, pane: "diff" }, 200)
-      .map((row) => row.line)
-      .filter((line): line is number => line !== undefined)
-  }
-
   const contents = (): ReadonlyMap<string, string> => new Map(files().map((file) => [file.path, file.after]))
 
-  return { label, files, hereThreadId, reachableThreadId, quoteOf, diffLines, contents }
+  return { label, files, hereThreadId, reachableThreadId, quoteOf, contents }
 }

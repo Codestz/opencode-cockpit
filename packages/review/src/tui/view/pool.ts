@@ -127,6 +127,8 @@ export const toneColour = (theme: TuiThemeCurrent, tone: Tone | undefined): RGBA
       return theme.syntaxOperator
     case "punct":
       return theme.syntaxPunctuation
+    case "edge":
+      return theme.backgroundElement
     /** `inverse` has no colour of its own: see `inkOn`, which picks one against the block it sits on. */
     case "inverse":
       return inkOn(theme, undefined) ?? theme.text
@@ -152,6 +154,8 @@ export const fillColour = (theme: TuiThemeCurrent, fill: Fill | undefined): RGBA
       return theme.backgroundElement
     case "panel":
       return theme.backgroundPanel
+    case "heading":
+      return theme.backgroundElement
     case "you":
       return theme.accent
     case "agent":
@@ -172,18 +176,50 @@ const BOLD = 1 << 0
 const DIM = 1 << 1
 const ITALIC = 1 << 2
 
+/**
+ * How far a faint run is pulled toward what is behind it.
+ *
+ * It used to be the terminal's own DIM, which many terminals draw at half brightness or less — the
+ * pane without the cursor read as *disabled* rather than as "not the one you are typing into". A
+ * blend of about a third keeps the text plainly readable and still says which half is active.
+ */
+const SOFTEN = 0.35
+const softened = new WeakMap<RGBA, WeakMap<RGBA, RGBA>>()
+
+/** `ink` a step toward `behind`, built from the colour's own class so nothing of OpenTUI is imported. */
+const soften = (ink: RGBA, behind: RGBA): RGBA => {
+  let byBack = softened.get(ink)
+  const known = byBack?.get(behind)
+  if (known) return known
+  const Colour = ink.constructor as unknown as { clone: (colour: RGBA) => RGBA }
+  const out = Colour.clone(ink)
+  out.r = ink.r + (behind.r - ink.r) * SOFTEN
+  out.g = ink.g + (behind.g - ink.g) * SOFTEN
+  out.b = ink.b + (behind.b - ink.b) * SOFTEN
+  if (!byBack) {
+    byBack = new WeakMap()
+    softened.set(ink, byBack)
+  }
+  byBack.set(behind, out)
+  return out
+}
+
 /** One styled run becomes one chunk. An exact colour wins: a parser knows better than a tone does. */
 const chunk = (theme: TuiThemeCurrent, run: Row["runs"][number]): TextChunk => {
   const fill = fillColour(theme, run.fill)
-  const ink = run.tone === "inverse" ? inkOn(theme, fill) : toneColour(theme, run.tone)
-  const attributes = (run.bold ? BOLD : 0) | (run.italic ? ITALIC : 0) | (run.faint ? DIM : 0)
+  const base = run.tone === "inverse" ? inkOn(theme, fill) : toneColour(theme, run.tone)
+  /** Blend when there is a solid colour to blend toward; a see-through pane falls back to DIM. */
+  const behind = opaque(fill) ? fill : opaque(theme.backgroundPanel) ? theme.backgroundPanel : undefined
+  const blend = run.faint && behind !== undefined
+  const ink = blend && base ? soften(base, behind) : base
+  const attributes = (run.bold ? BOLD : 0) | (run.italic ? ITALIC : 0) | (run.faint && !blend ? DIM : 0)
   // No ink reads on this block, so the block goes: the badge becomes its own colour, in words.
   if (run.tone === "inverse" && ink === undefined)
     return { __isChunk: true, text: run.text, fg: fill ?? theme.text, bg: undefined, attributes } as TextChunk
   return {
     __isChunk: true,
     text: run.text,
-    fg: (run.color as RGBA | undefined) ?? ink,
+    fg: run.color ? (blend ? soften(run.color as RGBA, behind as RGBA) : (run.color as RGBA)) : ink,
     bg: fill,
     attributes,
   } as TextChunk

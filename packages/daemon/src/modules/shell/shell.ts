@@ -38,6 +38,8 @@ export interface ShellSpec {
   stopOnExit?: boolean
   /** Stop after this long with that window gone. */
   orphanAfterMs?: number
+  /** Forget it this long after a clean exit. */
+  removeAfterMs?: number
 }
 
 export interface ShellLimits {
@@ -234,8 +236,8 @@ export class Shell {
     if (pty.groupAlive()) pty.signal("SIGKILL")
   }
 
-  async snapshot(): Promise<ScreenResult> {
-    return this.screen.snapshot()
+  async snapshot(history?: number): Promise<ScreenResult> {
+    return this.screen.snapshot(history)
   }
 
   info(): ShellInfo {

@@ -121,7 +121,14 @@ try {
 
   const proc = Bun.spawn([opencode], {
     cwd: project,
-    env: { ...process.env, XDG_CONFIG_HOME: config, COCKPIT_HOME: home, TERM: "xterm-256color" },
+    env: {
+      ...process.env,
+      XDG_CONFIG_HOME: config,
+      /** OpenCode's kv lives here: without its own, a run writes plugin state into the user's real one. */
+      XDG_STATE_HOME: join(work, "state"),
+      COCKPIT_HOME: home,
+      TERM: "xterm-256color",
+    },
     terminal: {
       cols,
       rows,

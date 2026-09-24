@@ -109,7 +109,30 @@ function replaced(old: string[], now: string[], beforeAt: number, afterAt: numbe
   ]
 }
 
+/**
+ * Diffs already worked out, by the text on both sides.
+ *
+ * The same pair is diffed more than once: for the file list's counts when git is read, then again
+ * for its hunks when the stream measures and draws it. With every file in one scroll that second pass
+ * is every file at once, which on a two-hundred-file review was a third of a second before the first
+ * frame. Keyed on the after text and checked against the before, so a changed file is a miss.
+ */
+const diffed = new Map<string, { before: string; lines: Line[] }>()
+const DIFFED = 400
+
 export function diffLines(before: string, after: string): Line[] {
+  const known = diffed.get(after)
+  if (known && known.before === before) return known.lines
+  const lines = diffUncached(before, after)
+  if (diffed.size >= DIFFED) {
+    const oldest = diffed.keys().next().value
+    if (oldest !== undefined) diffed.delete(oldest)
+  }
+  diffed.set(after, { before, lines })
+  return lines
+}
+
+function diffUncached(before: string, after: string): Line[] {
   const old = toLines(before)
   const now = toLines(after)
   if (old.length === 0 && now.length === 0) return []

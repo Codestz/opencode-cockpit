@@ -170,7 +170,12 @@ export function createShellStore(
  * Live terminal view of one shell: attaches for change notifications and re-renders the daemon's
  * emulated screen, throttled. Must be called inside a reactive owner.
  */
-export function useScreen(store: ShellStore, id: Accessor<string | undefined>) {
+export function useScreen(
+  store: ShellStore,
+  id: Accessor<string | undefined>,
+  /** Rows of scrollback to ask for as well; 0 (the default) is the viewport alone. */
+  history: Accessor<number> = () => 0,
+) {
   const [screen, setScreen] = createSignal<ScreenResult>()
   let timer: ReturnType<typeof setTimeout> | undefined
   let current: string | undefined
@@ -178,7 +183,7 @@ export function useScreen(store: ShellStore, id: Accessor<string | undefined>) {
   const fetch = (shellId: string) => {
     timer = undefined
     void store.client
-      .call("shell.screen", { id: shellId })
+      .call("shell.screen", { id: shellId, ...(history() > 0 ? { history: history() } : {}) })
       .then((s) => {
         if (current === shellId) setScreen(s)
       })
@@ -211,6 +216,16 @@ export function useScreen(store: ShellStore, id: Accessor<string | undefined>) {
   }
 
   createEffect(on(id, (next) => attach(next)))
+  // Scrolling up asks for history; the fetch that follows is the one that brings it.
+  createEffect(
+    on(
+      history,
+      () => {
+        if (current) schedule(current)
+      },
+      { defer: true },
+    ),
+  )
 
   onCleanup(() => {
     clearTimeout(timer)

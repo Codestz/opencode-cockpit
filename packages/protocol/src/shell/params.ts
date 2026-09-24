@@ -31,6 +31,11 @@ export const StartParams = z.object({
    */
   orphanAfterMs: z.number().int().positive().optional(),
   /**
+   * Forget this shell this long after it exits cleanly (exit 0). A shell that failed or was killed
+   * is kept until someone clears it: that is the one worth reading afterwards.
+   */
+  removeAfterMs: z.number().int().positive().optional(),
+  /**
    * Restart a finished shell with the same command, args, cwd, project and session instead of
    * creating a new one. Repeated runs then share one id and one log.
    */
@@ -92,6 +97,15 @@ export const ScreenRun = z.object({
   underline: z.boolean().optional(),
 })
 
+export const ScreenParams = z.object({
+  id: ShellId,
+  /**
+   * Also send up to this many rows of scrollback above the viewport. The console asks for it only
+   * while you are scrolled up; following the bottom needs the viewport alone.
+   */
+  history: z.number().int().min(0).max(10_000).optional(),
+})
+
 export const ScreenResult = z.object({
   text: z.string(),
   cols: z.number().int(),
@@ -99,6 +113,8 @@ export const ScreenResult = z.object({
   cursor: z.object({ x: z.number().int(), y: z.number().int() }),
   /** The same rows as `text`, carrying colour. */
   styled: z.array(z.array(ScreenRun)).optional(),
+  /** How many of the rows are scrollback above the viewport (0 without `history`). */
+  history: z.number().int().optional(),
 })
 
 export const WriteParams = z.object({ id: ShellId, data: z.string().max(1_000_000) })
@@ -145,6 +161,7 @@ export const AttachParams = z.object({ id: ShellId, fromOffset: z.number().int()
 export type StartParams = z.output<typeof StartParams>
 export type ReadParams = z.output<typeof ReadParams>
 export type ReadResult = z.output<typeof ReadResult>
+export type ScreenParams = z.output<typeof ScreenParams>
 export type ScreenResult = z.output<typeof ScreenResult>
 export type ScreenRun = z.output<typeof ScreenRun>
 export type WaitParams = z.output<typeof WaitParams>

@@ -78,22 +78,53 @@ export function hunkHeader(hunk: Hunk, width: number): Row {
  */
 const built = new Map<string, Row[]>()
 
-/** A handful of files: moving between two is common, and holding every file is not free. */
-const REMEMBERED = 8
+/** A screenful of files and some either side: the stream can show several at once. */
+const REMEMBERED = 16
 
-/** Everything about the state that changes a row, and nothing that does not. */
-const signature = (file: FileChange, review: Review, state: ViewState, width: number): string =>
-  [
+/**
+ * Everything about the state that changes a row, and nothing that does not.
+ *
+ * The focused thread counts only for the file it is on. With every file in one stream, keying all of
+ * them on it meant moving onto a note re-measured two hundred files that had not changed.
+ */
+const signature = (file: FileChange, review: Review, state: ViewState, width: number): string => {
+  const threads = threadsFor(review, file.path)
+  return [
     file.path,
     file.before.length,
     file.after.length,
     width,
     state.context ?? 3,
-    state.thread ?? "",
-    threadsFor(review, file.path)
-      .map((thread) => `${thread.id}:${thread.status}:${thread.entries.length}`)
-      .join(","),
+    threads.some((thread) => thread.id === state.thread) ? state.thread : "",
+    threads.map((thread) => `${thread.id}:${thread.status}:${thread.entries.length}`).join(","),
   ].join("|")
+}
+
+/**
+ * How many rows a file's diff takes, without drawing it.
+ *
+ * The stream needs every file's height to know where each one starts, and tokenising two hundred
+ * files to count their rows is the cost virtualising exists to avoid. So the rows are built without
+ * syntax — the same builder, so the count cannot drift from what is drawn — and only the count is kept.
+ */
+const heights = new Map<string, number>()
+const MEASURED = 1000
+
+export function diffHeight(file: FileChange, review: Review, state: ViewState, width: number): number {
+  const key = signature(file, review, state, width)
+  const drawn = built.get(key)
+  if (drawn) return drawn.length
+  const known = heights.get(key)
+  if (known !== undefined) return known
+  metrics.count("measures")
+  const height = buildDiffRows(file, review, state, width, false).length
+  if (heights.size >= MEASURED) {
+    const oldest = heights.keys().next().value
+    if (oldest !== undefined) heights.delete(oldest)
+  }
+  heights.set(key, height)
+  return height
+}
 
 export function diffRows(file: FileChange, review: Review, state: ViewState, width: number): Row[] {
   const key = signature(file, review, state, width)
@@ -114,7 +145,13 @@ export function diffRows(file: FileChange, review: Review, state: ViewState, wid
   return rows
 }
 
-function buildDiffRows(file: FileChange, review: Review, state: ViewState, width: number): Row[] {
+function buildDiffRows(
+  file: FileChange,
+  review: Review,
+  state: ViewState,
+  width: number,
+  paint = true,
+): Row[] {
   if (width <= 0) return []
   const rows: Row[] = []
 
@@ -200,7 +237,9 @@ function buildDiffRows(file: FileChange, review: Review, state: ViewState, width
       const sign = added ? "+" : removed ? "−" : " "
       const signTone: Tone = added ? "success" : removed ? "removed" : "muted"
 
-      const code = tokenize(line.text, language, syntax)
+      const code = paint
+        ? tokenize(line.text, language, syntax)
+        : { runs: [{ text: line.text }], state: syntax }
       syntax = code.state
       const painted = code.runs.map((run) => ({ ...run, fill }))
 
@@ -273,21 +312,27 @@ function buildDiffRows(file: FileChange, review: Review, state: ViewState, width
  * feel; three thousand tokenised lines is work you can.
  */
 export function withCursor(rows: readonly Row[], state: ViewState): Row[] {
-  if (state.pane !== "diff" || state.line === undefined) return rows as Row[]
-  const from = Math.min(state.anchor ?? state.line, state.line)
-  const to = Math.max(state.anchor ?? state.line, state.line)
+  if (state.pane !== "diff") return rows as Row[]
+  const { line } = state
+  const from = line === undefined ? 0 : Math.min(state.anchor ?? line, line)
+  const to = line === undefined ? -1 : Math.max(state.anchor ?? line, line)
 
   return rows.map((row) => {
+    if (row.file !== undefined && row.file !== state.file) return row
+    /** On a file's heading with no line: the heading is where the cursor is. */
+    if (row.header) return line === undefined && row.file === state.file ? cursorOn(row) : row
     if (row.line === undefined || row.line < from || row.line > to) return row
-    return {
-      ...row,
-      runs: [
-        { ...(row.runs[0] ?? { text: " " }), text: "▌", tone: "accent" as Tone, fill: "selected" as Fill },
-        ...row.runs.slice(1).map((run) => ({ ...run, fill: "selected" as Fill })),
-      ],
-    }
+    return cursorOn(row)
   })
 }
+
+const cursorOn = (row: Row): Row => ({
+  ...row,
+  runs: [
+    { ...(row.runs[0] ?? { text: " " }), text: "▌", tone: "accent" as Tone, fill: "selected" as Fill },
+    ...row.runs.slice(1).map((run) => ({ ...run, fill: "selected" as Fill })),
+  ],
+})
 
 /**
  * A file's comments, with no diff to hang them on.

@@ -13,8 +13,11 @@ opencode plugin @opencode-cockpit/review@0.5.1 --global --force
 ## What it does
 
 A turn ends having touched nine files. `ctrl+x v` — or `/changes` — puts the review over your
-conversation: the changed files as a folder tree on the left, one file's diff beside it,
-syntax-highlighted in your own theme.
+conversation: the changed files as a folder tree on the left and, beside it, **every file's diff in
+one scroll** the way a pull request reads, syntax-highlighted in your own theme. Each file is a card,
+as on GitHub — a bordered block with a raised heading you can fold; the heading of the file you are in stays pinned to the top; marking a file
+viewed folds it out of the way. Only what is on screen is ever drawn, so a two-hundred-file review
+scrolls as smoothly as a two-file one.
 
 Read down a file. Something is wrong on line 40 — press `c`, say what you think, and carry on.
 Nothing has happened yet; the agent does not know. Mark files off as you finish them and it moves you
@@ -31,29 +34,30 @@ its own with `review_open`, which appear in the panel beside yours.
 | --- | --- |
 | `ctrl+x v` | open, or close |
 | `tab` | move between the file list and the diff |
-| `j` / `k` | next / previous — a file on the left, a line on the right |
-| `enter` | open a file, or fold a folder |
+| `j` / `k` | next / previous — a file on the left; on the right a line, running on into the next file |
+| `enter` | on the left: jump to a file, or fold a folder. On the right: fold or unfold this file |
+| `z` | fold or unfold the file you are in |
 | `v` | start a selection, for a note about several lines |
 | `c` | comment here, or reply to the thread here |
 | `f` | comment on the whole file |
 | `x` | remove the note here |
-| `space` | mark read, and go to the next unread |
+| `space` | mark viewed — it folds — and go to the next unviewed file |
 | `s` | **submit** — hand the review to the agent |
-| `b` | what is under review: uncommitted → branch → this conversation |
+| `b` | what is under review: uncommitted ↔ branch |
+| `B` | what the branch is compared against: its nearest parent, or one you pick |
 | `w` | half the window, or all of it |
 | `p` | what the panel is costing, in the footer |
 | `q` | close |
 
-The mouse works too: click a file or a folder in the list, and the wheel scrolls whichever side it is
-over.
+The mouse works too: click a file in the list to jump to it, click a heading to fold it, or its
+`+ note` / `[ ] viewed` buttons; the wheel scrolls whichever side it is over.
 
 ## What is under review
 
 | | |
 | --- | --- |
 | **uncommitted** | everything not committed, *including files git has never seen*. The default, because it is what you are looking at nine times in ten |
-| **branch** | everything this branch changes against where it forked — what a reviewer would see |
-| **session** | what this conversation changed |
+| **branch** | everything this branch changes against its *nearest parent* — what its pull request would show. On `main ← feature ← X`, X is compared with `feature`, not `main`. `B` picks a different base, remembered per branch |
 
 ## Seeing it without OpenCode
 
