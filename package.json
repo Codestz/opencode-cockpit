@@ -24,7 +24,7 @@
     "dev:install": "bun run build && bun scripts/dev-install.ts"
   },
   "devDependencies": {
-    "@babel/core": "7.28.0",
+    "@babel/core": "8.0.6",
     "@babel/preset-typescript": "7.27.1",
     "@biomejs/biome": "2.5.13",
     "@types/bun": "^1.4.2",
