@@ -11,6 +11,11 @@ updates:
       # @opencode-ai/plugin instead.
       - dependency-name: "@opentui/*"
       - dependency-name: "solid-js"
+      # Babel 8 breaks the build: babel-preset-solid 1.9 turns JSX parsing on the Babel 7 way, which
+      # Babel 8 ignores (tried with 8.0.6 + preset-typescript 8.0.1 + preset-solid 1.9.15). Babel runs
+      # only at build time; take its majors once the Solid preset supports them.
+      - dependency-name: "@babel/*"
+        update-types: ["version-update:semver-major"]
     groups:
       opencode:
         patterns: ["@opencode-ai/*"]
