@@ -19,6 +19,25 @@ export interface Source {
    * without one, OpenCode 1 answered as its default `build` agent — other tools, other permissions.
    */
   send: (id: string, text: string, busy: boolean, agent: string) => Promise<void>
+  /**
+   * Stops a subagent's run. Measured: on OpenCode 1 its task fails as "aborted" and the main agent
+   * carries on; on OpenCode 2 it is interrupted, and the main agent may start it again.
+   */
+  stop: (id: string) => Promise<void>
+  /**
+   * Moves the subagents a conversation is blocked on into the background, so it carries on — what
+   * OpenCode's own `ctrl+b` does. Measured: OpenCode 2 always; OpenCode 1 only when started with
+   * OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true, and it says `false` otherwise. Resolves to
+   * whether it happened.
+   */
+  background: (parentID: string) => Promise<boolean>
+  /**
+   * Tells a conversation something, as its user. Used before a stop: told nothing, the main agent
+   * read the stopped subagent as failed and launched it again.
+   */
+  note: (sessionID: string, text: string, busy: boolean, agent?: string) => Promise<void>
+  /** What the host says about a session now, for a run that went quiet; nothing when it does not know. */
+  check: (id: string) => Change[]
   dispose: () => void
 }
 
@@ -90,17 +109,17 @@ export function createSource(api: Host, log: Log, emit: (changes: Change[]) => v
               parts: (v1.state.part(info.id) ?? []) as unknown[],
             }))
             const status = v1.state.session.status(id) as Loose | undefined
+            /**
+             * Busy only when the host says so. A finished subagent is not in the host's status store at
+             * all — reading "no status" as "unknown" left every old subagent running forever.
+             */
+            const busy = status?.type === "busy" || status?.type === "retry"
             emit([
               ...translate.session(child),
               ...translate.history(history),
-              ...(status?.type === "busy"
-                ? ([{ type: "status", id, status: "busy", at: Date.now() }] as Change[])
-                : []),
-              ...(status?.type === "idle" && history.length > 0
-                ? ([
-                    { type: "status", id, status: "idle", at: Number(child.time?.updated) || Date.now() },
-                  ] as Change[])
-                : []),
+              busy
+                ? { type: "status", id, status: "busy", at: Date.now() }
+                : { type: "status", id, status: "idle", at: Number(child.time?.updated) || Date.now() },
             ])
             await visit(id, depth + 1)
           }
@@ -109,6 +128,26 @@ export function createSource(api: Host, log: Log, emit: (changes: Change[]) => v
       },
       async send(id, text, _busy, agent) {
         await v1.client.session.promptAsync({ sessionID: id, agent, parts: [{ type: "text", text }] })
+      },
+      async stop(id) {
+        await v1.client.session.abort({ sessionID: id })
+      },
+      async background(parentID) {
+        const result = await v1.client.experimental.session.background({ sessionID: parentID })
+        return (result?.data ?? result) === true
+      },
+      async note(sessionID, text, _busy, agent) {
+        await v1.client.session.promptAsync({
+          sessionID,
+          ...(agent ? { agent } : {}),
+          parts: [{ type: "text", text }],
+        })
+      },
+      check(id) {
+        const status = v1.state.session.status(id) as Loose | undefined
+        return status
+          ? translate.event({ type: "session.status", properties: { sessionID: id, status } })
+          : []
       },
       dispose: () => {
         for (const off of offs.splice(0)) off()
@@ -135,15 +174,34 @@ export function createSource(api: Host, log: Log, emit: (changes: Change[]) => v
           )
           messages = (v2.data.session.message.list(id) ?? []) as unknown[]
         }
+        const status = translate.status(id, v2.data.session.status(id))
         emit([
           ...translate.session(info),
           ...translate.history(id, messages),
-          ...translate.status(id, v2.data.session.status(id)),
+          /** Not known to the host is not running: the same lesson as OpenCode 1's store. */
+          ...(status.length > 0
+            ? status
+            : ([
+                { type: "status", id, status: "idle", at: Number(info.time?.updated) || Date.now() },
+              ] as Change[])),
         ])
       }
     },
     async send(id, text, busy) {
       await v2.client.session.prompt({ sessionID: id, text, ...(busy ? { delivery: "steer" } : {}) })
+    },
+    async stop(id) {
+      await v2.client.session.interrupt({ sessionID: id })
+    },
+    async background(parentID) {
+      await v2.client.session.background({ sessionID: parentID })
+      return true
+    },
+    async note(sessionID, text, busy) {
+      await v2.client.session.prompt({ sessionID, text, ...(busy ? { delivery: "steer" } : {}) })
+    },
+    check(id) {
+      return translate.status(id, v2.data.session.status(id))
     },
     dispose: () => {
       for (const each of offs.splice(0)) each()

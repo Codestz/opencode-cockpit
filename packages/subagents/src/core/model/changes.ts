@@ -13,7 +13,22 @@ export type ToolState = "pending" | "running" | "completed" | "failed"
 
 export type Change =
   /** A session exists, or learned something about itself. Only fields present are applied. */
-  | { type: "session"; id: string; parentID?: string; agent?: string; title?: string; at: number }
+  | {
+      type: "session"
+      id: string
+      parentID?: string
+      agent?: string
+      title?: string
+      /** The model it runs on, as the host names it: `space-bunny-free`. */
+      model?: string
+      /** Launched in the background: the main agent carried on without waiting for it. */
+      background?: boolean
+      /** Permissions its agent's rules deny it outright (OpenCode 1 says; OpenCode 2 does not). */
+      denied?: string[]
+      at: number
+    }
+  /** It finished one step — one model turn, with the calls it made. */
+  | { type: "step"; id: string; at: number }
   /** Whether it is working. `waiting` is a permission or a question it is held on. */
   | { type: "status"; id: string; status: "busy" | "idle" | "failed" | "waiting"; error?: string; at: number }
   /** Something said *to* it: the first is the task it was given, the rest are messages. */
@@ -33,6 +48,11 @@ export type Change =
       /** What it returned — or, while running, what it has printed so far. */
       output?: string
       error?: string
+      /** When the call itself started and ended, when the host says; otherwise when we heard. */
+      started?: number
+      ended?: number
+      /** Its result in a few words, when the host gives the number: `9 matches`, `exit 1`. */
+      summary?: string
       at: number
     }
   /** Running totals for the session, as the host keeps them. */

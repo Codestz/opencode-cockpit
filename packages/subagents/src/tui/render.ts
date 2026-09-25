@@ -39,7 +39,8 @@ export function toneColour(theme: Theme, tone: Tone | undefined): RGBA {
 
 export function fillColour(theme: Theme, fill: Fill | undefined): RGBA | undefined {
   if (fill === "band") return theme.backgroundPanel
-  if (fill === "block") return theme.backgroundElement
+  if (fill === "block" || fill === "card") return theme.backgroundElement
+  if (fill === "selected") return theme.backgroundPanel
   return undefined
 }
 

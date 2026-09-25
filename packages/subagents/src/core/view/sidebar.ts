@@ -5,11 +5,11 @@
  * The sidebar is a narrow column shared with Context, Shells and the statusline; rows are exactly
  * its width, and a subagent's lines stay two however long its task or target is.
  *
- *   Subagents  3 · 2 running · 1 done
+ *   Subagents                   2 running
  *   ⠙ explore Map the auth flow
- *       grep "session" src/auth/**   51s
- *   ✓ general Update README
- *       done · 3 tools              28s
+ *     └ grep "session"  9 calls · 51s
+ *   ● general Update README
+ *     └ done            3 calls · 28s
  */
 
 import { type Activity, activityOf, countsOf, type Node } from "../model/model.ts"
@@ -34,12 +34,13 @@ export interface SidebarInput {
 /** The mark before a subagent's name: its state, at a glance. */
 function mark(activity: Activity, frame: number): Run {
   switch (activity.kind) {
+    /** A dot, coloured by how it ended — a check mark drew as a thin "√" in many terminal fonts. */
     case "done":
-      return { text: "✓", tone: "success" }
+      return { text: "●", tone: "success" }
     case "failed":
-      return { text: "✗", tone: "error" }
+      return { text: "●", tone: "error" }
     case "waiting":
-      return { text: "⏸", tone: "muted" }
+      return { text: "○", tone: "warning" }
     default:
       return { text: spin(frame), tone: "accent" }
   }
@@ -56,7 +57,7 @@ function doing(activity: Activity): Row {
     case "failed":
       return [{ text: `failed: ${activity.text}`, tone: "error" }]
     case "done":
-      return [{ text: `done · ${activity.text}`, tone: "muted" }]
+      return [{ text: "done", tone: "success" }]
     default:
       return [{ text: activity.text, tone: "muted" }]
   }
@@ -67,21 +68,17 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
   /** Silence is the rule: no subagents, no block. */
   if (nodes.length === 0 || width < 8) return []
   const counts = countsOf(nodes)
-  const summary = [
-    `${counts.total}`,
-    counts.running ? `${counts.running} running` : "",
-    counts.done ? `${counts.done} done` : "",
-    counts.failed ? `${counts.failed} failed` : "",
-  ]
-    .filter(Boolean)
-    .join(" · ")
+  /** What needs your eye: how many are working, else how it ended. */
+  const summary = counts.running
+    ? `${counts.running} running`
+    : counts.failed
+      ? `${counts.failed} failed`
+      : `${counts.done} done`
   const lines: SidebarLine[] = [
     {
-      row: fit(
-        [
-          { text: "Subagents", tone: "text", bold: true },
-          { text: `  ${summary}`, tone: "muted" },
-        ],
+      row: spread(
+        [{ text: "Subagents", tone: "text", bold: true }],
+        [{ text: summary, tone: counts.running ? "accent" : counts.failed ? "error" : "muted" }],
         width,
       ),
     },
@@ -116,11 +113,19 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
       activity.kind === "done" || activity.kind === "failed"
         ? (session.ended ?? now) - session.started
         : now - activity.since
+    const calls = session.entries.filter((entry) => entry.kind === "tool").length
     lines.push({
       id,
       row: spread(
-        [{ text: `${indent}    ` }, ...doing(activity)],
-        [{ text: elapsed(since), tone: "muted" }],
+        [{ text: `${indent}  └ `, tone: "border" }, ...doing(activity)],
+        /** Right-aligned, so the target gives way and the numbers stay whole. */
+        /** Said in words: a bare "157 · 34m" read as a puzzle. */
+        [
+          {
+            text: calls > 0 ? `${calls} call${calls === 1 ? "" : "s"} · ${elapsed(since)}` : elapsed(since),
+            tone: "muted",
+          },
+        ],
         width,
       ),
     })

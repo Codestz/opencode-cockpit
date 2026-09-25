@@ -26,7 +26,7 @@ const HEX: Record<Tone, string> = {
   warning: "#f5a742",
   border: "#484848",
 }
-const FILL = { band: "#141414", block: "#1e1e1e" } as const
+const FILL = { band: "#141414", block: "#1e1e1e", card: "#1e1e1e", selected: "#141414" } as const
 
 const rgb = (hex: string) => [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16)).join(";")
 const color = process.stdout.isTTY && !process.env.NO_COLOR
@@ -60,19 +60,30 @@ for (const line of sidebarLines({ nodes, width: sidebarWidth, now: SAMPLE_NOW, f
   out.push(paint(line.row))
 const first = nodes[0]?.session
 if (first) {
-  out.push("", "Full screen — the first subagent", "")
-  const { rows } = screenRows({
+  const base = {
     session: first,
     nodes,
     launcher: "build",
     width: columns,
-    height: 28,
+    height: 30,
     now: SAMPLE_NOW,
     frame: 2,
-    up: 0,
-    thinking: true,
-    expanded: false,
-  })
-  for (const row of rows) out.push(paint(row))
+    open: new Set<string>(),
+    closed: new Set<string>(),
+    thinking: false,
+    details: false,
+  }
+  out.push("", "The pane — the first subagent", "")
+  const folded = screenRows(base)
+  for (const row of folded.rows) out.push(paint(row))
+  /** The same, with the cursor on the first call and that call open. */
+  const call = folded.keys.find((key) => key.startsWith("tool:"))
+  if (call) {
+    out.push("", "A call, selected and open", "")
+    const opened = screenRows({ ...base, selected: call, open: new Set([call]), top: 0 })
+    for (const row of opened.rows) out.push(paint(row))
+  }
+  out.push("", "Details", "")
+  for (const row of screenRows({ ...base, details: true, height: 20 }).rows) out.push(paint(row))
 }
 process.stdout.write(`${out.join("\n")}\n\n`)

@@ -20,22 +20,24 @@ A **Subagents** block: every subagent of the conversation you are in, its type a
 it what it is doing now.
 
 ```
-Subagents  3 · 2 running · 1 done
-⠙ explore Map the authentication flow
-    grep "session" src/auth/**      4s
-⏸ general Fix the failing login test
-    waiting for permission          2s
-✓ general Update README for the new a…
-    done · 3 tools                 28s
+Subagents                  2 running
+⠹ explore Map the authentication fl…
+  └ grep "session" src… 4 calls · 4s
+○ general Fix the failing login test
+  └ waiting for permis… 3 calls · 2s
+● general Update README for the new…
+  └ done               3 calls · 28s
 ```
 
 A subagent that launched its own has them indented under it. Working subagents are always shown;
 finished ones fold into a count past `sidebarRows`. No subagents, no block.
 
-## Full screen
+## The pane
 
 Click a subagent — or press `ctrl+x w`, or run `/subagents` for the one working now — and it opens
-over the conversation:
+in a pane on the right — half the window, or all of it with `w`. A click outside it closes it.
+Under its name: the model, whether it runs in the background, who launched it, and its calls,
+steps and tokens so far. Then:
 
 - **the task** the main agent gave it, at the top;
 - **its thinking**, as it streams;
@@ -43,26 +45,48 @@ over the conversation:
   output underneath;
 - **its answer**, as it is written.
 
-Long runs of finished calls fold into "N earlier calls"; `e` shows them. The screen follows the run
-as it grows; scroll up and it stays where you put it until `G`.
+Each call is one line — name, target, its result in a few words (`9 matches`, `exit 1`) and its
+time when it took one — and opens to its arguments under a `│` gutter, then its output; the running
+call is open while it streams. Thinking folds to one line. The answer is drawn as markdown. The pane
+follows the run as it grows; scroll or move the cursor and it stays where you put it until `G`.
 
 | Key | |
 | --- | --- |
-| `←` `→` | Another subagent of this conversation |
-| `m` | Message it |
-| `t` | Show or hide its thinking |
-| `e` | Show every call |
-| `j` `k` · `g` `G` | Scroll · to the start · follow the run |
+| `j` `k` | Move the cursor through the run's items |
+| `enter` · a click | Open or fold the item under it |
+| `e` | Open, or fold, every call |
+| `t` | Show or hide thinking — shown by default, and remembered |
+| `m` | Write it a message, at the foot of the pane |
+| `x` | Stop it (press twice) — or, once it has finished, remove it from the list |
+| `X` | Remove every finished subagent from the list |
+| `b` | Move it to the background, so the main agent carries on (OpenCode's own `ctrl+b`) |
+| `i` | Details: model, what it is denied, calls by tool, tokens, cost |
+| `w` | Half the window, or all of it (remembered) |
+| `[` `]` | Another subagent of this conversation |
+| `d` `u` · `g` `G` | Page down · up · to the start · follow the run |
 | `esc` `q` | Back to the conversation |
 
 ## Messaging a subagent
 
-Press `m` and write. Measured on both OpenCodes:
+Press `m` and write at the foot of the pane; `enter` sends, `esc` lets it go. What you sent joins the run as a card. Measured on both OpenCodes:
 
 - **While it works**, it picks the message up in its current run, acts on it, and says so in its
   answer — which the main agent receives, so it learns of it too.
 - **Once it has finished**, it wakes up and answers you, but **the main agent is not told** — its
   task already returned. The screen says so under the keys.
+
+**Stop and remove.** `x` twice stops a working subagent — and first tells the main agent you stopped it
+on purpose, so it reports the stop instead of launching the subagent again.
+`x` on a finished subagent removes it from the list, `X` removes every finished one — the sessions
+stay in OpenCode, and one that works again comes back. "Clear finished subagents" and "Show removed
+subagents again" are in the command palette.
+
+## Moving one to the background
+
+A subagent launched in the foreground blocks the conversation until it finishes. `b` in the pane —
+or OpenCode's own `ctrl+b` in the conversation — moves it to the background: the main agent carries
+on and hears when it finishes. It moves every subagent that conversation is waiting on. OpenCode 2
+does this always; OpenCode 1 only when started with `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`.
 
 ## Background subagents
 
@@ -89,7 +113,7 @@ In the bundle's entry (`"subagents": { … }`) or this package's own:
 | Setting | Default | |
 | --- | --- | --- |
 | `sidebarRows` | `6` | Subagents shown before the rest fold into a count, working ones first |
-| `sidebarOrder` | `160` | Where the block sits among sidebar blocks; lower draws first |
+| `sidebarOrder` | `150` | Where the block sits among sidebar blocks; lower draws first |
 | `keybinds` | `{ "cockpit.subagents.open": "<leader>w" }` | The key that opens one full screen |
 | `guidance` | `true` | Ask the agent to use background subagents (agent side) |
 

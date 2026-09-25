@@ -24,6 +24,7 @@ export type Entry =
       input: Record<string, unknown>
       output: string
       error?: string
+      summary?: string
       at: number
       ended?: number
     }
@@ -45,6 +46,12 @@ export interface Session {
   entries: Entry[]
   tokens: number
   cost: number
+  model?: string
+  background?: boolean
+  denied: string[]
+  steps: number
+  /** When anything was last heard about it: a run gone quiet this long is asked about. */
+  seen: number
 }
 
 export interface Model {
@@ -66,6 +73,9 @@ function session(model: Model, id: string, at: number): Session {
       entries: [],
       tokens: 0,
       cost: 0,
+      denied: [],
+      steps: 0,
+      seen: at,
     }
     model.sessions.set(id, found)
   }
@@ -94,21 +104,47 @@ function applyStatus(s: Session, change: Extract<Change, { type: "status" }>): v
     s.status = "failed"
     s.ended = change.at
     if (change.error) s.error = change.error
+    settle(s, change.at)
   } else if (s.status !== "failed") {
     /** Idle before it ever worked is a session that has not started, not one that finished. */
     s.status = s.status === "starting" && s.entries.length === 0 ? "starting" : "done"
     s.ended = change.at
+    settle(s, change.at)
+  }
+}
+
+/**
+ * A run that ended has no call still running: one left so was cut off (a stop, an abort) and never
+ * told us — without this its spinner turned forever, and the sidebar said it was still at it.
+ */
+function settle(s: Session, at: number): void {
+  for (const entry of s.entries) {
+    if (entry.kind === "tool" && (entry.state === "running" || entry.state === "pending")) {
+      entry.state = "failed"
+      entry.error ??= "stopped"
+      entry.ended = at
+    }
+    if ((entry.kind === "thinking" || entry.kind === "reply") && !entry.done) entry.done = true
   }
 }
 
 /** Applies one change in place. Unknown sessions are created, so order never loses anything. */
 export function apply(model: Model, change: Change): void {
   const s = session(model, change.id, change.at)
+  if (change.at > s.seen) s.seen = change.at
   switch (change.type) {
     case "session":
       if (change.parentID) s.parentID = change.parentID
       if (change.agent) s.agent = change.agent
       if (change.title) s.title = change.title
+      if (change.model) s.model = change.model
+      if (change.background) s.background = true
+      if (change.denied) s.denied = change.denied
+      /** A session's own creation time beats when we first heard of it. */
+      if (change.at < s.started) s.started = change.at
+      return
+    case "step":
+      s.steps++
       return
     case "status": {
       const before = s.status
@@ -154,16 +190,18 @@ export function apply(model: Model, change: Change): void {
           state: "pending",
           input: {},
           output: "",
-          at: change.at,
+          at: change.started ?? change.at,
         }
         s.entries.push(entry)
       }
+      if (change.started !== undefined) entry.at = change.started
+      if (change.summary) entry.summary = change.summary
       if (change.name) entry.name = change.name
       if (change.state) entry.state = change.state
       if (change.input && Object.keys(change.input).length > 0) entry.input = change.input
       if (change.output !== undefined) entry.output = change.output
       if (change.error) entry.error = change.error
-      if (change.state === "completed" || change.state === "failed") entry.ended = change.at
+      if (change.state === "completed" || change.state === "failed") entry.ended = change.ended ?? change.at
       if (s.status === "starting") s.status = "running"
       return
     }

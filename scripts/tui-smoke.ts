@@ -103,7 +103,7 @@ function agentTurn(env: Record<string, string | undefined>) {
   }
 }
 
-const cols = 150
+const cols = Number(process.env.SMOKE_COLS) || 150
 const rows = 40
 const term = new Terminal({ cols, rows, allowProposedApi: true })
 const screen = async () => {
@@ -305,23 +305,37 @@ try {
     )
     await type("\r", 1000)
     let sidebar = ""
-    for (let i = 0; i < 45 && !/[✓⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(sidebar); i++) {
+    for (let i = 0; i < 45 && !/[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(sidebar); i++) {
       await Bun.sleep(2000)
       sidebar = await screen()
     }
     await Bun.sleep(4000)
     const lines = (await screen()).split("\n")
-    const y = lines.findIndex((line) => /[✓⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(line.slice(Math.floor(cols / 2))))
+    const y = lines.findIndex((line) => /[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(line.slice(Math.floor(cols / 2))))
     if (y < 0) throw new Error(`the sidebar never showed the subagent:\n${lines.join("\n")}`)
     const x = (lines[y] as string).lastIndexOf(" explore ") + 3
     proc.terminal.write(`\x1b[<0;${x + 1};${y + 1}M`)
     await Bun.sleep(80)
     await type(`\x1b[<0;${x + 1};${y + 1}m`, 2500)
     const full = await screen()
+    /** The cursor onto the last item and open it, then a message typed into the pane, not a dialog. */
+    await type("k", 600)
+    await type("\r", 1200)
+    const toggled = await screen()
+    await type("m", 600)
+    await type("hello there", 1200)
+    const typing = await screen()
+    await type("\x1b", 800)
     await type("q", 1500)
     const slashed = await slash("subagents")
+    /** `x` on a finished subagent takes it off the list; on a working one it asks first. */
+    proc.terminal.write(`\x1b[<0;${x + 1};${y + 1}M`)
+    await Bun.sleep(80)
+    await type(`\x1b[<0;${x + 1};${y + 1}m`, 2500)
+    await type("x", 1500)
+    const removed = await screen()
     await type("q", 1000)
-    return { sidebar, full, slashed }
+    return { sidebar, full, toggled, typing, slashed, removed }
   }
 
   const slash = async (name: string) => {
@@ -373,10 +387,19 @@ try {
       ["the sidebar never showed the Subagents block", subagents.sidebar, "Subagents"],
       ["a click on the subagent never opened its full screen", subagents.full, "EXPLORE"],
       ["the full screen never drew its keys", subagents.full, "[m] Message"],
+      ["enter never opened the selected item", subagents.toggled, "▌ "],
+      ["m never opened the message input in the pane", subagents.typing, "┃ hello there"],
       ["/subagents never opened the full screen", subagents.slashed, "[m] Message"],
     ] as const) {
       if (!text.includes(marker)) throw new Error(`${what}:\n${text}`)
     }
+    /** The heading's count reaches the sidebar's edge whole: rows drawn wider than it were clipped. */
+    if (!/Subagents +\d+ (running|done|failed)\b/.test(subagents.full))
+      throw new Error(`the sidebar's Subagents heading was clipped:\n${subagents.full}`)
+    const asked = subagents.removed.includes("Press x again")
+    const listed = /[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(subagents.removed)
+    if (!asked && listed)
+      throw new Error(`x neither removed the subagent nor asked to stop it:\n${subagents.removed}`)
   }
 
   /** A plugin OpenCode could not load says so in the footer, whichever half it was. */

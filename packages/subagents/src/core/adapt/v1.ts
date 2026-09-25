@@ -48,6 +48,7 @@ export function createV1Translator(unknown: (what: string, detail?: Json) => voi
         ...(str(info.parentID) ? { parentID: str(info.parentID) as string } : {}),
         ...(str(info.agent) ? { agent: str(info.agent) as string } : {}),
         ...(str(info.title) ? { title: stripAgentSuffix(str(info.title) as string) } : {}),
+        ...(denied(info.permission) ? { denied: denied(info.permission) as string[] } : {}),
         at: Number(obj(info.time).created) || at,
       },
     ]
@@ -85,22 +86,35 @@ export function createV1Translator(unknown: (what: string, detail?: Json) => voi
         const metadata = obj(state.metadata)
         const status = toolState(state.status)
         const output = str(state.output) ?? (status === "running" ? str(metadata.output) : undefined)
-        return [
+        const time = obj(state.time)
+        const input = obj(state.input)
+        const summary = summaryOf(str(p.tool), metadata)
+        const out: Change[] = [
           {
             type: "tool",
             id,
             call: str(p.callID) ?? partID,
             ...(str(p.tool) ? { name: str(p.tool) as string } : {}),
             ...(status ? { state: status } : {}),
-            ...(Object.keys(obj(state.input)).length > 0 ? { input: obj(state.input) } : {}),
+            ...(Object.keys(input).length > 0 ? { input } : {}),
             ...(output !== undefined ? { output } : {}),
             ...(str(state.error) ? { error: str(state.error) as string } : {}),
+            ...(typeof time.start === "number" ? { started: time.start } : {}),
+            ...(typeof time.end === "number" ? { ended: time.end } : {}),
+            ...(summary ? { summary } : {}),
             at,
           },
         ]
+        /** The `task` call that launched a subagent names it; `background` is how it was launched. */
+        const child = str(metadata.sessionId)
+        if (p.tool === "task" && child && input.background === true) {
+          out.push({ type: "session", id: child, parentID: id, background: true, at })
+        }
+        return out
       }
-      case "step-start":
       case "step-finish":
+        return [{ type: "step", id, at }]
+      case "step-start":
       case "patch":
       case "snapshot":
       case "file":
@@ -113,6 +127,22 @@ export function createV1Translator(unknown: (what: string, detail?: Json) => voi
         unknown("part", { type: p.type })
         return []
     }
+  }
+
+  /** A message's role, remembered for its parts; an assistant's says the model it ran on. */
+  const message = (info: Json, at: number): Change[] => {
+    if (str(info.id) && str(info.role)) roles.set(str(info.id) as string, str(info.role) as string)
+    const id = str(info.sessionID)
+    return id && info.role === "assistant" && str(info.modelID)
+      ? [
+          {
+            type: "session",
+            id,
+            model: str(info.modelID) as string,
+            at: Number(obj(info.time).created) || at,
+          },
+        ]
+      : []
   }
 
   return {
@@ -147,11 +177,8 @@ export function createV1Translator(unknown: (what: string, detail?: Json) => voi
         case "question.replied":
         case "question.rejected":
           return sessionID ? [{ type: "status", id: sessionID, status: "busy", at }] : []
-        case "message.updated": {
-          const info = obj(props.info)
-          if (str(info.id) && str(info.role)) roles.set(str(info.id) as string, str(info.role) as string)
-          return []
-        }
+        case "message.updated":
+          return message(obj(props.info), at)
         case "message.part.updated":
           return part(obj(props.part), at)
         case "message.part.delta": {
@@ -173,11 +200,11 @@ export function createV1Translator(unknown: (what: string, detail?: Json) => voi
     },
     history(messages, at = Date.now()) {
       const out: Change[] = []
-      for (const message of messages) {
-        const info = obj(message.info)
-        if (str(info.id) && str(info.role)) roles.set(str(info.id) as string, str(info.role) as string)
+      for (const each of messages) {
+        const info = obj(each.info)
         const when = Number(obj(info.time).created) || at
-        for (const p of message.parts) out.push(...part(obj(p), when))
+        out.push(...message(info, when))
+        for (const p of each.parts) out.push(...part(obj(p), when))
       }
       return out
     },
@@ -197,4 +224,25 @@ export function tokenTotal(tokens: Json): number {
 /** OpenCode 1 titles a subagent session "Task title (@explore subagent)"; the agent is shown apart. */
 export function stripAgentSuffix(title: string): string {
   return title.replace(/\s*\(@[\w-]+ subagent\)\s*$/, "")
+}
+
+/** Permissions an agent's rules deny outright: `[{ permission: "task", action: "deny" }]`. */
+function denied(rules: unknown): string[] | undefined {
+  if (!Array.isArray(rules)) return undefined
+  const names = rules
+    .map((rule) => obj(rule))
+    .filter((rule) => rule.action === "deny" && (rule.pattern === undefined || rule.pattern === "*"))
+    .map((rule) => str(rule.permission))
+    .filter((name): name is string => Boolean(name))
+  return names.length > 0 ? [...new Set(names)] : undefined
+}
+
+/** A call's result in a few words, when the host gives the number. */
+export function summaryOf(tool: string | undefined, metadata: Json): string | undefined {
+  if (typeof metadata.matches === "number")
+    return `${metadata.matches} match${metadata.matches === 1 ? "" : "es"}`
+  if (typeof metadata.count === "number") return `${metadata.count} result${metadata.count === 1 ? "" : "s"}`
+  if ((tool === "bash" || tool === "shell") && typeof metadata.exit === "number" && metadata.exit !== 0)
+    return `exit ${metadata.exit}`
+  return undefined
 }

@@ -1,6 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 // biome-ignore-all lint/a11y/noStaticElementInteractions: these are terminal boxes, not DOM elements
 import type { Host } from "@opencode-cockpit/client/host"
+import type { BoxRenderable } from "@opentui/core"
 import { For, type JSX } from "solid-js"
 import type { SidebarLine } from "../../core/view/sidebar.ts"
 import { fillColour, toneColour } from "../render.ts"
@@ -10,6 +11,8 @@ export interface SidebarProps {
   /** The block's lines, from `core/view/sidebar.ts`; a signal, so `<For>` redraws them. */
   lines: () => readonly SidebarLine[]
   onOpen: (id: string) => void
+  /** The block's own box, so its rows can be drawn at the width the sidebar really gives it. */
+  onReady?: (box: BoxRenderable) => void
 }
 
 /**
@@ -23,7 +26,7 @@ export interface SidebarProps {
 export function SidebarBlock(props: SidebarProps): JSX.Element {
   const theme = () => props.api.theme.current
   return (
-    <box flexDirection="column">
+    <box flexDirection="column" ref={(box: BoxRenderable) => props.onReady?.(box)}>
       <For each={props.lines()}>
         {(line) => (
           <box

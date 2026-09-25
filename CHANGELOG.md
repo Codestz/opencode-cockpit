@@ -11,12 +11,24 @@ All notable changes to this project are documented here. The format follows
 - **Subagents: see what your subagents are doing, while they do it.** A new bay,
   `@opencode-cockpit/subagents`, also in the bundle. The sidebar lists every subagent of the
   conversation with what it is doing now (`grep "session" src/auth/**  51s`); a click — or
-  `ctrl+x w`, or `/subagents` — opens it full screen: the task it was given, its thinking as it
-  streams, every tool call with its target and duration (the running one streams its output), and
-  the answer as it is written. `m` messages it: mid-run it picks the message up and says so in its
+  `ctrl+x w`, or `/subagents` — opens it in a pane, half the window or all of it: model and launcher,
+  the task, then its run — each tool call one line that opens to its arguments and output the way
+  OpenCode draws its own, thinking folded, the answer drawn as markdown. `j`/`k` move through it,
+  `enter` or a click opens an item, `i` shows details. `m` writes to it at the foot of the pane: mid-run it picks the message up and says so in its
   answer. The main agent is asked to launch independent subagents in the background so the
   conversation keeps going — built into OpenCode 2; on OpenCode 1 with
   `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`. Everything measured on both versions.
+
+- **Stop a subagent, or clear finished ones.** In the pane, `x` twice stops a working subagent;
+  on a finished one `x` removes it from the list, and `X` removes every finished one. The palette
+  has "Clear finished subagents" and "Show removed subagents again".
+- **The sidebar reads statusline, subagents, shells — and one list reorders it.**
+  `{ "sidebar": ["shell", "status", "subagents"] }` in `~/.config/opencode-cockpit/config.json`
+  (or a project's `.cockpit.json`); a bay's own `sidebarOrder` still wins. OpenCode 2 now keeps the
+  same order as OpenCode 1 (it drew slots in the order they registered), and the statusline's and
+  Shell's places at the foot of the window no longer move with their sidebar place.
+- **Move a subagent to the background from its pane** (`b`), as OpenCode's `ctrl+b` does.
+- **Stopping a subagent tells the main agent why**, so it reports the stop instead of relaunching it.
 
 ### Fixed
 

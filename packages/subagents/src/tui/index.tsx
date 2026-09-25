@@ -2,11 +2,12 @@
 
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
 import { bindingLookup, dualTui, type Host, type Layer } from "@opencode-cockpit/client/host"
+import { sidebarOrder } from "@opencode-cockpit/client/sidebar"
 import type { BoxRenderable } from "@opentui/core"
 import { createSignal } from "solid-js"
 import type { Change } from "../core/model/changes.ts"
 import { applyAll, emptyModel, type Node, rootOf, type Session, subagentsOf } from "../core/model/model.ts"
-import { screenRows } from "../core/view/screen.ts"
+import { type Screen, screenRows } from "../core/view/screen.ts"
 import { type SidebarLine, sidebarLines } from "../core/view/sidebar.ts"
 import { createRowPool, type RowPool, solidSurface } from "./render.ts"
 import { createSource } from "./source.ts"
@@ -27,20 +28,36 @@ export interface SubagentsTuiOptions {
   keybinds?: Record<string, string>
 }
 
-/** The full screen's state: which subagent, and how it is being looked at. */
+/** The pane's state: which subagent, and how it is being looked at. */
 interface Surface {
   open?: string
-  up: number
+  /** First body row shown; undefined follows the run. */
+  top?: number
+  selected?: string
+  /** Items opened, or folded, by hand. */
+  opened: Set<string>
+  closed: Set<string>
   thinking: boolean
-  expanded: boolean
+  details: boolean
+  /** Half the window, or all of it. Remembered. */
+  full: boolean
+  /** A message being typed, at the foot of the pane. */
+  draft?: string
   notice?: string
-  /**
-   * A dialog is open over the screen. The screen steps aside while it is: it covers the whole window
-   * at the top of the stack, and OpenCode 1 draws its dialog underneath it — typing went into a
-   * dialog nobody could see.
-   */
-  asking?: boolean
+  /** The subagent a first `x` asked to stop; a second `x` in time stops it. */
+  stopping?: string
 }
+
+const FULL_KEY = "cockpit.subagents.full"
+/** Thinking shown or folded — shown until you say otherwise, then as you left it. */
+const THINKING_KEY = "cockpit.subagents.thinking"
+/** Subagents removed from the list, by id — kept across restarts, the newest few hundred. */
+const HIDDEN_KEY = "cockpit.subagents.hidden"
+const HIDDEN_MAX = 300
+/** How long a run may say nothing before the host is asked whether it is still going. */
+const QUIET_MS = 20_000
+/** How long the second `x` that confirms a stop is waited for. */
+const CONFIRM_MS = 4_000
 
 /** Subagents' TUI half as a factory, so the `opencode-cockpit` bundle can include it. */
 export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: string } = {}) {
@@ -61,11 +78,19 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
     const keys = bindingLookup({ ...DEFAULT_KEYS, ...options.keybinds })
 
     const model = emptyModel()
-    const surface: Surface = { up: 0, thinking: true, expanded: false }
+    const surface: Surface = {
+      opened: new Set(),
+      closed: new Set(),
+      thinking: api.kv.get(THINKING_KEY, true),
+      details: false,
+      full: api.kv.get(FULL_KEY, false),
+    }
     let frame = 0
     let root: string | undefined
     let backdrop: BoxRenderable | undefined
+    let panel: BoxRenderable | undefined
     let pool: RowPool | undefined
+    let shown: Screen | undefined
     let disposeKeys: (() => void) | undefined
     const [lines, setLines] = createSignal<readonly SidebarLine[]>([])
 
@@ -75,52 +100,95 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       const id = route.name === "session" ? (route.params?.sessionID as string | undefined) : undefined
       return id ? rootOf(model, id) : undefined
     }
-    const nodes = (): Node[] => (root ? subagentsOf(model, root) : [])
+    const hidden = new Set<string>(api.kv.get<string[]>(HIDDEN_KEY, []))
+    const saveHidden = () => api.kv.set(HIDDEN_KEY, [...hidden].slice(-HIDDEN_MAX))
+    /** Removed, or under one that was: a removed subagent takes the ones it launched with it. */
+    const isHidden = (id: string): boolean => {
+      for (let at: string | undefined = id, n = 0; at && n < 8; at = model.sessions.get(at)?.parentID, n++)
+        if (hidden.has(at)) return true
+      return false
+    }
+    const nodes = (): Node[] =>
+      root ? subagentsOf(model, root).filter((node) => !isHidden(node.session.id)) : []
     const opened = (): Session | undefined => (surface.open ? model.sessions.get(surface.open) : undefined)
-    const sidebarWidth = () => Math.max(20, Math.min(40, Math.floor(api.renderer.width / 4) - 2))
-    const working = () =>
-      nodes().some(
-        ({ session }) =>
-          session.status === "running" || session.status === "starting" || session.status === "waiting",
-      )
+    let block: BoxRenderable | undefined
+    let drawnAt = 0
+    /**
+     * The width the sidebar gave the block, once laid out; a guess before that. Guessed, the rows ran
+     * past the edge and were clipped: "3 done" drew as "3 d".
+     */
+    let told = 0
+    const sidebarWidth = () => {
+      /**
+       * The container the host gave the block, not the block: rows wider than the sidebar stretch the
+       * block with them, so its own width only ever agreed with the guess.
+       */
+      const parent = (block?.parent as { width?: number } | null | undefined)?.width ?? 0
+      const own = block?.width ?? 0
+      const measured = parent >= 12 ? Math.min(parent, own >= 12 ? own : parent) : own
+      if (measured !== told) {
+        told = measured
+        log.debug("sidebar width", { measured, own, parent, window: api.renderer.width })
+      }
+      return measured >= 12 ? measured : Math.max(20, Math.min(40, Math.floor(api.renderer.width / 4) - 2))
+    }
+    const busy = (session: Session) => session.status === "running" || session.status === "starting"
+    const working = () => nodes().some(({ session }) => busy(session) || session.status === "waiting")
+    /** Half the window, but never so narrow a call's arguments cannot be read. */
+    const paneWidth = () => {
+      const width = api.renderer.width
+      return surface.full ? width : Math.min(width, Math.max(72, Math.floor(width / 2)))
+    }
 
     // --- painting ----------------------------------------------------------------------------------
 
     const paint = () => {
       const now = Date.now()
       const list = nodes()
-      setLines(
-        sidebarLines({ nodes: list, width: sidebarWidth(), now, frame, limit: options.sidebarRows ?? 6 }),
-      )
+      drawnAt = sidebarWidth()
+      setLines(sidebarLines({ nodes: list, width: drawnAt, now, frame, limit: options.sidebarRows ?? 6 }))
       const session = opened()
-      if (backdrop && pool) {
-        const show = Boolean(session) && !surface.asking
-        backdrop.backgroundColor = solidSurface(api.theme.current)
+      if (backdrop && panel && pool) {
+        const show = Boolean(session)
+        const height = api.renderer.height
         backdrop.width = api.renderer.width
-        backdrop.height = show ? api.renderer.height : 0
+        backdrop.height = show ? height : 0
         backdrop.visible = show
+        panel.backgroundColor = solidSurface(api.theme.current)
+        panel.width = paneWidth()
+        panel.height = show ? height : 0
         if (session && show) {
           const launcher = session.parentID ? model.sessions.get(session.parentID)?.agent : undefined
           const screen = screenRows({
             session,
             nodes: list,
             ...(launcher ? { launcher } : {}),
-            width: api.renderer.width,
-            height: api.renderer.height,
+            width: paneWidth(),
+            height,
             now,
             frame,
-            up: surface.up,
+            ...(surface.top !== undefined ? { top: surface.top } : {}),
+            ...(surface.selected ? { selected: surface.selected } : {}),
+            open: surface.opened,
+            closed: surface.closed,
             thinking: surface.thinking,
-            expanded: surface.expanded,
+            details: surface.details,
+            ...(surface.draft !== undefined ? { input: { draft: surface.draft, busy: busy(session) } } : {}),
             ...(surface.notice ? { notice: surface.notice } : {}),
           })
-          surface.up = Math.min(surface.up, screen.most)
+          /** Scrolled back to the end: follow the run again. */
+          if (surface.top !== undefined && screen.top >= screen.most && !surface.selected)
+            surface.top = undefined
+          shown = screen
           pool.draw(screen.rows, api.theme.current)
-          /** The prompt's cursor would otherwise blink through the screen, as it did over Review. */
+          /** The prompt's cursor would otherwise blink through the pane, as it did over Review. */
           setTimeout(() => {
             if (surface.open) api.renderer.setCursorPosition(0, 0, false)
           }, 0)
-        } else pool.clear()
+        } else {
+          shown = undefined
+          pool.clear()
+        }
       }
       api.renderer.requestRender()
     }
@@ -144,9 +212,15 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
     const feed = createSource(api, log, (changes: Change[]) => {
       if (changes.length === 0) return
       applyAll(model, changes)
-      for (const change of changes)
+      for (const change of changes) {
         if (change.type === "session" && change.parentID)
           log.debug("subagent", { id: change.id, parent: change.parentID, agent: change.agent })
+        /** Removed, then started again (the main agent continued it): it belongs in the list again. */
+        if (change.type === "status" && change.status === "busy" && hidden.delete(change.id)) {
+          log.debug("unhidden: working again", { id: change.id })
+          saveHidden()
+        }
+      }
       draw()
     })
 
@@ -163,9 +237,31 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
         .catch((error) => log.warn("load failed", { root: next, error }))
     }
 
+    /**
+     * A run that has gone quiet is asked about. An end the events never told us of — a missed event,
+     * a stop from elsewhere — otherwise left a subagent "running" until OpenCode restarted.
+     */
+    const reconcile = () => {
+      const now = Date.now()
+      for (const { session } of nodes()) {
+        if (session.status !== "running" && session.status !== "starting") continue
+        if (now - session.seen < QUIET_MS) continue
+        const changes = feed.check(session.id)
+        const said = changes[0]
+        if (said?.type === "status" && said.status !== "busy") {
+          log.info("quiet run ended", { id: session.id, status: said.status })
+          applyAll(model, changes)
+          draw()
+        } else session.seen = now
+      }
+    }
+
     /** The clock: once a second for the sidebar's times, faster while a subagent is open and working. */
     let slow: ReturnType<typeof setInterval> | undefined = setInterval(() => {
       follow()
+      reconcile()
+      /** The sidebar was laid out, or resized, since the rows were drawn. */
+      if (sidebarWidth() !== drawnAt) draw()
       if (working()) {
         frame++
         draw()
@@ -173,12 +269,9 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
     }, 1000)
     let fast: ReturnType<typeof setInterval> | undefined
 
-    // --- the full screen ---------------------------------------------------------------------------
+    // --- the pane ----------------------------------------------------------------------------------
 
-    /**
-     * The screen's letters, taken only while it is up — and given back while a dialog is open over
-     * it, or the message you type fires `e`, `l`, `t`… underneath (Review's takeKeys/dropKeys).
-     */
+    /** The pane's letters, taken only while it is up — a global layer; a targeted one never fires. */
     const takeKeys = () => {
       disposeKeys ??= api.keymap.registerLayer(layer())
     }
@@ -191,6 +284,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       if (!surface.open) return
       log.debug("close", { id: surface.open })
       surface.open = undefined
+      surface.draft = undefined
       dropKeys()
       clearInterval(fast)
       fast = undefined
@@ -200,11 +294,19 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
 
     const open = (id: string) => {
       if (!model.sessions.has(id)) return
-      log.debug("open", { id })
-      Object.assign(surface, { open: id, up: 0, expanded: false, notice: undefined })
+      log.debug("open", { id, full: surface.full })
+      const same = surface.open === id
+      Object.assign(surface, {
+        open: id,
+        notice: undefined,
+        stopping: undefined,
+        draft: undefined,
+        ...(same ? {} : { top: undefined, selected: undefined, details: false }),
+      })
       takeKeys()
       fast ??= setInterval(() => {
-        if (opened()?.status === "running") {
+        const session = opened()
+        if (session && busy(session)) {
           frame++
           draw()
         }
@@ -222,49 +324,227 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
     }
 
     const scroll = (by: number) => {
-      surface.up = Math.max(0, surface.up - by)
+      const most = shown?.most ?? 0
+      const top = Math.max(0, Math.min(most, (surface.top ?? most) + by))
+      surface.top = top >= most ? undefined : top
       draw()
     }
 
-    const message = () => {
-      const session = opened()
-      if (!session) return
-      const busy = session.status === "running" || session.status === "starting"
-      /** Taken now: the model may learn something about the session while the dialog is open. */
-      const { id, agent } = session
-      /** The dialog gets the keys, the focus and the window; the screen takes them back after. */
-      dropKeys()
-      backdrop?.blur()
-      surface.asking = true
+    /** The cursor onto the next or previous item; the first press lands on the last one in view. */
+    const select = (by: number) => {
+      const list = shown?.keys ?? []
+      if (list.length === 0) return
+      const at = surface.selected ? list.indexOf(surface.selected) : -1
+      const next = at < 0 ? list.length - 1 : Math.max(0, Math.min(list.length - 1, at + by))
+      surface.selected = list[next]
+      /** Pinned where it is, so the pane scrolls to the cursor rather than the run. */
+      surface.top = shown?.top
       draw()
-      void api.ui
-        .prompt({
-          title: `Message ${session.agent}`,
-          description: busy
-            ? "It picks this up in its current run."
-            : "It has finished: it will answer, but the main agent is not told.",
-          placeholder: "What should it do?",
-        })
-        .then(async (text) => {
-          const said = text?.trim()
-          if (!said) return
-          await feed.send(id, said, busy, agent)
-          log.info("message sent", { id, agent, busy })
+    }
+
+    /** Opens the item, or folds it: whichever it is not now. */
+    const toggle = (key: string | undefined = surface.selected) => {
+      if (!key) return
+      const isOpen = shown?.opened.includes(key) ?? false
+      if (isOpen) {
+        surface.opened.delete(key)
+        surface.closed.add(key)
+      } else {
+        surface.closed.delete(key)
+        surface.opened.add(key)
+      }
+      surface.selected = key
+      surface.top = shown?.top
+      log.debug("toggle", { key, open: !isOpen })
+      draw()
+    }
+
+    /** Every call open, or every one folded. */
+    const expandAll = () => {
+      const calls = (shown?.keys ?? []).filter((key) => key.startsWith("tool:"))
+      const all = calls.length > 0 && calls.every((key) => shown?.opened.includes(key))
+      surface.opened = all ? new Set() : new Set(calls)
+      surface.closed = all ? new Set(calls) : new Set()
+      draw()
+    }
+
+    const click = (y: number) => {
+      if (!shown || surface.draft !== undefined) return
+      const key = shown.items[y]
+      if (key) toggle(key)
+    }
+
+    const startMessage = () => {
+      if (!opened()) return
+      surface.draft = ""
+      surface.notice = undefined
+      log.debug("message: typing", { id: surface.open })
+      draw()
+    }
+
+    const sendMessage = () => {
+      const session = opened()
+      const text = surface.draft?.trim()
+      surface.draft = undefined
+      if (!session || !text) return draw()
+      /** Taken now: the model may learn something about the session before the call returns. */
+      const { id, agent } = session
+      const wasBusy = busy(session)
+      surface.notice = `Sending to ${agent}…`
+      surface.top = undefined
+      draw()
+      feed
+        .send(id, text, wasBusy, agent)
+        .then(() => {
+          log.info("message sent", { id, agent, busy: wasBusy })
           surface.notice = `Sent to ${agent}.`
-          surface.up = 0
         })
         .catch((error) => {
           log.error("message failed", { id, error })
           surface.notice = `Not sent: ${error instanceof Error ? error.message : String(error)}`
         })
-        .finally(() => {
-          surface.asking = false
-          if (surface.open) {
-            takeKeys()
-            backdrop?.focus()
-          }
-          draw()
+        .finally(draw)
+    }
+
+    /** Typing a message takes every key before the layer, so `e`, `t`, `j`… go into the words. */
+    api.keymap.intercept(
+      (ctx) => {
+        if (!surface.open || surface.draft === undefined) return
+        const event = ctx.event
+        ctx.consume({ preventDefault: true, stopPropagation: true })
+        if (event.name === "escape") {
+          surface.draft = undefined
+          return draw()
+        }
+        if (event.name === "return" || event.name === "enter") return sendMessage()
+        if (event.name === "backspace") surface.draft = surface.draft.slice(0, -1)
+        else if (event.sequence && !event.ctrl && !event.meta && event.sequence >= " ")
+          surface.draft += event.sequence
+        draw()
+      },
+      { priority: 10_000 },
+    )
+
+    let confirmTimer: ReturnType<typeof setTimeout> | undefined
+
+    /** Out of the list — the session itself stays in OpenCode, and comes back if it works again. */
+    const remove = (ids: string[]) => {
+      if (ids.length === 0) return
+      for (const id of ids) {
+        hidden.delete(id)
+        hidden.add(id)
+      }
+      saveHidden()
+      log.info("removed", { count: ids.length })
+      if (surface.open && isHidden(surface.open)) {
+        const next = nodes().at(-1)
+        if (next) open(next.session.id)
+        else close()
+      }
+      draw()
+    }
+
+    const finished = () =>
+      nodes()
+        .map((node) => node.session)
+        .filter((session) => session.status === "done" || session.status === "failed")
+        .map((session) => session.id)
+
+    /** `x`: a working one stops — on a second `x`, since it cannot be undone; a finished one leaves the list. */
+    const stopOrRemove = () => {
+      const session = opened()
+      if (!session) return
+      if (!busy(session) && session.status !== "waiting") return remove([session.id])
+      if (surface.stopping !== session.id) {
+        surface.stopping = session.id
+        surface.notice = `Press x again to stop ${session.agent}.`
+        clearTimeout(confirmTimer)
+        confirmTimer = setTimeout(() => {
+          if (surface.stopping) set({ stopping: undefined, notice: undefined })
+        }, CONFIRM_MS)
+        return draw()
+      }
+      clearTimeout(confirmTimer)
+      const { id, agent, title, parentID } = session
+      surface.stopping = undefined
+      surface.notice = `Stopping ${agent}…`
+      draw()
+      const parent = parentID ? model.sessions.get(parentID) : undefined
+      /**
+       * The main agent is told first, and why, so the stop reaches it with a reason. Measured on both:
+       * told, it says the subagent was stopped and waits; untold, it read a failure and relaunched.
+       */
+      const note = parentID
+        ? feed
+            .note(
+              parentID,
+              `[Cockpit] I stopped the ${agent} subagent${title ? ` "${title}"` : ""} on purpose. Don't start it again unless I ask.`,
+              parent ? busy(parent) || parent.status === "waiting" : true,
+              parent && parent.agent !== "agent" ? parent.agent : undefined,
+            )
+            .catch((error: unknown) => log.warn("stop note failed", { parentID, error }))
+        : Promise.resolve()
+      note
+        .then(() => feed.stop(id))
+        .then(() => {
+          log.info("stopped", { id, agent, told: Boolean(parentID) })
+          surface.notice = `Stopped ${agent}. The main agent was told you stopped it.`
         })
+        .catch((error) => {
+          log.error("stop failed", { id, error })
+          surface.notice = `Not stopped: ${error instanceof Error ? error.message : String(error)}`
+        })
+        .finally(draw)
+    }
+
+    /**
+     * `b`: the conversation stops waiting for this subagent — OpenCode's `ctrl+b`, from here. It moves
+     * every subagent that conversation is blocked on, which is what the host offers.
+     */
+    const toBackground = () => {
+      const session = opened()
+      if (!session?.parentID) return
+      if (!busy(session)) return set({ notice: `${session.agent} is not running.` })
+      if (session.background) return set({ notice: `${session.agent} already runs in the background.` })
+      const { id, agent, parentID } = session
+      surface.notice = `Moving ${agent} to the background…`
+      draw()
+      feed
+        .background(parentID)
+        .then((moved) => {
+          log.info("background", { id, parentID, moved })
+          if (moved) applyAll(model, [{ type: "session", id, background: true, at: Date.now() }])
+          surface.notice = moved
+            ? `${agent} runs in the background; the main agent carries on and hears when it finishes.`
+            : "OpenCode 1 does this only when started with OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true."
+        })
+        .catch((error) => {
+          log.error("background failed", { id, error })
+          surface.notice = `Not moved: ${error instanceof Error ? error.message : String(error)}`
+        })
+        .finally(draw)
+    }
+
+    const clearFinished = () => {
+      const ids = finished()
+      remove(ids)
+      if (ids.length === 0)
+        api.ui.toast({ variant: "info", title: "Subagents", message: "No finished subagents to clear." })
+    }
+
+    const restore = () => {
+      const count = hidden.size
+      hidden.clear()
+      saveHidden()
+      log.info("restored", { count })
+      api.ui.toast({
+        variant: "info",
+        title: "Subagents",
+        message: count
+          ? `${count} removed subagent${count === 1 ? "" : "s"} back in the list.`
+          : "None removed.",
+      })
+      draw()
     }
 
     const set = (change: Partial<Surface>) => {
@@ -272,41 +552,78 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       draw()
     }
 
-    /** A global layer, only while the screen is up: a targeted one never fires here (gotchas.md). */
+    const width = () => {
+      surface.full = !surface.full
+      api.kv.set(FULL_KEY, surface.full)
+      log.debug("width", { full: surface.full })
+      draw()
+    }
+
     const layer = (): Layer => ({
       priority: 100,
       commands: [
         { name: "cockpit.subagents.next", title: "Next subagent", run: () => step(1) },
         { name: "cockpit.subagents.prev", title: "Previous subagent", run: () => step(-1) },
-        { name: "cockpit.subagents.message", title: "Message this subagent", run: () => message() },
+        { name: "cockpit.subagents.message", title: "Message this subagent", run: () => startMessage() },
+        { name: "cockpit.subagents.stop", title: "Stop, or remove from the list", run: () => stopOrRemove() },
+        {
+          name: "cockpit.subagents.clear",
+          title: "Remove every finished subagent",
+          run: () => clearFinished(),
+        },
+        { name: "cockpit.subagents.background", title: "Move to the background", run: () => toBackground() },
+        { name: "cockpit.subagents.down", title: "Next item", run: () => select(1) },
+        { name: "cockpit.subagents.up", title: "Previous item", run: () => select(-1) },
+        { name: "cockpit.subagents.toggle", title: "Open or fold", run: () => toggle() },
+        { name: "cockpit.subagents.expand", title: "Open every call", run: () => expandAll() },
         {
           name: "cockpit.subagents.thinking",
           title: "Show or hide thinking",
-          run: () => set({ thinking: !surface.thinking }),
+          run: () => {
+            api.kv.set(THINKING_KEY, !surface.thinking)
+            /** A block folded or opened by hand follows the new choice. */
+            surface.opened.clear()
+            surface.closed.clear()
+            set({ thinking: !surface.thinking })
+          },
         },
         {
-          name: "cockpit.subagents.expand",
-          title: "Show every call",
-          run: () => set({ expanded: !surface.expanded }),
+          name: "cockpit.subagents.details",
+          title: "Details",
+          run: () => set({ details: !surface.details, top: undefined }),
         },
-        { name: "cockpit.subagents.down", title: "Scroll down", run: () => scroll(3) },
-        { name: "cockpit.subagents.up", title: "Scroll up", run: () => scroll(-3) },
-        { name: "cockpit.subagents.follow", title: "Follow the run", run: () => set({ up: 0 }) },
+        { name: "cockpit.subagents.width", title: "Half or full width", run: () => width() },
+        { name: "cockpit.subagents.pageDown", title: "Scroll down", run: () => scroll(10) },
+        { name: "cockpit.subagents.pageUp", title: "Scroll up", run: () => scroll(-10) },
         {
-          name: "cockpit.subagents.top",
-          title: "Scroll to the start",
-          run: () => set({ up: Number.MAX_SAFE_INTEGER }),
+          name: "cockpit.subagents.follow",
+          title: "Follow the run",
+          run: () => set({ top: undefined, selected: undefined }),
         },
-        { name: "cockpit.subagents.close", title: "Close", run: () => close() },
+        { name: "cockpit.subagents.top", title: "Scroll to the start", run: () => set({ top: 0 }) },
+        {
+          name: "cockpit.subagents.close",
+          title: "Close",
+          /** Esc first lets go of the cursor, then closes. */
+          run: () => (surface.selected ? set({ selected: undefined, top: undefined }) : close()),
+        },
       ],
       bindings: [
-        { key: "],l,right", cmd: "cockpit.subagents.next" },
-        { key: "[,h,left", cmd: "cockpit.subagents.prev" },
+        { key: "],right", cmd: "cockpit.subagents.next" },
+        { key: "[,left", cmd: "cockpit.subagents.prev" },
         { key: "m", cmd: "cockpit.subagents.message" },
-        { key: "t", cmd: "cockpit.subagents.thinking" },
-        { key: "e", cmd: "cockpit.subagents.expand" },
+        { key: "x", cmd: "cockpit.subagents.stop" },
+        { key: "shift+x", cmd: "cockpit.subagents.clear" },
+        { key: "b", cmd: "cockpit.subagents.background" },
         { key: "j,down", cmd: "cockpit.subagents.down" },
         { key: "k,up", cmd: "cockpit.subagents.up" },
+        { key: "return,space", cmd: "cockpit.subagents.toggle" },
+        { key: "e", cmd: "cockpit.subagents.expand" },
+        { key: "t", cmd: "cockpit.subagents.thinking" },
+        { key: "i", cmd: "cockpit.subagents.details" },
+        { key: "w", cmd: "cockpit.subagents.width" },
+        { key: "d,pagedown", cmd: "cockpit.subagents.pageDown" },
+        { key: "u,pageup", cmd: "cockpit.subagents.pageUp" },
         { key: "shift+g,end", cmd: "cockpit.subagents.follow" },
         { key: "g,home", cmd: "cockpit.subagents.top" },
         { key: "q,escape", cmd: "cockpit.subagents.close" },
@@ -339,23 +656,57 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
           slashName: "subagents",
           run: () => openLatest(),
         },
+        {
+          name: "cockpit.subagents.clearFinished",
+          title: "Clear finished subagents",
+          category: "Subagents",
+          namespace: "palette",
+          run: () => clearFinished(),
+        },
+        {
+          name: "cockpit.subagents.restore",
+          title: "Show removed subagents again",
+          category: "Subagents",
+          namespace: "palette",
+          run: () => restore(),
+        },
       ],
       bindings: keys.gather("cockpit", Object.keys(DEFAULT_KEYS)),
     })
 
     api.slots.register({
-      /** Under Shell's block (150), above the statusline (200). */
-      order: options.sidebarOrder ?? 160,
+      /** Between the statusline (140) and the shells (170) by default; lower draws first. */
+      order: sidebarOrder("subagents", 150, options.sidebarOrder, { directory: api.state.path.directory }),
       slots: {
-        sidebar_content: () => <SidebarBlock api={api} lines={lines} onOpen={open} />,
+        sidebar_content: () => (
+          <SidebarBlock
+            api={api}
+            lines={lines}
+            onOpen={open}
+            onReady={(box) => {
+              block = box
+            }}
+          />
+        ),
+      },
+    })
+    api.slots.register({
+      order: 160,
+      slots: {
         app_bottom: () => (
           <Overlay
             api={api}
             onReady={(parts) => {
               backdrop = parts.backdrop
+              panel = parts.panel
               pool = createRowPool(parts.lines)
               draw()
             }}
+            /** Clicking off the pane closes it; at full width there is no "off" to click. */
+            onDismiss={() => {
+              if (!surface.full) close()
+            }}
+            onClick={(y) => click(y)}
             onScroll={(delta) => scroll(delta)}
           />
         ),
@@ -366,6 +717,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
     api.lifecycle.onDispose(() => {
       clearInterval(slow)
       clearInterval(fast)
+      clearTimeout(confirmTimer)
       slow = undefined
       fast = undefined
       dropKeys()

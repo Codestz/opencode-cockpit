@@ -2,6 +2,7 @@
 
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
 import { bindingLookup, dualTui, type Host } from "@opencode-cockpit/client/host"
+import { sidebarOrder } from "@opencode-cockpit/client/sidebar"
 import type { BoxRenderable } from "@opentui/core"
 import { createSignal } from "solid-js"
 import { createClient } from "../connect.ts"
@@ -361,8 +362,8 @@ const shellTui = async (api: Host, rawOptions?: unknown) => {
   const height = () => Math.max(6, Math.min(options.dockHeight ?? 14, Math.floor(api.renderer.height * 0.45)))
 
   api.slots.register({
-    /** Above the statusline (200) unless the person says otherwise; lower draws first. */
-    order: options.sidebarOrder ?? 150,
+    /** Above the statusline (200) at the foot of the window: the line stays the very last thing. */
+    order: 150,
     slots: {
       app_bottom() {
         return (
@@ -392,6 +393,16 @@ const shellTui = async (api: Host, rawOptions?: unknown) => {
           </>
         )
       },
+    },
+  })
+
+  api.slots.register({
+    /**
+     * The sidebar on its own: its place there (statusline, subagents, then shells — `"sidebar"` in
+     * Cockpit's config moves it) is not the dock's place at the foot of the window.
+     */
+    order: sidebarOrder("shell", 170, options.sidebarOrder, { directory: api.state.path.directory }),
+    slots: {
       sidebar_content() {
         return (
           <SidebarShells

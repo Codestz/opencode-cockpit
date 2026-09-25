@@ -9,7 +9,7 @@
  */
 
 import type { Change } from "../model/changes.ts"
-import { tokenTotal } from "./v1.ts"
+import { summaryOf, tokenTotal } from "./v1.ts"
 
 type Json = Record<string, unknown>
 const obj = (value: unknown): Json => (value && typeof value === "object" ? (value as Json) : {})
@@ -45,6 +45,7 @@ export function createV2Translator(unknown: (what: string, detail?: Json) => voi
         ...(str(info.parentID) ? { parentID: str(info.parentID) as string } : {}),
         ...(str(info.agent) ? { agent: str(info.agent) as string } : {}),
         ...(str(info.title) ? { title: str(info.title) as string } : {}),
+        ...(str(obj(info.model).id) ? { model: str(obj(info.model).id) as string } : {}),
         at: Number(obj(info.time).created) || at,
       },
     ]
@@ -57,6 +58,9 @@ export function createV2Translator(unknown: (what: string, detail?: Json) => voi
     if (status === "idle") return [{ type: "status", id, status: "idle", at }]
     return []
   }
+
+  /** `subagent` calls launched with `background: true`, until their child session is named. */
+  const background = new Set<string>()
 
   return {
     event(raw, at = Date.now()) {
@@ -141,7 +145,10 @@ export function createV2Translator(unknown: (what: string, detail?: Json) => voi
                 },
               ]
             : []
+        case "session.step.ended":
+          return id ? [{ type: "step", id, at }] : []
         case "session.tool.called":
+          if (obj(data.input).background === true && str(data.id)) background.add(str(data.id) as string)
           return id && str(data.id)
             ? [
                 {
@@ -150,6 +157,7 @@ export function createV2Translator(unknown: (what: string, detail?: Json) => voi
                   call: str(data.id) as string,
                   state: "running",
                   input: obj(data.input),
+                  started: at,
                   at,
                 },
               ]
@@ -157,9 +165,14 @@ export function createV2Translator(unknown: (what: string, detail?: Json) => voi
         case "session.tool.progress": {
           const metadata = obj(data.metadata)
           const output = str(metadata.output)
-          return id && str(data.id) && output !== undefined
-            ? [{ type: "tool", id, call: str(data.id) as string, output, at }]
-            : []
+          const out: Change[] = []
+          if (id && str(data.id) && output !== undefined)
+            out.push({ type: "tool", id, call: str(data.id) as string, output, at })
+          /** A background subagent's call names its child as it starts. */
+          const child = str(metadata.sessionID)
+          if (id && child && background.has(str(data.id) ?? ""))
+            out.push({ type: "session", id: child, parentID: id, background: true, at })
+          return out
         }
         case "session.tool.success":
           return id && str(data.id)
@@ -170,6 +183,9 @@ export function createV2Translator(unknown: (what: string, detail?: Json) => voi
                   call: str(data.id) as string,
                   state: "completed",
                   output: contentText(data.content),
+                  ...(summaryOf(undefined, obj(data.metadata))
+                    ? { summary: summaryOf(undefined, obj(data.metadata)) as string }
+                    : {}),
                   at,
                 },
               ]
@@ -218,6 +234,9 @@ export function createV2Translator(unknown: (what: string, detail?: Json) => voi
           continue
         }
         if (message.type !== "assistant") continue
+        out.push({ type: "step", id, at: when })
+        if (str(obj(message.model).id))
+          out.push({ type: "session", id, model: str(obj(message.model).id) as string, at: when })
         const content = Array.isArray(message.content) ? message.content : []
         /** Live events number thinking and text blocks separately; the keys must match across a reload. */
         let thought = 0
@@ -260,6 +279,7 @@ export function createV2Translator(unknown: (what: string, detail?: Json) => voi
               ...(str(part.name) ? { name: str(part.name) as string } : {}),
               state: "running",
               input: obj(state.input),
+              started: Number(time.ran) || partAt,
               at: partAt,
             })
             /** A second change carries the ending, so the call keeps when it started and when it ended. */
@@ -271,6 +291,10 @@ export function createV2Translator(unknown: (what: string, detail?: Json) => voi
                 state: ended,
                 output: contentText(state.content),
                 ...(str(obj(state.error).message) ? { error: str(obj(state.error).message) as string } : {}),
+                ...(summaryOf(str(part.name), obj(state.metadata))
+                  ? { summary: summaryOf(str(part.name), obj(state.metadata)) as string }
+                  : {}),
+                ended: Number(time.completed) || partAt,
                 at: Number(time.completed) || partAt,
               })
             }

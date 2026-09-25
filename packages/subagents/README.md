@@ -17,24 +17,39 @@ opencode plugin add @opencode-cockpit/subagents@0.6.0                   # OpenCo
 
 **In the sidebar**, a Subagents block: each subagent in this conversation, its type and task, and
 under it what it is doing now — `grep "session" src/auth/**  51s`, `thinking`, `waiting for
-permission`, `done · 3 tools`. A subagent that launched its own has them indented under it.
+permission`, `done`, with how many calls and how long on the right. A subagent that launched its own has them indented under it.
 
-**Click one** — or `ctrl+x w`, or `/subagents` — and it opens full screen: the task it was given,
-its thinking as it streams, every tool call with what it was about and how long it took (the running
-one streams its output), and the answer as it is written. Long runs of finished calls fold.
+**Click one** — or `ctrl+x w`, or `/subagents` — and it opens in a pane on the right, half the
+window or all of it: its model and who launched it, the task it was given, then its run. Every tool
+call is one line — name, target, result (`9 matches`) and time when it took one — and opens to its
+arguments and output, the way OpenCode draws its own; the running one is open, streaming. Thinking
+folds to one line. The answer is drawn as markdown, and your messages sit in the run as cards.
 
 | Key | |
 | --- | --- |
-| `←` `→` | Another subagent |
-| `m` | Message it |
-| `t` | Show or hide its thinking |
-| `e` | Show every call |
-| `j` `k` | Scroll — `g` to the start, `G` to follow the run |
-| `esc` `q` | Back |
+| `j` `k` | Move the cursor through the run's items |
+| `enter` · a click | Open or fold the item under it |
+| `e` | Open, or fold, every call |
+| `t` | Show or hide thinking — shown by default, and remembered |
+| `m` | Write it a message, at the foot of the pane |
+| `x` | Stop it (press twice) — or, once it has finished, remove it from the list |
+| `X` | Remove every finished subagent from the list |
+| `b` | Move it to the background, so the main agent carries on (OpenCode's own `ctrl+b`) |
+| `i` | Details: model, what it is denied, calls by tool, tokens, cost |
+| `w` | Half the window, or all of it (remembered) |
+| `[` `]` | Another subagent of this conversation |
+| `d` `u` · `g` `G` | Page down · up · to the start · follow the run |
+| `esc` `q` | Back to the conversation |
 
 **Message it.** A subagent that is still working picks your message up in its current run and
 answers it in its report, so the main agent sees it too. A finished one wakes up and answers you —
 but the main agent is not told; the screen says so under the keys.
+
+**Stop and remove.** `x` twice stops a working subagent — and first tells the main agent you stopped it
+on purpose, so it reports the stop instead of launching the subagent again.
+`x` on a finished subagent removes it from the list, `X` removes every finished one — the sessions
+stay in OpenCode, and one that works again comes back. "Clear finished subagents" and "Show removed
+subagents again" are in the command palette.
 
 **Background subagents.** The main agent is asked to launch independent subagents with
 `background: true` when its tool offers it, so the conversation keeps going while they work and it
@@ -52,7 +67,7 @@ In the bundle's entry (`"subagents": { … }`) or this package's own:
 | Setting | Default | |
 | --- | --- | --- |
 | `sidebarRows` | `6` | Subagents shown before the rest fold into a count — working ones first |
-| `sidebarOrder` | `160` | Where the block sits in the sidebar; lower draws first |
+| `sidebarOrder` | `150` | Where the block sits in the sidebar; lower draws first |
 | `keybinds` | `{ "cockpit.subagents.open": "<leader>w" }` | The key that opens the latest one |
 | `guidance` | `true` | Tell the agent about background subagents (agent side) |
 

@@ -7,8 +7,11 @@
 
 export type Tone = "text" | "muted" | "accent" | "info" | "tool" | "success" | "error" | "warning" | "border"
 
-/** What sits behind a run: the header band, or the block a running call's output streams into. */
-export type Fill = "none" | "band" | "block"
+/**
+ * What sits behind a run: the header band, a block (code, the input), a card (the task, your
+ * messages), or the item under the cursor.
+ */
+export type Fill = "none" | "band" | "block" | "card" | "selected"
 
 export interface Run {
   text: string
