@@ -27,9 +27,11 @@ export type Row = Run[]
 export const rowText = (row: Row): string => row.map((run) => run.text).join("")
 
 /** Columns a string takes. Wide characters (CJK, most emoji) take two. */
-export function widthOf(text: string): number {
+export function widthOf(text: string, limit = Number.POSITIVE_INFINITY): number {
   let width = 0
   for (const char of text) {
+    /** Past the limit the answer is "too wide" — a 100 kB line need not be measured to the end. */
+    if (width > limit) return width
     const code = char.codePointAt(0) ?? 0
     width +=
       code >= 0x1100 &&
@@ -51,7 +53,7 @@ export function widthOf(text: string): number {
 /** `text` in at most `width` columns, ending in `…` when cut. */
 export function cut(text: string, width: number): string {
   if (width <= 0) return ""
-  if (widthOf(text) <= width) return text
+  if (widthOf(text, width) <= width) return text
   let out = ""
   let used = 0
   for (const char of text) {
@@ -74,7 +76,7 @@ export function fit(row: Row, width: number): Row {
   for (const run of row) {
     if (used >= width) break
     const room = width - used
-    const w = widthOf(run.text)
+    const w = widthOf(run.text, room)
     if (w <= room) {
       out.push(run)
       used += w

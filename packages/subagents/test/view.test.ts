@@ -5,7 +5,7 @@ import type { Change } from "../src/core/model/changes.ts"
 import { applyAll, emptyModel, type Node, type Session, subagentsOf } from "../src/core/model/model.ts"
 import { markdownRows } from "../src/core/view/markdown.ts"
 import { cut, elapsed, fit, rowText, widthOf, wrap } from "../src/core/view/rows.ts"
-import { rowWidth, type ScreenInput, screenRows } from "../src/core/view/screen.ts"
+import { createScreenCache, rowWidth, type ScreenInput, screenRows } from "../src/core/view/screen.ts"
 import { sidebarLines } from "../src/core/view/sidebar.ts"
 import { recorded } from "./fixtures.ts"
 
@@ -442,5 +442,30 @@ describe("calls, as OpenCode draws them", () => {
     const first = rows.findIndex((row) => row.includes("a.ts"))
     expect(rows[first + 1]).toContain("→ Read w/b.ts")
     expect(rows[first + 2]).toContain("→ Read w/c.ts")
+  })
+})
+
+describe("the paint cache", () => {
+  test("a cached paint draws exactly what an uncached one does, through every change", async () => {
+    const { nodes } = await model(1)
+    const session = nodes[0]?.session
+    if (!session) throw new Error("no subagent")
+    const cache = createScreenCache()
+    const call = screenRows(pane(session, nodes)).keys.find((key) => key.startsWith("tool:")) as string
+    for (const state of [
+      {},
+      { top: 0 },
+      { open: new Set([call]) },
+      { selected: call, top: 0 },
+      { thinking: true },
+      { width: 90 },
+      { frame: 7 },
+      {},
+    ]) {
+      const plain = screenRows({ ...pane(session, nodes), ...state })
+      const cached = screenRows({ ...pane(session, nodes), ...state, cache })
+      expect(cached.rows).toEqual(plain.rows)
+      expect(cached.items).toEqual(plain.items)
+    }
   })
 })

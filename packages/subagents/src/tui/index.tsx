@@ -7,7 +7,7 @@ import type { BoxRenderable } from "@opentui/core"
 import { createSignal } from "solid-js"
 import type { Change } from "../core/model/changes.ts"
 import { applyAll, emptyModel, type Node, rootOf, type Session, subagentsOf } from "../core/model/model.ts"
-import { type Screen, screenRows } from "../core/view/screen.ts"
+import { createScreenCache, type Screen, screenRows } from "../core/view/screen.ts"
 import { type SidebarLine, sidebarLines } from "../core/view/sidebar.ts"
 import { createRowPool, type RowPool, solidSurface } from "./render.ts"
 import { createSource } from "./source.ts"
@@ -91,6 +91,8 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
     let panel: BoxRenderable | undefined
     let pool: RowPool | undefined
     let shown: Screen | undefined
+    /** Each item's rows between paints: a scroll or a tick redraws only what changed. */
+    const cache = createScreenCache()
     let disposeKeys: (() => void) | undefined
     const [lines, setLines] = createSignal<readonly SidebarLine[]>([])
 
@@ -113,6 +115,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
     const opened = (): Session | undefined => (surface.open ? model.sessions.get(surface.open) : undefined)
     let block: BoxRenderable | undefined
     let drawnAt = 0
+    let sidebarSaid = ""
     /**
      * The width the sidebar gave the block, once laid out; a guess before that. Guessed, the rows ran
      * past the edge and were clipped: "3 done" drew as "3 d".
@@ -146,7 +149,13 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       const now = Date.now()
       const list = nodes()
       drawnAt = sidebarWidth()
-      setLines(sidebarLines({ nodes: list, width: drawnAt, now, frame, limit: options.sidebarRows ?? 6 }))
+      const next = sidebarLines({ nodes: list, width: drawnAt, now, frame, limit: options.sidebarRows ?? 6 })
+      /** Only when they changed: new rows rebuild every line of the block, and a scroll is many paints. */
+      const said = JSON.stringify(next)
+      if (said !== sidebarSaid) {
+        sidebarSaid = said
+        setLines(next)
+      }
       const session = opened()
       if (backdrop && panel && pool) {
         const show = Boolean(session)
@@ -159,7 +168,9 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
         panel.height = show ? height : 0
         if (session && show) {
           const launcher = session.parentID ? model.sessions.get(session.parentID)?.agent : undefined
+          const started = performance.now()
           const screen = screenRows({
+            cache,
             session,
             nodes: list,
             ...(launcher ? { launcher } : {}),
@@ -181,6 +192,9 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
             surface.top = undefined
           shown = screen
           pool.draw(screen.rows, api.theme.current)
+          const took = performance.now() - started
+          /** A paint past a frame is worth knowing about; the run's size says why. */
+          if (took > 16) log.debug("slow paint", { ms: Math.round(took), entries: session.entries.length })
           /** The prompt's cursor would otherwise blink through the pane, as it did over Review. */
           setTimeout(() => {
             if (surface.open) api.renderer.setCursorPosition(0, 0, false)
