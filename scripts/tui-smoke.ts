@@ -394,8 +394,8 @@ try {
       if (!text.includes(marker)) throw new Error(`${what}:\n${text}`)
     }
     /** The heading's count reaches the sidebar's edge whole: rows drawn wider than it were clipped. */
-    if (!/Subagents +\d+ (running|done|failed)\b/.test(subagents.full))
-      throw new Error(`the sidebar's Subagents heading was clipped:\n${subagents.full}`)
+    if (!/Subagents +\d+ (running|done|failed)\b/.test(subagents.sidebar))
+      throw new Error(`the sidebar's Subagents heading was clipped:\n${subagents.sidebar}`)
     const asked = subagents.removed.includes("Press x again")
     const listed = /[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(subagents.removed)
     if (!asked && listed)
