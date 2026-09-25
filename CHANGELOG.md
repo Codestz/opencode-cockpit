@@ -21,6 +21,16 @@ All notable changes to this project are documented here. The format follows
 - **Shell's full screen used half the window.** A running program kept the 120 columns it was
   started with until you typed into it. It is now sized to the console showing it — opening it, `w`
   between the dialog and full screen, a resized window — once per change.
+- **Reopened conversations showed finished subagents as running, with empty runs.** On OpenCode 1
+  the interface's store has not loaded a subagent's messages yet when Cockpit reads them after a
+  restart; an idle subagent with no history read as one about to start. Their history is now read
+  from OpenCode's server when the store has none, a stored run that went idle counts as finished,
+  and on OpenCode 1 "no status" counts as idle when a quiet run is checked again. Measured on both
+  versions: three subagents, OpenCode closed and reopened — all finished, with their runs.
+- **`x` could "stop" a subagent that had already finished**, telling the main agent about it. Stop
+  now asks OpenCode first; a subagent that is not running is marked finished, and `x` again removes it.
+- **Reopened subagents on OpenCode 2 showed how long ago they ran as their duration** ("done in
+  1m09s" for a 5 s run). Their end is now their last recorded moment.
 - **Doctor listed a warning for every OpenCode 2 event Subagents does not use.** Those are expected
   (a plugin there hears every event in the app) and are now debug lines; a surprising shape inside an
   event it does use is still a warning.

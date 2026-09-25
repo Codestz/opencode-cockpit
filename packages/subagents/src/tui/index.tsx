@@ -616,6 +616,23 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       const session = opened()
       if (!session) return
       if (!busy(session) && session.status !== "waiting") return remove([session.id])
+      /**
+       * Stopping is only for a run OpenCode says is going. One Cockpit had wrong — shown running after a
+       * reopen — was "stopped", and the main agent was told about work that had long ended.
+       */
+      const said = feed.check(session.id)
+      if (
+        said.some(
+          (change) => change.type === "status" && change.status !== "busy" && change.status !== "waiting",
+        )
+      ) {
+        applyAll(model, said)
+        log.info("stop skipped: not running", { id: session.id })
+        return set({
+          notice: `${session.agent} had already finished — nothing to stop. x again removes it.`,
+          stopping: undefined,
+        })
+      }
       if (surface.stopping !== session.id) {
         surface.stopping = session.id
         surface.notice = `Press x again to stop ${session.agent}.`

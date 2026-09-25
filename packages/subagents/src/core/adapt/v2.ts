@@ -308,7 +308,9 @@ export function createV2Translator(unknown: (what: string, detail?: Json) => voi
           counted = true
         }
       }
-      if (counted) out.push({ type: "usage", id, tokens, cost, at })
+      /** Stamped with the run's own last moment: "now" made a reopened run look like it ended now. */
+      const latest = out.reduce((most, change) => Math.max(most, change.at), 0) || at
+      if (counted) out.push({ type: "usage", id, tokens, cost, at: latest })
       return out
     },
     session(info, at = Date.now()) {

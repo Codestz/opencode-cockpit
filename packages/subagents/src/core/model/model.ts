@@ -106,8 +106,8 @@ function applyStatus(s: Session, change: Extract<Change, { type: "status" }>): v
     if (change.error) s.error = change.error
     settle(s, change.at)
   } else if (s.status !== "failed") {
-    /** Idle before it ever worked is a session that has not started, not one that finished. */
-    s.status = s.status === "starting" && s.entries.length === 0 ? "starting" : "done"
+    /** Idle before it ever worked is a session that has not started, not one that finished — live. */
+    s.status = s.status === "starting" && s.entries.length === 0 && !change.settled ? "starting" : "done"
     s.ended = change.at
     settle(s, change.at)
   }

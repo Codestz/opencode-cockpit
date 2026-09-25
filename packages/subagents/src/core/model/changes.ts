@@ -30,7 +30,19 @@ export type Change =
   /** It finished one step — one model turn, with the calls it made. */
   | { type: "step"; id: string; at: number }
   /** Whether it is working. `waiting` is a permission or a question it is held on. */
-  | { type: "status"; id: string; status: "busy" | "idle" | "failed" | "waiting"; error?: string; at: number }
+  | {
+      type: "status"
+      id: string
+      status: "busy" | "idle" | "failed" | "waiting"
+      error?: string
+      /**
+       * Said about a stored run — loaded, or checked after it went quiet — rather than live. Idle then
+       * means finished even with nothing recorded: a subagent whose history did not load is not one
+       * about to start, and read that way it showed as running for good.
+       */
+      settled?: boolean
+      at: number
+    }
   /** Something said *to* it: the first is the task it was given, the rest are messages. */
   | { type: "prompt"; id: string; key: string; text: string; at: number }
   /** Its thinking, whole (`text`) or as it streams (`delta`). `key` names one block of it. */
