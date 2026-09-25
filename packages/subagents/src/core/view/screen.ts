@@ -41,6 +41,10 @@ export interface ScreenInput {
   top?: number
   /** The item under the cursor. */
   selected?: string
+  /** Calls whose output is shown whole rather than its first lines (`a`). */
+  whole?: ReadonlySet<string>
+  /** The cursor just moved: bring the selected item into view. Scrolling does not. */
+  reveal?: boolean
   /** Items opened by hand; running calls are open unless folded by hand (`closed`). */
   open: ReadonlySet<string>
   closed: ReadonlySet<string>
@@ -158,8 +162,14 @@ function labelOf(name: string): { icon: string; title: string } {
 }
 
 /** Lines of output a folded box shows, and the most an open one will. */
+/**
+ * Lines of output a box shows: folded, open, and shown whole (`a`). An open read of a 2,000-line
+ * file was 400 rows to scroll through; open now shows enough to see what came back, and all of it is
+ * one more key away — capped even then, so one call cannot take over the pane.
+ */
 const PREVIEW = 10
-const MOST = 400
+const OPEN = 60
+const MOST = 2000
 
 function inlineLines(call: Tool, width: number, now: number, frame: number): Line[] {
   const key = itemKey(call)
@@ -196,7 +206,14 @@ function inlineLines(call: Tool, width: number, now: number, frame: number): Lin
  * A call as a box: a coloured edge, its own background, the command or the arguments, then the
  * output — ten lines folded, the rest a click away.
  */
-function boxLines(call: Tool, width: number, now: number, frame: number, isOpen: boolean): Line[] {
+function boxLines(
+  call: Tool,
+  width: number,
+  now: number,
+  frame: number,
+  isOpen: boolean,
+  whole: boolean,
+): Line[] {
   const key = itemKey(call)
   const live = call.state === "running" || call.state === "pending"
   const failed = call.state === "failed"
@@ -266,16 +283,33 @@ function boxLines(call: Tool, width: number, now: number, frame: number, isOpen:
 
   const output = (call.error ?? call.output ?? "").replace(/\s+$/, "")
   const all = output ? output.split("\n") : []
-  const limit = isOpen ? MOST : PREVIEW
+  const limit = isOpen ? (whole ? MOST : OPEN) : PREVIEW
   if (all.length > 0) {
     lines.push(blank())
     const shown = live ? all.slice(-limit) : all.slice(0, limit)
-    for (const text of shown) lines.push(row([{ text, tone: call.error ? "error" : "text" }]))
-    if (all.length > limit)
-      lines.push(row([{ text: live ? `… ${all.length - limit} lines above` : "…", tone: "muted" }]))
+    /** Cut to the pane before anything measures it: a minified file is one enormous line. */
+    for (const text of shown)
+      lines.push(row([{ text: text.slice(0, width * 2), tone: call.error ? "error" : "text" }]))
+    const more = all.length - limit
+    if (more > 0)
+      lines.push(
+        row([
+          {
+            text: live
+              ? `… ${more.toLocaleString("en")} lines above`
+              : `… ${more.toLocaleString("en")} more line${more === 1 ? "" : "s"}`,
+            tone: "muted",
+          },
+        ]),
+      )
   }
   if (all.length > PREVIEW && !live) {
-    lines.push(blank(), row([{ text: isOpen ? "Click to collapse" : "Click to expand", tone: "muted" }]))
+    const hint = !isOpen
+      ? "Click to expand"
+      : all.length > OPEN && !whole
+        ? "Click to collapse · [a] show all"
+        : "Click to collapse"
+    lines.push(blank(), row([{ text: hint, tone: "muted" }]))
   }
   lines.push(blank())
   return lines
@@ -284,9 +318,16 @@ function boxLines(call: Tool, width: number, now: number, frame: number, isOpen:
 /** Whether a call draws as a box, given whether it is open. */
 const boxed = (call: Tool, isOpen: boolean): boolean => BOXED.has(call.name) || isOpen
 
-function toolLines(call: Tool, width: number, now: number, frame: number, isOpen: boolean): Line[] {
+function toolLines(
+  call: Tool,
+  width: number,
+  now: number,
+  frame: number,
+  isOpen: boolean,
+  whole = false,
+): Line[] {
   return boxed(call, isOpen)
-    ? boxLines(call, width, now, frame, isOpen)
+    ? boxLines(call, width, now, frame, isOpen, whole)
     : inlineLines(call, width, now, frame)
 }
 
@@ -421,7 +462,8 @@ function bodyLines(input: ScreenInput, width: number, opened: string[]): Line[] 
         /** A running call's spinner and clock change every tick; a finished one never again. */
         const clock = live ? `|${frame}|${Math.floor((now - entry.at) / 1000)}` : ""
         const sig = `${width}|${isOpen}|${entry.state}|${entry.output.length}|${entry.error?.length}|${entry.summary}|${entry.ended}|${Object.keys(entry.input).length}${clock}`
-        lines.push(...drawn(key, sig, () => toolLines(entry, width, now, frame, isOpen)))
+        const whole = isOpen && Boolean(input.whole?.has(key))
+        lines.push(...drawn(key, `${sig}|${whole}`, () => toolLines(entry, width, now, frame, isOpen, whole)))
         last = { kind: "tool", open: box }
         return
       }
@@ -660,8 +702,11 @@ export function screenRows(input: ScreenInput): Screen {
     : [...new Set(body.map((line) => line.item).filter((item): item is string => Boolean(item)))]
   const most = Math.max(0, body.length - room)
   let first = input.top === undefined ? most : Math.min(Math.max(0, input.top), most)
-  /** Keep the selected item in view when the cursor moved onto it. */
-  if (input.selected && input.top !== undefined) {
+  /**
+   * The cursor moved onto an item: bring it into view. Only then — pinned on every paint, a selected
+   * item longer than the pane snapped back to its first line whenever you scrolled into it.
+   */
+  if (input.reveal && input.selected && input.top !== undefined) {
     const at = body.findIndex((line) => line.item === input.selected)
     if (at >= 0 && at < first) first = at
     if (at >= first + room) first = Math.min(most, at - room + 3)

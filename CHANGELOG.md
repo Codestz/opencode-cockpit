@@ -28,6 +28,9 @@ All notable changes to this project are documented here. The format follows
   same order as OpenCode 1 (it drew slots in the order they registered), and the statusline's and
   Shell's places at the foot of the window no longer move with their sidebar place.
 - **Move a subagent to the background from its pane** (`b`), as OpenCode's `ctrl+b` does.
+- **Big outputs stay easy to move through.** A folded call shows 10 lines of its output, an open
+  one 60, and `a` shows it whole (up to 2,000). Scrolling inside a selected call no longer snaps
+  back to its first line.
 - **Stopping a subagent tells the main agent why**, so it reports the stop instead of relaunching it.
 
 ### Fixed

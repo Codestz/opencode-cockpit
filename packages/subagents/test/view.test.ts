@@ -469,3 +469,61 @@ describe("the paint cache", () => {
     }
   })
 })
+
+describe("a big output", () => {
+  const at = 4_000_000
+  const file = Array.from({ length: 2500 }, (_, i) => `row ${i + 1}`).join("\n")
+  const m = applyAll(emptyModel(), [
+    { type: "session", id: "c", parentID: "p", agent: "general", title: "Read", at },
+    {
+      type: "tool",
+      id: "c",
+      call: "r",
+      name: "read",
+      state: "completed",
+      input: { filePath: "/w/big.ts" },
+      output: file,
+      at,
+    },
+    {
+      type: "tool",
+      id: "c",
+      call: "s",
+      name: "read",
+      state: "completed",
+      input: { filePath: "/w/small.ts" },
+      at: at + 1,
+    },
+    { type: "status", id: "c", status: "idle", at: at + 2 },
+  ])
+  const nodes = subagentsOf(m, "p")
+  const session = nodes[0]?.session as Session
+  const base = {
+    ...pane(session, nodes),
+    width: 90,
+    height: 30,
+    selected: "tool:r",
+    open: new Set(["tool:r"]),
+  }
+
+  test("open shows its first sixty lines and offers the rest; whole shows up to two thousand", () => {
+    const open = screenRows({ ...base, height: 200, top: 0 })
+      .rows.map(rowText)
+      .join("\n")
+    expect(open).toContain("row 60")
+    expect(open).not.toContain("row 61 ")
+    expect(open).toContain("… 2,440 more lines")
+    expect(open).toContain("[a] show all")
+    const whole = screenRows({ ...base, height: 2200, top: 0, whole: new Set(["tool:r"]) })
+    const text = whole.rows.map(rowText).join("\n")
+    expect(text).toContain("row 2000")
+    expect(text).toContain("… 500 more lines")
+  })
+
+  test("scrolling inside the selected call stays where you scrolled", () => {
+    const screen = screenRows({ ...base, top: 40 })
+    expect(screen.top).toBe(40)
+    const revealed = screenRows({ ...base, top: 40, reveal: true })
+    expect(revealed.top).toBeLessThan(40)
+  })
+})

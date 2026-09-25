@@ -44,6 +44,10 @@ interface Surface {
   /** A message being typed, at the foot of the pane. */
   draft?: string
   notice?: string
+  /** Calls shown whole rather than their first lines. */
+  whole: Set<string>
+  /** The cursor just moved: the next paint brings it into view, and only that one. */
+  reveal?: boolean
   /** The subagent a first `x` asked to stop; a second `x` in time stops it. */
   stopping?: string
 }
@@ -81,6 +85,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
     const surface: Surface = {
       opened: new Set(),
       closed: new Set(),
+      whole: new Set(),
       thinking: api.kv.get(THINKING_KEY, true),
       details: false,
       full: api.kv.get(FULL_KEY, false),
@@ -184,10 +189,15 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
             closed: surface.closed,
             thinking: surface.thinking,
             details: surface.details,
+            whole: surface.whole,
+            reveal: surface.reveal === true,
             ...(surface.draft !== undefined ? { input: { draft: surface.draft, busy: busy(session) } } : {}),
             ...(surface.notice ? { notice: surface.notice } : {}),
           })
           /** Scrolled back to the end: follow the run again. */
+          /** Where the reveal left the view is where it stays. */
+          if (surface.reveal && surface.top !== undefined) surface.top = screen.top
+          surface.reveal = false
           if (surface.top !== undefined && screen.top >= screen.most && !surface.selected)
             surface.top = undefined
           shown = screen
@@ -353,6 +363,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       surface.selected = list[next]
       /** Pinned where it is, so the pane scrolls to the cursor rather than the run. */
       surface.top = shown?.top
+      surface.reveal = true
       draw()
     }
 
@@ -367,9 +378,28 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
         surface.closed.delete(key)
         surface.opened.add(key)
       }
+      if (isOpen) surface.whole.delete(key)
       surface.selected = key
       surface.top = shown?.top
+      /** Folding a long call you had scrolled into brings its first line back into view. */
+      surface.reveal = true
       log.debug("toggle", { key, open: !isOpen })
+      draw()
+    }
+
+    /** `a`: the selected call's whole output, or back to its first lines. */
+    const showAll = () => {
+      const key = surface.selected
+      if (!key?.startsWith("tool:")) return
+      const all = !surface.whole.has(key)
+      if (all) {
+        surface.whole.add(key)
+        surface.closed.delete(key)
+        surface.opened.add(key)
+      } else surface.whole.delete(key)
+      surface.top = shown?.top
+      surface.reveal = !all
+      log.debug("show all", { key, all })
       draw()
     }
 
@@ -586,6 +616,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
           run: () => clearFinished(),
         },
         { name: "cockpit.subagents.background", title: "Move to the background", run: () => toBackground() },
+        { name: "cockpit.subagents.all", title: "Show a call's whole output", run: () => showAll() },
         { name: "cockpit.subagents.down", title: "Next item", run: () => select(1) },
         { name: "cockpit.subagents.up", title: "Previous item", run: () => select(-1) },
         { name: "cockpit.subagents.toggle", title: "Open or fold", run: () => toggle() },
@@ -629,6 +660,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
         { key: "x", cmd: "cockpit.subagents.stop" },
         { key: "shift+x", cmd: "cockpit.subagents.clear" },
         { key: "b", cmd: "cockpit.subagents.background" },
+        { key: "a", cmd: "cockpit.subagents.all" },
         { key: "j,down", cmd: "cockpit.subagents.down" },
         { key: "k,up", cmd: "cockpit.subagents.up" },
         { key: "return,space", cmd: "cockpit.subagents.toggle" },

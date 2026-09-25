@@ -55,6 +55,7 @@ follows the run as it grows; scroll or move the cursor and it stays where you pu
 | `j` `k` | Move the cursor through the run's items |
 | `enter` · a click | Open or fold the item under it |
 | `e` | Open, or fold, every call |
+| `a` | A call's whole output — open shows its first 60 lines, whole up to 2,000 |
 | `t` | Show or hide thinking — shown by default, and remembered |
 | `m` | Write it a message, at the foot of the pane |
 | `x` | Stop it (press twice) — or, once it has finished, remove it from the list |
