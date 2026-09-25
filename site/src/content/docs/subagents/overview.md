@@ -1,11 +1,11 @@
 ---
 title: Subagents
-description: Every subagent in the sidebar with what it is doing now, any of them full screen, and a message away.
+description: Every subagent in the sidebar with what it is doing now, its whole run a click away, and follow-ups that keep its context.
 ---
 
 When the main agent hands work to a subagent, OpenCode shows one line in the chat — "General
-Subagent — Fix the login test" — and nothing about what it is doing. Subagents makes them visible
-and reachable, on OpenCode 1 and 2 alike.
+Subagent — Fix the login test" — and nothing about what it is doing. Subagents makes them visible,
+reachable and reusable, on OpenCode 1 and 2 alike.
 
 ```sh
 opencode plugin @opencode-cockpit/subagents@0.6.0 --global --force     # OpenCode 1
@@ -17,7 +17,7 @@ Or through the bundle, where it is on by default.
 ## In the sidebar
 
 A **Subagents** block: every subagent of the conversation you are in, its type and task, and under
-it what it is doing now.
+it what it is doing now — with how many calls and how long on the right.
 
 ```
 Subagents                  2 running
@@ -26,29 +26,35 @@ Subagents                  2 running
 ○ general Fix the failing login test
   └ waiting for permis… 3 calls · 2s
 ● general Update README for the new…
-  └ done               3 calls · 28s
+  └ done · 2 rounds    3 calls · 28s
 ```
 
-A subagent that launched its own has them indented under it. Working subagents are always shown;
-finished ones fold into a count past `sidebarRows`. No subagents, no block.
+A spinner is working, `○` waits on a permission, a green `●` finished, an amber `cancelled` was
+stopped. A subagent that launched its own has them indented under it. Working subagents are always
+shown; finished ones fold into a count past `sidebarRows`, and leave after `hideFinishedAfter`
+minutes if you set it. No subagents, no block.
+
+The sidebar reads statusline, subagents, shells, top to bottom — `"sidebar"` in
+[Cockpit's config](/configuration/) reorders it.
 
 ## The pane
 
-Click a subagent — or press `ctrl+x w`, or run `/subagents` for the one working now — and it opens
-in a pane on the right — half the window, or all of it with `w`. A click outside it closes it.
-Under its name: the model, whether it runs in the background, who launched it, and its calls,
-steps and tokens so far. Then:
+Click a subagent — or press `ctrl+x w`, or run `/subagents` for the one working now — and its run
+opens in a pane on the right: half the window, or all of it with `w`. A click outside closes it.
 
-- **the task** the main agent gave it, at the top;
-- **its thinking**, as it streams;
-- **every tool call** — what it was about, and how long it took; the running one streams its
-  output underneath;
-- **its answer**, as it is written.
+Under its name: the model, whether it runs in the background, who launched it, and its calls, steps
+and tokens so far. Then the run, the way OpenCode draws its own:
 
-Each call is one line — name, target, its result in a few words (`9 matches`, `exit 1`) and its
-time when it took one — and opens to its arguments under a `│` gutter, then its output; the running
-call is open while it streams. Thinking folds to one line. The answer is drawn as markdown. The pane
-follows the run as it grows; scroll or move the cursor and it stays where you put it until `G`.
+- **the task** the main agent gave it, as a card at the top;
+- **its thinking** — "Thought · 1.2s" and the words, folded to one line with `t`;
+- **a shell command or a file change** as a box: the command, then its output — ten lines folded,
+  sixty open, all of it with `a` — and "Click to expand" when there is more; red when it failed;
+- **reads, searches and fetches** as one quiet line each — `→ Read src/auth/session.ts`,
+  `✱ Grep "session"  9 matches` — that open into a box of their arguments and output;
+- **its answer**, drawn as markdown as it is written.
+
+Every item is selectable: `j` `k` move the cursor, `enter` or a click opens or folds. The pane follows
+the run as it grows; scroll or move the cursor and it stays where you put it until `G`.
 
 | Key | |
 | --- | --- |
@@ -57,7 +63,7 @@ follows the run as it grows; scroll or move the cursor and it stays where you pu
 | `e` | Open, or fold, every call |
 | `a` | A call's whole output — open shows its first 60 lines, whole up to 2,000 |
 | `t` | Show or hide thinking — shown by default, and remembered |
-| `m` | Write it a message, at the foot of the pane |
+| `m` | Write it a message, at the foot of the pane (pasting works) |
 | `x` | Stop it (press twice) — or, once it has finished, remove it from the list |
 | `X` | Remove every finished subagent from the list |
 | `b` | Move it to the background, so the main agent carries on (OpenCode's own `ctrl+b`) |
@@ -67,31 +73,39 @@ follows the run as it grows; scroll or move the cursor and it stays where you pu
 | `d` `u` · `g` `G` | Page down · up · to the start · follow the run |
 | `esc` `q` | Back to the conversation |
 
+## Follow-ups keep their context
+
+A subagent that already read the code does a follow-up in seconds; a new one starts from nothing.
+Cockpit asks the main agent to continue the subagent that did the work — OpenCode 1's `task_id`,
+OpenCode 2's `sessionID` — rather than launch a new one, and gives it a `subagents_list` tool: each
+subagent's id, task, state and last answer, for when the id has scrolled out of its context. The list
+says when a subagent was cancelled, and when it ended on a progress note rather than an answer.
+
+So you just ask, in the main conversation: *"the review missed the refresh flow — get that checked
+too."* Each new round shows in the pane under a "Round 2" rule, with who started it — "build
+continued it", or "You" — and the sidebar counts rounds.
+
 ## Messaging a subagent
 
-Press `m` and write at the foot of the pane; `enter` sends, `esc` lets it go. Your message joins the
-run as a card, under a "Round 2" rule. Measured on both OpenCodes:
+Press `m` and write at the foot of the pane; `enter` sends, `esc` lets it go. Measured on both
+OpenCodes:
 
 - **While it works**, it picks the message up in its current run, acts on it, and says so in its
   answer — which the main agent receives.
 - **Once it has finished**, it wakes up and answers you. Cockpit then adds what you asked and what it
-  answered to the main conversation, without starting a turn there — OpenCode 1 shows it as a message,
-  OpenCode 2 as a "Subagent exchange" line — so the main agent knows the next time you talk to it.
+  answered to the main conversation *without starting a turn there* — OpenCode 1 shows it as a
+  message, OpenCode 2 as a "Subagent exchange" line — so the main agent knows the next time you talk
+  to it.
+- **If it finishes without reading it** — sent in the last moments of a run — your message comes back
+  to the field, to send again.
 
-## Follow-ups keep their context
+## Stopping and removing
 
-Ask the main agent to fix or extend what a subagent did, and it is asked to continue that same
-subagent (OpenCode 1's `task_id`, OpenCode 2's `sessionID`) rather than start a new one — it keeps
-everything it already read. `subagents_list` gives the main agent each subagent's id, task and last
-answer, for when the id has scrolled out of its context. A round the main agent started says
-"build continued it" in the pane, and the sidebar counts rounds.
-
-## Moving one to the background
-
-A subagent launched in the foreground blocks the conversation until it finishes. `b` in the pane —
-or OpenCode's own `ctrl+b` in the conversation — moves it to the background: the main agent carries
-on and hears when it finishes. It moves every subagent that conversation is waiting on. OpenCode 2
-does this always; OpenCode 1 only when started with `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`.
+`x` twice stops a working subagent, and first tells the main agent you stopped it on purpose — told
+nothing, it read the stop as a failure and launched the subagent again. `x` on a finished subagent
+removes it from the list, `X` removes every finished one; the sessions stay in OpenCode, and one that
+works again comes back. "Clear finished subagents" and "Show removed subagents again" are in the
+command palette.
 
 ## Background subagents
 
@@ -108,8 +122,9 @@ main agent to do that for independent work, whenever its tool offers it:
 export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true   # ~/.zshrc, then start OpenCode 1
 ```
 
-The main agent can also follow up with a subagent it already launched — continuing the same one
-instead of starting a new one — and is asked to.
+One launched in the foreground can still be moved: `b` in the pane — or OpenCode's own `ctrl+b` in the
+conversation — and the main agent carries on. It moves every subagent that conversation is waiting
+on, under the same condition on OpenCode 1.
 
 ## Settings
 
@@ -118,12 +133,19 @@ In the bundle's entry (`"subagents": { … }`) or this package's own:
 | Setting | Default | |
 | --- | --- | --- |
 | `sidebarRows` | `6` | Subagents shown before the rest fold into a count, working ones first |
-| `hideFinishedAfter` | unset | Minutes a finished subagent stays in the sidebar; unset keeps it for the conversation. `X` clears them by hand |
+| `hideFinishedAfter` | unset | Minutes a finished subagent stays in the sidebar; unset keeps it for the conversation |
 | `sidebarOrder` | `150` | Where the block sits among sidebar blocks; lower draws first |
-| `keybinds` | `{ "cockpit.subagents.open": "<leader>w" }` | The key that opens one full screen |
-| `guidance` | `true` | Ask the agent to use background subagents (agent side) |
+| `keybinds` | `{ "cockpit.subagents.open": "<leader>w" }` | The key that opens the one working now |
+| `guidance` | `true` | Tell the main agent about background subagents and follow-ups (agent side) |
 
 Switch the whole bay off in the bundle with `{ "features": { "subagents": false } }`.
+
+## Known limits
+
+- On OpenCode 2, `subagents_list` knows the subagents started since OpenCode did — a plugin there
+  cannot list sessions. On OpenCode 1 it reads older ones too, with their history.
+- Whether a round was yours or the main agent's is told apart by its text: the same words sent by
+  both read as yours.
 
 ## See it without OpenCode
 
@@ -131,4 +153,4 @@ Switch the whole bay off in the bundle with `{ "features": { "subagents": false 
 bunx @opencode-cockpit/subagents preview
 ```
 
-Draws the sidebar block and the full screen from a sample run, in your terminal.
+Draws the sidebar block and the pane from a sample run, in your terminal.

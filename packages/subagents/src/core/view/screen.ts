@@ -630,7 +630,7 @@ function footer(input: ScreenInput, width: number): Row[] {
   if (input.input) {
     const hint = input.input.busy
       ? "it picks this up in its current run"
-      : "it will answer — the main agent is not told"
+      : "it answers, and the main agent hears it"
     return [
       fit(
         [
@@ -679,7 +679,7 @@ function footer(input: ScreenInput, width: number): Row[] {
   ]
   const note =
     input.notice ??
-    (session.status === "done" ? "Finished — it will answer a message, but the main agent is not told." : "")
+    (session.status === "done" ? "Finished — message it; the main agent hears the answer." : "")
   return [fit(keys, width), fit([{ text: `${PAD}${note}`, tone: "muted" }], width)]
 }
 

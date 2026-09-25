@@ -245,27 +245,39 @@ export const bays = {
     {
       id: "subagents",
       name: "Subagents",
-      tagline: "What your subagents are doing, while they do it",
+      tagline: "What your subagents are doing — and follow-ups that keep their context",
       state: "live",
       status: "Available",
-      gains: { agent: "Background subagents, so the conversation keeps going", you: "Every subagent visible, and one message away" },
+      gains: {
+        agent: "Follow-ups continue the subagent that already read the code",
+        you: "Every subagent visible, and one message away",
+      },
       blurb:
         "When the main agent hands work to a subagent you get one line in the chat and nothing about what " +
-        "it is doing. Subagents puts each one in the sidebar with what it is doing right now, opens any of " +
-        "them full screen — its thinking, every tool call, the answer as it is written — and lets you " +
-        "message it directly.",
+        "it is doing. Subagents puts each one in the sidebar with what it is doing right now, and a click " +
+        "opens its whole run — thinking, every command and its output, the answer as it is written. Ask " +
+        "for a follow-up and the main agent continues that subagent instead of starting from nothing.",
       points: [
         "Every subagent in the sidebar, and what it is doing now",
-        "Click one: its thinking, tools and answer, live",
-        "Nested subagents under the one that launched them",
-        "Message a subagent while it works",
-        "Background subagents: the conversation keeps going",
+        "Click one: its run, drawn the way OpenCode draws its own",
+        "Follow-ups continue the same subagent, with its context",
+        "Message one: the main agent learns what it answered",
+        "Stop one, or move a blocking one to the background",
         "The same on OpenCode 1 and 2",
       ],
-      foot: ["sidebar + full screen", "ctrl+x w · /subagents", "@opencode-cockpit/subagents"],
+      foot: ["sidebar + pane", "ctrl+x w · /subagents", "@opencode-cockpit/subagents"],
       docs: "/subagents/overview/",
-      /** A recording follows once it has been used in anger; until then the page shows no media. */
-      media: { kind: "none" as const },
+      media: {
+        kind: "casts" as const,
+        clips: [
+          {
+            cast: "subagents",
+            label: "A subagent, watched",
+            hint: "sidebar → its run → a question",
+            caption: "tapes/subagents.ts · a real subagent on OpenCode 1 — only the silences are capped",
+          },
+        ],
+      },
     },
   ],
 }
