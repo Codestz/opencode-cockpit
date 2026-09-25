@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { dualTui, fromV1, fromV2, layerToV2, themeFromV2, type V2Context } from "../src/host.ts"
+import { dualTui, fromV1, fromV2, layerToV2, onPaste, themeFromV2, type V2Context } from "../src/host.ts"
 
 /**
  * The v2 half of the host, against a fake context shaped like OpenCode 2.0.15's (docs/opencode/v2.md).
@@ -270,6 +270,25 @@ describe("the v1 host's dialogs", () => {
     expect(await choice).toBe("sh_a")
   })
 
+  /**
+   * OpenCode 1 renders a prompt's description inside a box. A function returning a bare string put
+   * text straight in it, and OpenCode 1 stopped the session ("Orphan text error"). Plain text has to
+   * arrive as an element.
+   */
+  test("a plain description reaches OpenCode 1 as an element, never as bare text", () => {
+    const { host, seen } = fakeV1()
+    void host.ui.prompt({ title: "Message explore", description: "It has finished." })
+    const description = (seen.prompt as Record<string, unknown> | undefined)?.description
+    expect(typeof description).toBe("function")
+    let drawn: unknown
+    try {
+      drawn = (description as () => unknown)()
+    } catch {
+      // Drawing an element needs a renderer; what matters is that it is not a string.
+    }
+    expect(typeof drawn).not.toBe("string")
+  })
+
   test("closing without answering is a cancel", async () => {
     const { host, seen } = fakeV1()
     const answer = host.ui.prompt({ title: "Name" })
@@ -316,4 +335,32 @@ describe("v2's default theme, read under v1's names, is v1's default theme", asy
     if (nearest.has(name)) continue
     test(name, () => expect(current[name]?.hex).toBe(hex))
   }
+})
+
+describe("onPaste", () => {
+  test("a paste reaches the field that takes it, and nobody after it", () => {
+    const listeners: ((event: unknown) => void)[] = []
+    const renderer = {
+      keyInput: {
+        prependListener: (_: string, fn: (event: unknown) => void) => listeners.unshift(fn),
+        off: (_: string, fn: (event: unknown) => void) => listeners.splice(listeners.indexOf(fn), 1),
+      },
+    }
+    const got: string[] = []
+    let stopped = false
+    const off = onPaste({ renderer } as never, (text) => {
+      got.push(text)
+      return true
+    })
+    listeners[0]?.({
+      bytes: new TextEncoder().encode("pasted text"),
+      stopPropagation: () => {
+        stopped = true
+      },
+    })
+    expect(got).toEqual(["pasted text"])
+    expect(stopped).toBe(true)
+    off()
+    expect(listeners).toHaveLength(0)
+  })
 })

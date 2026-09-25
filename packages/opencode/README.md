@@ -25,7 +25,10 @@ ships.*
 | Feature | What your agent gains | Package |
 |---|---|---|
 | **Shell** | Background terminals it starts, waits on, reads and types into — dev servers, watchers, test suites, REPLs | [`@opencode-cockpit/shell`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/shell) |
-| **Agents** *(next)* | A live, keyboard-first view of every subagent, without leaving your chat | `@opencode-cockpit/agents` |
+| **Review** | A pull request in the terminal: your comments on the lines, which it reads, answers and resolves | [`@opencode-cockpit/review`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/review) |
+| **Statusline** | — (for you: what the session is costing, under the prompt or in the sidebar) | [`@opencode-cockpit/status`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/status) |
+| **Updater** | — (for you: every plugin, what it really runs, and the update) | [`@opencode-cockpit/updater`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/updater) |
+| **Subagents** | Every subagent's run in the sidebar and a pane; follow-ups continue the subagent that did the work; message, stop or background one | [`@opencode-cockpit/subagents`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/subagents) |
 
 ## Shell, by example
 
@@ -211,14 +214,14 @@ Each shell's output feeds three views at once: a normalized **log** for the agen
 |---|---|
 | [`opencode-cockpit`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/opencode) | All features in one plugin |
 | [`@opencode-cockpit/shell`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/shell) | Shell feature |
+| [`@opencode-cockpit/subagents`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/subagents) | Subagents feature |
 | [`@opencode-cockpit/daemon`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/daemon) | `cockpitd`, the shared process host |
 | [`@opencode-cockpit/client`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/client) | Typed, auto-spawning client and plugin helpers |
 | [`@opencode-cockpit/protocol`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/protocol) | Wire contracts |
 
 ## Roadmap
 
-- **Agents** — live subagent tree with a peek overlay.
-- **Doctor** — one command that checks your setup and tells you how to fix it.
+- **Review and the console in OpenCode 2's own panel** — its focus, width and full-screen toggle.
 - Shell groups in the sidebar, if the five-row cap ever stops being enough.
 
 ## Contributing

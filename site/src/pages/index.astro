@@ -13,7 +13,7 @@ import Closing from "../components/landing/Closing.astro"
 ---
 <Base
   title="Cockpit — instruments for OpenCode"
-  description="Instruments for OpenCode: background terminals your agent starts and waits on, a pull request in the terminal, a statusline that tells you what the session is costing, and an updater that shows what every plugin is really running. One daemon, one config, a switch per bay."
+  description="Instruments for OpenCode: background terminals your agent starts and waits on, a pull request in the terminal, a statusline that tells you what the session is costing, an updater that shows what every plugin is really running, and your subagents made visible. One daemon, one config, a switch per bay."
 >
   <Nav />
   <main>
@@ -30,6 +30,7 @@ import Closing from "../components/landing/Closing.astro"
     <Compare />
     <Bay id="status" number="04" />
     <Bay id="updater" number="05" />
+    <Bay id="subagents" number="06" />
     <Platform />
     <Next />
     <Install />

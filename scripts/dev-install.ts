@@ -12,8 +12,8 @@
  * users. Run again after each build; the path stays the same, so configs need setting once.
  */
 
-import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync } from "node:fs"
-import { homedir, tmpdir } from "node:os"
+import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs"
+import { homedir } from "node:os"
 import { join } from "node:path"
 import { FEATURES } from "../packages/opencode/src/features.ts"
 
@@ -25,7 +25,11 @@ const target = process.env.COCKPIT_DEV_DIR ?? join(homedir(), ".cockpit-dev")
  * and fail with `Cannot find package '@opencode-cockpit/client'`.
  */
 const next = `${target}.next`
-const tarballs = mkdtempSync(join(tmpdir(), "cockpit-dev-"))
+/**
+ * Inside the install, and named relatively in its package.json: the directory is renamed into place,
+ * and absolute paths into a temp directory left a package.json nobody could `npm install` again.
+ */
+const tarballs = join(next, "tarballs")
 
 const run = (cmd: string[], cwd: string) => {
   const result = Bun.spawnSync(cmd, { cwd, stdout: "pipe", stderr: "pipe" })
@@ -33,7 +37,7 @@ const run = (cmd: string[], cwd: string) => {
 }
 
 rmSync(next, { recursive: true, force: true })
-mkdirSync(next, { recursive: true })
+mkdirSync(tarballs, { recursive: true })
 const packages = ["protocol", "daemon", "client", "opencode", ...FEATURES]
 for (const dir of packages) run(["bun", "pm", "pack", "--destination", tarballs], join(root, "packages", dir))
 
@@ -41,7 +45,7 @@ const names = [...new Bun.Glob("*.tgz").scanSync(tarballs)]
 /** The bundle's tarball is `opencode-cockpit-<version>`; every scoped one has its name after the dash. */
 const tarball = (dir: string) => {
   const pattern = dir === "opencode" ? /^opencode-cockpit-\d/ : new RegExp(`^opencode-cockpit-${dir}-\\d`)
-  return `file:${join(tarballs, names.find((name) => pattern.test(name)) as string)}`
+  return `file:./tarballs/${names.find((name) => pattern.test(name)) as string}`
 }
 const scoped = (dir: string) => (dir === "opencode" ? "opencode-cockpit" : `@opencode-cockpit/${dir}`)
 
@@ -60,7 +64,6 @@ rmSync(old, { recursive: true, force: true })
 if (existsSync(target)) renameSync(target, old)
 renameSync(next, target)
 rmSync(old, { recursive: true, force: true })
-rmSync(tarballs, { recursive: true, force: true })
 
 const bundle = join(target, "node_modules", "opencode-cockpit")
 console.log(`installed into ${target}\n\nPoint both OpenCode versions at:\n  ${bundle}\n`)

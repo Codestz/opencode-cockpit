@@ -177,13 +177,14 @@ or per line, or set your own per segment with `"icon": "»"`.
 ## sidebarOrder
 
 Where the line sits among the other bays in the sidebar. Lower draws first; the statusline defaults
-to 200 and Shell's list to 150, so the shells are above it.
+to 140, Subagents to 150 and Shell's list to 170, so the line is on top.
 
 ```json title="~/.config/opencode-cockpit/config.json"
 {
-  "statusline": { "surface": "sidebar", "sidebarOrder": 100 }
+  "statusline": { "surface": "sidebar", "sidebarOrder": 180 }
 }
 ```
 
-That puts the line above the shells. It has no effect on the bottom surface, where there is nothing
+That puts the line under the shells. `"sidebar": ["shell", "subagents", "status"]` at the top of the
+same file orders every bay at once. It has no effect on the bottom surface, where there is nothing
 to share the row with.

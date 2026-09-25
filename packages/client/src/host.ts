@@ -14,6 +14,7 @@
 import type { TuiDialogSelectOption, TuiPluginApi, TuiThemeCurrent } from "@opencode-ai/plugin/tui"
 import type { CliRenderer, KeyEvent } from "@opentui/core"
 import { createComponent, createRoot, getOwner, type JSX, type Owner, onCleanup } from "solid-js"
+import { textElement } from "./elements.tsx"
 import { cockpitVersion, createLog, type Log, silentLog } from "./log.ts"
 
 type V1Layer = Parameters<TuiPluginApi["keymap"]["registerLayer"]>[0]
@@ -202,7 +203,7 @@ export function fromV1(api: TuiPluginApi, log: Log = silentLog): Host {
                   ...(options.rich
                     ? { description: options.rich }
                     : options.description
-                      ? { description: () => options.description }
+                      ? { description: textElement(options.description) }
                       : {}),
                   placeholder: options.placeholder ?? "",
                   value: options.value ?? "",
@@ -720,4 +721,35 @@ export function dualTui(id: string, start: Start) {
       }
     },
   }
+}
+
+/**
+ * Text pasted into the terminal (`ctrl+v`, `cmd+v`), for a surface with a text field of its own.
+ *
+ * A paste arrives as one `paste` event with the bytes, not as keys, so a field fed by `intercept`
+ * never saw it — it went to OpenCode's prompt underneath instead. `handler` answers whether it took
+ * the text; taken, nobody else gets it. Both OpenCodes hand over the same OpenTUI renderer.
+ */
+export function onPaste(host: Pick<Host, "renderer">, handler: (text: string) => boolean): () => void {
+  const input = host.renderer.keyInput as unknown as {
+    prependListener(event: "paste", fn: (event: PasteLike) => void): void
+    off(event: "paste", fn: (event: PasteLike) => void): void
+  }
+  const decoder = new TextDecoder()
+  const listener = (event: PasteLike) => {
+    const text = event.text ?? (event.bytes ? decoder.decode(event.bytes) : "")
+    if (!text || !handler(text)) return
+    event.preventDefault?.()
+    event.stopPropagation?.()
+  }
+  input.prependListener("paste", listener)
+  return () => input.off("paste", listener)
+}
+
+interface PasteLike {
+  bytes?: Uint8Array
+  /** Older OpenTUI releases carried the text itself. */
+  text?: string
+  preventDefault?: () => void
+  stopPropagation?: () => void
 }

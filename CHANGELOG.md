@@ -6,6 +6,50 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Subagents — a new bay: what your subagents are doing, while they do it, and follow-ups that keep
+  their context.** `@opencode-cockpit/subagents`, also in the bundle, on OpenCode 1 and 2 alike.
+  - **Sidebar:** every subagent of the conversation with what it is doing now
+    (`└ grep "session" src/auth/**   4 calls · 51s`), its state at a glance, and how many rounds it
+    has had.
+  - **Pane:** a click — or `ctrl+x w`, or `/subagents` — opens its run on the right, half the window
+    or all of it (`w`): model and launcher, the task, then the run the way OpenCode draws its own.
+    Shell commands and file changes are boxes with their output (10 lines, 60 open, all with `a`);
+    reads and searches are one quiet line; thinking folds (`t`, remembered); the answer is markdown.
+    `j`/`k` and `enter` or a click move through it and open items; `i` shows details.
+  - **Follow-ups keep their context:** the main agent is asked to continue the subagent that did the
+    work (`task_id` / `sessionID`) instead of starting a new one, and has a `subagents_list` tool —
+    each subagent's id, task, state and last answer, including when one was cancelled or ended
+    without a final answer.
+  - **Message one (`m`):** a working subagent picks it up mid-run; a finished one answers you, and the
+    exchange is added to the main conversation without starting a turn, so the main agent knows. A
+    message it finished without reading comes back to the field.
+  - **Stop one (`x` twice)** — the main agent is told you stopped it, so it does not relaunch it; `x`
+    on a finished one removes it from the list, `X` clears every finished one;
+    `hideFinishedAfter` takes them out after a few minutes.
+  - **Background:** the main agent is asked to launch independent subagents in the background; `b`
+    moves a blocking one there (OpenCode's `ctrl+b`). Built into OpenCode 2; on OpenCode 1 with
+    `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`.
+  - Every behaviour measured on OpenCode 1.18.32 and 2.0.15. A paint of the pane takes 0.3 ms on a
+    200-call run.
+- **The sidebar reads statusline, subagents, shells — and one list reorders it.**
+  `{ "sidebar": ["shell", "status", "subagents"] }` in `~/.config/opencode-cockpit/config.json` (or a
+  project's `.cockpit.json`); a bay's own `sidebarOrder` still wins. OpenCode 2 now keeps the same
+  order as OpenCode 1, and the statusline's and Shell's places at the foot of the window no longer
+  move with their sidebar place.
+
+### Fixed
+
+- **Paste works in Cockpit's text fields** — Shell's search and the shell you are typing into, as
+  well as a subagent message. A paste arrives as one event, not keys, and went to OpenCode's prompt.
+- **A prompt dialog with a plain-text description stopped OpenCode 1** ("Orphan text error"). The
+  shared host now hands plain text to OpenCode 1's dialog as an element.
+- **OpenCode 2's event stream, once closed, stayed closed**, so shells of sessions deleted afterwards
+  stayed until restart. It is opened again, with a backoff.
+- `doctor` counts a daemon owned by another user as running; `bun run dev:install` leaves an install
+  that `npm install` works in.
+
 ## [0.6.0] - 2026-09-24
 
 ### Added

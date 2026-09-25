@@ -56,6 +56,7 @@
     "@opencode-cockpit/review": "workspace:*",
     "@opencode-cockpit/shell": "workspace:*",
     "@opencode-cockpit/status": "workspace:*",
+    "@opencode-cockpit/subagents": "workspace:*",
     "@opencode-cockpit/updater": "workspace:*"
   },
   "devDependencies": {

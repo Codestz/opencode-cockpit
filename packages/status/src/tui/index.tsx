@@ -2,6 +2,7 @@
 
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
 import { dualTui, type Host } from "@opencode-cockpit/client/host"
+import { sidebarOrder } from "@opencode-cockpit/client/sidebar"
 import { createMemo } from "solid-js"
 import pkg from "../../package.json" with { type: "json" }
 import { asSegmentConfig, loadStatusConfig, type ResolvedLine, resolveLines } from "../core/config.ts"
@@ -179,11 +180,8 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
     const sidebar = on("sidebar")
 
     api.slots.register({
-      /**
-       * After the shell dock (150), so the line sits at the very bottom of the window — and in a
-       * shared sidebar, under the shells. `sidebarOrder` moves it; lower draws first.
-       */
-      order: config.sidebarOrder ?? 200,
+      /** After the shell dock (150), so the line sits at the very bottom of the window. */
+      order: 200,
       slots: {
         app_bottom: () => (
           <>
@@ -192,6 +190,15 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
             )}
           </>
         ),
+      },
+    })
+    api.slots.register({
+      /**
+       * First in the sidebar by default — statusline, subagents, shells. `"sidebar"` in Cockpit's
+       * config, or `sidebarOrder`, moves it; lower draws first.
+       */
+      order: sidebarOrder("status", 140, config.sidebarOrder, { directory: api.state.path.directory }),
+      slots: {
         // sidebar_content, not sidebar_footer: the host does not draw plugin content in the footer.
         sidebar_content: () => (
           <>{sidebar.map((spec) => line(spec, () => Math.max(10, Math.floor(api.renderer.width / 4))))}</>

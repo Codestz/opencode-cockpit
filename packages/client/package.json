@@ -39,6 +39,10 @@
     "./log": {
       "types": "./types/log.d.ts",
       "default": "./dist/log.js"
+    },
+    "./sidebar": {
+      "types": "./types/sidebar.d.ts",
+      "default": "./dist/sidebar.js"
     }
   },
   "files": [

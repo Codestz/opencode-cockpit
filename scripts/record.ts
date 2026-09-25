@@ -52,6 +52,13 @@ export interface Tape {
   /** Plugin spec to load. Defaults to this checkout; an npm spec tests what users actually get. */
   plugin?: string
   /**
+   * The model the session runs on. A tape whose story is the agent's own work names one that needs
+   * no key (`opencode/space-bunny-free`), so it records the same on any machine.
+   */
+  model?: string
+  /** Environment for OpenCode itself — a flag a feature only offers when set, say. */
+  env?: Record<string, string>
+  /**
    * Give this session a plugin cache of its own, and an npm cache with it.
    *
    * Off by default: every other tape loads this checkout and has no use for one. The updater's tape
@@ -82,7 +89,8 @@ export const KEYS = {
 const root = resolve(import.meta.dir, "..")
 
 async function record(tape: Tape): Promise<string> {
-  const opencode = Bun.which("opencode")
+  /** `OPENCODE=opencodeold bun scripts/record.ts …` records against another install, as the smoke does. */
+  const opencode = Bun.which(process.env.OPENCODE ?? "opencode")
   if (!opencode) throw new Error("opencode binary not found; install OpenCode to record")
 
   const cols = tape.cols ?? 120
@@ -103,7 +111,10 @@ async function record(tape: Tape): Promise<string> {
   if (existsSync(realAuth)) copyFileSync(realAuth, join(data, "auth.json"))
 
   const plugin = tape.plugin ?? join(root, "packages", "opencode")
-  writeFileSync(join(config, "opencode.json"), JSON.stringify({ plugin: [plugin] }))
+  writeFileSync(
+    join(config, "opencode.json"),
+    JSON.stringify({ plugin: [plugin], ...(tape.model ? { model: tape.model } : {}) }),
+  )
   writeFileSync(join(config, "tui.json"), JSON.stringify({ plugin: [plugin] }))
   if (tape.config) writeFileSync(join(project, ".cockpit.json"), JSON.stringify(tape.config, null, 2))
   for (const [name, content] of Object.entries(tape.files ?? {})) {
@@ -120,6 +131,8 @@ async function record(tape: Tape): Promise<string> {
   const sandbox: Record<string, string> = {
     XDG_CONFIG_HOME: join(work, "config"),
     XDG_DATA_HOME: join(work, "data"),
+    /** OpenCode's kv lives here: shared, a take's panel widths and toggles were written into the user's. */
+    XDG_STATE_HOME: join(work, "state"),
     COCKPIT_HOME: join(work, "home"),
     ...(tape.sandboxCache
       ? { XDG_CACHE_HOME: join(work, "cache"), npm_config_cache: join(work, "npm-cache") }
@@ -149,6 +162,7 @@ async function record(tape: Tape): Promise<string> {
     env: {
       ...process.env,
       ...sandbox,
+      ...tape.env,
       TERM: "xterm-256color",
       COLORTERM: "truecolor",
     },

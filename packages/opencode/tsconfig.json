@@ -20,6 +20,9 @@
     },
     {
       "path": "../updater"
+    },
+    {
+      "path": "../subagents"
     }
   ]
 }

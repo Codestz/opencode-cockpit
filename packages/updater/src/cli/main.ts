@@ -42,8 +42,9 @@ export function main(argv: readonly string[]): Promise<number> {
         try {
           process.kill(pid, 0)
           return true
-        } catch {
-          return false
+        } catch (error) {
+          // EPERM: it exists, and belongs to someone else — running, not gone.
+          return (error as NodeJS.ErrnoException).code === "EPERM"
         }
       },
       writable(dir) {

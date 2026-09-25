@@ -30,6 +30,12 @@ export interface ServerHost {
   readonly scope: object
   readonly session: {
     get(id: string): Promise<{ parentID?: string; title?: string } | undefined>
+    /** A session's child sessions — its subagents. OpenCode 1 only: OpenCode 2 gives plugins no list. */
+    children?(
+      id: string,
+    ): Promise<{ id: string; title?: string; parentID?: string; time?: { updated?: number } }[]>
+    /** A session's messages with their parts, as OpenCode 1 stores them. OpenCode 1 only. */
+    messages?(id: string): Promise<{ info: unknown; parts: unknown[] }[]>
     /** A message from the plugin rather than the person, which starts a turn: v1's synthetic prompt. */
     notify(id: string, text: string): Promise<void>
   }
@@ -44,6 +50,8 @@ export interface ServerParts {
   /** Added to the system prompt of each model request. The session is unknown on some v1 requests. */
   system?: (sessionID: string | undefined) => Promise<string[]>
   sessionDeleted?: (sessionID: string) => Promise<void>
+  /** Every event, as the host sends it: v1's `{ type, properties }`, v2's `{ type, data }`. */
+  event?: (event: unknown) => Promise<void> | void
   dispose?: () => Promise<void> | void
 }
 
@@ -75,6 +83,13 @@ export function composeParts(parts: ServerParts[]): ServerParts {
       ? {
           sessionDeleted: async (sessionID: string) => {
             for (const part of parts) await part.sessionDeleted?.(sessionID)
+          },
+        }
+      : {}),
+    ...(any("event")
+      ? {
+          event: async (event: unknown) => {
+            for (const part of parts) await part.event?.(event)
           },
         }
       : {}),
@@ -129,6 +144,16 @@ export function serverFromV1(input: PluginInput, log: Log = silentLog): ServerHo
           body: { parts: [{ type: "text", text, synthetic: true } as never] },
         })
       },
+      children: async (id) => {
+        const result = await client.session.children({ path: { id } }).catch(() => undefined)
+        const list = result?.data as { id: string; title?: string; parentID?: string }[] | undefined
+        return Array.isArray(list) ? list : []
+      },
+      messages: async (id) => {
+        const result = await client.session.messages({ path: { id } }).catch(() => undefined)
+        const list = result?.data as { info: unknown; parts: unknown[] }[] | undefined
+        return Array.isArray(list) ? list : []
+      },
     },
     readFile: async (path) => {
       const result = await client.file.read({ query: { path } }).catch(() => undefined)
@@ -149,10 +174,11 @@ export function partsToV1Hooks(parts: ServerParts): Hooks {
           },
         }
       : {}),
-    ...(parts.sessionDeleted
+    ...(parts.sessionDeleted || parts.event
       ? {
           event: async ({ event }) => {
             if (event.type === "session.deleted") await parts.sessionDeleted?.(event.properties.info.id)
+            await parts.event?.(event)
           },
         }
       : {}),
@@ -176,7 +202,7 @@ export interface V2ServerContext {
   event: { subscribe(options: { signal: AbortSignal }): AsyncIterable<V2Event> }
 }
 
-interface V2Event {
+export interface V2Event {
   type: string
   data?: { sessionID?: string }
 }
@@ -303,6 +329,36 @@ function loggedTools(tools: Record<string, ToolDefinition> | undefined, log: Log
   return out
 }
 
+/**
+ * v2's event stream, kept open. A stream that ends or throws — a reloaded location, a restarted
+ * service — used to stay closed, and every session deleted after it left its shells behind until
+ * OpenCode restarted. It is opened again, waiting longer each time it fails straight away, and a
+ * stream that ran a while starts the wait over.
+ */
+export async function follow(
+  ctx: Pick<V2ServerContext, "event">,
+  signal: AbortSignal,
+  log: Log,
+  handle: (event: V2Event) => Promise<void>,
+  wait: (ms: number) => Promise<void> = (ms) => new Promise((done) => setTimeout(done, ms)),
+): Promise<void> {
+  let delay = 1_000
+  while (!signal.aborted) {
+    const opened = Date.now()
+    try {
+      for await (const event of ctx.event.subscribe({ signal })) await handle(event)
+      if (!signal.aborted) log.warn("event stream ended; opening it again", { waitMs: delay })
+    } catch (error) {
+      if (signal.aborted) return
+      log.warn("event stream failed; opening it again", { waitMs: delay, error })
+    }
+    if (signal.aborted) return
+    if (Date.now() - opened > 60_000) delay = 1_000
+    await wait(delay)
+    delay = Math.min(delay * 2, 30_000)
+  }
+}
+
 /** Starts a feature: what loaded and where first, so a feature that never answers still said it was loaded. */
 async function begin(
   id: string,
@@ -350,18 +406,18 @@ export function dualServer(id: string, start: ServerStart) {
         })
       }
       const stop = new AbortController()
-      if (parts.sessionDeleted) {
-        const deleted = parts.sessionDeleted
-        void (async () => {
-          for await (const event of ctx.event.subscribe({ signal: stop.signal })) {
-            const sessionID = event.data?.sessionID
-            if (event.type === "session.deleted" && sessionID) {
-              await deleted(sessionID).catch((error) =>
-                host.log.warn("session cleanup failed", { sessionID, error }),
-              )
-            }
+      if (parts.sessionDeleted || parts.event) {
+        const { sessionDeleted: deleted, event: each } = parts
+        void follow(ctx, stop.signal, host.log, async (event) => {
+          const sessionID = event.data?.sessionID
+          if (deleted && event.type === "session.deleted" && sessionID) {
+            await deleted(sessionID).catch((error) =>
+              host.log.warn("session cleanup failed", { sessionID, error }),
+            )
           }
-        })().catch((error) => host.log.warn("event stream ended", { error }))
+          if (each)
+            await Promise.resolve(each(event)).catch((error) => host.log.warn("event failed", { error }))
+        })
       }
       return async () => {
         stop.abort()

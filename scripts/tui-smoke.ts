@@ -50,9 +50,9 @@ const run = (cmd: string[], cwd: string) => {
  */
 function agentTurn(env: Record<string, string | undefined>) {
   const prompt = [
-    "Call the tool shell_start with command 'echo AGENT-SHELL-OK' and description 'agent probe', then call review_list.",
-    "Your system prompt has a heading line starting with '## Background shells' and one starting with '## Review comments'.",
-    "Quote both heading lines exactly in your reply.",
+    "Call the tool shell_start with command 'echo AGENT-SHELL-OK' and description 'agent probe', then call review_list, then call subagents_list.",
+    "Your system prompt has heading lines starting with '## Background shells', '## Review comments' and '## Subagents'.",
+    "Quote all three heading lines exactly in your reply.",
   ].join(" ")
   const args = [
     opencode as string,
@@ -95,15 +95,15 @@ function agentTurn(env: Record<string, string | undefined>) {
     .map((event) => (event.part as unknown as { text: string }).text)
     .join("\n")
   const report = `${result.stdout}\n${result.stderr}`.slice(-3000)
-  for (const name of ["shell_start", "review_list"]) {
+  for (const name of ["shell_start", "review_list", "subagents_list"]) {
     if (!called.includes(name)) throw new Error(`the agent never completed ${name}:\n${report}`)
   }
-  for (const heading of ["## Background shells", "## Review comments"]) {
+  for (const heading of ["## Background shells", "## Review comments", "## Subagents"]) {
     if (!said.includes(heading)) throw new Error(`the agent was never told "${heading}":\n${report}`)
   }
 }
 
-const cols = 150
+const cols = Number(process.env.SMOKE_COLS) || 150
 const rows = 40
 const term = new Terminal({ cols, rows, allowProposedApi: true })
 const screen = async () => {
@@ -134,6 +134,7 @@ try {
         "@opencode-cockpit/status": file("opencode-cockpit-status-"),
         "@opencode-cockpit/review": file("opencode-cockpit-review-"),
         "@opencode-cockpit/updater": file("opencode-cockpit-updater-"),
+        "@opencode-cockpit/subagents": file("opencode-cockpit-subagents-"),
       },
       overrides: {
         "@opencode-cockpit/protocol": file("opencode-cockpit-protocol-"),
@@ -159,8 +160,8 @@ try {
 
   // The plugins must live under node_modules: that is what disables OpenCode's Solid transform.
   const bay = (name: string) => join(install, "node_modules", "@opencode-cockpit", name)
-  const tuiBays = [bay("shell"), bay("status"), bay("review"), bay("updater")]
-  const serverBays = [bay("shell"), bay("review")]
+  const tuiBays = [bay("shell"), bay("status"), bay("review"), bay("updater"), bay("subagents")]
+  const serverBays = [bay("shell"), bay("review"), bay("subagents")]
   /**
    * v1 reads `plugin` from opencode.json and tui.json; v2 reads `plugins` from opencode.json and
    * cli.json (docs/opencode/v2.md). The same packages go in either way.
@@ -178,7 +179,12 @@ try {
     /** v1's schema URLs mean nothing to v2, whose loader skipped files carrying them. */
     await Bun.write(
       join(config, "opencode", name),
-      JSON.stringify(v2 ? { [key]: plugins } : { $schema: schema, [key]: plugins }),
+      JSON.stringify({
+        ...(v2 ? {} : { $schema: schema }),
+        [key]: plugins,
+        /** A model that needs no key, for the turns AGENT=1 runs inside the interface. */
+        ...(process.env.AGENT && name === "opencode.json" ? { model: "opencode/space-bunny-free" } : {}),
+      }),
     )
   }
   /**
@@ -287,6 +293,76 @@ try {
    * for one surface is exactly what docs/opencode/keys-and-commands.md warns can break the popup.
    * Every plugin here is a local path, so the list must say so, and nothing may be written.
    */
+  /**
+   * AGENT=1: a real subagent, launched from the interface. The sidebar has to show it while it works,
+   * a click on it has to open the full screen with its run, and `/subagents` has to open that screen
+   * rather than OpenCode's own `/agents`, whose name it contains.
+   */
+  const subagentsInTheInterface = async () => {
+    await type(
+      "Use the task/subagent tool to launch an explore subagent with the task: read SMOKE-REVIEW.ts and report its export. Wait for it, then reply DONE.",
+      400,
+    )
+    await type("\r", 1000)
+    let sidebar = ""
+    for (let i = 0; i < 45 && !/[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(sidebar); i++) {
+      await Bun.sleep(2000)
+      sidebar = await screen()
+    }
+    await Bun.sleep(4000)
+    /** Found again before every click: the blocks above it (the statusline's) grow as the turn runs. */
+    const clickSubagent = async () => {
+      const lines = (await screen()).split("\n")
+      const y = lines.findIndex((line) => /[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(line.slice(Math.floor(cols / 2))))
+      if (y < 0) throw new Error(`the sidebar never showed the subagent:\n${lines.join("\n")}`)
+      const x = (lines[y] as string).lastIndexOf(" explore ") + 3
+      proc.terminal.write(`\x1b[<0;${x + 1};${y + 1}M`)
+      await Bun.sleep(80)
+      await type(`\x1b[<0;${x + 1};${y + 1}m`, 2500)
+    }
+    await clickSubagent()
+    const full = await screen()
+    /** The cursor onto the last item and open it, then a message typed into the pane, not a dialog. */
+    await type("k", 600)
+    await type("\r", 1200)
+    const toggled = await screen()
+    await type("m", 600)
+    await type("hello there", 1200)
+    const typing = await screen()
+    await type("\x1b", 800)
+    await type("q", 1500)
+    const slashed = await slash("subagents")
+    /**
+     * A message to the finished subagent: it answers, and the exchange is added to the main
+     * conversation without starting a turn there (v1 draws it as a message, v2 as one line).
+     */
+    await clickSubagent()
+    /** The relay is for a finished subagent: one still at work (or held on a permission) answers its run. */
+    const finished = (await screen()).includes("done in")
+    await type("m", 600)
+    /** Half typed, half pasted — a paste is one event, not keys, and used to land in OpenCode's prompt. */
+    await type("Reply with just the word ", 600)
+    await type("\x1b[200~RELAY-OK.\x1b[201~", 1000)
+    const pasted = await screen()
+    await type("\r", 2000)
+    let relayed = await screen()
+    for (let i = 0; i < 40 && !relayed.includes("The main agent now knows"); i++) {
+      await Bun.sleep(2000)
+      relayed = await screen()
+    }
+    await type("q", 1500)
+    /** Whatever an earlier step left in the prompt goes, or its menu covers the conversation. */
+    await type("\x15", 300)
+    await type("\x1b", 1500)
+    const conversation = await screen()
+    /** `x` on a finished subagent takes it off the list; on a working one it asks first. */
+    await clickSubagent()
+    await type("x", 1500)
+    const removed = await screen()
+    await type("q", 1000)
+    return { sidebar, full, toggled, typing, slashed, finished, pasted, relayed, conversation, removed }
+  }
+
   const slash = async (name: string) => {
     await type(`/${name}`, 1200)
     await type("\r", 4000)
@@ -296,6 +372,7 @@ try {
   }
   const updater = await slash("plugins-update")
   const legacy = await slash("cockpit-update")
+  const subagents = process.env.AGENT ? await subagentsInTheInterface() : undefined
   proc.kill("SIGKILL")
   // `SMOKE_SHOW=1 bun run smoke:tui` prints the updater's frame: a marker proves it drew, not how.
   if (process.env.SMOKE_SHOW) console.log(updater)
@@ -330,6 +407,34 @@ try {
     }
   }
 
+  if (subagents) {
+    for (const [what, text, marker] of [
+      ["the sidebar never showed the Subagents block", subagents.sidebar, "Subagents"],
+      ["a click on the subagent never opened its full screen", subagents.full, "EXPLORE"],
+      ["the full screen never drew its keys", subagents.full, "[m] Message"],
+      ["enter never opened the selected item", subagents.toggled, "▌ "],
+      ["m never opened the message input in the pane", subagents.typing, "┃ hello there"],
+      ["/subagents never opened the full screen", subagents.slashed, "[m] Message"],
+    ] as const) {
+      if (!text.includes(marker)) throw new Error(`${what}:\n${text}`)
+    }
+    /** The heading's count reaches the sidebar's edge whole: rows drawn wider than it were clipped. */
+    if (!/Subagents +\d+ (running|done|failed)\b/.test(subagents.sidebar))
+      throw new Error(`the sidebar's Subagents heading was clipped:\n${subagents.sidebar}`)
+    if (!subagents.pasted.includes("┃ Reply with just the word RELAY-OK."))
+      throw new Error(`a paste never reached the message field:\n${subagents.pasted}`)
+    if (subagents.finished) {
+      if (!subagents.relayed.includes("The main agent now knows"))
+        throw new Error(`the subagent's answer was never relayed to the main agent:\n${subagents.relayed}`)
+      if (!/Cockpit notification|Subagent exchange/.test(subagents.conversation))
+        throw new Error(`the main conversation never showed the relayed exchange:\n${subagents.conversation}`)
+    } else console.log("relay not checked: the subagent had not finished when the message was sent")
+    const asked = subagents.removed.includes("Press x again")
+    const listed = /[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(subagents.removed)
+    if (!asked && listed)
+      throw new Error(`x neither removed the subagent nor asked to stop it:\n${subagents.removed}`)
+  }
+
   /** A plugin OpenCode could not load says so in the footer, whichever half it was. */
   for (const text of [first, second, consoleScreen, fullScreen, review, updater]) {
     if (/plugins? failed/.test(text)) throw new Error(`OpenCode could not load a plugin:\n${text}`)
@@ -346,7 +451,7 @@ try {
   }
   if (process.env.AGENT) agentTurn(env)
   console.log(
-    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; console and its keys drew; full screen drew; statusline drew; review drew its diff; updater answered both slash names${process.env.AGENT ? "; an agent called both bays' tools and was told about them" : ""}`,
+    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; console and its keys drew; full screen drew; statusline drew; review drew its diff; updater answered both slash names${subagents ? "; a subagent showed in the sidebar and opened full screen, by click and by /subagents" : ""}${process.env.AGENT ? "; an agent called both bays' tools and was told about them" : ""}`,
   )
 } finally {
   /** KEEP=1 leaves the install and project behind, to inspect what a run actually loaded. */
