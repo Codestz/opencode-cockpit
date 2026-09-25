@@ -1,6 +1,6 @@
 {
   "name": "@opencode-cockpit/updater",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Every OpenCode plugin you have installed: what actually runs, what is published, and an update that is checked against disk",
   "type": "module",
   "license": "MIT",

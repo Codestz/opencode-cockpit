@@ -8,8 +8,8 @@ Subagent — Fix the login test" — and nothing about what it is doing. Subagen
 reachable and reusable, on OpenCode 1 and 2 alike.
 
 ```sh
-opencode plugin @opencode-cockpit/subagents@0.6.0 --global --force     # OpenCode 1
-opencode plugin add @opencode-cockpit/subagents@0.6.0                   # OpenCode 2
+opencode plugin @opencode-cockpit/subagents@0.7.0 --global --force     # OpenCode 1
+opencode plugin add @opencode-cockpit/subagents@0.7.0                   # OpenCode 2
 ```
 
 Or through the bundle, where it is on by default.

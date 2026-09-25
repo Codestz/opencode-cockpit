@@ -10,8 +10,8 @@ Part of [opencode-cockpit](https://github.com/Codestz/opencode-cockpit). Install
 through the bundle. Works on OpenCode 1.18+ and 2.0.15+.
 
 ```sh
-opencode plugin @opencode-cockpit/subagents@0.6.0 --global --force     # OpenCode 1
-opencode plugin add @opencode-cockpit/subagents@0.6.0                   # OpenCode 2
+opencode plugin @opencode-cockpit/subagents@0.7.0 --global --force     # OpenCode 1
+opencode plugin add @opencode-cockpit/subagents@0.7.0                   # OpenCode 2
 ```
 
 ## What it does
