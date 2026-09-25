@@ -270,6 +270,25 @@ describe("the v1 host's dialogs", () => {
     expect(await choice).toBe("sh_a")
   })
 
+  /**
+   * OpenCode 1 renders a prompt's description inside a box. A function returning a bare string put
+   * text straight in it, and OpenCode 1 stopped the session ("Orphan text error"). Plain text has to
+   * arrive as an element.
+   */
+  test("a plain description reaches OpenCode 1 as an element, never as bare text", () => {
+    const { host, seen } = fakeV1()
+    void host.ui.prompt({ title: "Message explore", description: "It has finished." })
+    const description = (seen.prompt as Record<string, unknown> | undefined)?.description
+    expect(typeof description).toBe("function")
+    let drawn: unknown
+    try {
+      drawn = (description as () => unknown)()
+    } catch {
+      // Drawing an element needs a renderer; what matters is that it is not a string.
+    }
+    expect(typeof drawn).not.toBe("string")
+  })
+
   test("closing without answering is a cancel", async () => {
     const { host, seen } = fakeV1()
     const answer = host.ui.prompt({ title: "Name" })

@@ -86,6 +86,22 @@ cannot update itself.
 
 ---
 
+### 🛰️  Subagents — what they are doing, while they do it
+
+When the main agent hands work to a subagent you get one line in the chat and nothing about what it
+is doing. **Subagents** puts every subagent in the sidebar with what it is doing right now — `grep
+"session" src/auth/**  51s` — and a click opens it full screen: the task it was given, its thinking
+as it streams, every tool call, and the answer as it is written. Press `m` to message it; a subagent
+still working picks it up in its current run.
+
+It also asks the main agent to launch independent subagents **in the background**, so the
+conversation keeps going while they work — built into OpenCode 2, and on OpenCode 1 when started
+with `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`.
+
+**Sidebar + full screen · OpenCode 1 and 2 · [docs](https://codestz.github.io/opencode-cockpit/subagents/overview/) · [`@opencode-cockpit/subagents`](packages/subagents)**
+
+---
+
 Each bay is its own npm package with a switch in config. They share the daemon, the config file and
 the keys, so the second costs nothing and moving between them changes nothing you already set up.
 

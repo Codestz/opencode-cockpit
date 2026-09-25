@@ -6,6 +6,27 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Subagents: see what your subagents are doing, while they do it.** A new bay,
+  `@opencode-cockpit/subagents`, also in the bundle. The sidebar lists every subagent of the
+  conversation with what it is doing now (`grep "session" src/auth/**  51s`); a click — or
+  `ctrl+x w`, or `/subagents` — opens it full screen: the task it was given, its thinking as it
+  streams, every tool call with its target and duration (the running one streams its output), and
+  the answer as it is written. `m` messages it: mid-run it picks the message up and says so in its
+  answer. The main agent is asked to launch independent subagents in the background so the
+  conversation keeps going — built into OpenCode 2; on OpenCode 1 with
+  `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`. Everything measured on both versions.
+
+### Fixed
+
+- **A prompt dialog with a plain-text description stopped OpenCode 1** ("Orphan text error"). The
+  shared host now hands plain text to OpenCode 1's dialog as an element.
+- **OpenCode 2's event stream, once closed, stayed closed**, so shells of sessions deleted afterwards
+  stayed until restart. It is opened again, with a backoff.
+- `doctor` counts a daemon owned by another user as running; `bun run dev:install` leaves an install
+  that `npm install` works in.
+
 ## [0.6.0] - 2026-09-24
 
 ### Added

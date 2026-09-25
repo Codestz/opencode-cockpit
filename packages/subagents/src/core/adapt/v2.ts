@@ -1,0 +1,295 @@
+/**
+ * OpenCode 2's events and state, as changes.
+ *
+ * OpenCode 2 names what happened: `session.reasoning.delta`, `session.tool.called`,
+ * `session.execution.succeeded`. Its interface context hands them over as
+ * `{ name, details: { data } }` (`ctx.data.listen`). Thinking and text are keyed by the assistant
+ * message and their ordinal in it; a tool call by its id; what the session was told arrives as an
+ * inbox item. Shapes measured on 2.0.15 (test/fixtures/v2.jsonl).
+ */
+
+import type { Change } from "../model/changes.ts"
+import { tokenTotal } from "./v1.ts"
+
+type Json = Record<string, unknown>
+const obj = (value: unknown): Json => (value && typeof value === "object" ? (value as Json) : {})
+const str = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined)
+
+/** A tool's result as text: v2 returns content parts. */
+const contentText = (content: unknown): string =>
+  Array.isArray(content)
+    ? content
+        .map((part) => str(obj(part).text) ?? "")
+        .filter(Boolean)
+        .join("\n")
+    : (str(content) ?? "")
+
+export interface V2Translator {
+  event(event: unknown, at?: number): Change[]
+  /** One session's loaded messages (`ctx.data.session.message.list(id)`). */
+  history(id: string, messages: readonly unknown[], at?: number): Change[]
+  /** A session as `ctx.data.session.list()` returns it. */
+  session(info: unknown, at?: number): Change[]
+  /** A status as `ctx.data.session.status(id)` returns it: "busy", "idle"… */
+  status(id: string, status: unknown, at?: number): Change[]
+}
+
+export function createV2Translator(unknown: (what: string, detail?: Json) => void = () => {}): V2Translator {
+  const sessionInfo = (info: Json, at: number): Change[] => {
+    const id = str(info.sessionID) ?? str(info.id)
+    if (!id) return []
+    return [
+      {
+        type: "session",
+        id,
+        ...(str(info.parentID) ? { parentID: str(info.parentID) as string } : {}),
+        ...(str(info.agent) ? { agent: str(info.agent) as string } : {}),
+        ...(str(info.title) ? { title: str(info.title) as string } : {}),
+        at: Number(obj(info.time).created) || at,
+      },
+    ]
+  }
+
+  const statusChange = (id: string, value: unknown, at: number): Change[] => {
+    const status = str(value) ?? str(obj(value).type)
+    if (status === "busy" || status === "running" || status === "retry")
+      return [{ type: "status", id, status: "busy", at }]
+    if (status === "idle") return [{ type: "status", id, status: "idle", at }]
+    return []
+  }
+
+  return {
+    event(raw, at = Date.now()) {
+      const event = obj(raw)
+      const name = str(event.name) ?? str(event.type)
+      const data = obj(obj(event.details).data)
+      const id = str(data.sessionID)
+      if (!name) return []
+      const key = () => `${str(data.assistantMessageID) ?? "?"}:${String(data.ordinal ?? 0)}`
+      switch (name) {
+        case "session.created":
+        case "session.renamed":
+          return sessionInfo(data, at)
+        case "session.execution.started":
+          return id ? [{ type: "status", id, status: "busy", at }] : []
+        case "session.execution.succeeded":
+          return id ? [{ type: "status", id, status: "idle", at }] : []
+        case "session.execution.failed":
+        case "session.execution.interrupted": {
+          if (!id) return []
+          const error =
+            str(data.message) ??
+            str(obj(data.error).message) ??
+            (name.endsWith("interrupted") ? "interrupted" : "failed")
+          return [{ type: "status", id, status: "failed", error, at }]
+        }
+        case "session.inbox.enqueued": {
+          const item = obj(data.item)
+          const text = str(obj(item.payload).text)
+          return id && text && item.type === "user"
+            ? [{ type: "prompt", id, key: str(data.inboxID) ?? `${at}`, text, at }]
+            : []
+        }
+        case "session.reasoning.started":
+          return id ? [{ type: "thinking", id, key: `r:${key()}`, text: "", at }] : []
+        case "session.reasoning.delta":
+          return id && str(data.delta)
+            ? [{ type: "thinking", id, key: `r:${key()}`, delta: str(data.delta) as string, at }]
+            : []
+        case "session.reasoning.ended":
+          return id
+            ? [
+                {
+                  type: "thinking",
+                  id,
+                  key: `r:${key()}`,
+                  ...(str(data.text) !== undefined ? { text: str(data.text) as string } : {}),
+                  done: true,
+                  at,
+                },
+              ]
+            : []
+        case "session.text.started":
+          return id ? [{ type: "reply", id, key: `t:${key()}`, text: "", at }] : []
+        case "session.text.delta":
+          return id && str(data.delta)
+            ? [{ type: "reply", id, key: `t:${key()}`, delta: str(data.delta) as string, at }]
+            : []
+        case "session.text.ended":
+          return id
+            ? [
+                {
+                  type: "reply",
+                  id,
+                  key: `t:${key()}`,
+                  ...(str(data.text) !== undefined ? { text: str(data.text) as string } : {}),
+                  done: true,
+                  at,
+                },
+              ]
+            : []
+        case "session.tool.input.started":
+          return id && str(data.id)
+            ? [
+                {
+                  type: "tool",
+                  id,
+                  call: str(data.id) as string,
+                  ...(str(data.name) ? { name: str(data.name) as string } : {}),
+                  state: "pending",
+                  at,
+                },
+              ]
+            : []
+        case "session.tool.called":
+          return id && str(data.id)
+            ? [
+                {
+                  type: "tool",
+                  id,
+                  call: str(data.id) as string,
+                  state: "running",
+                  input: obj(data.input),
+                  at,
+                },
+              ]
+            : []
+        case "session.tool.progress": {
+          const metadata = obj(data.metadata)
+          const output = str(metadata.output)
+          return id && str(data.id) && output !== undefined
+            ? [{ type: "tool", id, call: str(data.id) as string, output, at }]
+            : []
+        }
+        case "session.tool.success":
+          return id && str(data.id)
+            ? [
+                {
+                  type: "tool",
+                  id,
+                  call: str(data.id) as string,
+                  state: "completed",
+                  output: contentText(data.content),
+                  at,
+                },
+              ]
+            : []
+        case "session.tool.failed": {
+          const error =
+            str(obj(data.error).message) ?? str(data.error) ?? contentText(data.content) ?? "failed"
+          return id && str(data.id)
+            ? [{ type: "tool", id, call: str(data.id) as string, state: "failed", error, at }]
+            : []
+        }
+        /** The input streaming in; `session.tool.called` carries it whole. */
+        case "session.tool.input.delta":
+        case "session.tool.input.ended":
+          return []
+        case "session.usage.updated":
+          return id
+            ? [{ type: "usage", id, tokens: tokenTotal(obj(data.tokens)), cost: Number(data.cost) || 0, at }]
+            : []
+        case "session.status":
+          return id ? statusChange(id, data.status, at) : []
+        default:
+          // Deltas of kinds we do not draw, bookkeeping, and everything not about a session.
+          if (
+            /^(session\.(inbox|step|instructions|compaction|revert|usage|permissions|model|agent|moved|synthetic|shell|skill|metadata|message|forked|retry|diff)|shell\.|skill\.|catalog\.|mcp\.|lsp\.|file\.|vcs\.|project\.|pty\.)/.test(
+              name,
+            )
+          )
+            return []
+          unknown("event", { name })
+          return []
+      }
+    },
+    history(id, messages, at = Date.now()) {
+      const out: Change[] = []
+      /** A message's tokens are its own; the session's total is their sum (live events send the total). */
+      let tokens = 0
+      let cost = 0
+      let counted = false
+      for (const raw of messages) {
+        const message = obj(raw)
+        const when = Number(obj(message.time).created) || at
+        const mid = str(message.id) ?? `${when}`
+        if (message.type === "user" && str(message.text)) {
+          out.push({ type: "prompt", id, key: mid, text: str(message.text) as string, at: when })
+          continue
+        }
+        if (message.type !== "assistant") continue
+        const content = Array.isArray(message.content) ? message.content : []
+        /** Live events number thinking and text blocks separately; the keys must match across a reload. */
+        let thought = 0
+        let wrote = 0
+        for (const partRaw of content) {
+          const part = obj(partRaw)
+          const time = obj(part.time)
+          const partAt = Number(time.created) || when
+          if (part.type === "reasoning") {
+            out.push({
+              type: "thinking",
+              id,
+              key: `r:${mid}:${thought++}`,
+              text: str(part.text) ?? "",
+              done: true,
+              at: partAt,
+            })
+          } else if (part.type === "text") {
+            out.push({
+              type: "reply",
+              id,
+              key: `t:${mid}:${wrote++}`,
+              text: str(part.text) ?? "",
+              done: true,
+              at: partAt,
+            })
+          } else if (part.type === "tool" && str(part.id)) {
+            const state = obj(part.state)
+            const status = str(state.status)
+            const ended =
+              status === "completed"
+                ? "completed"
+                : status === "failed" || status === "error"
+                  ? "failed"
+                  : undefined
+            out.push({
+              type: "tool",
+              id,
+              call: str(part.id) as string,
+              ...(str(part.name) ? { name: str(part.name) as string } : {}),
+              state: "running",
+              input: obj(state.input),
+              at: partAt,
+            })
+            /** A second change carries the ending, so the call keeps when it started and when it ended. */
+            if (ended) {
+              out.push({
+                type: "tool",
+                id,
+                call: str(part.id) as string,
+                state: ended,
+                output: contentText(state.content),
+                ...(str(obj(state.error).message) ? { error: str(obj(state.error).message) as string } : {}),
+                at: Number(time.completed) || partAt,
+              })
+            }
+          }
+        }
+        if (Object.keys(obj(message.tokens)).length > 0) {
+          tokens += tokenTotal(obj(message.tokens))
+          cost += Number(message.cost) || 0
+          counted = true
+        }
+      }
+      if (counted) out.push({ type: "usage", id, tokens, cost, at })
+      return out
+    },
+    session(info, at = Date.now()) {
+      return sessionInfo(obj(info), at)
+    },
+    status(id, status, at = Date.now()) {
+      return statusChange(id, status, at)
+    },
+  }
+}

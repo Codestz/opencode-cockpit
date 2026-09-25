@@ -25,7 +25,10 @@ ships.*
 | Feature | What your agent gains | Package |
 |---|---|---|
 | **Shell** | Background terminals it starts, waits on, reads and types into — dev servers, watchers, test suites, REPLs | [`@opencode-cockpit/shell`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/shell) |
-| **Agents** *(next)* | A live, keyboard-first view of every subagent, without leaving your chat | `@opencode-cockpit/agents` |
+| **Review** | A pull request in the terminal: your comments on the lines, which it reads, answers and resolves | [`@opencode-cockpit/review`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/review) |
+| **Statusline** | — (for you: what the session is costing, under the prompt or in the sidebar) | [`@opencode-cockpit/status`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/status) |
+| **Updater** | — (for you: every plugin, what it really runs, and the update) | [`@opencode-cockpit/updater`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/updater) |
+| **Subagents** | Background subagents, so the conversation keeps going — and you see each one work, and can message it | [`@opencode-cockpit/subagents`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/subagents) |
 
 ## Shell, by example
 

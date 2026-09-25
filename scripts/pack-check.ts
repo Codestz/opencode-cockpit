@@ -15,7 +15,8 @@ import { FEATURES } from "../packages/opencode/src/features.ts"
 
 const root = join(import.meta.dir, "..")
 // Dependency order, matching the release workflow.
-const PACKAGES = ["protocol", "daemon", "client", "shell", "status", "review", "updater", "opencode"]
+/** From the bundle's own feature list: a hand-kept list here missed the Subagents bay when it arrived. */
+const PACKAGES = ["protocol", "daemon", "client", ...FEATURES, "opencode"]
 const work = mkdtempSync(join(tmpdir(), "cockpit-pack-"))
 const tarballs = join(work, "tarballs")
 // Short: unix socket paths are limited to 104 bytes on macOS.

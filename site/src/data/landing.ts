@@ -58,7 +58,7 @@ export const compare = {
 }
 
 export const platform = {
-  number: "06",
+  number: "07",
   kicker: "The platform",
   title: "What every capability inherits.",
   intro:
@@ -109,7 +109,7 @@ export const platform = {
 export const bays = {
   number: "01",
   kicker: "What is fitted",
-  title: "Four instruments today. One switch each.",
+  title: "Five instruments today. One switch each.",
   intro:
     "Every bay is its own npm package with a switch in config. They share the daemon, the config " +
     "file and the keys, so the second costs nothing and moving between them changes nothing you " +
@@ -242,12 +242,37 @@ export const bays = {
         ],
       },
     },
+    {
+      id: "subagents",
+      name: "Subagents",
+      tagline: "What your subagents are doing, while they do it",
+      state: "live",
+      status: "Available",
+      gains: { agent: "Background subagents, so the conversation keeps going", you: "Every subagent visible, and one message away" },
+      blurb:
+        "When the main agent hands work to a subagent you get one line in the chat and nothing about what " +
+        "it is doing. Subagents puts each one in the sidebar with what it is doing right now, opens any of " +
+        "them full screen — its thinking, every tool call, the answer as it is written — and lets you " +
+        "message it directly.",
+      points: [
+        "Every subagent in the sidebar, and what it is doing now",
+        "Click one: its thinking, tools and answer, live",
+        "Nested subagents under the one that launched them",
+        "Message a subagent while it works",
+        "Background subagents: the conversation keeps going",
+        "The same on OpenCode 1 and 2",
+      ],
+      foot: ["sidebar + full screen", "ctrl+x w · /subagents", "@opencode-cockpit/subagents"],
+      docs: "/subagents/overview/",
+      /** A recording follows once it has been used in anger; until then the page shows no media. */
+      media: { kind: "none" as const },
+    },
   ],
 }
 
 /** What is coming, and the reason it is next. */
 export const next = {
-  number: "07",
+  number: "08",
   kicker: "What is next",
   title: "One bay at a time, and only what can be built.",
   intro:
@@ -267,7 +292,7 @@ export const next = {
 }
 
 export const install = {
-  number: "08",
+  number: "09",
   kicker: "Install",
   title: "Two minutes, then ask it to start something.",
   modes: [

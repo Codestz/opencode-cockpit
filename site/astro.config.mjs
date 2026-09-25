@@ -71,6 +71,10 @@ export default defineConfig({
           label: "Updater",
           items: [{ label: "Overview", slug: "updater/overview" }],
         },
+        {
+          label: "Subagents",
+          items: [{ label: "Overview", slug: "subagents/overview" }],
+        },
         { label: "Configuration", slug: "configuration" },
         {
           label: "Platform",

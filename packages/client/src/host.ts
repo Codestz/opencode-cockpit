@@ -14,6 +14,7 @@
 import type { TuiDialogSelectOption, TuiPluginApi, TuiThemeCurrent } from "@opencode-ai/plugin/tui"
 import type { CliRenderer, KeyEvent } from "@opentui/core"
 import { createComponent, createRoot, getOwner, type JSX, type Owner, onCleanup } from "solid-js"
+import { textElement } from "./elements.tsx"
 import { cockpitVersion, createLog, type Log, silentLog } from "./log.ts"
 
 type V1Layer = Parameters<TuiPluginApi["keymap"]["registerLayer"]>[0]
@@ -202,7 +203,7 @@ export function fromV1(api: TuiPluginApi, log: Log = silentLog): Host {
                   ...(options.rich
                     ? { description: options.rich }
                     : options.description
-                      ? { description: () => options.description }
+                      ? { description: textElement(options.description) }
                       : {}),
                   placeholder: options.placeholder ?? "",
                   value: options.value ?? "",

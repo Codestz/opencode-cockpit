@@ -1,29 +1,26 @@
 {
-  "name": "opencode-cockpit",
+  "name": "@opencode-cockpit/subagents",
   "version": "0.6.0",
-  "description": "OpenCode superpowers, all in one: installs every opencode-cockpit feature (Shell today), each can be switched off",
+  "description": "See what your subagents are doing: in the sidebar, full screen, and message them",
   "type": "module",
   "license": "MIT",
   "author": "Codestz",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Codestz/opencode-cockpit.git",
-    "directory": "packages/opencode"
+    "directory": "packages/subagents"
   },
   "homepage": "https://github.com/Codestz/opencode-cockpit#readme",
   "bugs": {
     "url": "https://github.com/Codestz/opencode-cockpit/issues"
   },
   "keywords": [
-    "agents",
-    "background",
     "opencode",
     "opencode-plugin",
-    "pty",
-    "shell",
-    "statusline",
-    "terminal",
-    "tui"
+    "subagents",
+    "agents",
+    "tui",
+    "terminal"
   ],
   "exports": {
     "./server": {
@@ -31,8 +28,8 @@
       "default": "./dist/server.js"
     },
     "./tui": {
-      "types": "./types/tui.d.ts",
-      "default": "./dist/tui.js"
+      "types": "./types/tui/index.d.ts",
+      "default": "./dist/tui/index.js"
     }
   },
   "engines": {
@@ -51,18 +48,17 @@
     "access": "public"
   },
   "dependencies": {
-    "@opencode-ai/plugin": "1.18.31",
     "@opencode-cockpit/client": "workspace:*",
-    "@opencode-cockpit/review": "workspace:*",
-    "@opencode-cockpit/shell": "workspace:*",
-    "@opencode-cockpit/status": "workspace:*",
-    "@opencode-cockpit/subagents": "workspace:*",
-    "@opencode-cockpit/updater": "workspace:*"
+    "@opencode-ai/plugin": "1.18.31"
   },
   "devDependencies": {
-    "@opencode-cockpit/client": "workspace:*"
+    "@opentui/core": "0.4.5",
+    "@opentui/keymap": "0.4.5",
+    "@opentui/solid": "0.4.5",
+    "solid-js": "1.9.12"
   },
   "bin": {
-    "opencode-cockpit": "./dist/bin.js"
+    "opencode-subagents": "./dist/cli/preview.js",
+    "subagents": "./dist/cli/preview.js"
   }
 }

@@ -10,19 +10,7 @@
   "include": ["src"],
   "references": [
     {
-      "path": "../shell"
-    },
-    {
-      "path": "../status"
-    },
-    {
-      "path": "../review"
-    },
-    {
-      "path": "../updater"
-    },
-    {
-      "path": "../subagents"
+      "path": "../client"
     }
   ]
 }

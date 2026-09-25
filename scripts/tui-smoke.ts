@@ -51,8 +51,8 @@ const run = (cmd: string[], cwd: string) => {
 function agentTurn(env: Record<string, string | undefined>) {
   const prompt = [
     "Call the tool shell_start with command 'echo AGENT-SHELL-OK' and description 'agent probe', then call review_list.",
-    "Your system prompt has a heading line starting with '## Background shells' and one starting with '## Review comments'.",
-    "Quote both heading lines exactly in your reply.",
+    "Your system prompt has heading lines starting with '## Background shells', '## Review comments' and '## Subagents'.",
+    "Quote all three heading lines exactly in your reply.",
   ].join(" ")
   const args = [
     opencode as string,
@@ -98,7 +98,7 @@ function agentTurn(env: Record<string, string | undefined>) {
   for (const name of ["shell_start", "review_list"]) {
     if (!called.includes(name)) throw new Error(`the agent never completed ${name}:\n${report}`)
   }
-  for (const heading of ["## Background shells", "## Review comments"]) {
+  for (const heading of ["## Background shells", "## Review comments", "## Subagents"]) {
     if (!said.includes(heading)) throw new Error(`the agent was never told "${heading}":\n${report}`)
   }
 }
@@ -134,6 +134,7 @@ try {
         "@opencode-cockpit/status": file("opencode-cockpit-status-"),
         "@opencode-cockpit/review": file("opencode-cockpit-review-"),
         "@opencode-cockpit/updater": file("opencode-cockpit-updater-"),
+        "@opencode-cockpit/subagents": file("opencode-cockpit-subagents-"),
       },
       overrides: {
         "@opencode-cockpit/protocol": file("opencode-cockpit-protocol-"),
@@ -159,8 +160,8 @@ try {
 
   // The plugins must live under node_modules: that is what disables OpenCode's Solid transform.
   const bay = (name: string) => join(install, "node_modules", "@opencode-cockpit", name)
-  const tuiBays = [bay("shell"), bay("status"), bay("review"), bay("updater")]
-  const serverBays = [bay("shell"), bay("review")]
+  const tuiBays = [bay("shell"), bay("status"), bay("review"), bay("updater"), bay("subagents")]
+  const serverBays = [bay("shell"), bay("review"), bay("subagents")]
   /**
    * v1 reads `plugin` from opencode.json and tui.json; v2 reads `plugins` from opencode.json and
    * cli.json (docs/opencode/v2.md). The same packages go in either way.
@@ -178,7 +179,12 @@ try {
     /** v1's schema URLs mean nothing to v2, whose loader skipped files carrying them. */
     await Bun.write(
       join(config, "opencode", name),
-      JSON.stringify(v2 ? { [key]: plugins } : { $schema: schema, [key]: plugins }),
+      JSON.stringify({
+        ...(v2 ? {} : { $schema: schema }),
+        [key]: plugins,
+        /** A model that needs no key, for the turns AGENT=1 runs inside the interface. */
+        ...(process.env.AGENT && name === "opencode.json" ? { model: "opencode/space-bunny-free" } : {}),
+      }),
     )
   }
   /**
@@ -287,6 +293,37 @@ try {
    * for one surface is exactly what docs/opencode/keys-and-commands.md warns can break the popup.
    * Every plugin here is a local path, so the list must say so, and nothing may be written.
    */
+  /**
+   * AGENT=1: a real subagent, launched from the interface. The sidebar has to show it while it works,
+   * a click on it has to open the full screen with its run, and `/subagents` has to open that screen
+   * rather than OpenCode's own `/agents`, whose name it contains.
+   */
+  const subagentsInTheInterface = async () => {
+    await type(
+      "Use the task/subagent tool to launch an explore subagent with the task: read SMOKE-REVIEW.ts and report its export. Wait for it, then reply DONE.",
+      400,
+    )
+    await type("\r", 1000)
+    let sidebar = ""
+    for (let i = 0; i < 45 && !/[✓⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(sidebar); i++) {
+      await Bun.sleep(2000)
+      sidebar = await screen()
+    }
+    await Bun.sleep(4000)
+    const lines = (await screen()).split("\n")
+    const y = lines.findIndex((line) => /[✓⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(line.slice(Math.floor(cols / 2))))
+    if (y < 0) throw new Error(`the sidebar never showed the subagent:\n${lines.join("\n")}`)
+    const x = (lines[y] as string).lastIndexOf(" explore ") + 3
+    proc.terminal.write(`\x1b[<0;${x + 1};${y + 1}M`)
+    await Bun.sleep(80)
+    await type(`\x1b[<0;${x + 1};${y + 1}m`, 2500)
+    const full = await screen()
+    await type("q", 1500)
+    const slashed = await slash("subagents")
+    await type("q", 1000)
+    return { sidebar, full, slashed }
+  }
+
   const slash = async (name: string) => {
     await type(`/${name}`, 1200)
     await type("\r", 4000)
@@ -296,6 +333,7 @@ try {
   }
   const updater = await slash("plugins-update")
   const legacy = await slash("cockpit-update")
+  const subagents = process.env.AGENT ? await subagentsInTheInterface() : undefined
   proc.kill("SIGKILL")
   // `SMOKE_SHOW=1 bun run smoke:tui` prints the updater's frame: a marker proves it drew, not how.
   if (process.env.SMOKE_SHOW) console.log(updater)
@@ -330,6 +368,17 @@ try {
     }
   }
 
+  if (subagents) {
+    for (const [what, text, marker] of [
+      ["the sidebar never showed the Subagents block", subagents.sidebar, "Subagents"],
+      ["a click on the subagent never opened its full screen", subagents.full, "EXPLORE"],
+      ["the full screen never drew its keys", subagents.full, "[m] Message"],
+      ["/subagents never opened the full screen", subagents.slashed, "[m] Message"],
+    ] as const) {
+      if (!text.includes(marker)) throw new Error(`${what}:\n${text}`)
+    }
+  }
+
   /** A plugin OpenCode could not load says so in the footer, whichever half it was. */
   for (const text of [first, second, consoleScreen, fullScreen, review, updater]) {
     if (/plugins? failed/.test(text)) throw new Error(`OpenCode could not load a plugin:\n${text}`)
@@ -346,7 +395,7 @@ try {
   }
   if (process.env.AGENT) agentTurn(env)
   console.log(
-    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; console and its keys drew; full screen drew; statusline drew; review drew its diff; updater answered both slash names${process.env.AGENT ? "; an agent called both bays' tools and was told about them" : ""}`,
+    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; console and its keys drew; full screen drew; statusline drew; review drew its diff; updater answered both slash names${subagents ? "; a subagent showed in the sidebar and opened full screen, by click and by /subagents" : ""}${process.env.AGENT ? "; an agent called both bays' tools and was told about them" : ""}`,
   )
 } finally {
   /** KEEP=1 leaves the install and project behind, to inspect what a run actually loaded. */
