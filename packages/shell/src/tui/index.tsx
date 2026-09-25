@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
-import { bindingLookup, dualTui, type Host } from "@opencode-cockpit/client/host"
+import { bindingLookup, dualTui, type Host, onPaste } from "@opencode-cockpit/client/host"
 import { sidebarOrder } from "@opencode-cockpit/client/sidebar"
 import type { BoxRenderable } from "@opentui/core"
 import { createSignal } from "solid-js"
@@ -216,6 +216,22 @@ const shellTui = async (api: Host, rawOptions?: unknown) => {
     resize: resizeConsole,
     newShell: () => newShell(api, store, openConsole),
   })
+
+  /** A paste is not keys: into the search, or to the program you are typing into. */
+  api.lifecycle.onDispose(
+    onPaste(api, (text) => {
+      if (!surface.open) return false
+      if (surface.searching) {
+        surface.draft += text.replace(/\r?\n/g, " ")
+        draw()
+        return true
+      }
+      const shell = store.selected()?.id
+      if (!surface.typing || !shell) return false
+      void client.call("shell.write", { id: shell, data: text }).catch(() => {})
+      return true
+    }),
+  )
 
   /** Search and typing take keys before the layer: a query or a program must get every key. */
   api.keymap.intercept(

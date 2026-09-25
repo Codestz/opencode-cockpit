@@ -36,6 +36,12 @@ export interface Source {
    * read the stopped subagent as failed and launched it again.
    */
   note: (sessionID: string, text: string, busy: boolean, agent?: string) => Promise<void>
+  /**
+   * Adds something to a conversation without starting a turn: the main agent reads it next time it
+   * is asked. Measured: OpenCode 1 `noReply` (drawn as your message), OpenCode 2 a synthetic message
+   * with `resume: false` (drawn as one line) — neither answered, both recalled it on the next turn.
+   */
+  quiet: (sessionID: string, text: string, agent?: string) => Promise<void>
   /** What the host says about a session now, for a run that went quiet; nothing when it does not know. */
   check: (id: string) => Change[]
   dispose: () => void
@@ -136,6 +142,14 @@ export function createSource(api: Host, log: Log, emit: (changes: Change[]) => v
         const result = await v1.client.experimental.session.background({ sessionID: parentID })
         return (result?.data ?? result) === true
       },
+      async quiet(sessionID, text, agent) {
+        await v1.client.session.promptAsync({
+          sessionID,
+          noReply: true,
+          ...(agent ? { agent } : {}),
+          parts: [{ type: "text", text }],
+        })
+      },
       async note(sessionID, text, _busy, agent) {
         await v1.client.session.promptAsync({
           sessionID,
@@ -196,6 +210,9 @@ export function createSource(api: Host, log: Log, emit: (changes: Change[]) => v
     async background(parentID) {
       await v2.client.session.background({ sessionID: parentID })
       return true
+    },
+    async quiet(sessionID, text) {
+      await v2.client.session.synthetic({ sessionID, text, resume: false, description: "Subagent exchange" })
     },
     async note(sessionID, text, busy) {
       await v2.client.session.prompt({ sessionID, text, ...(busy ? { delivery: "steer" } : {}) })

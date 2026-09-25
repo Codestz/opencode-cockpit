@@ -50,7 +50,7 @@ const run = (cmd: string[], cwd: string) => {
  */
 function agentTurn(env: Record<string, string | undefined>) {
   const prompt = [
-    "Call the tool shell_start with command 'echo AGENT-SHELL-OK' and description 'agent probe', then call review_list.",
+    "Call the tool shell_start with command 'echo AGENT-SHELL-OK' and description 'agent probe', then call review_list, then call subagents_list.",
     "Your system prompt has heading lines starting with '## Background shells', '## Review comments' and '## Subagents'.",
     "Quote all three heading lines exactly in your reply.",
   ].join(" ")
@@ -95,7 +95,7 @@ function agentTurn(env: Record<string, string | undefined>) {
     .map((event) => (event.part as unknown as { text: string }).text)
     .join("\n")
   const report = `${result.stdout}\n${result.stderr}`.slice(-3000)
-  for (const name of ["shell_start", "review_list"]) {
+  for (const name of ["shell_start", "review_list", "subagents_list"]) {
     if (!called.includes(name)) throw new Error(`the agent never completed ${name}:\n${report}`)
   }
   for (const heading of ["## Background shells", "## Review comments", "## Subagents"]) {
@@ -310,13 +310,17 @@ try {
       sidebar = await screen()
     }
     await Bun.sleep(4000)
-    const lines = (await screen()).split("\n")
-    const y = lines.findIndex((line) => /[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(line.slice(Math.floor(cols / 2))))
-    if (y < 0) throw new Error(`the sidebar never showed the subagent:\n${lines.join("\n")}`)
-    const x = (lines[y] as string).lastIndexOf(" explore ") + 3
-    proc.terminal.write(`\x1b[<0;${x + 1};${y + 1}M`)
-    await Bun.sleep(80)
-    await type(`\x1b[<0;${x + 1};${y + 1}m`, 2500)
+    /** Found again before every click: the blocks above it (the statusline's) grow as the turn runs. */
+    const clickSubagent = async () => {
+      const lines = (await screen()).split("\n")
+      const y = lines.findIndex((line) => /[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(line.slice(Math.floor(cols / 2))))
+      if (y < 0) throw new Error(`the sidebar never showed the subagent:\n${lines.join("\n")}`)
+      const x = (lines[y] as string).lastIndexOf(" explore ") + 3
+      proc.terminal.write(`\x1b[<0;${x + 1};${y + 1}M`)
+      await Bun.sleep(80)
+      await type(`\x1b[<0;${x + 1};${y + 1}m`, 2500)
+    }
+    await clickSubagent()
     const full = await screen()
     /** The cursor onto the last item and open it, then a message typed into the pane, not a dialog. */
     await type("k", 600)
@@ -328,14 +332,35 @@ try {
     await type("\x1b", 800)
     await type("q", 1500)
     const slashed = await slash("subagents")
+    /**
+     * A message to the finished subagent: it answers, and the exchange is added to the main
+     * conversation without starting a turn there (v1 draws it as a message, v2 as one line).
+     */
+    await clickSubagent()
+    /** The relay is for a finished subagent: one still at work (or held on a permission) answers its run. */
+    const finished = (await screen()).includes("done in")
+    await type("m", 600)
+    /** Half typed, half pasted — a paste is one event, not keys, and used to land in OpenCode's prompt. */
+    await type("Reply with just the word ", 600)
+    await type("\x1b[200~RELAY-OK.\x1b[201~", 1000)
+    const pasted = await screen()
+    await type("\r", 2000)
+    let relayed = await screen()
+    for (let i = 0; i < 40 && !relayed.includes("The main agent now knows"); i++) {
+      await Bun.sleep(2000)
+      relayed = await screen()
+    }
+    await type("q", 1500)
+    /** Whatever an earlier step left in the prompt goes, or its menu covers the conversation. */
+    await type("\x15", 300)
+    await type("\x1b", 1500)
+    const conversation = await screen()
     /** `x` on a finished subagent takes it off the list; on a working one it asks first. */
-    proc.terminal.write(`\x1b[<0;${x + 1};${y + 1}M`)
-    await Bun.sleep(80)
-    await type(`\x1b[<0;${x + 1};${y + 1}m`, 2500)
+    await clickSubagent()
     await type("x", 1500)
     const removed = await screen()
     await type("q", 1000)
-    return { sidebar, full, toggled, typing, slashed, removed }
+    return { sidebar, full, toggled, typing, slashed, finished, pasted, relayed, conversation, removed }
   }
 
   const slash = async (name: string) => {
@@ -396,6 +421,14 @@ try {
     /** The heading's count reaches the sidebar's edge whole: rows drawn wider than it were clipped. */
     if (!/Subagents +\d+ (running|done|failed)\b/.test(subagents.sidebar))
       throw new Error(`the sidebar's Subagents heading was clipped:\n${subagents.sidebar}`)
+    if (!subagents.pasted.includes("┃ Reply with just the word RELAY-OK."))
+      throw new Error(`a paste never reached the message field:\n${subagents.pasted}`)
+    if (subagents.finished) {
+      if (!subagents.relayed.includes("The main agent now knows"))
+        throw new Error(`the subagent's answer was never relayed to the main agent:\n${subagents.relayed}`)
+      if (!/Cockpit notification|Subagent exchange/.test(subagents.conversation))
+        throw new Error(`the main conversation never showed the relayed exchange:\n${subagents.conversation}`)
+    } else console.log("relay not checked: the subagent had not finished when the message was sent")
     const asked = subagents.removed.includes("Press x again")
     const listed = /[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(subagents.removed)
     if (!asked && listed)

@@ -55,7 +55,10 @@ function doing(activity: Activity): Row {
         { text: activity.text, tone: "text" },
       ]
     case "failed":
-      return [{ text: `failed: ${activity.text}`, tone: "error" }]
+      /** Stopped — by you, or with the main agent — is not broken. */
+      return /abort|interrupt|cancel/i.test(activity.text)
+        ? [{ text: "cancelled", tone: "warning" }]
+        : [{ text: `failed: ${activity.text}`, tone: "error" }]
     case "done":
       return [{ text: "done", tone: "success" }]
     default:
@@ -114,10 +117,16 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
         ? (session.ended ?? now) - session.started
         : now - activity.since
     const calls = session.entries.filter((entry) => entry.kind === "tool").length
+    /** Continued by the main agent, or messaged by you: each is a round. */
+    const rounds = session.entries.filter((entry) => entry.kind === "prompt").length
     lines.push({
       id,
       row: spread(
-        [{ text: `${indent}  └ `, tone: "border" }, ...doing(activity)],
+        [
+          { text: `${indent}  └ `, tone: "border" },
+          ...doing(activity),
+          ...(rounds > 1 ? [{ text: ` · ${rounds} rounds`, tone: "muted" as const }] : []),
+        ],
         /** Right-aligned, so the target gives way and the numbers stay whole. */
         /** Said in words: a bare "157 · 34m" read as a puzzle. */
         [

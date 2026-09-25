@@ -30,6 +30,12 @@ export interface ServerHost {
   readonly scope: object
   readonly session: {
     get(id: string): Promise<{ parentID?: string; title?: string } | undefined>
+    /** A session's child sessions — its subagents. OpenCode 1 only: OpenCode 2 gives plugins no list. */
+    children?(
+      id: string,
+    ): Promise<{ id: string; title?: string; parentID?: string; time?: { updated?: number } }[]>
+    /** A session's messages with their parts, as OpenCode 1 stores them. OpenCode 1 only. */
+    messages?(id: string): Promise<{ info: unknown; parts: unknown[] }[]>
     /** A message from the plugin rather than the person, which starts a turn: v1's synthetic prompt. */
     notify(id: string, text: string): Promise<void>
   }
@@ -44,6 +50,8 @@ export interface ServerParts {
   /** Added to the system prompt of each model request. The session is unknown on some v1 requests. */
   system?: (sessionID: string | undefined) => Promise<string[]>
   sessionDeleted?: (sessionID: string) => Promise<void>
+  /** Every event, as the host sends it: v1's `{ type, properties }`, v2's `{ type, data }`. */
+  event?: (event: unknown) => Promise<void> | void
   dispose?: () => Promise<void> | void
 }
 
@@ -75,6 +83,13 @@ export function composeParts(parts: ServerParts[]): ServerParts {
       ? {
           sessionDeleted: async (sessionID: string) => {
             for (const part of parts) await part.sessionDeleted?.(sessionID)
+          },
+        }
+      : {}),
+    ...(any("event")
+      ? {
+          event: async (event: unknown) => {
+            for (const part of parts) await part.event?.(event)
           },
         }
       : {}),
@@ -129,6 +144,16 @@ export function serverFromV1(input: PluginInput, log: Log = silentLog): ServerHo
           body: { parts: [{ type: "text", text, synthetic: true } as never] },
         })
       },
+      children: async (id) => {
+        const result = await client.session.children({ path: { id } }).catch(() => undefined)
+        const list = result?.data as { id: string; title?: string; parentID?: string }[] | undefined
+        return Array.isArray(list) ? list : []
+      },
+      messages: async (id) => {
+        const result = await client.session.messages({ path: { id } }).catch(() => undefined)
+        const list = result?.data as { info: unknown; parts: unknown[] }[] | undefined
+        return Array.isArray(list) ? list : []
+      },
     },
     readFile: async (path) => {
       const result = await client.file.read({ query: { path } }).catch(() => undefined)
@@ -149,10 +174,11 @@ export function partsToV1Hooks(parts: ServerParts): Hooks {
           },
         }
       : {}),
-    ...(parts.sessionDeleted
+    ...(parts.sessionDeleted || parts.event
       ? {
           event: async ({ event }) => {
             if (event.type === "session.deleted") await parts.sessionDeleted?.(event.properties.info.id)
+            await parts.event?.(event)
           },
         }
       : {}),
@@ -380,15 +406,17 @@ export function dualServer(id: string, start: ServerStart) {
         })
       }
       const stop = new AbortController()
-      if (parts.sessionDeleted) {
-        const deleted = parts.sessionDeleted
+      if (parts.sessionDeleted || parts.event) {
+        const { sessionDeleted: deleted, event: each } = parts
         void follow(ctx, stop.signal, host.log, async (event) => {
           const sessionID = event.data?.sessionID
-          if (event.type === "session.deleted" && sessionID) {
+          if (deleted && event.type === "session.deleted" && sessionID) {
             await deleted(sessionID).catch((error) =>
               host.log.warn("session cleanup failed", { sessionID, error }),
             )
           }
+          if (each)
+            await Promise.resolve(each(event)).catch((error) => host.log.warn("event failed", { error }))
         })
       }
       return async () => {

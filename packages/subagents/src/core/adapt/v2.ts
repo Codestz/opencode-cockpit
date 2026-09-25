@@ -66,7 +66,9 @@ export function createV2Translator(unknown: (what: string, detail?: Json) => voi
     event(raw, at = Date.now()) {
       const event = obj(raw)
       const name = str(event.name) ?? str(event.type)
-      const data = obj(obj(event.details).data)
+      /** The interface's events carry `details.data`; the agent side's carry `data`. */
+      const details = obj(event.details)
+      const data = obj("data" in details ? details.data : event.data)
       const id = str(data.sessionID)
       if (!name) return []
       const key = () => `${str(data.assistantMessageID) ?? "?"}:${String(data.ordinal ?? 0)}`

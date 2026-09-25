@@ -28,6 +28,14 @@ All notable changes to this project are documented here. The format follows
   same order as OpenCode 1 (it drew slots in the order they registered), and the statusline's and
   Shell's places at the foot of the window no longer move with their sidebar place.
 - **Move a subagent to the background from its pane** (`b`), as OpenCode's `ctrl+b` does.
+- **Follow-ups keep a subagent's context.** The main agent is asked to continue the subagent that did
+  the work rather than launch a new one, and gets a `subagents_list` tool (id, task, state, last
+  answer). When you message a finished subagent directly, its answer is added to the main
+  conversation without starting a turn, so the main agent knows. Rounds show in the pane and the
+  sidebar.
+- **`hideFinishedAfter`** takes finished subagents out of the sidebar after that many minutes.
+- **Paste works in Cockpit's text fields** — a subagent message, Shell's search, and the shell you
+  are typing into. A paste arrives as one event, not keys, and went to OpenCode's prompt instead.
 - **Big outputs stay easy to move through.** A folded call shows 10 lines of its output, an open
   one 60, and `a` shows it whole (up to 2,000). Scrolling inside a selected call no longer snaps
   back to its first line.

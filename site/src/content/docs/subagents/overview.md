@@ -69,18 +69,22 @@ follows the run as it grows; scroll or move the cursor and it stays where you pu
 
 ## Messaging a subagent
 
-Press `m` and write at the foot of the pane; `enter` sends, `esc` lets it go. What you sent joins the run as a card. Measured on both OpenCodes:
+Press `m` and write at the foot of the pane; `enter` sends, `esc` lets it go. Your message joins the
+run as a card, under a "Round 2" rule. Measured on both OpenCodes:
 
 - **While it works**, it picks the message up in its current run, acts on it, and says so in its
-  answer — which the main agent receives, so it learns of it too.
-- **Once it has finished**, it wakes up and answers you, but **the main agent is not told** — its
-  task already returned. The screen says so under the keys.
+  answer — which the main agent receives.
+- **Once it has finished**, it wakes up and answers you. Cockpit then adds what you asked and what it
+  answered to the main conversation, without starting a turn there — OpenCode 1 shows it as a message,
+  OpenCode 2 as a "Subagent exchange" line — so the main agent knows the next time you talk to it.
 
-**Stop and remove.** `x` twice stops a working subagent — and first tells the main agent you stopped it
-on purpose, so it reports the stop instead of launching the subagent again.
-`x` on a finished subagent removes it from the list, `X` removes every finished one — the sessions
-stay in OpenCode, and one that works again comes back. "Clear finished subagents" and "Show removed
-subagents again" are in the command palette.
+## Follow-ups keep their context
+
+Ask the main agent to fix or extend what a subagent did, and it is asked to continue that same
+subagent (OpenCode 1's `task_id`, OpenCode 2's `sessionID`) rather than start a new one — it keeps
+everything it already read. `subagents_list` gives the main agent each subagent's id, task and last
+answer, for when the id has scrolled out of its context. A round the main agent started says
+"build continued it" in the pane, and the sidebar counts rounds.
 
 ## Moving one to the background
 
@@ -114,6 +118,7 @@ In the bundle's entry (`"subagents": { … }`) or this package's own:
 | Setting | Default | |
 | --- | --- | --- |
 | `sidebarRows` | `6` | Subagents shown before the rest fold into a count, working ones first |
+| `hideFinishedAfter` | unset | Minutes a finished subagent stays in the sidebar; unset keeps it for the conversation. `X` clears them by hand |
 | `sidebarOrder` | `150` | Where the block sits among sidebar blocks; lower draws first |
 | `keybinds` | `{ "cockpit.subagents.open": "<leader>w" }` | The key that opens one full screen |
 | `guidance` | `true` | Ask the agent to use background subagents (agent side) |

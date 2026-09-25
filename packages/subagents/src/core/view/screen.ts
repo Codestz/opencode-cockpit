@@ -41,6 +41,8 @@ export interface ScreenInput {
   top?: number
   /** The item under the cursor. */
   selected?: string
+  /** Whether a message to the subagent was yours — the rest came from the main agent continuing it. */
+  yours?: (entry: Extract<Entry, { kind: "prompt" }>) => boolean
   /** Calls whose output is shown whole rather than its first lines (`a`). */
   whole?: ReadonlySet<string>
   /** The cursor just moved: bring the selected item into view. Scrolling does not. */
@@ -416,6 +418,7 @@ function bodyLines(input: ScreenInput, width: number, opened: string[]): Line[] 
    * which reads as one list, unless one of them is open.
    */
   let last: { kind: Entry["kind"]; open: boolean } | undefined
+  let round = 1
   const seen = new Set<string>()
   /** An item's rows from the cache when what they are drawn from has not changed. */
   const drawn = (key: string, sig: string, draw: () => Line[]): Line[] => {
@@ -430,15 +433,33 @@ function bodyLines(input: ScreenInput, width: number, opened: string[]): Line[] 
     if (entry.kind === "prompt" && entry.first) return
     const key = itemKey(entry)
     switch (entry.kind) {
-      case "prompt":
+      case "prompt": {
+        /**
+         * Another round: the main agent continued this subagent, or you wrote to it. A rule says where
+         * the round starts; the card says who started it.
+         */
+        round += 1
+        const mine = input.yours?.(entry) ?? false
+        const from = mine ? "You" : `${input.launcher ?? "The main agent"} continued it`
         blank()
         lines.push(
-          ...drawn(key, `${width}|${entry.text.length}`, () =>
-            cardLines("You", entry.text, width, "info", "card", key),
-          ),
+          ...drawn(key, `${width}|${entry.text.length}|${mine}|${round}|${input.launcher}`, () => [
+            {
+              row: fit(
+                [
+                  { text: `${PAD}── Round ${round} `, tone: "muted" },
+                  { text: "─".repeat(width), tone: "border" },
+                ],
+                width,
+              ),
+            },
+            { row: fit([], width) },
+            ...cardLines(from, entry.text, width, mine ? "info" : "accent", "card", key),
+          ]),
         )
         last = { kind: "prompt", open: false }
         return
+      }
       case "thinking": {
         blank()
         const isOpen = (input.thinking || input.open.has(key)) && !input.closed.has(key)
@@ -555,7 +576,7 @@ function header(input: ScreenInput, width: number): Row[] {
       ? `waiting ${elapsed(now - session.since)}`
       : `running ${elapsed(now - session.started)}`
     : session.status === "failed"
-      ? `failed after ${elapsed((session.ended ?? now) - session.started)}`
+      ? `${/abort|interrupt|cancel/i.test(session.error ?? "") ? "cancelled" : "failed"} after ${elapsed((session.ended ?? now) - session.started)}`
       : `done in ${elapsed((session.ended ?? now) - session.started)}`
   const tools = session.entries.filter((entry) => entry.kind === "tool").length
   const meta = [

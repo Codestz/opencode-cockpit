@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test"
+import { slim } from "../src/agent/plugin.ts"
 import { createV1Translator } from "../src/core/adapt/v1.ts"
 import { createV2Translator } from "../src/core/adapt/v2.ts"
 import type { Change } from "../src/core/model/changes.ts"
 import { applyAll, emptyModel, type Node, type Session, subagentsOf } from "../src/core/model/model.ts"
 import { markdownRows } from "../src/core/view/markdown.ts"
+import { subagentReport } from "../src/core/view/report.ts"
 import { cut, elapsed, fit, rowText, widthOf, wrap } from "../src/core/view/rows.ts"
 import { createScreenCache, rowWidth, type ScreenInput, screenRows } from "../src/core/view/screen.ts"
 import { sidebarLines } from "../src/core/view/sidebar.ts"
@@ -267,11 +269,33 @@ describe("while it works", () => {
     const nodes = subagentsOf(m, "p")
     const session = nodes[0]?.session
     if (!session) throw new Error("no subagent")
-    const screen = screenRows({ ...pane(session, nodes), width: 80, height: 30 })
+    const screen = screenRows({
+      ...pane(session, nodes),
+      width: 80,
+      height: 30,
+      yours: (entry) => entry.text === "Also run the tests.",
+    })
     const text = screen.rows.map(rowText).join("\n")
+    expect(text).toContain("── Round 2 ")
     expect(text).toContain("▎ You")
     expect(text).toContain("▎ Also run the tests.")
     expect(screen.keys).toContain("prompt:u2")
+  })
+
+  test("a round the main agent started says so, and the sidebar counts rounds", () => {
+    const m = applyAll(emptyModel(), [
+      ...running,
+      { type: "prompt", id: "c", key: "u2", text: "Fix the failing import too.", at: at + 1 },
+    ])
+    const nodes = subagentsOf(m, "p")
+    const session = nodes[0]?.session
+    if (!session) throw new Error("no subagent")
+    const text = screenRows({ ...pane(session, nodes), width: 80, height: 30, launcher: "build" })
+      .rows.map(rowText)
+      .join("\n")
+    expect(text).toContain("▎ build continued it")
+    const sidebar = sidebarLines({ nodes, width: 60, now: at + 5000, frame: 0 })
+    expect(rowText(sidebar[2]?.row ?? [])).toContain("· 2 rounds")
   })
 })
 
@@ -525,5 +549,99 @@ describe("a big output", () => {
     expect(screen.top).toBe(40)
     const revealed = screenRows({ ...base, top: 40, reveal: true })
     expect(revealed.top).toBeLessThan(40)
+  })
+})
+
+describe("the main agent's list", () => {
+  test("ids in full, how to continue one, the task and the last answer", async () => {
+    const { nodes } = await model(1)
+    const text = subagentReport({ nodes, now: Date.now(), version: 1 })
+    const id = nodes[0]?.session.id as string
+    expect(text).toContain("task_id")
+    expect(text).toContain(`- ${id} · explore`)
+    expect(text).toMatch(/Task: \S/)
+    expect(text).toMatch(/Last answer: \S/)
+    expect(subagentReport({ nodes, now: Date.now(), version: 2 })).toContain("sessionID")
+    expect(subagentReport({ nodes: [], now: 0, version: 2 })).toContain("no subagents")
+  })
+
+  test("the agent side keeps no call output and no thinking", () => {
+    const kept = slim([
+      { type: "thinking", id: "c", key: "t", text: "secret plans", at: 1 },
+      {
+        type: "tool",
+        id: "c",
+        call: "1",
+        name: "read",
+        input: { filePath: "/a" },
+        output: "big file",
+        at: 1,
+      },
+    ])
+    expect(kept).toHaveLength(1)
+    expect(JSON.stringify(kept)).not.toContain("big file")
+  })
+})
+
+describe("the main agent's list, after a restart", () => {
+  test("idle with nothing recorded reads as finished; an aborted one as cancelled", () => {
+    const m = applyAll(emptyModel(), [
+      { type: "session", id: "a", parentID: "p", agent: "general", title: "Old", at: 1 },
+      { type: "status", id: "a", status: "idle", at: 2 },
+      { type: "session", id: "b", parentID: "p", agent: "general", title: "Stopped", at: 1 },
+      { type: "status", id: "b", status: "busy", at: 1 },
+      { type: "status", id: "b", status: "failed", error: "MessageAbortedError", at: 3 },
+    ])
+    const text = subagentReport({ nodes: subagentsOf(m, "p"), now: 60_000, version: 1 })
+    expect(text).toMatch(/- a · general · "Old" · ended .* without a final answer/)
+    expect(text).toMatch(/- b · general · "Stopped" · cancelled/)
+    expect(text).not.toContain("working now")
+  })
+
+  test("a run that ended on a call says its last words were a progress note, not an answer", () => {
+    const m = applyAll(emptyModel(), [
+      { type: "session", id: "a", parentID: "p", agent: "general", title: "Review", at: 1 },
+      { type: "prompt", id: "a", key: "u", text: "Review the diff", at: 1 },
+      { type: "reply", id: "a", key: "r", text: "I'm refreshing the diff…", done: true, at: 2 },
+      {
+        type: "tool",
+        id: "a",
+        call: "1",
+        name: "bash",
+        state: "completed",
+        input: { command: "git diff" },
+        at: 3,
+      },
+      { type: "status", id: "a", status: "idle", at: 4 },
+    ])
+    const text = subagentReport({ nodes: subagentsOf(m, "p"), now: 60_000, version: 1 })
+    expect(text).toContain("without a final answer")
+    expect(text).toContain("Last words (a progress note, not its answer): I'm refreshing the diff…")
+    expect(text).not.toContain("Last answer:")
+  })
+
+  test("OpenCode 1's stored run of a stopped subagent loads as cancelled", () => {
+    const translate = createV1Translator()
+    const changes = translate.history([
+      { info: { id: "m1", sessionID: "c", role: "user", time: { created: 1 } }, parts: [] },
+      {
+        info: {
+          id: "m2",
+          sessionID: "c",
+          role: "assistant",
+          time: { created: 2 },
+          error: { name: "MessageAbortedError", data: { message: "The operation was aborted." } },
+        },
+        parts: [],
+      },
+    ])
+    const m = applyAll(emptyModel(), [
+      { type: "session", id: "c", parentID: "p", agent: "general", title: "Audit", at: 1 },
+      ...changes,
+      { type: "status", id: "c", status: "idle", at: 5 },
+    ])
+    expect(m.sessions.get("c")?.status).toBe("failed")
+    const text = subagentReport({ nodes: subagentsOf(m, "p"), now: 60_000, version: 1 })
+    expect(text).toMatch(/"Audit" · cancelled .* no final answer/)
   })
 })

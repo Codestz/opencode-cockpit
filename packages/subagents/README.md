@@ -42,9 +42,14 @@ folds to one line. The answer is drawn as markdown, and your messages sit in the
 | `d` `u` · `g` `G` | Page down · up · to the start · follow the run |
 | `esc` `q` | Back to the conversation |
 
+**Follow-ups keep their context.** The main agent is asked to continue a subagent for follow-up
+work instead of starting a new one, and has a `subagents_list` tool with each subagent's id, task and
+last answer. Each new round shows in the pane under a "Round N" rule.
+
 **Message it.** A subagent that is still working picks your message up in its current run and
-answers it in its report, so the main agent sees it too. A finished one wakes up and answers you —
-but the main agent is not told; the screen says so under the keys.
+answers it in its report, so the main agent sees it too. A finished one wakes up and answers you,
+and Cockpit adds the exchange to the main conversation without starting a turn there, so the main
+agent knows it next time.
 
 **Stop and remove.** `x` twice stops a working subagent — and first tells the main agent you stopped it
 on purpose, so it reports the stop instead of launching the subagent again.
@@ -68,6 +73,7 @@ In the bundle's entry (`"subagents": { … }`) or this package's own:
 | Setting | Default | |
 | --- | --- | --- |
 | `sidebarRows` | `6` | Subagents shown before the rest fold into a count — working ones first |
+| `hideFinishedAfter` | unset | Minutes a finished subagent stays in the sidebar; unset keeps it for the conversation. `X` clears them by hand |
 | `sidebarOrder` | `150` | Where the block sits in the sidebar; lower draws first |
 | `keybinds` | `{ "cockpit.subagents.open": "<leader>w" }` | The key that opens the latest one |
 | `guidance` | `true` | Tell the agent about background subagents (agent side) |

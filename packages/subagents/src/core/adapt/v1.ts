@@ -206,6 +206,23 @@ export function createV1Translator(unknown: (what: string, detail?: Json) => voi
         out.push(...message(info, when))
         for (const p of each.parts) out.push(...part(obj(p), when))
       }
+      /**
+       * A run that was stopped says so on its last answer (`MessageAbortedError`), not in a status the
+       * store keeps — read without it, a cancelled subagent loaded as one that finished.
+       */
+      const last = obj(messages.at(-1)?.info)
+      const error = obj(last.error)
+      const id = str(last.sessionID)
+      if (id && last.role === "assistant" && (str(error.name) || str(obj(error.data).message))) {
+        const ended = Number(obj(last.time).completed) || Number(obj(last.time).created) || at
+        out.push({
+          type: "status",
+          id,
+          status: "failed",
+          error: str(obj(error.data).message) ?? str(error.name) ?? "failed",
+          at: ended,
+        })
+      }
       return out
     },
     session(info, at = Date.now()) {

@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
-import { bindingLookup, dualTui, type Host, type Layer } from "@opencode-cockpit/client/host"
+import { bindingLookup, dualTui, type Host, type Layer, onPaste } from "@opencode-cockpit/client/host"
 import { sidebarOrder } from "@opencode-cockpit/client/sidebar"
 import type { BoxRenderable } from "@opentui/core"
 import { createSignal } from "solid-js"
@@ -23,6 +23,12 @@ const DEFAULT_KEYS = {
 export interface SubagentsTuiOptions {
   /** Subagents shown in the sidebar before the rest fold into a count. */
   sidebarRows?: number
+  /**
+   * Minutes a finished subagent stays in the sidebar; unset keeps it for the conversation. It is only
+   * out of the sidebar — `/subagents` and the pane's `[` `]` still reach it, and it comes back if it
+   * works again.
+   */
+  hideFinishedAfter?: number
   /** Where the block sits among sidebar blocks; lower draws first (Shell 150, statusline 200). */
   sidebarOrder?: number
   keybinds?: Record<string, string>
@@ -53,6 +59,12 @@ interface Surface {
 }
 
 const FULL_KEY = "cockpit.subagents.full"
+/** Messages you sent, as `<session>:<text>` — so the pane can tell yours from the main agent's. */
+const YOURS_KEY = "cockpit.subagents.yours"
+const YOURS_MAX = 200
+/** How much of an answer is relayed to the main agent. */
+const RELAY_MAX = 4000
+const clip = (text: string, most: number) => (text.length > most ? `${text.slice(0, most - 1)}…` : text)
 /** Thinking shown or folded — shown until you say otherwise, then as you left it. */
 const THINKING_KEY = "cockpit.subagents.thinking"
 /** Subagents removed from the list, by id — kept across restarts, the newest few hundred. */
@@ -82,6 +94,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
     const keys = bindingLookup({ ...DEFAULT_KEYS, ...options.keybinds })
 
     const model = emptyModel()
+    const yours = new Set<string>(api.kv.get<string[]>(YOURS_KEY, []))
     const surface: Surface = {
       opened: new Set(),
       closed: new Set(),
@@ -154,7 +167,22 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       const now = Date.now()
       const list = nodes()
       drawnAt = sidebarWidth()
-      const next = sidebarLines({ nodes: list, width: drawnAt, now, frame, limit: options.sidebarRows ?? 6 })
+      const after = options.hideFinishedAfter
+      const listed =
+        typeof after === "number" && after >= 0
+          ? list.filter(
+              ({ session }) =>
+                !(session.status === "done" || session.status === "failed") ||
+                now - (session.ended ?? now) < after * 60_000,
+            )
+          : list
+      const next = sidebarLines({
+        nodes: listed,
+        width: drawnAt,
+        now,
+        frame,
+        limit: options.sidebarRows ?? 6,
+      })
       /** Only when they changed: new rows rebuild every line of the block, and a scroll is many paints. */
       const said = JSON.stringify(next)
       if (said !== sidebarSaid) {
@@ -190,6 +218,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
             thinking: surface.thinking,
             details: surface.details,
             whole: surface.whole,
+            yours: (entry) => yours.has(`${session.id}:${entry.text}`),
             reveal: surface.reveal === true,
             ...(surface.draft !== undefined ? { input: { draft: surface.draft, busy: busy(session) } } : {}),
             ...(surface.notice ? { notice: surface.notice } : {}),
@@ -237,6 +266,8 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       if (changes.length === 0) return
       applyAll(model, changes)
       for (const change of changes) {
+        if (change.type === "status" && change.status !== "busy" && change.status !== "waiting")
+          relay(change.id)
         if (change.type === "session" && change.parentID)
           log.debug("subagent", { id: change.id, parent: change.parentID, agent: change.agent })
         /** Removed, then started again (the main agent continued it): it belongs in the list again. */
@@ -289,7 +320,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       if (working()) {
         frame++
         draw()
-      }
+      } else if (options.hideFinishedAfter !== undefined) draw() // finished ones age out with nothing running
     }, 1000)
     let fast: ReturnType<typeof setInterval> | undefined
 
@@ -426,6 +457,77 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       draw()
     }
 
+    /**
+     * Messages you sent a finished subagent, until it answers. Its answer goes nowhere on its own — the
+     * main agent's task returned long ago — so once it is idle again, what you asked and what it said
+     * are added to the main conversation, quietly: no turn starts, and the main agent knows next time.
+     */
+    const asked = new Map<string, { question: string; busy: boolean }>()
+    /** How long a subagent that went idle is given to start a run of its own for a queued message. */
+    const SETTLE_MS = 3000
+
+    /** The entries after your message: what the subagent did with it, if anything. */
+    const after = (id: string, question: string) => {
+      const entries = model.sessions.get(id)?.entries ?? []
+      const at = entries.findLastIndex((entry) => entry.kind === "prompt" && entry.text === question)
+      return at < 0 ? [] : entries.slice(at + 1)
+    }
+
+    const relay = (id: string) => {
+      if (!asked.has(id)) return
+      /**
+       * Settled first: sent while it was busy, OpenCode 1 may queue the message and start a run for it
+       * straight after — or finish without reading it at all, which happened: the message sat in the
+       * run as "Round 3" and nothing answered it.
+       */
+      setTimeout(() => {
+        const pending = asked.get(id)
+        const session = model.sessions.get(id)
+        if (!pending || !session) return
+        if (busy(session) || session.status === "waiting") {
+          /** A run of its own for the message: its answer goes nowhere unless it is relayed. */
+          pending.busy = false
+          return
+        }
+        asked.delete(id)
+        const followed = after(id, pending.question)
+        if (!followed.some((entry) => entry.kind !== "prompt")) {
+          log.warn("message not answered", { id })
+          if (surface.open === id && surface.draft === undefined)
+            set({
+              draft: pending.question,
+              notice: `${session.agent} finished without reading your message — enter sends it again, esc drops it.`,
+            })
+          return
+        }
+        /** Read inside a run the main agent was waiting on: its answer already went there. */
+        if (pending.busy || !session.parentID) return
+        const answer = followed
+          .filter((entry): entry is Extract<typeof entry, { kind: "reply" }> => entry.kind === "reply")
+          .map((entry) => entry.text.trim())
+          .filter(Boolean)
+          .join("\n\n")
+        const parent = model.sessions.get(session.parentID)
+        const how = api.v1 ? "task_id" : "sessionID"
+        const text = [
+          "[Cockpit notification — information, not a request. Nothing to do unless the user asks.]",
+          `The user messaged your ${session.agent} subagent "${session.title}" (${how} ${id}) directly.`,
+          `They asked: ${pending.question}`,
+          session.status === "failed"
+            ? `It failed: ${session.error ?? "no reason given"}`
+            : `It answered: ${answer ? clip(answer, RELAY_MAX) : "(nothing)"}`,
+        ].join("\n")
+        feed
+          .quiet(session.parentID, text, parent && parent.agent !== "agent" ? parent.agent : undefined)
+          .then(() => {
+            log.info("relayed to the main agent", { id, parent: session.parentID })
+            if (surface.open === id)
+              set({ notice: `The main agent now knows what ${session.agent} answered you.` })
+          })
+          .catch((error) => log.warn("relay failed", { id, error }))
+      }, SETTLE_MS)
+    }
+
     const sendMessage = () => {
       const session = opened()
       const text = surface.draft?.trim()
@@ -434,6 +536,11 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       /** Taken now: the model may learn something about the session before the call returns. */
       const { id, agent } = session
       const wasBusy = busy(session)
+      yours.add(`${id}:${text}`)
+      api.kv.set(YOURS_KEY, [...yours].slice(-YOURS_MAX))
+      /** Working, it answers the main agent itself; finished, its answer is relayed once it comes. */
+      /** Watched either way: answered in a run of its own, it is relayed; not answered, it comes back. */
+      asked.set(id, { question: text, busy: wasBusy })
       surface.notice = `Sending to ${agent}…`
       surface.top = undefined
       draw()
@@ -449,6 +556,16 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
         })
         .finally(draw)
     }
+
+    /** A paste while typing goes into the message — one line, as the field is. */
+    const offPaste = onPaste(api, (text) => {
+      if (!surface.open || surface.draft === undefined) return false
+      surface.draft += text.replace(/\r?\n/g, " ")
+      log.debug("message: pasted", { chars: text.length })
+      draw()
+      return true
+    })
+    api.lifecycle.onDispose(offPaste)
 
     /** Typing a message takes every key before the layer, so `e`, `t`, `j`… go into the words. */
     api.keymap.intercept(
