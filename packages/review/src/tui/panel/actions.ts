@@ -27,6 +27,7 @@ import {
 } from "../../core/model/review.ts"
 import { submission, toolsConfigured, waitingOnAgent } from "../../core/model/submit.ts"
 import type { Persistence } from "../../core/store/persist.ts"
+import { mostShift } from "../../core/view/diff.ts"
 import { streamWidth } from "../../core/view/layout.ts"
 import { keepCursorVisible, navigableRows } from "../../core/view/list.ts"
 import type { Viewport } from "../../core/view/state.ts"
@@ -79,6 +80,8 @@ export interface ActionDeps {
 export interface Actions {
   move: (delta: number) => void
   scroll: (delta: number) => void
+  /** The code sideways, by columns: negative is back towards the start of the lines. */
+  pan: (delta: number) => void
   swap: () => void
   enter: () => void
   toFiles: () => void
@@ -223,6 +226,19 @@ export function createActions(deps: ActionDeps): Actions {
    * first thing in sight, so the next `j` carries on from what you are looking at rather than jumping
    * back to where you were.
    */
+  /**
+   * Sideways through the code of the file under the cursor, as far as its longest line. A line that
+   * ran past the pane used to end in "…" with no way to read the rest.
+   */
+  const pan = (delta: number) => {
+    const file = store.current().changes.files.find((change) => change.path === surface.view.file)
+    const most = mostShift(file, width())
+    const shift = Math.max(0, Math.min(most, (surface.view.shift ?? 0) + delta))
+    if (shift === (surface.view.shift ?? 0)) return
+    surface.view = { ...surface.view, shift, pane: "diff" }
+    draw()
+  }
+
   const scroll = (delta: number) => {
     const stream = streamNow()
     const height = listHeight()
@@ -313,7 +329,15 @@ export function createActions(deps: ActionDeps): Actions {
     const to = onFile
       ? undefined
       : Math.max(surface.view.anchor ?? surface.view.line ?? 0, surface.view.line ?? 0)
-    const existing = threadOn(surface.review, file, from, to)
+    /**
+     * The thread already here: written on exactly these lines, or — for one line — drawn on it now,
+     * its code having moved since. Missing the second made a reply a new thread above the old one.
+     */
+    const existing =
+      threadOn(surface.review, file, from, to) ??
+      (!onFile && from === to && to !== undefined
+        ? threadsOnLine(surface.review, file, to, queries.contents().get(file))[0]
+        : undefined)
 
     /**
      * The review's keys are a *global* layer, so they are still live while a dialog is open — which
@@ -380,9 +404,15 @@ export function createActions(deps: ActionDeps): Actions {
     if (!surface.view.file) return undefined
     if (surface.view.pane === "files")
       return threadsFor(surface.review, surface.view.file).find((each) => each.line === undefined)
+    /** Placed by the file as it reads now, as the diff draws it (see `hereThreadId`). */
     return surface.view.line === undefined
       ? threadsFor(surface.review, surface.view.file).find((each) => each.line === undefined)
-      : threadsOnLine(surface.review, surface.view.file, surface.view.line)[0]
+      : threadsOnLine(
+          surface.review,
+          surface.view.file,
+          surface.view.line,
+          queries.contents().get(surface.view.file),
+        )[0]
   }
 
   /**
@@ -668,6 +698,7 @@ export function createActions(deps: ActionDeps): Actions {
     commentFile,
     submit,
     toggleStats,
+    pan,
     cycle: deps.cycle,
     close,
     reload: deps.refresh,

@@ -59,6 +59,7 @@ The panel takes the keyboard while it is open, and gives it straight back when i
 | <kbd>return</kbd> <kbd>l</kbd> <kbd>→</kbd> | Open a file, or fold a folder |
 | <kbd>h</kbd> <kbd>←</kbd> | Back to the file list |
 | <kbd>d</kbd> <kbd>u</kbd> <kbd>pgdn</kbd> <kbd>pgup</kbd> | Scroll the diff |
+| <kbd>shift</kbd>+<kbd>→</kbd> <kbd>shift</kbd>+<kbd>←</kbd> · <kbd>L</kbd> <kbd>H</kbd> | Scroll the code sideways, to read a long line to its end — or swipe sideways, or <kbd>shift</kbd>+wheel |
 | <kbd>v</kbd> | Start a selection, or cancel it |
 | <kbd>c</kbd> <kbd>n</kbd> | Comment here, or reply to the thread here |
 | <kbd>f</kbd> | Comment on the whole file |

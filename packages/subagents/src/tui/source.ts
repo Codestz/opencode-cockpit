@@ -72,13 +72,19 @@ const V1_EVENTS = [
 type Loose = Record<string, any>
 
 export function createSource(api: Host, log: Log, emit: (changes: Change[]) => void): Source {
-  /** Each unexpected shape once, not once per event. */
+  /**
+   * Each unexpected shape once, not once per event. An event we do not use is not news — OpenCode 2
+   * hands every plugin every event in the app (`provider.updated`, `session.viewed`…), and as
+   * warnings they filled doctor's report. A part of a kind we did not expect inside an event we do
+   * use still is: that is a shape that changed under us.
+   */
   const told = new Set<string>()
   const unknown = (what: string, detail?: Record<string, unknown>) => {
     const key = `${what} ${JSON.stringify(detail)}`
     if (told.has(key)) return
     told.add(key)
-    log.warn("unrecognised event", { what, ...detail })
+    if (what === "event") log.debug("unused event", { ...detail })
+    else log.warn("unrecognised event", { what, ...detail })
   }
   const offs: (() => void)[] = []
   const guard = (where: string, fn: () => void) => {

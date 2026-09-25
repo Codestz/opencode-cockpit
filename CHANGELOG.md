@@ -6,6 +6,25 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Review scrolls sideways.** A line longer than the pane can be read to its end: swipe sideways or
+  `shift`+wheel over the diff, or `shift+←` / `shift+→` (`H` / `L`). The line numbers stay put; only
+  the code moves, as far as the file's longest line.
+
+### Fixed
+
+- **A reply in Review opened a new thread above the one it answered.** Threads are drawn where their
+  code is now, but were looked up where they were first written — once the code moved (the agent
+  answering usually moves it), `c` on a thread started a second one. The cursor now finds the thread
+  that is drawn under it.
+- **Shell's full screen used half the window.** A running program kept the 120 columns it was
+  started with until you typed into it. It is now sized to the console showing it — opening it, `w`
+  between the dialog and full screen, a resized window — once per change.
+- **Doctor listed a warning for every OpenCode 2 event Subagents does not use.** Those are expected
+  (a plugin there hears every event in the app) and are now debug lines; a surprising shape inside an
+  event it does use is still a warning.
+
 ## [0.7.0] - 2026-09-25
 
 ### Added

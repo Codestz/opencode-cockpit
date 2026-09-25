@@ -211,9 +211,18 @@ function footer(input: ConsoleInput): Row {
 }
 
 /** How many body rows the console shows for this input — what a typing program is sized to. */
-export function bodyHeight(input: ConsoleInput): number {
+/**
+ * The rows the body has room for, however much output there is — what a program is sized to. The
+ * body as drawn shrinks to its output in the dialog; sized to that, a program was resized every time
+ * it printed a line.
+ */
+export function bodyRoom(input: ConsoleInput): number {
   /** The head, a gap, the body, a gap, the key row: exactly `height` when filling. */
-  const room = Math.max(3, input.height - headRows(input).length - 3)
+  return Math.max(3, input.height - headRows(input).length - 3)
+}
+
+export function bodyHeight(input: ConsoleInput): number {
+  const room = bodyRoom(input)
   if (input.fill || input.typing) return room
   return Math.min(room, Math.max(MIN_BODY, bodyLines(input, room).length))
 }

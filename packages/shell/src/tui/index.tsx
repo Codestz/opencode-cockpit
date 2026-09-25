@@ -116,6 +116,8 @@ const shellTui = async (api: Host, rawOptions?: unknown) => {
   let ticking: ReturnType<typeof setInterval> | undefined
 
   let typing = false
+  /** The program and size last sent, so a size is sent once per change, not once per paint. */
+  let sized = ""
   /** Every change ends here: the feed learns what to follow, then one paint. */
   const draw = () => {
     const selected = store.selected()
@@ -124,15 +126,21 @@ const shellTui = async (api: Host, rawOptions?: unknown) => {
     /** Enough scrollback to fill the body, or all of it while scrolled up. */
     feed.setHistory(surface.open ? (surface.up > 0 ? HISTORY : painter.body()) : 0)
     feed.setLog(surface.open && surface.view === "log", surface.filter)
-    // Typing starts: size the program to what the console shows, at whichever size it has.
-    if (surface.typing && !typing && selected) {
-      void client
-        .call("shell.resize", {
-          id: selected.id,
-          cols: screenCols(painter.size().width),
-          rows: painter.body(),
-        })
-        .catch(() => {})
+    /**
+     * The program is sized to the console showing it, whenever that size changes — opening it, `w`
+     * between the dialog and full screen, a resized window — as any terminal window does. Sized only
+     * when typing started, a program kept the 120 columns it was started with, and full screen showed
+     * it in half the window.
+     */
+    if (surface.open && selected?.status === "running" && surface.view === "screen") {
+      const cols = screenCols(painter.size().width)
+      const rows = painter.room()
+      const key = `${selected.id}:${cols}x${rows}`
+      if (key !== sized || (surface.typing && !typing)) {
+        sized = key
+        log.debug("console: size the program", { id: selected.id, cols, rows })
+        void client.call("shell.resize", { id: selected.id, cols, rows }).catch(() => {})
+      }
     }
     typing = surface.typing
     painter.draw()

@@ -137,6 +137,22 @@ export function elidePath(path: string, width: number): string {
  * so almost every line lost its colours. Truncation is a question about width and has nothing to say
  * about colour.
  */
+/** `runs` without their first `columns` characters: the code scrolled to the right. */
+export function skipColumns(runs: readonly Run[], columns: number): Run[] {
+  if (columns <= 0) return [...runs]
+  const out: Run[] = []
+  let left = columns
+  for (const run of runs) {
+    if (left >= run.text.length) {
+      left -= run.text.length
+      continue
+    }
+    out.push(left > 0 ? { ...run, text: run.text.slice(left) } : run)
+    left = 0
+  }
+  return out
+}
+
 export function clipRuns(runs: readonly Run[], width: number, fill: Fill = "none"): Run[] {
   if (width <= 0) return []
   const out: Run[] = []

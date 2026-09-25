@@ -60,7 +60,12 @@ export function createQueries(api: Host, surface: Surface, store: Store): Querie
     /** On the file's heading, the file's own thread is the one you are standing on. */
     if (view.line === undefined)
       return threadsFor(review, view.file).find((each) => each.line === undefined)?.id
-    return threadsOnLine(review, view.file, view.line)[0]?.id
+    /**
+     * Where the thread is drawn, not where it was written: the diff places a thread by the file as it
+     * reads now. Looked up by its first line, a thread whose code had moved — the agent answering
+     * usually moves it — was not "here", so `c` opened a second thread above the first.
+     */
+    return threadsOnLine(review, view.file, view.line, contents().get(view.file))[0]?.id
   }
 
   /**

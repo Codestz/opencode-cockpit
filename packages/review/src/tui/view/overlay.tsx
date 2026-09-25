@@ -14,6 +14,8 @@ export interface OverlayProps {
   onClick: (x: number, y: number) => void
   /** The wheel turned over the panel: negative is up. */
   onScroll: (x: number, delta: number) => void
+  /** A sideways swipe or shift+wheel over the panel: negative is left. */
+  onPan: (x: number, delta: number) => void
 }
 
 /**
@@ -101,7 +103,16 @@ export function Overlay(props: OverlayProps): JSX.Element {
           const scroll = event.scroll
           if (!scroll) return
           event.stopPropagation()
-          props.onScroll(event.x, scroll.direction === "up" ? -3 : 3)
+          /**
+           * Sideways is sideways. Only "up" used to count as up, so a trackpad swipe to the right
+           * scrolled the diff down.
+           */
+          /** shift+wheel is sideways too, for a mouse with one wheel. */
+          const sideways =
+            scroll.direction === "left" || scroll.direction === "right" || event.modifiers?.shift
+          const back = scroll.direction === "left" || scroll.direction === "up"
+          if (sideways) props.onPan(event.x, back ? -6 : 6)
+          else props.onScroll(event.x, back ? -3 : 3)
         }}
       >
         {Array.from({ length: MAX_LINES }, () => (

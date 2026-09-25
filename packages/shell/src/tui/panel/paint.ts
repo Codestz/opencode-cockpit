@@ -1,6 +1,6 @@
 import type { Host } from "@opencode-cockpit/client/host"
 import type { BoxRenderable } from "@opentui/core"
-import { bodyHeight, type ConsoleInput, consoleRows } from "../lib/console.ts"
+import { bodyHeight, bodyRoom, type ConsoleInput, consoleRows } from "../lib/console.ts"
 import { order } from "../lib/view.ts"
 import type { ShellStore } from "../state/store.ts"
 import { type RowPool, solidSurface } from "../view/pool.ts"
@@ -38,8 +38,10 @@ export interface Painter {
   rows: () => ReturnType<typeof consoleRows>
   /** The size the console has right now. */
   size: () => Size
-  /** Body rows at the current size — what a typing program is sized to. */
+  /** Body rows at the current size, as drawn. */
   body: () => number
+  /** Rows the body has room for at the current size — what a running program is sized to. */
+  room: () => number
   /** How far the view can scroll up, for the keys to clamp against. */
   most: () => number
 }
@@ -105,6 +107,7 @@ export function createPainter(deps: PaintDeps): Painter {
       ? surface.log.length
       : (feed.screen()?.styled?.length ?? (feed.screen()?.text ?? "").split("\n").length)
   const body = () => bodyHeight(input())
+  const room = () => bodyRoom(input())
   const most = () => Math.max(0, length() - body())
   const rows = () => consoleRows({ ...input(), up: Math.min(surface.up, most()) })
 
@@ -133,6 +136,7 @@ export function createPainter(deps: PaintDeps): Painter {
     rows,
     size,
     body,
+    room,
     most,
     draw() {
       if (scheduled) return
