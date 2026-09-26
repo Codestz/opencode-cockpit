@@ -30,7 +30,7 @@ export const hero = {
     "A tool call has to finish. A dev server does not, and neither does the context window filling " +
     "up behind you. Cockpit is the instrument panel: things your agent can use, and things that " +
     "tell you what it is doing. One package per capability, one switch each.",
-  install: "opencode plugin opencode-cockpit@0.7.0 --global --force",
+  install: "opencode plugin opencode-cockpit@0.7.1 --global --force",
 }
 
 export const specs = [
@@ -311,7 +311,7 @@ export const install = {
     {
       id: "all",
       label: "Everything",
-      command: "opencode plugin opencode-cockpit@0.7.0 --global --force",
+      command: "opencode plugin opencode-cockpit@0.7.1 --global --force",
       note:
         'All bays, each with a switch: <code>{ "features": { "shell": false } }</code>. The version is ' +
         "pinned because OpenCode never re-resolves a plugin — to move later, run " +
@@ -320,7 +320,7 @@ export const install = {
     {
       id: "one",
       label: "Shell only",
-      command: "opencode plugin @opencode-cockpit/shell@0.7.0 --global --force",
+      command: "opencode plugin @opencode-cockpit/shell@0.7.1 --global --force",
       note:
         "Just this bay. Same daemon, same config file, same interface slots — add the rest later without " +
         "changing anything you already set up.",
@@ -328,7 +328,7 @@ export const install = {
     {
       id: "v2",
       label: "OpenCode 2",
-      command: "opencode plugin add opencode-cockpit@0.7.0",
+      command: "opencode plugin add opencode-cockpit@0.7.1",
       note:
         "The same package — it carries a half for each OpenCode. One entry in <code>opencode.json</code> " +
         'loads both halves. <a href="/opencode-cockpit/start/opencode-versions/">What differs on OpenCode 2</a>.',
