@@ -11,8 +11,12 @@ All notable changes to this project are documented here. The format follows
 - **Review scrolls sideways.** A line longer than the pane can be read to its end: swipe sideways or
   `shift`+wheel over the diff, or `shift+←` / `shift+→` (`H` / `L`). The line numbers stay put; only
   the code moves, as far as the file's longest line.
-- **Review highlights Ruby** — `.rb`, `.rake`, `.gemspec`, `.ru`, and `Gemfile`, `Rakefile`,
-  `Guardfile`, `Podfile`, `Vagrantfile`: keywords, `#` and `=begin … =end` comments, strings.
+- **Review highlights more languages.** Ruby (`.rb`, `.rake`, `.gemspec`, `Gemfile`, `Rakefile`…),
+  Terraform and Terragrunt (`.tf`, `.tfvars`, `.hcl`, `terragrunt.hcl`, Nomad), Lua, Elixir,
+  Haskell and Elm, Nix, GraphQL, Protobuf, Perl, R, Julia, Clojure and the Lisps, OCaml and F#,
+  CMake (`CMakeLists.txt`), Prisma and Windows batch — and in the C family, Objective-C, Groovy and
+  Gradle (`Jenkinsfile`), Solidity, Zig and Arduino. A file's full name now beats its extension, so
+  `CMakeLists.txt` is CMake rather than text.
 
 ### Fixed
 

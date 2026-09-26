@@ -80,7 +80,8 @@ export const LANGUAGES: LanguageSpec[] = [
   },
   {
     id: "python",
-    extensions: ["py", "pyi", "pyw"],
+    extensions: ["py", "pyi", "pyw", "pyx", "pxd"],
+    filenames: ["sconstruct", "sconscript"],
     /** A docstring is the one thing in Python that crosses lines, and the commonest thing in a diff. */
     scan: scanner({
       keywords: words.PYTHON,
@@ -99,6 +100,142 @@ export const LANGUAGES: LanguageSpec[] = [
       literals: words.RUBY_VALUES,
       line: ["#"],
       block: ["=begin", "=end"],
+    }),
+  },
+  {
+    id: "hcl",
+    /** Terraform, Terragrunt (`terragrunt.hcl`), Packer, Nomad — HCL, with all three of its comments. */
+    extensions: ["tf", "tfvars", "hcl", "tftest", "nomad", "tfbackend"],
+    scan: scanner({
+      keywords: words.HCL,
+      literals: words.JSON_VALUES,
+      line: ["#", "//"],
+      block: ["/*", "*/"],
+      quotes: ['"'],
+      capitalsAreTypes: false,
+    }),
+  },
+  {
+    id: "lua",
+    extensions: ["lua", "luau"],
+    scan: scanner({ keywords: words.LUA, literals: words.LUA_VALUES, line: ["--"], block: ["--[[", "]]"] }),
+  },
+  {
+    id: "elixir",
+    extensions: ["ex", "exs", "heex", "eex"],
+    scan: scanner({
+      keywords: words.ELIXIR,
+      literals: words.RUBY_VALUES,
+      line: ["#"],
+      block: ['"""', '"""'],
+    }),
+  },
+  {
+    id: "haskell",
+    extensions: ["hs", "lhs", "elm", "purs"],
+    scan: scanner({
+      keywords: words.HASKELL,
+      literals: words.HASKELL_VALUES,
+      line: ["--"],
+      block: ["{-", "-}"],
+    }),
+  },
+  {
+    id: "nix",
+    extensions: ["nix"],
+    scan: scanner({
+      keywords: words.NIX,
+      literals: words.JSON_VALUES,
+      line: ["#"],
+      block: ["/*", "*/"],
+      capitalsAreTypes: false,
+    }),
+  },
+  {
+    id: "graphql",
+    extensions: ["graphql", "gql", "graphqls"],
+    scan: scanner({
+      keywords: words.GRAPHQL,
+      literals: words.JSON_VALUES,
+      line: ["#"],
+      block: ['"""', '"""'],
+    }),
+  },
+  {
+    id: "proto",
+    extensions: ["proto"],
+    scan: scanner({ keywords: words.PROTO, literals: words.JSON_VALUES, line: ["//"], block: ["/*", "*/"] }),
+  },
+  {
+    id: "perl",
+    extensions: ["pl", "pm", "t", "psgi"],
+    scan: scanner({
+      keywords: words.PERL,
+      literals: words.PERL_VALUES,
+      line: ["#"],
+      block: ["=pod", "=cut"],
+    }),
+  },
+  {
+    id: "r",
+    extensions: ["r", "rmd"],
+    scan: scanner({ keywords: words.R, literals: words.R_VALUES, line: ["#"] }),
+  },
+  {
+    id: "julia",
+    extensions: ["jl"],
+    scan: scanner({ keywords: words.JULIA, literals: words.JULIA_VALUES, line: ["#"], block: ["#=", "=#"] }),
+  },
+  {
+    id: "lisp",
+    extensions: ["clj", "cljs", "cljc", "edn", "el", "scm", "ss", "rkt", "lisp", "lsp", "fnl"],
+    scan: scanner({
+      keywords: words.LISP,
+      literals: words.LISP_VALUES,
+      line: [";"],
+      quotes: ['"'],
+      capitalsAreTypes: false,
+      callsAreFunctions: false,
+    }),
+  },
+  {
+    id: "ml",
+    extensions: ["ml", "mli", "fs", "fsi", "fsx"],
+    scan: scanner({
+      keywords: words.ML,
+      literals: words.ML_VALUES,
+      line: ["//"],
+      block: ["(*", "*)"],
+      quotes: ['"'],
+    }),
+  },
+  {
+    id: "cmake",
+    extensions: ["cmake"],
+    filenames: ["cmakelists.txt"],
+    scan: scanner({
+      keywords: words.CMAKE,
+      literals: words.CMAKE_VALUES,
+      line: ["#"],
+      quotes: ['"'],
+      capitalsAreTypes: false,
+      ignoreCase: true,
+    }),
+  },
+  {
+    id: "prisma",
+    extensions: ["prisma"],
+    scan: scanner({ keywords: words.PRISMA, literals: words.JSON_VALUES, line: ["//"], quotes: ['"'] }),
+  },
+  {
+    id: "batch",
+    extensions: ["bat", "cmd"],
+    scan: scanner({
+      keywords: words.BATCH,
+      line: ["rem ", "REM ", "::"],
+      quotes: ['"'],
+      capitalsAreTypes: false,
+      ignoreCase: true,
     }),
   },
   {
@@ -124,7 +261,11 @@ export const LANGUAGES: LanguageSpec[] = [
   {
     id: "curly",
     /** C and its descendants: the same shapes, near enough the same words. */
-    extensions: ["c", "h", "cc", "cpp", "hpp", "cs", "java", "kt", "kts", "swift", "scala", "dart", "php"],
+    extensions: [
+      ...["c", "h", "cc", "cpp", "cxx", "c++", "hpp", "hh", "hxx", "ino", "m", "mm", "cs", "java"],
+      ...["kt", "kts", "swift", "scala", "sc", "sbt", "dart", "php", "groovy", "gradle", "sol", "zig"],
+    ],
+    filenames: ["jenkinsfile"],
     scan: scanner({
       keywords: words.CURLY,
       literals: words.CURLY_VALUES,

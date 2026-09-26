@@ -51,12 +51,13 @@ export function languages(): readonly LanguageSpec[] {
 export function languageOf(path: string): Language {
   const name = path.slice(path.lastIndexOf("/") + 1).toLowerCase()
   const ext = name.includes(".") ? name.slice(name.lastIndexOf(".") + 1) : ""
-  const found = known.find(
-    (spec) =>
-      spec.filenames?.includes(name) ||
-      (ext.length > 0 && spec.extensions?.includes(ext)) ||
-      spec.matches?.(name),
-  )
+  /**
+   * A whole filename is the stronger claim, so it is asked of every language before any extension is:
+   * `CMakeLists.txt` is CMake, though Markdown claims `.txt`.
+   */
+  const found =
+    known.find((spec) => spec.filenames?.includes(name) || spec.matches?.(name)) ??
+    (ext.length > 0 ? known.find((spec) => spec.extensions?.includes(ext)) : undefined)
   return found?.id ?? PLAIN
 }
 

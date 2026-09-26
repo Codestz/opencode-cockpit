@@ -237,3 +237,74 @@ describe("Ruby", () => {
     expect(tokenize("=end", "ruby", inside.state).state.inBlockComment).toBe(false)
   })
 })
+
+describe("the languages real repositories have", () => {
+  const cases: [string, string][] = [
+    ["infra/main.tf", "hcl"],
+    ["prod/terraform.tfvars", "hcl"],
+    ["live/prod/terragrunt.hcl", "hcl"],
+    ["jobs/api.nomad", "hcl"],
+    ["init.lua", "lua"],
+    ["lib/app/router.ex", "elixir"],
+    ["mix.exs", "elixir"],
+    ["src/Main.hs", "haskell"],
+    ["src/Main.elm", "haskell"],
+    ["flake.nix", "nix"],
+    ["schema.graphql", "graphql"],
+    ["api/v1/user.proto", "proto"],
+    ["script.pl", "perl"],
+    ["analysis.R", "r"],
+    ["model.jl", "julia"],
+    ["src/core.clj", "lisp"],
+    ["init.el", "lisp"],
+    ["lib/parser.ml", "ml"],
+    ["Program.fs", "ml"],
+    ["CMakeLists.txt", "cmake"],
+    ["cmake/deps.cmake", "cmake"],
+    ["prisma/schema.prisma", "prisma"],
+    ["build.bat", "batch"],
+    ["Jenkinsfile", "curly"],
+    ["build.gradle", "curly"],
+    ["App.m", "curly"],
+    ["Token.sol", "curly"],
+    ["main.zig", "curly"],
+    ["setup.pyx", "python"],
+  ]
+  test.each(cases)("%s is %s", (path, language) => {
+    expect(languageOf(path)).toBe(language)
+  })
+
+  test("the ones that were already there still are", () => {
+    expect(languageOf("notes.txt")).toBe("markdown")
+    expect(languageOf("index.ts")).toBe("typescript")
+    expect(languageOf("app.jsx")).toBe("typescript")
+    expect(languageOf("main.py")).toBe("python")
+    expect(languageOf("Dockerfile")).toBe("shell")
+    expect(languageOf(".gitignore")).toBe("shell")
+  })
+
+  const comment = (line: string, language: string) =>
+    tokenize(line, language).runs.find((run) => run.text.includes("note"))?.tone
+  test.each([
+    ['resource "aws_s3_bucket" "b" { # note', "hcl"],
+    ['name = "x" // note', "hcl"],
+    ["local x = 1 -- note", "lua"],
+    ["x = 1 # note", "elixir"],
+    ["main = 1 -- note", "haskell"],
+    ["{ a = 1; } # note", "nix"],
+    ["type Query { # note", "graphql"],
+    ["message A {} // note", "proto"],
+    ["(defn f [] 1) ; note", "lisp"],
+    ["set(X 1) # note", "cmake"],
+    ["rem note", "batch"],
+  ])("%s — the comment is a comment (%s)", (line, language) => {
+    expect(comment(line, language)).toBe(comment("// note", "typescript"))
+  })
+
+  test("HCL's keywords are keywords", () => {
+    expect(toneOf('resource "aws_s3_bucket" "b" {', "hcl", "resource")).toBe(
+      toneOf("const x", "typescript", "const"),
+    )
+    expect(toneOf('dependency "vpc" {', "hcl", "dependency")).toBe(toneOf("const x", "typescript", "const"))
+  })
+})
