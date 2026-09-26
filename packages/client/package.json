@@ -56,7 +56,7 @@
   },
   "dependencies": {
     "@opencode-cockpit/protocol": "workspace:*",
-    "@opencode-ai/plugin": "1.18.31"
+    "@opencode-ai/plugin": "1.18.32"
   },
   "devDependencies": {
     "@opencode-cockpit/daemon": "workspace:*",

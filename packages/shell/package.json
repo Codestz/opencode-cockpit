@@ -56,7 +56,7 @@
     "@opencode-cockpit/client": "workspace:*",
     "@opencode-cockpit/daemon": "workspace:*",
     "@opencode-cockpit/protocol": "workspace:*",
-    "@opencode-ai/plugin": "1.18.31"
+    "@opencode-ai/plugin": "1.18.32"
   },
   "devDependencies": {
     "@opentui/core": "0.4.5",

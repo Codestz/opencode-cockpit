@@ -51,7 +51,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@opencode-ai/plugin": "1.18.31",
+    "@opencode-ai/plugin": "1.18.32",
     "@opencode-cockpit/client": "workspace:*",
     "@opencode-cockpit/review": "workspace:*",
     "@opencode-cockpit/shell": "workspace:*",
