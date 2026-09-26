@@ -40,6 +40,11 @@ export interface ViewState {
   opened?: ReadonlySet<string>
   /** Unchanged lines kept either side of a change. */
   context?: number
+  /**
+   * Columns the code is scrolled to the right. A line longer than the pane used to end in "…" with no
+   * way to read the rest; the numbers and the +/− stay where they are, only the code moves.
+   */
+  shift?: number
   /** Folders whose contents are hidden, by path so toggling one cannot shift another. */
   collapsed?: ReadonlySet<string>
   /** The thread the cursor is on, drawn heavier and showing its keys. */

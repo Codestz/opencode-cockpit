@@ -48,6 +48,8 @@ export function paneLayer(actions: Actions, guard: Guard): Layer {
       },
       { name: "cockpit.review.pane.scrollDown", title: "Scroll down", run: () => actions.scroll(5) },
       { name: "cockpit.review.pane.scrollUp", title: "Scroll up", run: () => actions.scroll(-5) },
+      { name: "cockpit.review.pane.panRight", title: "Scroll the code right", run: () => actions.pan(8) },
+      { name: "cockpit.review.pane.panLeft", title: "Scroll the code left", run: () => actions.pan(-8) },
       {
         name: "cockpit.review.pane.comment",
         /**
@@ -121,6 +123,8 @@ export function paneLayer(actions: Actions, guard: Guard): Layer {
       { key: "return,l,right", cmd: "cockpit.review.pane.enter", desc: "Open or fold" },
       { key: "d,pagedown", cmd: "cockpit.review.pane.scrollDown", desc: "Scroll down" },
       { key: "u,pageup", cmd: "cockpit.review.pane.scrollUp", desc: "Scroll up" },
+      { key: "shift+right,shift+l", cmd: "cockpit.review.pane.panRight", desc: "Code right" },
+      { key: "shift+left,shift+h", cmd: "cockpit.review.pane.panLeft", desc: "Code left" },
       { key: "c,n", cmd: "cockpit.review.pane.comment", desc: "Note, or reply" },
       { key: "f", cmd: "cockpit.review.pane.commentFile", desc: "Comment on the file" },
       { key: "v", cmd: "cockpit.review.pane.select", desc: "Select lines" },

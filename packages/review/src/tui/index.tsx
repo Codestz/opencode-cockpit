@@ -296,6 +296,10 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
                 metrics.count("mouse")
                 guard.run("scroll", () => pointer.scrollAt(x, delta))
               }}
+              onPan={(x, delta) => {
+                metrics.count("mouse")
+                guard.run("pan", () => pointer.panAt(x, delta))
+              }}
               onReady={({ backdrop: back, panel: front, lines }) => {
                 backdrop = back
                 panel = front

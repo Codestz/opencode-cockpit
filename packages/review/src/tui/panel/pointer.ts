@@ -33,6 +33,8 @@ export interface PointerDeps {
 export interface Pointer {
   clickAt: (x: number, y: number) => void
   scrollAt: (x: number, delta: number) => void
+  /** Sideways over the diff scrolls its code; over the file list it does nothing. */
+  panAt: (x: number, delta: number) => void
 }
 
 export function createPointer(deps: PointerDeps): Pointer {
@@ -126,6 +128,12 @@ export function createPointer(deps: PointerDeps): Pointer {
      * both would fight itself on the next keypress. Scrolling a pane is using it — otherwise the half
      * under your hand is the half drawn dimmed, which is the opposite of what dimming is for.
      */
+    panAt(x, delta) {
+      const panel = deps.panel()
+      if (!panel || overList(x, panel)) return
+      deps.actions.pan(delta)
+    },
+
     scrollAt(x, delta) {
       const panel = deps.panel()
       if (!panel) return

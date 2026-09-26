@@ -210,3 +210,101 @@ describe("a scanner that stops moving takes the session with it", () => {
     expect(opened.state.inBlockComment).toBe(true)
   })
 })
+
+describe("Ruby", () => {
+  test("is known by its extensions and its bare filenames", () => {
+    expect(languageOf("app/models/user.rb")).toBe("ruby")
+    expect(languageOf("lib/tasks/db.rake")).toBe("ruby")
+    expect(languageOf("cockpit.gemspec")).toBe("ruby")
+    expect(languageOf("config.ru")).toBe("ruby")
+    expect(languageOf("Gemfile")).toBe("ruby")
+    expect(languageOf("Rakefile")).toBe("ruby")
+  })
+
+  test("keywords, values, comments and strings", () => {
+    const line = "def greet(name) # say hello"
+    expect(toneOf(line, "ruby", "def")).toBe(toneOf("if x", "python", "if"))
+    expect(toneOf("return nil", "ruby", "nil")).toBe(toneOf("return None", "python", "None"))
+    expect(tokenize(line, "ruby").runs.at(-1)?.text).toContain("# say hello")
+    expect(text('puts "hi"', "ruby")).toBe('puts "hi"')
+  })
+
+  test("=begin … =end is a comment across lines", () => {
+    const first = tokenize("=begin", "ruby")
+    expect(first.state.inBlockComment).toBe(true)
+    const inside = tokenize("  not code", "ruby", first.state)
+    expect(inside.runs.every((run) => run.tone === inside.runs[0]?.tone)).toBe(true)
+    expect(tokenize("=end", "ruby", inside.state).state.inBlockComment).toBe(false)
+  })
+})
+
+describe("the languages real repositories have", () => {
+  const cases: [string, string][] = [
+    ["infra/main.tf", "hcl"],
+    ["prod/terraform.tfvars", "hcl"],
+    ["live/prod/terragrunt.hcl", "hcl"],
+    ["jobs/api.nomad", "hcl"],
+    ["init.lua", "lua"],
+    ["lib/app/router.ex", "elixir"],
+    ["mix.exs", "elixir"],
+    ["src/Main.hs", "haskell"],
+    ["src/Main.elm", "haskell"],
+    ["flake.nix", "nix"],
+    ["schema.graphql", "graphql"],
+    ["api/v1/user.proto", "proto"],
+    ["script.pl", "perl"],
+    ["analysis.R", "r"],
+    ["model.jl", "julia"],
+    ["src/core.clj", "lisp"],
+    ["init.el", "lisp"],
+    ["lib/parser.ml", "ml"],
+    ["Program.fs", "ml"],
+    ["CMakeLists.txt", "cmake"],
+    ["cmake/deps.cmake", "cmake"],
+    ["prisma/schema.prisma", "prisma"],
+    ["build.bat", "batch"],
+    ["Jenkinsfile", "curly"],
+    ["build.gradle", "curly"],
+    ["App.m", "curly"],
+    ["Token.sol", "curly"],
+    ["main.zig", "curly"],
+    ["setup.pyx", "python"],
+  ]
+  test.each(cases)("%s is %s", (path, language) => {
+    expect(languageOf(path)).toBe(language)
+  })
+
+  test("the ones that were already there still are", () => {
+    expect(languageOf("notes.txt")).toBe("markdown")
+    expect(languageOf("index.ts")).toBe("typescript")
+    expect(languageOf("app.jsx")).toBe("typescript")
+    expect(languageOf("main.py")).toBe("python")
+    expect(languageOf("Dockerfile")).toBe("shell")
+    expect(languageOf(".gitignore")).toBe("shell")
+  })
+
+  const comment = (line: string, language: string) =>
+    tokenize(line, language).runs.find((run) => run.text.includes("note"))?.tone
+  test.each([
+    ['resource "aws_s3_bucket" "b" { # note', "hcl"],
+    ['name = "x" // note', "hcl"],
+    ["local x = 1 -- note", "lua"],
+    ["x = 1 # note", "elixir"],
+    ["main = 1 -- note", "haskell"],
+    ["{ a = 1; } # note", "nix"],
+    ["type Query { # note", "graphql"],
+    ["message A {} // note", "proto"],
+    ["(defn f [] 1) ; note", "lisp"],
+    ["set(X 1) # note", "cmake"],
+    ["rem note", "batch"],
+  ])("%s — the comment is a comment (%s)", (line, language) => {
+    expect(comment(line, language)).toBe(comment("// note", "typescript"))
+  })
+
+  test("HCL's keywords are keywords", () => {
+    expect(toneOf('resource "aws_s3_bucket" "b" {', "hcl", "resource")).toBe(
+      toneOf("const x", "typescript", "const"),
+    )
+    expect(toneOf('dependency "vpc" {', "hcl", "dependency")).toBe(toneOf("const x", "typescript", "const"))
+  })
+})

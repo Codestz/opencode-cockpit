@@ -71,14 +71,30 @@ const V1_EVENTS = [
 // biome-ignore lint/suspicious/noExplicitAny: see above — every access is to a measured field
 type Loose = Record<string, any>
 
+/** The last moment a stored run did anything: its latest change, or `fallback` when it has none. */
+export function endOf(changes: readonly Change[], fallback: number): number {
+  let last = 0
+  for (const change of changes) {
+    last = Math.max(last, change.at)
+    if (change.type === "tool" && change.ended !== undefined) last = Math.max(last, change.ended)
+  }
+  return last || fallback
+}
+
 export function createSource(api: Host, log: Log, emit: (changes: Change[]) => void): Source {
-  /** Each unexpected shape once, not once per event. */
+  /**
+   * Each unexpected shape once, not once per event. An event we do not use is not news — OpenCode 2
+   * hands every plugin every event in the app (`provider.updated`, `session.viewed`…), and as
+   * warnings they filled doctor's report. A part of a kind we did not expect inside an event we do
+   * use still is: that is a shape that changed under us.
+   */
   const told = new Set<string>()
   const unknown = (what: string, detail?: Record<string, unknown>) => {
     const key = `${what} ${JSON.stringify(detail)}`
     if (told.has(key)) return
     told.add(key)
-    log.warn("unrecognised event", { what, ...detail })
+    if (what === "event") log.debug("unused event", { ...detail })
+    else log.warn("unrecognised event", { what, ...detail })
   }
   const offs: (() => void)[] = []
   const guard = (where: string, fn: () => void) => {
@@ -110,22 +126,42 @@ export function createSource(api: Host, log: Log, emit: (changes: Change[]) => v
           for (const child of Array.isArray(children) ? children : []) {
             const id = child.id as string
             const messages = (v1.state.session.messages(id) ?? []) as Loose[]
-            const history = messages.map((info) => ({
+            let history: { info: unknown; parts: unknown[] }[] = messages.map((info) => ({
               info,
               parts: (v1.state.part(info.id) ?? []) as unknown[],
             }))
+            /**
+             * The interface's store holds the messages of sessions it has loaded, which in a long
+             * conversation is not every subagent. Read from the server when it has none.
+             */
+            if (history.length === 0) {
+              const fetched = await v1.client.session.messages({ sessionID: id }).catch((error: unknown) => {
+                log.warn("history fetch failed", { id, error })
+                return undefined
+              })
+              const list = (fetched?.data ?? fetched ?? []) as { info: unknown; parts: unknown[] }[]
+              if (Array.isArray(list)) history = list
+              log.debug("history fetched", { id, messages: history.length })
+            }
             const status = v1.state.session.status(id) as Loose | undefined
             /**
              * Busy only when the host says so. A finished subagent is not in the host's status store at
              * all — reading "no status" as "unknown" left every old subagent running forever.
              */
             const busy = status?.type === "busy" || status?.type === "retry"
+            const past = translate.history(history)
             emit([
               ...translate.session(child),
-              ...translate.history(history),
+              ...past,
               busy
                 ? { type: "status", id, status: "busy", at: Date.now() }
-                : { type: "status", id, status: "idle", at: Number(child.time?.updated) || Date.now() },
+                : {
+                    type: "status",
+                    id,
+                    status: "idle",
+                    settled: true,
+                    at: endOf(past, Number(child.time?.updated) || Date.now()),
+                  },
             ])
             await visit(id, depth + 1)
           }
@@ -158,10 +194,13 @@ export function createSource(api: Host, log: Log, emit: (changes: Change[]) => v
         })
       },
       check(id) {
+        /**
+         * OpenCode 1 keeps a status only while a session works: a finished one has none (measured on a
+         * reopened conversation). Read as "unknown", a subagent stuck at running was never corrected.
+         */
         const status = v1.state.session.status(id) as Loose | undefined
-        return status
-          ? translate.event({ type: "session.status", properties: { sessionID: id, status } })
-          : []
+        if (status?.type === "busy" || status?.type === "retry") return []
+        return [{ type: "status", id, status: "idle", settled: true, at: Date.now() }]
       },
       dispose: () => {
         for (const off of offs.splice(0)) off()
@@ -188,16 +227,17 @@ export function createSource(api: Host, log: Log, emit: (changes: Change[]) => v
           )
           messages = (v2.data.session.message.list(id) ?? []) as unknown[]
         }
-        const status = translate.status(id, v2.data.session.status(id))
+        const past = translate.history(id, messages)
+        /** When its work ended, not when the store was last touched — reopening touches it. */
+        const ended = endOf(past, Number(info.time?.updated) || Date.now())
+        const status = translate.status(id, v2.data.session.status(id), ended)
         emit([
           ...translate.session(info),
-          ...translate.history(id, messages),
+          ...past,
           /** Not known to the host is not running: the same lesson as OpenCode 1's store. */
           ...(status.length > 0
-            ? status
-            : ([
-                { type: "status", id, status: "idle", at: Number(info.time?.updated) || Date.now() },
-              ] as Change[])),
+            ? status.map((change) => ({ ...change, settled: true }) as Change)
+            : ([{ type: "status", id, status: "idle", settled: true, at: ended }] as Change[])),
         ])
       }
     },
@@ -218,7 +258,9 @@ export function createSource(api: Host, log: Log, emit: (changes: Change[]) => v
       await v2.client.session.prompt({ sessionID, text, ...(busy ? { delivery: "steer" } : {}) })
     },
     check(id) {
-      return translate.status(id, v2.data.session.status(id))
+      return translate
+        .status(id, v2.data.session.status(id))
+        .map((change) => ({ ...change, settled: true }) as Change)
     },
     dispose: () => {
       for (const each of offs.splice(0)) each()

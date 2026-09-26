@@ -9,6 +9,7 @@ import { subagentReport } from "../src/core/view/report.ts"
 import { cut, elapsed, fit, rowText, widthOf, wrap } from "../src/core/view/rows.ts"
 import { createScreenCache, rowWidth, type ScreenInput, screenRows } from "../src/core/view/screen.ts"
 import { sidebarLines } from "../src/core/view/sidebar.ts"
+import { endOf } from "../src/tui/source.ts"
 import { recorded } from "./fixtures.ts"
 
 /**
@@ -643,5 +644,40 @@ describe("the main agent's list, after a restart", () => {
     expect(m.sessions.get("c")?.status).toBe("failed")
     const text = subagentReport({ nodes: subagentsOf(m, "p"), now: 60_000, version: 1 })
     expect(text).toMatch(/"Audit" · cancelled .* no final answer/)
+  })
+})
+
+describe("a reopened conversation", () => {
+  test("a stored run that went idle is finished, even when none of its history loaded", () => {
+    const m = applyAll(emptyModel(), [
+      { type: "session", id: "c", parentID: "p", agent: "explore", title: "Old", at: 1 },
+      { type: "status", id: "c", status: "idle", settled: true, at: 2 },
+    ])
+    expect(m.sessions.get("c")?.status).toBe("done")
+    const lines = sidebarLines({ nodes: subagentsOf(m, "p"), width: 40, now: 60_000, frame: 0 })
+    expect(rowText(lines[0]?.row ?? [])).not.toContain("running")
+  })
+
+  test("live, idle before it did anything is still a subagent about to start", () => {
+    const m = applyAll(emptyModel(), [
+      { type: "session", id: "c", parentID: "p", agent: "explore", title: "New", at: 1 },
+      { type: "status", id: "c", status: "idle", at: 2 },
+    ])
+    expect(m.sessions.get("c")?.status).toBe("starting")
+  })
+})
+
+describe("a reopened run's times", () => {
+  test("OpenCode 2's stored history ends when its work ended, not when it was read", async () => {
+    const { history } = await recorded(2)
+    const translate = createV2Translator()
+    const changes = translate.history(
+      history.child as string,
+      history.messages as unknown[],
+      9_999_999_999_999,
+    )
+    const latest = Math.max(...changes.map((change) => change.at))
+    expect(latest).toBeLessThan(9_999_999_999_999)
+    expect(endOf(changes, 0)).toBeLessThan(9_999_999_999_999)
   })
 })

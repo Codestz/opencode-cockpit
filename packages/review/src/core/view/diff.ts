@@ -12,7 +12,7 @@ import { type FileChange, type Review, threadAnchor, threadsFor, threadsOnLine }
 import { metrics } from "../perf.ts"
 import { cardRows } from "./card.ts"
 import { tallyOf } from "./counts.ts"
-import { cell, clipRuns, elidePath, type Fill, type Row, type Tone } from "./rows.ts"
+import { cell, clipRuns, elidePath, type Fill, type Row, skipColumns, type Tone } from "./rows.ts"
 import type { ViewState } from "./state.ts"
 import { languageOf, type SyntaxState, tokenize } from "./syntax/index.ts"
 
@@ -30,6 +30,21 @@ const NUMBER_COLUMNS = 5
  * pull request does, and the reason its comments look attached rather than dropped on top.
  */
 const INDENT = NUMBER_COLUMNS * 2 + 2
+
+/** Columns of code a diff row shows at `width`, after the line numbers and the sign. */
+export const codeWidth = (width: number): number => Math.max(0, width - NUMBER_COLUMNS * 2 - 2)
+
+/**
+ * How far the code can scroll right: until the longest line of `file` ends at the pane's edge.
+ * Past that every row would be empty.
+ */
+export function mostShift(file: FileChange | undefined, width: number): number {
+  if (!file) return 0
+  let longest = 0
+  for (const text of [file.before, file.after])
+    for (const line of text.split("\n")) if (line.length > longest) longest = line.length
+  return Math.max(0, longest - codeWidth(width) + 1)
+}
 
 /**
  * Moves a thread's rows in from the margin, pads the band, and tags each row with its thread.
@@ -95,6 +110,7 @@ const signature = (file: FileChange, review: Review, state: ViewState, width: nu
     file.after.length,
     width,
     state.context ?? 3,
+    state.shift ?? 0,
     threads.some((thread) => thread.id === state.thread) ? state.thread : "",
     threads.map((thread) => `${thread.id}:${thread.status}:${thread.entries.length}`).join(","),
   ].join("|")
@@ -192,7 +208,7 @@ function buildDiffRows(
   }
 
   const language = languageOf(file.path)
-  const body = Math.max(0, width - NUMBER_COLUMNS * 2 - 2)
+  const body = codeWidth(width)
 
   for (const hunk of toHunks(file.before, file.after, { context: state.context ?? 3 })) {
     /**
@@ -258,7 +274,7 @@ function buildDiffRows(
             fill: gutter,
           },
           { text: ` ${sign}`, tone: signTone, fill, bold: added || removed },
-          ...clipRuns(painted, body, fill),
+          ...clipRuns(skipColumns(painted, state.shift ?? 0), body, fill),
         ],
       })
 
