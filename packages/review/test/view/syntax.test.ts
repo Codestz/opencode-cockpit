@@ -210,3 +210,30 @@ describe("a scanner that stops moving takes the session with it", () => {
     expect(opened.state.inBlockComment).toBe(true)
   })
 })
+
+describe("Ruby", () => {
+  test("is known by its extensions and its bare filenames", () => {
+    expect(languageOf("app/models/user.rb")).toBe("ruby")
+    expect(languageOf("lib/tasks/db.rake")).toBe("ruby")
+    expect(languageOf("cockpit.gemspec")).toBe("ruby")
+    expect(languageOf("config.ru")).toBe("ruby")
+    expect(languageOf("Gemfile")).toBe("ruby")
+    expect(languageOf("Rakefile")).toBe("ruby")
+  })
+
+  test("keywords, values, comments and strings", () => {
+    const line = "def greet(name) # say hello"
+    expect(toneOf(line, "ruby", "def")).toBe(toneOf("if x", "python", "if"))
+    expect(toneOf("return nil", "ruby", "nil")).toBe(toneOf("return None", "python", "None"))
+    expect(tokenize(line, "ruby").runs.at(-1)?.text).toContain("# say hello")
+    expect(text('puts "hi"', "ruby")).toBe('puts "hi"')
+  })
+
+  test("=begin … =end is a comment across lines", () => {
+    const first = tokenize("=begin", "ruby")
+    expect(first.state.inBlockComment).toBe(true)
+    const inside = tokenize("  not code", "ruby", first.state)
+    expect(inside.runs.every((run) => run.tone === inside.runs[0]?.tone)).toBe(true)
+    expect(tokenize("=end", "ruby", inside.state).state.inBlockComment).toBe(false)
+  })
+})

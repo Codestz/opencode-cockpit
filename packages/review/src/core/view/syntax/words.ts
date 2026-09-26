@@ -32,6 +32,14 @@ export const PYTHON = words(`
 
 export const PYTHON_VALUES = words("True False None self cls")
 
+export const RUBY = words(`
+  alias and begin break case class def defined? do else elsif end ensure for if in module next not or
+  redo rescue retry return then undef unless until when while yield require require_relative include
+  extend attr_reader attr_writer attr_accessor private protected public raise lambda proc
+`)
+
+export const RUBY_VALUES = words("true false nil self super __FILE__ __LINE__")
+
 export const GO = words(`
   break case chan const continue default defer else fallthrough for func go goto if import interface
   map package range return select struct switch type var

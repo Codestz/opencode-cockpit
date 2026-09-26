@@ -11,6 +11,8 @@ All notable changes to this project are documented here. The format follows
 - **Review scrolls sideways.** A line longer than the pane can be read to its end: swipe sideways or
   `shift`+wheel over the diff, or `shift+←` / `shift+→` (`H` / `L`). The line numbers stay put; only
   the code moves, as far as the file's longest line.
+- **Review highlights Ruby** — `.rb`, `.rake`, `.gemspec`, `.ru`, and `Gemfile`, `Rakefile`,
+  `Guardfile`, `Podfile`, `Vagrantfile`: keywords, `#` and `=begin … =end` comments, strings.
 
 ### Fixed
 

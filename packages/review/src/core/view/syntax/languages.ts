@@ -90,6 +90,18 @@ export const LANGUAGES: LanguageSpec[] = [
     }),
   },
   {
+    id: "ruby",
+    extensions: ["rb", "rake", "gemspec", "ru"],
+    filenames: ["gemfile", "rakefile", "guardfile", "podfile", "vagrantfile"],
+    /** `=begin` … `=end` is Ruby's block comment; everything else is a `#`. */
+    scan: scanner({
+      keywords: words.RUBY,
+      literals: words.RUBY_VALUES,
+      line: ["#"],
+      block: ["=begin", "=end"],
+    }),
+  },
+  {
     id: "go",
     extensions: ["go"],
     scan: scanner({
