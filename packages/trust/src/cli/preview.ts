@@ -10,7 +10,7 @@
  */
 
 import { SAMPLE_NOW, SAMPLE_SETTINGS, SAMPLES } from "../core/sample.ts"
-import { ledgerItems, ledgerRows } from "../core/view/ledger.ts"
+import { ledgerItems, ledgerRows, ledgerShown } from "../core/view/ledger.ts"
 import type { Row, Run, Tone } from "../core/view/rows.ts"
 import { sidebarRows } from "../core/view/sidebar.ts"
 
@@ -85,11 +85,18 @@ for (const name of names) {
   })
   out.push(...(sidebar.length > 0 ? frame(sidebar) : ["(nothing: the block is silent)"]))
   out.push("", "Ledger", "")
-  const items = ledgerItems(engine.state, SAMPLE_SETTINGS, SAMPLE_NOW)
+  /** As the dialog lists them: commands approved once folded into one line. */
+  const { items, folded } = ledgerShown(
+    ledgerItems(engine.state, SAMPLE_SETTINGS, SAMPLE_NOW),
+    SAMPLE_SETTINGS,
+    SAMPLE_NOW,
+    false,
+  )
   const { rows } = ledgerRows({
     width: columns,
     height: Math.min(18, 7 + items.length),
     items,
+    folded,
     selected: 0,
     state: engine.state,
     settings: SAMPLE_SETTINGS,

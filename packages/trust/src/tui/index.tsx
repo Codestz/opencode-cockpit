@@ -21,7 +21,7 @@ import type { Request } from "../core/keys.ts"
 import type { Event } from "../core/ledger.ts"
 import { trustPaths } from "../core/paths.ts"
 import { rulesFrom } from "../core/rules.ts"
-import { configSnippet, ledgerItems, ledgerRows } from "../core/view/ledger.ts"
+import { configSnippet, ledgerItems, ledgerRows, ledgerShown } from "../core/view/ledger.ts"
 import type { Row, Tone } from "../core/view/rows.ts"
 import { sidebarRows } from "../core/view/sidebar.ts"
 import { createJournal } from "./journal.ts"
@@ -98,8 +98,16 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
       return measured >= 12 ? measured : Math.max(20, Math.min(40, Math.floor(api.renderer.width / 4) - 2))
     }
 
-    const ledger = { open: false, selected: 0, notice: undefined as { text: string; tone: Tone } | undefined }
-    const items = () => ledgerItems(engine.state, settings, Date.now())
+    const ledger = {
+      open: false,
+      selected: 0,
+      /** Commands approved once are folded until `a` lists them (core/view/ledger.ts, ledgerShown). */
+      all: false,
+      notice: undefined as { text: string; tone: Tone } | undefined,
+    }
+    const listed = () =>
+      ledgerShown(ledgerItems(engine.state, settings, Date.now()), settings, Date.now(), ledger.all)
+    const items = () => listed().items
 
     const paint = () => {
       drawnAt = sidebarWidth()
@@ -119,7 +127,7 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
         setLines(next)
       }
       if (ledger.open) {
-        const list = items()
+        const { items: list, folded } = listed()
         ledger.selected = Math.max(0, Math.min(ledger.selected, list.length - 1))
         const height = api.renderer.height
         setDialogRows(
@@ -128,6 +136,8 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
             height: Math.max(10, height - Math.floor(height / 4) * 2),
             items: list,
             selected: ledger.selected,
+            folded,
+            all: ledger.all,
             state: engine.state,
             settings,
             now: Date.now(),
@@ -419,6 +429,12 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
       draw()
     }
 
+    const toggleAll = () => {
+      ledger.all = !ledger.all
+      ledger.notice = undefined
+      draw()
+    }
+
     const dialogLayer = (): Layer => ({
       priority: 100,
       commands: [
@@ -427,6 +443,7 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
         { name: "cockpit.trust.revoke", title: "Revoke this rule", run: () => revoke() },
         { name: "cockpit.trust.copy", title: "Copy as config", run: () => copy() },
         { name: "cockpit.trust.togglePause", title: "Pause or resume", run: () => togglePause() },
+        { name: "cockpit.trust.all", title: "Show or fold commands approved once", run: () => toggleAll() },
         { name: "cockpit.trust.close", title: "Close", run: () => api.ui.dialog.clear() },
       ],
       bindings: [
@@ -435,6 +452,7 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
         { key: "x", cmd: "cockpit.trust.revoke" },
         { key: "c", cmd: "cockpit.trust.copy" },
         { key: "p", cmd: "cockpit.trust.togglePause" },
+        { key: "a", cmd: "cockpit.trust.all" },
         { key: "q", cmd: "cockpit.trust.close" },
       ],
     })
@@ -446,7 +464,7 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
       ledger.notice = undefined
       paint()
       api.ui.dialog.replace(
-        () => <Ledger api={api} rows={dialogRows} keys={dialogLayer} />,
+        () => <Ledger api={api} rows={dialogRows} keys={dialogLayer} onScroll={(by) => move(by)} />,
         () => {
           ledger.open = false
         },

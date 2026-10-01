@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { SAMPLE_NOW, SAMPLE_SETTINGS, SAMPLES } from "../src/core/sample.ts"
-import { configSnippet, ledgerItems, ledgerRows } from "../src/core/view/ledger.ts"
+import { configSnippet, ledgerItems, ledgerRows, ledgerShown } from "../src/core/view/ledger.ts"
 import { rowText, widthOf } from "../src/core/view/rows.ts"
 import { sidebarRows } from "../src/core/view/sidebar.ts"
 
@@ -105,5 +105,42 @@ describe("the ledger", () => {
     expect(configSnippet(fetch).text).toBe(
       '{"permission":{"webfetch":{"https://docs.example.com/*":"allow"}}}',
     )
+  })
+
+  test("a command approved once is folded into one line, and [a] lists it", () => {
+    const { engine } = (SAMPLES.busy as () => ReturnType<(typeof SAMPLES)["empty"]>)()
+    const every = ledgerItems(engine.state, SAMPLE_SETTINGS, SAMPLE_NOW)
+    const folded = ledgerShown(every, SAMPLE_SETTINGS, SAMPLE_NOW, false)
+    const all = ledgerShown(every, SAMPLE_SETTINGS, SAMPLE_NOW, true)
+    expect(all).toEqual({ items: every, folded: 0 })
+    expect(folded.items.length + folded.folded).toBe(every.length)
+    const draw = (shown: typeof folded, flag: boolean) =>
+      ledgerRows({
+        width: 100,
+        height: 40,
+        items: shown.items,
+        selected: 0,
+        state: engine.state,
+        settings: SAMPLE_SETTINGS,
+        now: SAMPLE_NOW,
+        folded: shown.folded,
+        all: flag,
+      })
+        .rows.map(rowText)
+        .join("\n")
+    if (folded.folded > 0) {
+      expect(draw(folded, false)).toContain(`+ ${folded.folded} approved once · [a] show all`)
+      expect(draw(folded, false)).toContain("[a] show all")
+    }
+    expect(draw(all, true)).toContain("[a] fold seen once")
+    expect(draw(all, true)).not.toContain("approved once ·")
+  })
+
+  test("a list taller than the dialog says what is above and below", () => {
+    const { rows, items } = ledgerOf("busy", 80, 8, 4)
+    const text = rows.map(rowText)
+    expect(items.length).toBeGreaterThan(5)
+    expect(text.some((line) => /↑ \d+ more above|↓ \d+ more below/.test(line))).toBe(true)
+    for (const row of rows) expect(widthOf(rowText(row))).toBe(80)
   })
 })

@@ -86,6 +86,11 @@ describe("what cannot be read is opaque, and so always asked", () => {
     "cd - && ls",
     "pushd x",
     "echo 'unclosed",
+    "while true; do echo tick; sleep 2; done",
+    "for f in *.ts; do wc -l $f; done",
+    "if [ -f x ]; then rm x; fi",
+    "{ ls; pwd; }",
+    "! grep -q x y",
   ]) {
     test(line.replace(/\n/g, "\\n"), () => {
       expect(typeof read(line)).toBe("string")

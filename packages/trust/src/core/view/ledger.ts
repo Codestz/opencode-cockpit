@@ -38,6 +38,28 @@ export function ledgerItems(state: State, settings: Thresholds, now: number): Le
   return [...rules, ...always]
 }
 
+/**
+ * What the dialog lists: by default, everything but a command approved once and not since. Most of
+ * those never come back — an agent reading a project runs `head -60`, `wc -l` on this file and that —
+ * and a list of forty `1/3` rows buried the few that mattered (seen on a real session). They are
+ * folded into one line rather than hidden: `all` lists them, `a` in the dialog.
+ */
+export function ledgerShown(
+  items: readonly LedgerItem[],
+  settings: Thresholds,
+  now: number,
+  all: boolean,
+): { items: LedgerItem[]; folded: number } {
+  if (all) return { items: [...items], folded: 0 }
+  const once = (item: LedgerItem) => {
+    if (item.kind !== "rule") return false
+    const where = standing(item.entry, item.entry.danger, settings, now)
+    return !where.trusted && where.have <= 1
+  }
+  const shown = items.filter((item) => !once(item))
+  return { items: shown, folded: items.length - shown.length }
+}
+
 export interface LedgerInput {
   width: number
   height: number
@@ -49,6 +71,9 @@ export interface LedgerInput {
   notice?: { text: string; tone: Tone }
   /** The key hints, already formatted for the keys actually bound. */
   keys?: readonly [string, string][]
+  /** Commands approved once, left out of `items` (`ledgerShown`); `all` says they are listed. */
+  folded?: number
+  all?: boolean
 }
 
 export const DEFAULT_KEYS: readonly [string, string][] = [
@@ -129,6 +154,12 @@ export interface LedgerView {
   top: number
 }
 
+function foldLine(count: number, width: number): { row: Row } {
+  return {
+    row: fit([{ text: ` + ${count} approved once · [a] show all`, tone: "muted" }], width),
+  }
+}
+
 export function ledgerRows(input: LedgerInput): LedgerView {
   const { width, items, settings, now, state } = input
   const rows: Row[] = []
@@ -149,7 +180,14 @@ export function ledgerRows(input: LedgerInput): LedgerView {
   )
   rows.push(fit([], width))
 
-  const keys = input.keys ?? DEFAULT_KEYS
+  const base = input.keys ?? DEFAULT_KEYS
+  /** `a` is only offered when it does something: there is a fold to open, or one to close again. */
+  const toggle: [string, string][] = input.folded
+    ? [["a", "show all"]]
+    : input.all
+      ? [["a", "fold seen once"]]
+      : []
+  const keys = [...base.slice(0, -1), ...toggle, ...base.slice(-1)]
   const footer: Row = [
     { text: " " },
     ...keys.flatMap(([key, label]): Run[] => [
@@ -165,7 +203,9 @@ export function ledgerRows(input: LedgerInput): LedgerView {
       fit(
         [
           {
-            text: ` Nothing learned yet. Approve the same command ${settings.threshold} times in a row and Trust answers it from then on.`,
+            text: input.folded
+              ? ` ${input.folded} command${input.folded === 1 ? "" : "s"} approved once, none twice yet. [a] lists them.`
+              : ` Nothing learned yet. Approve the same command ${settings.threshold} times in a row and Trust answers it from then on.`,
             tone: "muted",
           },
         ],
@@ -206,7 +246,13 @@ export function ledgerRows(input: LedgerInput): LedgerView {
     }
     const row = rowOf(cells[index] as Cells, columns, width)
     lines.push({ row: index === input.selected ? filled(row, "selected") : row, item: index })
+    /** The fold sits where the rules end, before OpenCode's own approvals. */
+    const next = items[index + 1]
+    if (input.folded && item.kind === "rule" && next?.kind !== "rule")
+      lines.push(foldLine(input.folded, width))
   })
+  if (input.folded && !items.some((item) => item.kind === "rule"))
+    lines.unshift(foldLine(input.folded, width))
 
   /** The cursor's line in view, with the lines around it. */
   const at = Math.max(
@@ -215,9 +261,15 @@ export function ledgerRows(input: LedgerInput): LedgerView {
   )
   const top = Math.max(0, Math.min(at - Math.floor(room / 2), lines.length - room))
   const shown = lines.slice(top, top + room)
+  /**
+   * What is past either edge, said in the rows of air around the list — they were blank anyway, and
+   * a list cut at the window's edge otherwise looks like the whole list.
+   */
+  const below = Math.max(0, lines.length - top - room)
+  if (top > 0) rows[1] = fit([{ text: ` ↑ ${top} more above`, tone: "muted" }], width)
   for (const line of shown) rows.push(line.row)
   while (rows.length < 2 + room) rows.push(fit([], width))
-  rows.push(fit([], width))
+  rows.push(fit(below > 0 ? [{ text: ` ↓ ${below} more below`, tone: "muted" }] : [], width))
   rows.push(fit(input.notice ? [{ text: ` ${input.notice.text}`, tone: input.notice.tone }] : [], width))
   rows.push(fit(footer, width))
   return { rows, top }

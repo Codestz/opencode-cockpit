@@ -31,6 +31,32 @@ class Opaque extends Error {}
 const RUNS_CODE = new Set(["sh", "bash", "zsh", "dash", "ksh", "fish", "eval", "source", ".", "exec"])
 /** Directory moves that cannot be followed from the text alone. */
 const MOVES = new Set(["pushd", "popd"])
+/**
+ * Shell grammar, not programs: `while true; do echo tick; sleep 2; done` is one loop, and read word by
+ * word it became four "commands" — `while true`, `do echo tick`, `done` — each counting on its own.
+ * What a loop or a condition runs depends on what it tests, which the text does not settle.
+ */
+const GRAMMAR = new Set([
+  "if",
+  "then",
+  "else",
+  "elif",
+  "fi",
+  "for",
+  "while",
+  "until",
+  "do",
+  "done",
+  "case",
+  "esac",
+  "select",
+  "function",
+  "coproc",
+  "{",
+  "}",
+  "[[",
+  "!",
+])
 
 function tokenize(line: string): Token[] {
   const tokens: Token[] = []
@@ -186,6 +212,9 @@ export function parse(line: string): Parsed {
     const program = argv[0]
     if (program !== undefined && RUNS_CODE.has(posix.basename(program))) {
       return { kind: "opaque", reason: `\`${program}\` runs code that is not on the line` }
+    }
+    if (program !== undefined && GRAMMAR.has(program)) {
+      return { kind: "opaque", reason: `\`${program}\` is a loop or a condition, not a command` }
     }
     if (program !== undefined && MOVES.has(program)) {
       return { kind: "opaque", reason: `\`${program}\` moves where later commands run` }
