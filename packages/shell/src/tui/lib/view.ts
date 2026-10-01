@@ -281,8 +281,10 @@ export interface ConsoleKeysState {
 /** Only the keys that do something right now: no actions without a target, no concepts from elsewhere. */
 export function consoleKeys(state: ConsoleKeysState): KeyHint[] {
   if (!state.shell) {
+    /** An empty session is not an empty project: the shells may all be one key away. */
     return [
       { key: "n", label: "New", tier: "act" },
+      ...(state.scope === "session" ? [{ key: "s", label: "Whole Project", tier: "act" as const }] : []),
       { key: "esc", label: "Close", tier: "act" },
     ]
   }
@@ -402,7 +404,15 @@ export function fitHints(hints: readonly KeyHint[], cols: number): FittedRow {
   }
   /** Room for the `…` that says the row is not the whole list. */
   const ellipsis = 2
-  while (fitted.length > 0 && width() > cols - (fitted.length < hints.length ? ellipsis : 0)) fitted.pop()
+  /**
+   * The way out is the last key to go, wherever it sits in the row: "how do I leave" is the first
+   * question anyone asks of a modal surface, and the one a narrow row used to answer first.
+   */
+  const close = (hint: KeyHint) => hint.key === "esc"
+  while (fitted.length > 0 && width() > cols - (fitted.length < hints.length ? ellipsis : 0)) {
+    const at = fitted.findLastIndex((hint) => !close(hint))
+    fitted.splice(at === -1 ? fitted.length - 1 : at, 1)
+  }
   return { hints: fitted, dropped: hints.length - fitted.length }
 }
 

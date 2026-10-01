@@ -130,7 +130,7 @@ describe("the two tiers of keys", () => {
   })
 
   test("with no shell there is nothing to move to, so nothing is hidden", () => {
-    expect(footerHints({ ...base, shell: false }).map((hint) => hint.key)).toEqual(["n", "esc"])
+    expect(footerHints({ ...base, shell: false }).map((hint) => hint.key)).toEqual(["n", "s", "esc"])
     expect(panelHints({ ...base, shell: false })).toEqual([])
   })
 
@@ -184,7 +184,9 @@ describe("the console's keys", () => {
   const keysOf = (over: Partial<typeof base> = {}) => consoleKeys({ ...base, ...over }).map((h) => h.key)
 
   test("with no shell selected there is almost nothing to offer", () => {
-    expect(keysOf({ shell: false })).toEqual(["n", "esc"])
+    expect(keysOf({ shell: false })).toEqual(["n", "s", "esc"])
+    /** An empty project has nowhere wider to look. */
+    expect(keysOf({ shell: false, scope: "project" })).toEqual(["n", "esc"])
   })
 
   test("a running shell can be typed at, interrupted and stopped", () => {
@@ -271,6 +273,13 @@ describe("fitting the keys to the row", () => {
   test("a row that is not the whole list says so", () => {
     expect(fitHints(hints, 12).dropped).toBe(1)
     expect(fitHints(hints, 200).dropped).toBe(0)
+  })
+
+  test("the way out is the last key to go", () => {
+    const leaving = [...hints, { key: "esc", label: "Close", tier: "act" as const }]
+    const row = fitHints(leaving, 14)
+    expect(row.hints.map((hint) => hint.key)).toEqual(["i", "esc"])
+    expect(row.dropped).toBe(2)
   })
 })
 

@@ -84,18 +84,33 @@ export interface ConsoleInput {
 const MARGIN = 2
 const GUTTER = "│ "
 const COMMAND_LINES = 3
+/** A failure's reason gets the room the command gets: which test failed is why the console was opened. */
+const REASON_LINES = 3
 /** The smallest body the dialog shrinks to, so a quiet shell does not collapse to a line. */
 const MIN_BODY = 6
 
 const KIND_TONE: Record<string, Tone> = { run: "success", fail: "error", stop: "warning", done: "muted" }
 
-/** Pads a row out to exactly `width` cells, cutting whatever does not fit. */
+/**
+ * Pads a row out to exactly `width` cells, cutting whatever does not fit.
+ *
+ * A cut that drops words ends in `…`, so a clipped row never pretends to be whole: the empty
+ * console's hint used to stop at `shell_` with nothing to say there was more. A cut that drops only
+ * padding is not one anyone reads, so it gets none.
+ */
 function fit(runs: Row, width: number, raised = false): Row {
   const out: Row = []
   let used = 0
-  for (const run of runs) {
+  const after = (index: number) =>
+    runs
+      .slice(index + 1)
+      .map((run) => run.text)
+      .join("")
+  for (const [index, run] of runs.entries()) {
     if (used >= width) break
-    const text = run.text.slice(0, width - used)
+    const room = width - used
+    const cut = run.text.length > room && `${run.text.slice(room)}${after(index)}`.trim().length > 0
+    const text = cut ? `${run.text.slice(0, room - 1)}…` : run.text.slice(0, room)
     used += text.length
     out.push({ ...run, text, ...(raised ? { raised: true } : {}) })
   }
@@ -137,14 +152,36 @@ function headRows(input: ConsoleInput): Row[] {
       true,
     ),
   ]
-  wrapText(displayCommand(shell), cols - 2, COMMAND_LINES).forEach((line, index) => {
-    rows.push(fit([{ text: pad }, { text: index === 0 ? "$ " : "  ", tone: "muted" }, { text: line }], width))
-  })
+  /**
+   * The command, unless the title already said it. A shell started without a description is titled
+   * with its command, and the row under it repeated the same words; it stays when the title had to be
+   * cut, because then this row is the one place the whole command is.
+   */
+  const command = displayCommand(shell)
+  if (title.trim() !== command.trim()) {
+    wrapText(command, cols - 2, COMMAND_LINES).forEach((line, index) => {
+      rows.push(
+        fit([{ text: pad }, { text: index === 0 ? "$ " : "  ", tone: "muted" }, { text: line }], width),
+      )
+    })
+  }
   const folder = relativeCwd(shell.cwd, input.project)
   if (folder) rows.push(fit([{ text: pad }, { text: truncate(`in ${folder}`, cols), tone: "muted" }], width))
   if (shell.summary && (kind === "fail" || kind === "stop")) {
-    const said = `${kind === "fail" ? "error" : "last output"}: ${shell.summary}`
-    rows.push(fit([{ text: pad }, { text: truncate(said, cols), tone }], width))
+    const label = kind === "fail" ? "error: " : "last output: "
+    /** Wrapped under its own words rather than under the label, so the reason reads as one column. */
+    wrapText(shell.summary, cols - label.length, REASON_LINES).forEach((line, index) => {
+      rows.push(
+        fit(
+          [
+            { text: pad },
+            { text: index === 0 ? label : " ".repeat(label.length), tone },
+            { text: index === 0 ? line : line.trimStart(), tone },
+          ],
+          width,
+        ),
+      )
+    })
   }
   return rows
 }
@@ -227,11 +264,28 @@ export function bodyHeight(input: ConsoleInput): number {
   return Math.min(room, Math.max(MIN_BODY, bodyLines(input, room).length))
 }
 
+/**
+ * What a details panel too short for itself says on its last row. Details do not scroll, so the way
+ * to the rest is the room full screen gives — offered only where there is more room to go to.
+ */
+const moreRow = (count: number, full: boolean): Row => [
+  { text: `↓ ${count} more`, tone: "muted" },
+  ...(full
+    ? []
+    : [
+        { text: "   " },
+        { text: "[w]", tone: "accent" as const, bold: true },
+        { text: " Full Screen", tone: "muted" as const },
+      ]),
+]
+
 export function consoleRows(input: ConsoleInput): Row[] {
   const { width } = input
   if (!input.shell) {
+    /** Said for the scope in force: "this project" while showing one session sent people looking. */
+    const where = input.keys.scope === "session" ? "this session" : "this project"
     const empty = [
-      fit([{ text: pad }, { text: "No shells in this project", bold: true }], width, true),
+      fit([{ text: pad }, { text: `No shells in ${where}`, bold: true }], width, true),
       fit(
         [
           { text: pad },
@@ -246,14 +300,21 @@ export function consoleRows(input: ConsoleInput): Row[] {
   const head = headRows(input)
   const room = bodyHeight(input)
   const gutter: Run = { text: `${pad}${GUTTER}`, tone: input.typing ? "accent" : "border" }
-  const body = bodyLines(input, room)
-    .slice(-room)
-    .map((row) => fit([gutter, ...row], width))
+  const lines = bodyLines(input, room)
+  /**
+   * Output keeps its newest rows, as a terminal does. Details keep their *first* rows: they are a
+   * list read from the top, and keeping the bottom silently dropped `command`, the row that says what
+   * the shell is, whenever a failure's reason made the head taller. What is cut is counted.
+   */
+  const kept =
+    input.view !== "details"
+      ? lines.slice(-room)
+      : lines.length <= room
+        ? lines
+        : [...lines.slice(0, room - 1), moreRow(lines.length - room + 1, input.keys.full === true)]
+  const body = kept.map((row) => fit([gutter, ...row], width))
   /** Output starts at the top of the body, as in a terminal; a shorter one leaves room below. */
   const blank = fit([gutter], width)
   const padded = [...body, ...Array<Row>(Math.max(0, room - body.length)).fill(blank)]
-  input.view === "details"
-    ? [...body, ...Array(room - body.length).fill(blank)]
-    : [...Array(Math.max(0, room - body.length)).fill(blank), ...body]
   return [...head, fit([], width), ...padded, fit([], width), fit(footer(input), width)]
 }
