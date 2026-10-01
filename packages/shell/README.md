@@ -144,6 +144,18 @@ from the five lines you want. Filtering happens in the daemon, not the terminal.
 **Output keeps its colours.** The panel and console paint what the program actually printed, so
 `vitest`, `eslint` and friends read the way they do in a terminal.
 
+## Seeing it without OpenCode
+
+```sh
+bunx @opencode-cockpit/shell preview
+bunx @opencode-cockpit/shell preview --part console --state failed --columns 60
+```
+
+Draws the sidebar block, the dock and the console — empty, running, failed, details, a filtered
+log, finished — from sample shells, in your terminal, with no OpenCode and no daemon running.
+`--width` sets the sidebar's width, `--columns` the dock's and the console's; `--help` lists the
+states. Plain text under `NO_COLOR` or into a pipe.
+
 ## Configuration
 
 Everything is optional. Settings can live in a **config file**, which is read once and applies to
