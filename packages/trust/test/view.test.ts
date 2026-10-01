@@ -63,6 +63,7 @@ describe("the sidebar", () => {
   test("answers, how often, and what is being counted", () => {
     expect(sidebarOf("first", 36).map((row) => rowText(row).trimEnd())).toEqual([
       "Trust                         1 auto",
+      "",
       "● git status                      1×",
       "○ docker compose -p cockpit up … 2/3",
     ])

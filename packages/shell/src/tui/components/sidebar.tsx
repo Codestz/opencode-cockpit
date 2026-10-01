@@ -1,5 +1,5 @@
 /** @jsxImportSource @opentui/solid */
-import { FEWER_TEXT, moreText, type State, summaryRuns } from "@opencode-cockpit/client/design"
+import { FEWER_TEXT, HEADING_GAP, moreText, type State, summaryRuns } from "@opencode-cockpit/client/design"
 import type { Host } from "@opencode-cockpit/client/host"
 import type { BoxRenderable } from "@opentui/core"
 import { createMemo, createSignal, For, Show } from "solid-js"
@@ -74,9 +74,9 @@ export function SidebarShells(props: SidebarProps) {
       >
         {/*
          * The title on the left and what needs your eye flush right, as the Subagents heading draws
-         * it; and no row of air under it, as no other block in the sidebar has one.
+         * it; then the row of air every block has under its heading.
          */}
-        <box flexDirection="row">
+        <box flexDirection="row" marginBottom={HEADING_GAP}>
           <text fg={theme().text} wrapMode="none" flexShrink={0}>
             <b>Shells</b>
           </text>

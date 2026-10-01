@@ -23,6 +23,7 @@
 
 import {
   HEADING,
+  HEADING_GAP,
   moreText,
   STATE_WORD,
   type State,
@@ -156,7 +157,10 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
   }
   const title = "Subagents"
   const summary: Run[] = summaryRuns(counts, width - title.length - 1)
-  const lines: SidebarLine[] = [{ row: spread([{ text: title, ...HEADING }], summary, width) }]
+  const lines: SidebarLine[] = [
+    { row: spread([{ text: title, ...HEADING }], summary, width) },
+    ...Array.from({ length: HEADING_GAP }, (): SidebarLine => ({ row: spread([], [], width) })),
+  ]
 
   /**
    * Working ones first, so the one you are wondering about is never folded away; then the latest

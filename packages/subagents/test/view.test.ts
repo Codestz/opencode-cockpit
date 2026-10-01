@@ -49,7 +49,7 @@ for (const version of [1, 2] as const) {
       const { nodes } = await model(version)
       for (const width of WIDTHS) {
         const lines = sidebarLines({ nodes, width, now: Date.now(), frame: 3 })
-        expect(lines.length).toBe(2) // the heading, and one line for the one finished subagent
+        expect(lines.length).toBe(3) // the heading, its row of air, and the one finished subagent
         for (const line of lines) expect(rowWidth(line.row)).toBe(width)
       }
     })
@@ -59,9 +59,9 @@ for (const version of [1, 2] as const) {
       const { nodes } = await model(version)
       const lines = sidebarLines({ nodes, width: 40, now: Date.now(), frame: 0 })
       const id = nodes[0]?.session.id
-      expect(lines.map((line) => line.id)).toEqual([undefined, id])
+      expect(lines.map((line) => line.id)).toEqual([undefined, undefined, id])
       expect(rowText(lines[0]?.row ?? []).trimEnd()).toMatch(/^Subagents +1 done$/)
-      expect(rowText(lines[1]?.row ?? []).trimEnd()).toMatch(/^● explore .+ \d+ calls · \d+s$/)
+      expect(rowText(lines[2]?.row ?? []).trimEnd()).toMatch(/^● explore .+ \d+ calls · \d+s$/)
     })
 
     test("the pane: exactly its height, every row exactly its width, in every state", async () => {
@@ -190,7 +190,7 @@ describe("while it works", () => {
     const m = applyAll(emptyModel(), running)
     const lines = sidebarLines({ nodes: subagentsOf(m, "p"), width: 40, now: at + 72_000, frame: 1 })
     expect(rowText(lines[0]?.row ?? []).trimEnd()).toMatch(/1 running$/)
-    const second = rowText(lines[2]?.row ?? [])
+    const second = rowText(lines[3]?.row ?? [])
     expect(second).toContain("└ bash pnpm gen:types")
     expect(second.trimEnd()).toMatch(/1 call · 1m12s$/)
   })
@@ -297,7 +297,7 @@ describe("while it works", () => {
       .join("\n")
     expect(text).toContain("▎ build continued it")
     const sidebar = sidebarLines({ nodes, width: 60, now: at + 5000, frame: 0 })
-    expect(rowText(sidebar[2]?.row ?? [])).toContain("· 2 rounds")
+    expect(rowText(sidebar[3]?.row ?? [])).toContain("· 2 rounds")
   })
 })
 

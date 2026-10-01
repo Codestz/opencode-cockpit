@@ -52,9 +52,9 @@ describe("order", () => {
       ["ses_l_bench", 0],
     ])
     const lines = text({ nodes: subagentsOf(m, LATE_ROOT), width: 40, now: SAMPLE_NOW, frame: 0 })
-    expect(lines[1]).toContain("Document the middleware")
-    expect(lines[3]).toMatch(/^ {2}\S explore Collect examples/)
-    expect(lines[5]).toContain("Fix the flaky refresh test")
+    expect(lines[2]).toContain("Document the middleware")
+    expect(lines[4]).toMatch(/^ {2}\S explore Collect examples/)
+    expect(lines[6]).toContain("Fix the flaky refresh test")
   })
 
   test("rows move on a status change, and on nothing else", () => {
@@ -133,8 +133,8 @@ describe("an advisor asked again and again", () => {
     ])
     const lines = sidebarLines({ nodes: subagentsOf(done, "p"), width: 40, now: 8, frame: 0 })
     /** Finished: one row, how long the latest took, then the count. */
-    expect(rowText(lines[3]?.row ?? []).trimEnd()).toMatch(/● advisor Check +0s {2}×3$/)
-    expect(lines[3]?.id).toBe("v3")
+    expect(rowText(lines[4]?.row ?? []).trimEnd()).toMatch(/● advisor Check +0s {2}×3$/)
+    expect(lines[4]?.id).toBe("v3")
   })
 
   test("one held on a permission is the one shown, over one merely working", () => {
@@ -164,8 +164,8 @@ describe("an advisor asked again and again", () => {
       { type: "prompt", id: "a", key: "u2", text: "Check again", at: 2 },
     ])
     const lines = text({ nodes: subagentsOf(m2, "p"), width: 50, now: 3, frame: 0 })
-    expect(lines[1]).not.toContain("×")
-    expect(lines[2]).toContain("· 2 rounds")
+    expect(lines[2]).not.toContain("×")
+    expect(lines[3]).toContain("· 2 rounds")
   })
 })
 
@@ -192,7 +192,7 @@ describe("finished nested subagents leave the sidebar", () => {
 
   test("the heading still counts them, and they are not folded into '+ N more'", () => {
     const lines = text(at(60_000, 30_000))
-    expect(lines).toHaveLength(3)
+    expect(lines).toHaveLength(4)
     expect(lines[0]).toMatch(/1 running · 1 done$/)
     const all = applyAll(emptyModel(), [
       ...changes,
@@ -205,7 +205,7 @@ describe("finished nested subagents leave the sidebar", () => {
     const m = applyAll(emptyModel(), sub("solo", "p", 0, 1_000))
     expect(
       text({ nodes: subagentsOf(m, "p"), width: 40, now: 10_000_000, frame: 0, fadeAfter: 1 }),
-    ).toHaveLength(2)
+    ).toHaveLength(3)
   })
 
   test("a group leaves only when every member has been done that long", () => {

@@ -15,6 +15,7 @@
  * which breaks a grid that has to be exact; Subagents' sidebar uses the same dots.
  */
 
+import { HEADING_GAP } from "@opencode-cockpit/client/design"
 import type { Answered, Pending } from "../engine.ts"
 import { keyOf, type State } from "../ledger.ts"
 import { fit, type Row, spread } from "./rows.ts"
@@ -86,6 +87,8 @@ export function sidebarRows(input: SidebarInput): Row[] {
       width,
     ),
   )
+  /** The same row of air under the heading every block has (client/design). */
+  for (let gap = 0; gap < HEADING_GAP; gap++) rows.push(spread([], [], width))
   for (const answered of listed)
     rows.push(
       spread(

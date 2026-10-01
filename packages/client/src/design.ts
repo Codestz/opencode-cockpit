@@ -212,11 +212,15 @@ export function summaryRuns(counts: Partial<Record<State, number>>, room: number
 }
 
 /**
- * The heading of a sidebar block: its name, bold, on the left; the summary flush right; nothing
- * under it but its first row. Shells drew a row of air under its heading and the Subagents block
- * did not, so the two blocks stacked in one column looked like two products.
+ * The heading of a sidebar block: its name, bold, on the left; the summary flush right; then
+ * `HEADING_GAP` rows of air before its first row. Shells drew that row and the Subagents block did
+ * not, so the two blocks stacked in one column looked like two products — every block draws it now.
+ * Without it, a heading packed against its rows read as one more row (seen on a real sidebar).
  */
 export const HEADING = { tone: "text", bold: true } as const
+
+/** Rows of air between a sidebar block's heading and its first row. */
+export const HEADING_GAP = 1
 
 /** What a block says about the rows it is not showing. Expandable or not, one wording. */
 export const moreText = (count: number): string => `+ ${count} more`

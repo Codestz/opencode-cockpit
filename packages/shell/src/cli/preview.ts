@@ -12,7 +12,7 @@
  */
 
 import type { TuiThemeCurrent } from "@opencode-ai/plugin/tui"
-import { type State as Shared, summaryRuns } from "@opencode-cockpit/client/design"
+import { HEADING_GAP, type State as Shared, summaryRuns } from "@opencode-cockpit/client/design"
 import type { ScreenResult, ShellInfo } from "@opencode-cockpit/protocol/shell"
 import { type ConsoleInput, consoleRows, type Row, type Run } from "../tui/lib/console.ts"
 import { sidebarRow } from "../tui/lib/sidebar.ts"
@@ -107,6 +107,7 @@ function sidebar(list: readonly ShellInfo[], width: number): Row[] {
   ]
   return [
     fitRow(heading, width),
+    ...Array.from({ length: HEADING_GAP }, () => fitRow([], width)),
     ...list.map((shell): Row => {
       const row = sidebarRow(shell, SAMPLE_NOW, 2, width)
       const kind = hex(kindColor(theme, kindOf(shell)))
