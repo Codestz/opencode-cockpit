@@ -11,6 +11,7 @@
  * already looking.
  */
 
+import { GLYPH } from "@opencode-cockpit/client/design"
 import { truncate } from "./format.ts"
 import type { Segment } from "./types.ts"
 
@@ -38,5 +39,5 @@ export function moduleNotice(errors: readonly string[], width = NOTICE): Segment
   if (errors.length === 0) return undefined
   const text =
     errors.length === 1 ? truncate(errors[0] as string, width) : `${errors.length} modules failed to load`
-  return { id: "notice.module", priority: 1000, runs: [{ text: `⚠ ${text}`, tone: "error" }] }
+  return { id: "notice.module", priority: 1000, runs: [{ text: `${GLYPH.warn} ${text}`, tone: "error" }] }
 }

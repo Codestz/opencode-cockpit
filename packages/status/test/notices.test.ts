@@ -38,7 +38,7 @@ describe("a module that would not load", () => {
   })
 
   test("several are counted rather than listed, which would fill the line", () => {
-    expect(segmentText(moduleNotice(["a", "b", "c"]) as Segment)).toBe("⚠ 3 modules failed to load")
+    expect(segmentText(moduleNotice(["a", "b", "c"]) as Segment)).toBe("! 3 modules failed to load")
   })
 
   test("it outranks every segment, so a broken line still reports why", () => {

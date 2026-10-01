@@ -279,7 +279,7 @@ describe("the rest of the built-ins", () => {
         { name: "jira", status: "failed" },
       ],
     })
-    expect(render("diagnostics", broken)?.text).toBe("⚠ tsserver, github +1")
+    expect(render("diagnostics", broken)?.text).toBe("! tsserver, github +1")
     expect(render("diagnostics", broken)?.tone).toBe("error")
   })
 
@@ -361,10 +361,35 @@ describe("segments take the shape you ask for", () => {
     expect(drawn?.runs).toHaveLength(3) // the default keeps added and removed coloured apart
   })
 
-  // A format is one run in one tone: full control of the words, at the cost of the colouring.
-  test("a formatted segment is a single run", () => {
-    const drawn = render("session.diff", changed, { format: "+{added} -{removed}" })
-    expect(drawn?.runs).toHaveLength(1)
+  /**
+   * A format's words are a label and its placeholders are figures, so they read as every default
+   * does: the words muted, the figures in the text colour. Colour is not a label.
+   */
+  test("a formatted segment's words are muted and its figures are text", () => {
+    const drawn = render("session.diff", changed, { format: "{files} files, {added} added" })
+    expect(drawn?.runs.map((run) => [run.text, run.tone])).toEqual([
+      ["3", "text"],
+      [" files, ", "muted"],
+      ["12", "text"],
+      [" added", "muted"],
+    ])
+  })
+
+  /** `cache 0` on a session with no prompt cache is a label and an absence. */
+  test("a format whose every figure is zero says nothing", () => {
+    const uncached = ctx({
+      session: session({
+        tokens: { input: 1_000, output: 10, reasoning: 0, cache: { read: 0, write: 0 } },
+      }),
+    })
+    expect(render("tokens", uncached, { format: "cache {cacheRead}" })).toBeUndefined()
+    expect(render("tokens", uncached, { format: "in {input}" })?.text).toBe("in 1k")
+  })
+
+  /** A colour you chose is a decision, not a default: it still paints all of it. */
+  test("a colour written on the segment still wins", () => {
+    const drawn = render("session.diff", changed, { format: "+{added} -{removed}", color: "accent" })
+    expect(new Set(drawn?.runs.map((run) => run.tone))).toEqual(new Set(["accent"]))
   })
 
   test("an unknown placeholder is left visible rather than silently blank", () => {

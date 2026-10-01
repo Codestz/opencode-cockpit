@@ -9,7 +9,15 @@
 
 import type { SessionSnapshot, StatusContext } from "./context.ts"
 
-export type FixtureName = "fresh" | "working" | "busy" | "full" | "unpriced" | "retrying" | "empty"
+export type FixtureName =
+  | "fresh"
+  | "working"
+  | "busy"
+  | "uncached"
+  | "full"
+  | "unpriced"
+  | "retrying"
+  | "empty"
 
 /** Two days and fifteen hours after the session was created: a conversation reopened, not a new one. */
 const NOW = 2 * 24 * 3600_000 + 15 * 3600_000
@@ -71,6 +79,20 @@ export const FIXTURES: Record<FixtureName, { about: string; ctx: StatusContext }
     about: "a turn running, a minute in",
     ctx: base({
       session: session({ status: "busy", turn: { startedAt: NOW - 62_000, endedAt: NOW - 20_000 } }),
+    }),
+  },
+  /**
+   * No prompt cache at all, on a big window — a real session on a work machine. Every cache figure
+   * is zero, which a column of `Cache 0 · 0%` and `Write 0 · 0%` rows said at length.
+   */
+  uncached: {
+    about: "no prompt cache, a 1.3M window, 13% full",
+    ctx: base({
+      session: session({
+        cost: 1.81,
+        model: { providerID: "litellm", modelID: "claude-opus-5", contextLimit: 1_300_000 },
+        tokens: { input: 167_300, output: 472, reasoning: 0, cache: { read: 0, write: 0 } },
+      }),
     }),
   },
   /** Nearly out of room, which is when the design has to shout. */

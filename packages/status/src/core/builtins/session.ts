@@ -1,5 +1,6 @@
 /** How the session is going: work outstanding, work in progress, time spent. */
 
+import { toneOf } from "@opencode-cockpit/client/design"
 import type { SegmentConfig } from "../config.ts"
 import { todoRemaining } from "../context.ts"
 import { duration, preciseDuration } from "../format.ts"
@@ -53,9 +54,10 @@ export const SEGMENTS: SegmentDef[] = [
         // From the prompt, not from the session's creation: a conversation reopened two days later
         // was `working 2d 15h` within a second of being asked something.
         const started = session.turn?.startedAt
+        /** Running, in the tone every bay gives a thing in motion. */
         return {
           text: started ? `working ${preciseDuration(ctx.now - started)}` : "working",
-          tone: "info",
+          tone: toneOf("running"),
         }
       }
       return undefined // idle is the normal state; saying so every frame is noise

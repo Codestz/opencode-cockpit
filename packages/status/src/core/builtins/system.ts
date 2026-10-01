@@ -1,5 +1,6 @@
 /** Everything outside the conversation: service health, versions, and your own commands. */
 
+import { GLYPH } from "@opencode-cockpit/client/design"
 import { parseAnsi } from "../ansi.ts"
 import { outputRows } from "../command.ts"
 import { unhealthy } from "../context.ts"
@@ -20,7 +21,7 @@ export const SEGMENTS: SegmentDef[] = [
         .map((item) => item.name)
         .join(", ")
       const more = broken.length > 2 ? ` +${broken.length - 2}` : ""
-      return { text: `⚠ ${names}${more}`, tone: "error" }
+      return { text: `${GLYPH.warn} ${names}${more}`, tone: "error" }
     },
   },
   {
