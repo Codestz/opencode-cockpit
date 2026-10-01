@@ -43,6 +43,10 @@
     "./sidebar": {
       "types": "./types/sidebar.d.ts",
       "default": "./dist/sidebar.js"
+    },
+    "./design": {
+      "types": "./types/design.d.ts",
+      "default": "./dist/design.js"
     }
   },
   "files": [
