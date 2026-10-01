@@ -128,7 +128,7 @@ describe("layout", () => {
 
   test("the list says what the mock says", () => {
     const text = paint(listRows(plans, 100), false)
-    expect(text).toContain("opencode-cockpit                          0.1.2    latest  ⚠  0.5.0      ↑")
+    expect(text).toContain("opencode-cockpit                          0.1.2    latest  !  0.5.0      ↑")
     expect(text).toContain(
       "priv                                      1.0.0    @1.0.0     ?          unreachable",
     )

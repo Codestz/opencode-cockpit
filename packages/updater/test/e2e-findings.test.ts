@@ -238,8 +238,8 @@ describe("seen against a real install", () => {
       .split("\n")
       .find((l) => l.startsWith("x "))
     expect(row).toBeDefined()
-    // `latest  ⚠` and `1.3.0` sit within a few columns of each other, whatever the path's length.
-    const gap = (row ?? "").indexOf("1.3.0") - ((row ?? "").indexOf("⚠") + 1)
+    // `latest  !` and `1.3.0` sit within a few columns of each other, whatever the path's length.
+    const gap = (row ?? "").indexOf("1.3.0") - ((row ?? "").indexOf("!") + 1)
     expect(gap).toBeLessThanOrEqual(24)
   })
 

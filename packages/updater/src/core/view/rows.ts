@@ -10,12 +10,16 @@ export type Tone =
   | "muted"
   /** A newer version, a spec being written. */
   | "added"
-  /** Something being deleted, something that failed. */
+  /** Something being deleted. A failure is `error`. */
   | "removed"
   /** A spec that will not move on its own; a registry that did not answer. */
   | "warning"
   /** The cursor's margin: the whole focus treatment, one cell wide. */
   | "accent"
+  /** A check that passed: an update confirmed against disk. */
+  | "success"
+  /** What went wrong, as opposed to what is being removed. */
+  | "error"
 
 export type Fill =
   | "none"

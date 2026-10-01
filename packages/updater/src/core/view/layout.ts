@@ -4,6 +4,7 @@
  * The approved mock is the reference: https://claude.ai/artifact/H34qPDuKGKaEaG4SCunmbo
  */
 
+import { checkbox, fitHints, GLYPH, type Hint } from "@opencode-cockpit/client/design"
 import type { Change, PluginPlan } from "../plan.ts"
 import { parseSpec } from "../spec.ts"
 import type { Outcome } from "../verify.ts"
@@ -136,7 +137,10 @@ export function listRows(
   const configOf = (plan: PluginPlan): string => {
     const label = configLabel(plan)
     if (plan.state === "local") return tildePath(label, home)
-    return plan.frozen && (plan.state === "update" || plan.state === "pin") ? `${label}  ⚠` : label
+    /** `!`, not `⚠`: that one draws two cells wide in some terminals and shoves every column after it. */
+    return plan.frozen && (plan.state === "update" || plan.state === "pin")
+      ? `${label}  ${GLYPH.warn}`
+      : label
   }
   // A local plugin with no package name is called by its path, and a path is cut from the left.
   const nameOf = (plan: PluginPlan): string => plan.label ?? tildePath(plan.name, home)
@@ -174,7 +178,7 @@ export function listRows(
         ? [
             // The cursor is one coloured cell in the margin — the whole focus treatment, as in Review.
             on(selection.cursor === i ? { text: "▌", tone: "accent" } : { text: " " }),
-            on({ text: cell(acting ? (selection.selected.has(plan.name) ? "[x]" : "[ ]") : "", mark - 1) }),
+            on({ text: cell(acting ? checkbox(selection.selected.has(plan.name)) : "", mark - 1) }),
           ]
         : []),
       on({ text: col(nameOf(plan), columns.name, plan.label === undefined && plan.state === "local") }),
@@ -333,7 +337,9 @@ export function resultRows(plans: readonly PluginPlan[], outcomes: readonly Outc
           { text: running, tone: "muted" },
           { text: " → " },
           { text: published + gap, tone: "added" },
-          outcome.ok ? { text: "✓  ", tone: "added" } : { text: "!  ", tone: "removed" },
+          outcome.ok
+            ? { text: `${GLYPH.check}  `, tone: "success" }
+            : { text: `${GLYPH.warn}  `, tone: "error" },
           summary,
         ],
         width,
@@ -359,29 +365,18 @@ export function titleRow(title: string, note: string, width: number): Row {
 }
 
 /**
- * The footer's keys in the shape Shell and Review use: `[key]` in the accent, the label muted, three
- * spaces between. A bracketed key is recognised rather than read. Hints drop from the right when the
- * row is too narrow, never cut in half — except `esc`, which is the last to go: "how do I leave" is
- * the first question a dialog is asked, and at sixty columns it was the one the row had dropped. What
- * was dropped is said with a muted `…`, so the row never pretends to be every key there is.
+ * The footer's keys, in the shape and with the cutting every bay shares (client/design): `[key]` in
+ * the accent, the label muted, three spaces between, whole hints dropped from the right when the row
+ * is narrow — except `esc`, which is the last to go, because "how do I leave" is the first question a
+ * dialog is asked — and a muted `…` when any were.
  */
 export function keyRow(keys: readonly (readonly [string, string])[], width: number): Row {
-  const leave = keys.filter(([key]) => key === "esc")
-  const rest = keys.filter(([key]) => key !== "esc")
-  const size = ([key, label]: readonly [string, string]) => key.length + 2 + 1 + label.length
-  const total = (hints: readonly (readonly [string, string])[], more: boolean) =>
-    hints.reduce((sum, hint) => sum + size(hint), 0) + 3 * Math.max(0, hints.length - 1) + (more ? 4 : 0)
-  let kept = rest.length
-  while (kept > 0 && total([...rest.slice(0, kept), ...leave], kept < rest.length) > width) kept--
-  const runs: Run[] = []
-  const hint = ([key, label]: readonly [string, string]) => {
-    if (runs.length > 0) runs.push({ text: "   " })
-    runs.push({ text: `[${key}]`, tone: "accent", bold: true }, { text: ` ${label}`, tone: "muted" })
-  }
-  for (const each of rest.slice(0, kept)) hint(each)
-  if (kept < rest.length) runs.push({ text: runs.length > 0 ? "   …" : "…", tone: "muted" })
-  for (const each of leave) hint(each)
-  return { runs: fit(runs, width) }
+  const hints: Hint[] = keys.map(([key, label]) => ({
+    key,
+    label,
+    ...(key === "esc" ? { close: true } : {}),
+  }))
+  return { runs: fitHints(hints, width).runs }
 }
 
 /**
@@ -399,7 +394,7 @@ export function noteRows(plans: readonly PluginPlan[], width: number, home?: str
       return {
         runs: fit(
           [
-            { text: "⚠ ", tone: "warning" },
+            { text: `${GLYPH.warn} `, tone: "warning" },
             { text: plan.name, bold: true },
             { text: said, tone: "muted" },
             { text: files.length > room ? cellLeft(files, room).trimEnd() : files, tone: "muted" },

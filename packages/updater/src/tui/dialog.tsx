@@ -9,6 +9,7 @@
  */
 
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
+import { GLYPH } from "@opencode-cockpit/client/design"
 import { useApiLayer } from "@opencode-cockpit/client/host"
 import { useTerminalDimensions } from "@opentui/solid"
 import { createMemo, createSignal, onCleanup } from "solid-js"
@@ -264,7 +265,7 @@ export function UpdaterDialog(props: UpdaterDialogProps) {
                 {
                   text: !plans().some((p) => actionable(p))
                     ? "Nothing to update."
-                    : `${selectedCount} selected${plans().some((p) => p.frozen && actionable(p)) ? "  ·  ⚠ a spec that will not move on its own" : ""}`,
+                    : `${selectedCount} selected${plans().some((p) => p.frozen && actionable(p)) ? `  ·  ${GLYPH.warn} a spec that will not move on its own` : ""}`,
                   tone: "muted",
                 },
               ],
@@ -278,7 +279,7 @@ export function UpdaterDialog(props: UpdaterDialogProps) {
       phase() === "list"
         ? [
             ["space", "Select"],
-            ["a", "All updates"],
+            ["a", "All Updates"],
             ["enter", "Review"],
             ["esc", "Close"],
           ]
@@ -290,7 +291,7 @@ export function UpdaterDialog(props: UpdaterDialogProps) {
           : phase() === "result"
             ? [
                 ...(outcomes().some((o) => !o.ok)
-                  ? [["r", "Retry failed"] as const, ["c", "Copy fix"] as const]
+                  ? [["r", "Retry Failed"] as const, ["c", "Copy Fix"] as const]
                   : []),
                 ["esc", "Close"] as const,
               ]

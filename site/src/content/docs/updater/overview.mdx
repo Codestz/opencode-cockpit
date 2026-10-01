@@ -22,8 +22,8 @@ what is published, and updates the ones you pick.
 
 ```
      plugin                        running   config        published
-▌[x] opencode-subagent-statusline  1.2.3     latest  ⚠     1.3.0       ↑
- [x] opencode-command-hooks        0.6.1     @0.6.1        0.7.1       ↑
+▌[✓] opencode-subagent-statusline  1.2.3     latest  !     1.3.0       ↑
+ [✓] opencode-command-hooks        0.6.1     @0.6.1        0.7.1       ↑
      opencode-cockpit              0.4.3     ~/code/cockpit              local
      12 built into OpenCode
 ```
@@ -31,7 +31,7 @@ what is published, and updates the ones you pick.
 | Column | Says |
 | --- | --- |
 | **running** | The version actually loaded, read from the installed package — not from the config |
-| **config** | What your config asks for. `latest ⚠` is a spec that will not move on its own |
+| **config** | What your config asks for. `latest !` is a spec that will not move on its own |
 | **published** | The newest release on your registry. `?` when it did not answer — never "current" |
 
 What needs a decision comes first and is selected for you. Plugins built into OpenCode are one

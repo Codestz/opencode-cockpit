@@ -68,7 +68,7 @@ export interface PluginPlan {
   specs: string[]
   /** The config files that list it — where a person goes to remove an entry that is not a plugin. */
   files: string[]
-  /** Some spec will not move on its own — the `⚠` in the list. */
+  /** Some spec will not move on its own — the `!` in the list. */
   frozen: boolean
   changes: Change[]
   /** One per scope: `opencode plugin -f` rewrites every file of a scope at once. */
