@@ -7,7 +7,7 @@
  */
 
 import { type ChangeSet, isRead, type Review } from "../model/review.ts"
-import { tallyRuns } from "./counts.ts"
+import { changeWord, keeps, tallyRuns } from "./counts.ts"
 import type { Fill, Row, Run } from "./rows.ts"
 import { cellTail, clipRuns, rowWidth } from "./rows.ts"
 import type { ViewState } from "./state.ts"
@@ -70,6 +70,23 @@ const STEP = 1
 const nameRoom = (width: number, indent: number, counts: number): number =>
   Math.max(1, width - 2 - indent - MARK_COLUMNS - counts - 1)
 
+/**
+ * A file's name in exactly `room` columns, with `new`, `deleted` or `renamed` after it, muted.
+ *
+ * The folder joined to a name is cut for the word, as a heading's path is; the name itself never is.
+ * When even that does not fit, the word goes: the file's heading says it at full width, and a list
+ * row has one job, which is the name.
+ */
+function named(name: string, word: string, room: number, style: Omit<Run, "text">): Run[] {
+  const said = ` ${word}`
+  if (!word || room - said.length < keeps(name)) return [{ ...style, text: cellTail(name, room) }]
+  const shown = cellTail(name, Math.min(name.length, room - said.length))
+  return [
+    { ...style, text: shown },
+    { text: said.padEnd(room - shown.length), tone: "muted", ...(style.fill ? { fill: style.fill } : {}) },
+  ]
+}
+
 /** Widths already measured, per change set: the list asks every frame, and the answer only moves with git. */
 const measured = new WeakMap<ChangeSet, number>()
 
@@ -84,9 +101,12 @@ export function listWidth(changes: ChangeSet): number {
   const known = measured.get(changes)
   if (known !== undefined) return known
   const counts = countsColumn(changes)
+  const byPath = new Map(changes.files.map((file) => [file.path, file]))
   let widest = 0
   for (const row of treeRows(changes.files.map((file) => file.path))) {
-    const used = 2 + row.depth * STEP + MARK_COLUMNS + row.name.length + counts + 1
+    const word = row.kind === "file" ? changeWord(byPath.get(row.path)) : ""
+    const name = row.name.length + (word ? word.length + 1 : 0)
+    const used = 2 + row.depth * STEP + MARK_COLUMNS + name + counts + 1
     if (used > widest) widest = used
   }
   measured.set(changes, widest)
@@ -157,12 +177,11 @@ export function fileRows(changes: ChangeSet, review: Review, state: ViewState, w
         { text: read ? "✓" : " ", tone: "success", fill: band },
         { text: indent, fill: band },
         { text: " ".repeat(MARK_COLUMNS), fill: band },
-        {
-          text: cellTail(row.name, room),
+        ...named(row.name, changeWord(file), room, {
           tone: showing || here ? "text" : "muted",
           bold: showing,
           fill: band,
-        },
+        }),
         ...numbers,
         { text: " ", fill: band },
       ],

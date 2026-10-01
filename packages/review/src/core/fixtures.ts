@@ -70,12 +70,36 @@ export const FIXTURES: Record<string, { about: string; changes: ChangeSet }> = {
 
   /** A file that did not exist: every line is an addition and there is no left-hand side. */
   created: {
-    about: "a new file, and a deleted one",
+    about: "a new file, a deleted one, and one moved and touched",
     changes: {
       source: "worktree",
       files: [
-        { path: "src/core/notices.ts", before: "", after: TS_AFTER, additions: 18, deletions: 0 },
-        { path: "src/old/legacy.ts", before: TS_BEFORE, after: "", additions: 0, deletions: 10 },
+        {
+          path: "src/core/notices.ts",
+          before: "",
+          after: TS_AFTER,
+          additions: 18,
+          deletions: 0,
+          change: "added",
+        },
+        {
+          path: "src/old/legacy.ts",
+          before: TS_BEFORE,
+          after: "",
+          additions: 0,
+          deletions: 10,
+          change: "deleted",
+        },
+        /** Moved and touched: the diff is the touch, and the heading says where it came from. */
+        {
+          path: "src/core/settings.ts",
+          from: "src/config/load.ts",
+          change: "renamed",
+          before: TS_BEFORE,
+          after: TS_BEFORE.replace("JSON.parse(raw)", "JSON.parse(raw.trim())"),
+          additions: 1,
+          deletions: 1,
+        },
       ],
     },
   },

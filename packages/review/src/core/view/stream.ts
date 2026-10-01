@@ -14,7 +14,7 @@
  */
 
 import { type ChangeSet, type FileChange, isRead, type Review, threadsFor } from "../model/review.ts"
-import { tallyRuns } from "./counts.ts"
+import { changeOf, changeWord, keeps, tallyRuns } from "./counts.ts"
 import { awayRows, diffHeight, diffRows, withCursor } from "./diff.ts"
 import { cell, elidePath, type Row, type Run, rowWidth } from "./rows.ts"
 import type { ViewState } from "./state.ts"
@@ -213,6 +213,7 @@ export function headerRow(
     },
   ]
   const room = Math.max(1, inner - rowWidth({ runs: [...lead, ...tally, ...badge, ...buttons] }))
+  const [path, said] = pathAndChange(segment.path, segment.file, room)
   return {
     file: segment.path,
     header: true,
@@ -220,16 +221,44 @@ export function headerRow(
     runs: [
       ...lead,
       {
-        text: cell(elidePath(segment.path, room), room),
+        text: path,
         tone: onHeading ? "accent" : read ? "muted" : "text",
         bold: !read || onHeading,
         fill: "heading",
       },
+      ...(said ? [{ text: said, tone: "muted" as const, fill: "heading" as const }] : []),
       ...tally,
       ...badge,
       ...buttons,
     ],
   }
+}
+
+/**
+ * A heading's path and the muted word after it — `new`, `deleted`, `renamed from src/old.ts` — in
+ * exactly `room` columns between them.
+ *
+ * A deleted file was a card of red lines that read like "rewrote everything", and a new one a card of
+ * green that read like the same. The word goes first when the room runs out, then the old path of a
+ * rename shortens to `renamed`: the name is what the heading is for.
+ */
+function pathAndChange(path: string, file: FileChange | undefined, room: number): [string, string] {
+  const word = changeWord(file)
+  const from = changeOf(file) === "renamed" ? file?.from : undefined
+  const fits = (said: string) => path.length + said.length <= room
+  const pad = (said: string): [string, string] => [path, said.padEnd(room - path.length)]
+  if (word && from) {
+    const full = ` renamed from ${from}`
+    if (fits(full)) return pad(full)
+    const left = room - path.length - " renamed from ".length
+    if (left >= 8) return pad(` renamed from ${elidePath(from, left)}`)
+  }
+  if (word) {
+    const said = ` ${word}`
+    if (fits(said)) return pad(said)
+    if (room - said.length >= keeps(path)) return [elidePath(path, room - said.length), said]
+  }
+  return [cell(elidePath(path, room), room), ""]
 }
 
 /** A row inside the card, between its side borders. */
