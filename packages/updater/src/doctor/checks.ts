@@ -23,7 +23,7 @@ export interface Check {
 
 /** The packages Cockpit ships, and which halves each has. */
 export const BUNDLE = "opencode-cockpit"
-export const BAYS = ["shell", "review", "status", "updater", "subagents"] as const
+export const BAYS = ["shell", "review", "status", "updater", "subagents", "trust"] as const
 export type Bay = (typeof BAYS)[number]
 /** Bays with an agent half — the rest are interface only. */
 const SERVER_BAYS: readonly string[] = ["shell", "review", "subagents"]
