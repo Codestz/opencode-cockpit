@@ -238,3 +238,95 @@ export function sample(): Change[] {
     { type: "usage", id: "ses_readme", tokens: 2200, cost: 0.001, at: t(39) },
   ]
 }
+
+// ---------------------------------------------------------------------------------------------------
+// Sidebar ordering and nesting: two more conversations, each with its own root, on the same clock.
+
+/** A run in a few changes: launched, a few calls, ended — or still in its last call. */
+function run(
+  id: string,
+  parentID: string,
+  agent: string,
+  title: string,
+  start: number,
+  end: number | undefined,
+  calls: number,
+  ending: "idle" | "failed" = "idle",
+): Change[] {
+  const out: Change[] = [
+    { type: "session", id, parentID, agent, title, at: start },
+    { type: "prompt", id, key: "u1", text: title, at: start },
+    { type: "status", id, status: "busy", at: start },
+  ]
+  for (let i = 0; i < calls; i++)
+    out.push({
+      type: "tool",
+      id,
+      call: `${id}:${i}`,
+      name: "read",
+      state: end === undefined && i === calls - 1 ? "running" : "completed",
+      input: { filePath: `/acme/src/auth/file${i}.ts` },
+      at: start + 500 + i * 500,
+    })
+  if (end !== undefined)
+    out.push(
+      ending === "failed"
+        ? { type: "status", id, status: "failed", error: "rate limited", at: end }
+        : { type: "status", id, status: "idle", at: end },
+    )
+  return out
+}
+
+export const ADVISOR_ROOT = "ses_plan"
+
+/**
+ * A subagent that asks an `advisor` for a second opinion again and again: six advisor sessions under
+ * one planner, four finished — two long enough ago to have left the sidebar — and two still at it.
+ * Beside it, a finished explore that had a helper of its own, long gone.
+ */
+export function advisorSample(): Change[] {
+  const t = (s: number) => SAMPLE_NOW - 120_000 + s * 1000
+  const planner = "ses_planner"
+  const advise = (n: number, start: number, end?: number) =>
+    run(
+      `ses_advisor${n}`,
+      planner,
+      "advisor",
+      "Review the migration plan",
+      t(start),
+      end === undefined ? undefined : t(end),
+      1,
+    )
+  return [
+    { type: "session", id: ADVISOR_ROOT, agent: "build", title: "Plan the session migration", at: t(0) },
+    ...run("ses_scout", ADVISOR_ROOT, "explore", "Find every session read", t(2), t(30), 6),
+    ...run("ses_scout_help", "ses_scout", "explore", "List the auth routes", t(5), t(12), 2),
+    ...run(planner, ADVISOR_ROOT, "general", "Draft the migration plan", t(4), undefined, 5),
+    ...advise(1, 10, 22),
+    ...advise(2, 25, 40),
+    ...advise(3, 60, 80),
+    ...advise(4, 95, 104),
+    ...advise(5, 110),
+    ...advise(6, 114),
+  ]
+}
+
+export const LATE_ROOT = "ses_late"
+
+/**
+ * Subagents that finished — one of them failed — then a late one still running, which used to sit
+ * at the foot of the list under all of them. And one that finished while the subagent it launched in
+ * the background is still working: that pair counts as working, and moves up with it.
+ */
+export function lateSample(): Change[] {
+  const t = (s: number) => SAMPLE_NOW - 60_000 + s * 1000
+  return [
+    { type: "session", id: LATE_ROOT, agent: "build", title: "Tidy the auth module", at: t(0) },
+    ...run("ses_l_map", LATE_ROOT, "explore", "Map the auth module", t(1), t(14), 7),
+    ...run("ses_l_types", LATE_ROOT, "general", "Tighten the session types", t(3), t(25), 4),
+    ...run("ses_l_bench", LATE_ROOT, "general", "Benchmark token refresh", t(5), t(9), 1, "failed"),
+    ...run("ses_l_docs", LATE_ROOT, "general", "Document the middleware", t(6), t(20), 3),
+    ...run("ses_l_bg", "ses_l_docs", "explore", "Collect examples in the background", t(18), undefined, 2),
+    ...run("ses_l_tests", LATE_ROOT, "general", "Fix the flaky refresh test", t(42), undefined, 3),
+  ]
+}
