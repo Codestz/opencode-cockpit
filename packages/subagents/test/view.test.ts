@@ -9,7 +9,7 @@ import { subagentReport } from "../src/core/view/report.ts"
 import { cut, elapsed, fit, rowText, widthOf, wrap } from "../src/core/view/rows.ts"
 import { createScreenCache, rowWidth, type ScreenInput, screenRows } from "../src/core/view/screen.ts"
 import { sidebarLines } from "../src/core/view/sidebar.ts"
-import { endOf } from "../src/tui/source.ts"
+import { endOf, finishedAt } from "../src/tui/source.ts"
 import { recorded } from "./fixtures.ts"
 
 /**
@@ -693,5 +693,28 @@ describe("a reopened run's times", () => {
     const latest = Math.max(...changes.map((change) => change.at))
     expect(latest).toBeLessThan(9_999_999_999_999)
     expect(endOf(changes, 0)).toBeLessThan(9_999_999_999_999)
+  })
+})
+
+describe("a reloaded run ends when its last message finished", () => {
+  /** An advisor consulted once: a prompt at 1000, an answer created at 1001 that completed at 61000. */
+  const v1 = [
+    { info: { role: "user", time: { created: 1000 } }, parts: [] },
+    { info: { role: "assistant", time: { created: 1001, completed: 61_000 } }, parts: [] },
+  ]
+  const v2 = [
+    { type: "user", time: { created: 1000 } },
+    { type: "assistant", time: { created: 1001, completed: 61_000 } },
+  ]
+
+  test("both OpenCodes' message shapes", () => {
+    expect(finishedAt(v1)).toBe(61_000)
+    expect(finishedAt(v2)).toBe(61_000)
+  })
+
+  test("nothing completed, or nothing at all, says nothing", () => {
+    expect(finishedAt([{ info: { time: { created: 5 } } }])).toBe(0)
+    expect(finishedAt([null, "x", {}])).toBe(0)
+    expect(finishedAt([])).toBe(0)
   })
 })
