@@ -74,3 +74,27 @@ describe("what the footer says instead of the keys", () => {
     expect(text(shown[1]?.runs ?? [])).toContain("no such file")
   })
 })
+
+describe("the keys, at any width", () => {
+  const keys = (width: number, state: Parameters<typeof footerRows>[2] = {}, empty = false) =>
+    text(footerRows(width, { list: 20, diff: width - 23 }, state, empty)[1]?.runs ?? [])
+
+  test("the way out is the last key to go, and a cut row says so", () => {
+    for (const width of [40, 60, 100]) {
+      const row = keys(width, { pane: "diff", waiting: 2 })
+      expect(row).toHaveLength(width)
+      expect(row).toContain("[q] Close")
+      expect(row).toContain("…")
+    }
+    expect(keys(200, { pane: "diff" })).not.toContain("…")
+  })
+
+  test("with nothing to review, only the keys that act", () => {
+    const row = keys(100, {}, true)
+    expect(row.trim()).toBe("[b] Source   [B] Base   [q] Close")
+  })
+
+  test("the action has one name: viewed", () => {
+    expect(keys(200)).toContain("[space] Viewed")
+  })
+})

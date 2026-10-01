@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test"
 import { clipRuns } from "../../src/core/view/rows.ts"
 import { treeRows } from "../../src/core/view/tree.ts"
 
+const text = (runs: { text: string }[]) => runs.map((run) => run.text).join("")
+
 describe("treeRows", () => {
   test("groups files under the folders that hold them, showing basenames", () => {
     const rows = treeRows(["packages/review/src/core/diff/hunks.ts", "packages/review/src/tui/index.tsx"])
@@ -56,6 +58,17 @@ describe("clipRuns", () => {
   test("a line that fits exactly is left alone", () => {
     const runs = [{ text: "abcdef", tone: "text" as const }]
     expect(clipRuns(runs, 6, "none")).toEqual(runs)
+  })
+
+  /** The bug: a cut on the gap between two keys saw only spaces and dropped the rest without a word. */
+  test("a cut that lands on a gap still says there was more", () => {
+    const runs = [{ text: "[b] Base" }, { text: "   " }, { text: "[q] Close" }]
+    expect(text(clipRuns(runs, 10, "none"))).toBe("[b] Base …")
+    expect(text(clipRuns(runs, 8, "none"))).toBe("[b] Bas…")
+  })
+
+  test("padding cut off the end is not worth an ellipsis", () => {
+    expect(text(clipRuns([{ text: "ab" }, { text: "    " }], 4, "none"))).toBe("ab  ")
   })
 
   test("no room means no runs", () => {

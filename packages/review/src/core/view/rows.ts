@@ -129,14 +129,6 @@ export function elidePath(path: string, width: number): string {
   return `…${path.slice(path.length - width + 1)}`
 }
 
-/**
- * Clips a line's runs to `width`, keeping their colours, and pads what is left.
- *
- * An earlier version swapped the whole line for one uncoloured string whenever it did not fit, which
- * is why a half-width pane looked unhighlighted: in a narrow column almost every line needs clipping,
- * so almost every line lost its colours. Truncation is a question about width and has nothing to say
- * about colour.
- */
 /** `runs` without their first `columns` characters: the code scrolled to the right. */
 export function skipColumns(runs: readonly Run[], columns: number): Run[] {
   if (columns <= 0) return [...runs]
@@ -153,14 +145,28 @@ export function skipColumns(runs: readonly Run[], columns: number): Run[] {
   return out
 }
 
+/**
+ * Clips a line's runs to `width`, keeping their colours, and pads what is left.
+ *
+ * An earlier version swapped the whole line for one uncoloured string whenever it did not fit, which
+ * is why a half-width pane looked unhighlighted: in a narrow column almost every line needs clipping,
+ * so almost every line lost its colours. Truncation is a question about width and has nothing to say
+ * about colour.
+ */
 export function clipRuns(runs: readonly Run[], width: number, fill: Fill = "none"): Run[] {
   if (width <= 0) return []
   const out: Run[] = []
   let used = 0
-  for (const run of runs) {
+  const after = (index: number): string =>
+    runs
+      .slice(index + 1)
+      .map((each) => each.text)
+      .join("")
+  for (const [index, run] of runs.entries()) {
     if (used >= width) break
     const room = width - used
-    if (run.text.length <= room) {
+    /** A run that exactly fills the line is whole only if nothing worth reading comes after it. */
+    if (run.text.length < room || (run.text.length === room && after(index).trim().length === 0)) {
       out.push(run)
       used += run.text.length
       continue
@@ -168,12 +174,21 @@ export function clipRuns(runs: readonly Run[], width: number, fill: Fill = "none
     /**
      * The last run standing gets an ellipsis, so a clipped line never pretends to be whole — unless
      * all that was cut is padding, which is not something anyone wanted to read.
+     *
+     * "All that was cut" is this run's tail *and every run after it*. Looking at the tail alone, a cut
+     * that landed on the gap between two footer keys saw only spaces, drew no ellipsis, and the keys
+     * after the gap — `[w] Width   [q] Close` — vanished without a word.
      */
-    const dropped = run.text.slice(room)
+    const dropped = `${run.text.slice(room)}${after(index)}`
+    const kept = run.text.slice(0, Math.max(0, room - 1))
     out.push(
       dropped.trim().length === 0
         ? { ...run, text: run.text.slice(0, room) }
-        : { ...run, text: room > 1 ? `${run.text.slice(0, room - 1)}…` : "…" },
+        : {
+            ...run,
+            text: `${kept}…`,
+            ...(kept.trim() === "" && !run.tone ? { tone: "muted" as const } : {}),
+          },
     )
     used = width
   }

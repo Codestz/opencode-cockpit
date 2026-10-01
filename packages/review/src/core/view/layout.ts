@@ -56,7 +56,7 @@ function compose(changes: ChangeSet, review: Review, state: ViewState, viewport:
   const blank = (width: number): Row => ({ runs: [{ text: " ".repeat(width) }] })
 
   const close = (built: Row[]): Row[] => {
-    const feet = footerRows(content, columns, state)
+    const feet = footerRows(content, columns, state, changes.files.length === 0)
     return [...built, ...feet.map((row, index) => (index === 0 ? rule : inset(row, inner)))]
   }
 

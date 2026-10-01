@@ -21,29 +21,40 @@ export function headerRows(changes: ChangeSet, review: Review, width: number, la
    * branch beside it be the brightest *text* on the row — which is the thing you actually came to
    * check.
    */
+  /**
+   * With nothing changed, every count is a zero, and a row of zeros says nothing the body's sentence
+   * does not say better. The badge and the source are all there is.
+   */
+  const empty = changes.files.length === 0
   const left: Run[] = [
     { text: " review ", tone: "inverse", fill: "you", bold: true },
     { text: "  ", fill: "panel" },
     { text: `${label ?? changes.source}`, tone: "text", bold: true, fill: "panel" },
-    { text: "  ", fill: "panel" },
-    { text: `+${seen.additions}`, tone: "added", fill: "selected" },
-    { text: " ", fill: "selected" },
-    { text: `−${seen.deletions}`, tone: "removed", fill: "selected" },
+    ...(empty
+      ? []
+      : [
+          { text: "  ", fill: "panel" as Fill },
+          { text: `+${seen.additions}`, tone: "added" as const, fill: "selected" as Fill },
+          { text: " ", fill: "selected" as Fill },
+          { text: `−${seen.deletions}`, tone: "removed" as const, fill: "selected" as Fill },
+        ]),
   ]
-  /** What is left to do, in the order you run out of it: read it, answer it, finish it. */
+  /** What is left to do, in the order you run out of it: view it, answer it, finish it. */
   const bar = (): Run => ({ text: "  │  ", tone: "border", fill: "panel" })
-  const right: Run[] = [
-    { text: `${seen.read}/${seen.files} read`, tone: "muted", fill: "panel" },
-    bar(),
-    { text: `${seen.open} open`, tone: seen.open > 0 ? "accent" : "muted", fill: "panel" },
-    ...(seen.threads > seen.open
-      ? [
-          bar(),
-          { text: `${seen.threads - seen.open} resolved`, tone: "muted" as const, fill: "panel" as Fill },
-        ]
-      : []),
-    { text: " ", fill: "panel" },
-  ]
+  const right: Run[] = empty
+    ? [{ text: " ", fill: "panel" }]
+    : [
+        { text: `${seen.read}/${seen.files} viewed`, tone: "muted", fill: "panel" },
+        bar(),
+        { text: `${seen.open} open`, tone: seen.open > 0 ? "accent" : "muted", fill: "panel" },
+        ...(seen.threads > seen.open
+          ? [
+              bar(),
+              { text: `${seen.threads - seen.open} resolved`, tone: "muted" as const, fill: "panel" as Fill },
+            ]
+          : []),
+        { text: " ", fill: "panel" },
+      ]
   const used = rowWidth({ runs: left })
   const tail = rowWidth({ runs: right })
   return [
@@ -59,7 +70,7 @@ export function headerRows(changes: ChangeSet, review: Review, width: number, la
 }
 
 /** The keys, on screen, because a surface whose keys are undiscoverable has none. */
-export function footerRows(width: number, _columns: Columns, state: ViewState = {}): Row[] {
+export function footerRows(width: number, _columns: Columns, state: ViewState = {}, empty = false): Row[] {
   const inDiff = state.pane === "diff"
   const selecting = inDiff && state.anchor !== undefined
   const lines =
@@ -105,7 +116,7 @@ export function footerRows(width: number, _columns: Columns, state: ViewState = 
       : [
           ...hint("c", inDiff ? "Note Line" : "Note File"),
           ...(inDiff ? hint("f", "Note File") : []),
-          ...hint("space", "Read"),
+          ...hint("space", "Viewed"),
           ...(inDiff ? hint("z", "Fold") : []),
         ]
 
@@ -129,14 +140,14 @@ export function footerRows(width: number, _columns: Columns, state: ViewState = 
           { text: "   " },
         ]
 
-  const tail: Run[] = [
-    ...submitHint(state.waiting),
+  const sources: Run[] = [
     ...hint("b", "Source"),
     /** Shift-b: what the branch is compared against. Named here, or nobody finds it. */
     ...hint("B", "Base"),
-    ...hint("w", "Width"),
-    ...hint("q", "Close"),
   ]
+  const tail: Run[] = [...submitHint(state.waiting), ...sources, ...hint("w", "Width")]
+  const close = hint("q", "Close")
+  const rule: Row = { runs: [{ text: "─".repeat(width), tone: "border" }] }
 
   /**
    * One line, and a queue for it: trouble, then numbers, then the keys.
@@ -144,14 +155,41 @@ export function footerRows(width: number, _columns: Columns, state: ViewState = 
    * The footer stays exactly two rows however much it has to say, because the body's height is measured
    * from it — a footer that grew would push the diff about every time something went wrong.
    */
-  const said: Run[] = state.notice
-    ? [
-        { text: " ! ", tone: "removed", bold: true },
-        { text: state.notice, tone: "removed" },
-      ]
-    : state.stats
-      ? [...state.stats]
-      : [...moving, ...extra, ...tail]
+  if (state.notice) {
+    const trouble: Run[] = [
+      { text: " ! ", tone: "removed", bold: true },
+      { text: state.notice, tone: "removed" },
+    ]
+    return [rule, { runs: clipRuns(trouble, width, "none") }]
+  }
+  if (state.stats) return [rule, { runs: clipRuns([...state.stats], width, "none") }]
 
-  return [{ runs: [{ text: "─".repeat(width), tone: "border" }] }, { runs: clipRuns(said, width, "none") }]
+  /**
+   * Nothing to review: only the keys that act. Moving, noting and marking have nothing to land on,
+   * and a row that offers them anyway teaches that its keys do not always mean anything.
+   */
+  if (empty) return [rule, { runs: keyRow([{ text: " " }, ...sources], close, width) }]
+  return [rule, { runs: keyRow([...moving, ...extra, ...tail], close, width) }]
+}
+
+/**
+ * The keys, cut to the width with the way out kept.
+ *
+ * Clipping the row from the right made `[q] Close` the first key to go — at a hundred columns it was
+ * already gone — and "how do I leave" is the first question anyone asks of a surface that has taken
+ * over the screen. So the close key is set aside, the rest is cut at a key's edge with `…` saying
+ * there was more, and the close key goes back on the end.
+ */
+function keyRow(runs: readonly Run[], close: readonly Run[], width: number): Run[] {
+  const whole = [...runs, ...close]
+  if (rowWidth({ runs: whole }) <= width) return clipRuns(whole, width, "none")
+  const pinned = rowWidth({ runs: close.slice(0, -1) })
+  const more: Run = { text: "…   ", tone: "muted" }
+  /** Whole hints only: a key is three runs, and half of one is a label with no key. */
+  const kept = [...runs]
+  while (kept.length > 0 && rowWidth({ runs: kept }) + more.text.length + pinned > width) {
+    const at = kept.findLastIndex((run) => run.text.startsWith("["))
+    kept.splice(Math.max(0, at))
+  }
+  return clipRuns([...kept, more, ...close], width, "none")
 }

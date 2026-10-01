@@ -81,7 +81,7 @@ export function paneLayer(actions: Actions, guard: Guard): Layer {
       { name: "cockpit.review.pane.files", title: "Back to the file list", run: () => actions.toFiles() },
       {
         name: "cockpit.review.pane.read",
-        title: "Mark read, and go to the next unread",
+        title: "Mark viewed, and go to the next unviewed",
         run: () => actions.markRead(),
       },
       {
@@ -130,7 +130,7 @@ export function paneLayer(actions: Actions, guard: Guard): Layer {
       { key: "v", cmd: "cockpit.review.pane.select", desc: "Select lines" },
       { key: "h,left", cmd: "cockpit.review.pane.files", desc: "Back to the files" },
       { key: "x", cmd: "cockpit.review.pane.uncomment", desc: "Remove thread" },
-      { key: "space,m", cmd: "cockpit.review.pane.read", desc: "Mark read" },
+      { key: "space,m", cmd: "cockpit.review.pane.read", desc: "Mark viewed" },
       { key: "z", cmd: "cockpit.review.pane.fold", desc: "Fold" },
       /** Source is `b`, not `s`, because `s` submits — and a key that sends may not sit beside one that looks. */
       { key: "b", cmd: "cockpit.review.pane.source", desc: "Next source" },
