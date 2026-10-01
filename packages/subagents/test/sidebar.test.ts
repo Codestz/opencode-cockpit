@@ -279,3 +279,38 @@ describe("the grid", () => {
     }
   })
 })
+
+describe("what needs you, and how long", () => {
+  const changes: Change[] = [
+    ...sub("busy", "p", 0, undefined, "Map"),
+    ...sub("held", "p", 1_000, undefined, "Fix"),
+    { type: "status", id: "held", status: "waiting", at: 40_000 },
+  ]
+  const input = (width: number): SidebarInput => ({
+    nodes: subagentsOf(applyAll(emptyModel(), changes), "p"),
+    width,
+    now: 51_000,
+    frame: 0,
+  })
+
+  test("one held on a permission is counted apart in the heading, and drawn in the warning tone", () => {
+    expect(heading(input(42))).toMatch(/^Subagents +1 running · 1 needs you$/)
+    const lines = sidebarLines(input(42))
+    const held = lines.findIndex((line) => line.id === "held")
+    const words = lines[held + 1]?.row.find((run) => run.text.includes("waiting for permission"))
+    expect(words?.tone).toBe("warning")
+    expect(lines[0]?.row.find((run) => run.text.includes("needs you"))?.tone).toBe("warning")
+  })
+
+  test("too narrow for both halves, the half that needs you stays", () => {
+    expect(heading(input(30))).toMatch(/^Subagents +1 needs you$/)
+    for (const line of sidebarLines(input(30))) expect(rowWidth(line.row)).toBe(30)
+  })
+
+  test("the right column is the whole run, as the pane's header says it", () => {
+    const lines = text(input(42))
+    /** Started at 1s, now 51s: not the 11s since it began waiting. */
+    expect(lines.find((line) => line.includes("waiting for permission"))).toMatch(/50s$/)
+    expect(lines.find((line) => line.includes("thinking"))).toMatch(/51s$/)
+  })
+})

@@ -82,6 +82,9 @@ function doing(activity: Activity): Row {
         : [{ text: `failed: ${activity.text}`, tone: "error" }]
     case "done":
       return [{ text: "done", tone: "success" }]
+    /** The one line that needs you: drawn in the tone of its mark, not muted like an idle one. */
+    case "waiting":
+      return [{ text: activity.text, tone: "warning" }]
     default:
       return [{ text: activity.text, tone: "muted" }]
   }
@@ -126,21 +129,27 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
   if (nodes.length === 0 || width < 8) return []
   /** Every subagent, faded and grouped ones included: the heading counts sessions, not rows. */
   const counts = countsOf(nodes)
-  /** What needs your eye: how many are working, else how it ended. */
-  const summary = counts.running
-    ? `${counts.running} running`
-    : counts.failed
-      ? `${counts.failed} failed`
-      : `${counts.done} done`
-  const lines: SidebarLine[] = [
-    {
-      row: spread(
-        [{ text: "Subagents", tone: "text", bold: true }],
-        [{ text: summary, tone: counts.running ? "accent" : counts.failed ? "error" : "muted" }],
-        width,
-      ),
-    },
-  ]
+  /**
+   * What needs your eye: how many are working, else how it ended. One stopped on a permission is
+   * not "running" in any sense that matters to you — it is waiting on you, the one state in the
+   * block you have to act on — so it is counted apart, in the warning tone its mark already wears.
+   */
+  const title = "Subagents"
+  const both = `${counts.running - counts.waiting} running · ${counts.waiting} needs you`
+  /** Too narrow for both halves: the half that needs you stays, the spinners below say the rest. */
+  const busy =
+    counts.waiting > 0 && title.length + 1 + both.length > width ? 0 : counts.running - counts.waiting
+  const summary: Run[] =
+    counts.running > 0
+      ? [
+          ...(busy > 0 ? [{ text: `${busy} running`, tone: "accent" as const }] : []),
+          ...(busy > 0 && counts.waiting > 0 ? [{ text: " · ", tone: "muted" as const }] : []),
+          ...(counts.waiting > 0 ? [{ text: `${counts.waiting} needs you`, tone: "warning" as const }] : []),
+        ]
+      : counts.failed
+        ? [{ text: `${counts.failed} failed`, tone: "error" }]
+        : [{ text: `${counts.done} done`, tone: "muted" }]
+  const lines: SidebarLine[] = [{ row: spread([{ text: title, tone: "text", bold: true }], summary, width) }]
 
   /**
    * Working ones first, so the one you are wondering about is never folded away; then the latest
@@ -178,10 +187,12 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
           ? spread(name, [{ text: `×${group.members.length}`, tone: "muted" }], width)
           : fit(name, width),
     })
-    const since =
-      activity.kind === "done" || activity.kind === "failed"
-        ? (session.ended ?? now) - session.started
-        : now - activity.since
+    /**
+     * Always the whole run, as the pane's header says it. A live entry used to show how long its
+     * current step had taken and a finished one its total, so one column meant two things and a run
+     * the pane called `running 51s` read `4s` here.
+     */
+    const since = (working(session) ? now : (session.ended ?? now)) - session.started
     const calls = session.entries.filter((entry) => entry.kind === "tool").length
     /** Continued by the main agent, or messaged by you: each is a round. */
     const rounds = session.entries.filter((entry) => entry.kind === "prompt").length

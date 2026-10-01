@@ -26,7 +26,19 @@
 import type { Entry, Node, Session } from "../model/model.ts"
 import { ARG_PREVIEW, argumentRows, large } from "./args.ts"
 import { markdownRows, plain } from "./markdown.ts"
-import { compact, cut, elapsed, fit, type Row, type Run, spin, spread, widthOf, wrap } from "./rows.ts"
+import {
+  compact,
+  cut,
+  elapsed,
+  fit,
+  type Row,
+  type Run,
+  rowText,
+  spin,
+  spread,
+  widthOf,
+  wrap,
+} from "./rows.ts"
 import { type Renderer, rendererOf, type Todo, targetOf, todosOf } from "./tools.ts"
 
 export interface ScreenInput {
@@ -337,17 +349,42 @@ function boxLines(
    * arguments are its whole contents, shown once you open it; anything else shows them always.
    */
   let args = 0
+  /** The last argument that was cut short, so the hint can join the row that says so. */
+  let shortened: { at: number; said: string } | undefined
   if (!shell && (isOpen || kind === "generic") && Object.keys(call.input).length > 0) {
     const limit = isOpen ? (whole ? MOST : OPEN) : ARG_PREVIEW
     const drawn = argumentRows(call.input, inner, limit, kind === "file" ? "verbatim" : "markdown")
     args = drawn.most
     lines.push(blank())
-    for (const each of drawn.rows) lines.push(row(each))
+    for (const each of drawn.rows) {
+      const said = rowText(each).trimEnd()
+      if (/^ +… [\d,]+ more lines?$/.test(said)) shortened = { at: lines.length, said }
+      lines.push(row(each))
+    }
   }
 
   const output = (call.error ?? call.output ?? "").replace(/\s+$/, "")
   const all = output ? output.split("\n") : []
   const limit = isOpen ? (whole ? MOST : OPEN) : PREVIEW
+  /**
+   * The hint counts both halves: a folded call with a long argument and no output still says it
+   * opens, and `a` is offered when either would show more. A running call's output is its tail, and
+   * the spinner already says there is more to come.
+   *
+   * Keys, not "Click to expand": the pane is driven from the keyboard, and a mouse-only instruction
+   * told a keyboard user nothing. `enter` opens and folds the selected call; a click still does too.
+   */
+  const printed = live ? 0 : all.length
+  const opens = printed > PREVIEW || args > ARG_PREVIEW
+  const grows = printed > OPEN || args > OPEN
+  const hint = !opens
+    ? ""
+    : !isOpen
+      ? "[enter] Expand"
+      : grows && !whole
+        ? "[a] Show All · [enter] Collapse"
+        : "[enter] Collapse"
+  let hinted = false
   if (all.length > 0) {
     lines.push(blank())
     const shown = live ? all.slice(-limit) : all.slice(0, limit)
@@ -355,34 +392,22 @@ function boxLines(
     for (const text of shown)
       lines.push(row([{ text: text.slice(0, width * 2), tone: call.error ? "error" : "text" }]))
     const more = all.length - limit
-    if (more > 0)
-      lines.push(
-        row([
-          {
-            text: live
-              ? `… ${more.toLocaleString("en")} lines above`
-              : `… ${more.toLocaleString("en")} more line${more === 1 ? "" : "s"}`,
-            tone: "muted",
-          },
-        ]),
-      )
+    /** What it hid and how to see it are one thought, so they are one row. */
+    if (more > 0) {
+      const said = live
+        ? `… ${more.toLocaleString("en")} lines above`
+        : `… ${more.toLocaleString("en")} more line${more === 1 ? "" : "s"}`
+      hinted = Boolean(hint) && !live
+      lines.push(row([{ text: hinted ? `${said} · ${hint}` : said, tone: "muted" }]))
+    }
   }
-  /**
-   * The hint counts both halves: a folded call with a long argument and no output still says it
-   * opens, and `a` is offered when either would show more. A running call's output is its tail, and
-   * the spinner already says there is more to come.
-   */
-  const printed = live ? 0 : all.length
-  const opens = printed > PREVIEW || args > ARG_PREVIEW
-  const grows = printed > OPEN || args > OPEN
-  if (opens) {
-    const hint = !isOpen
-      ? "Click to expand"
-      : grows && !whole
-        ? "Click to collapse · [a] show all"
-        : "Click to collapse"
-    lines.push(blank(), row([{ text: hint, tone: "muted" }]))
+  /** Only an argument was cut: the hint joins the row that says so. */
+  if (hint && !hinted && shortened) {
+    lines[shortened.at] = row([{ text: `${shortened.said} · ${hint}`, tone: "muted" }])
+    hinted = true
   }
+  /** Nothing is cut — the call is open and all of it shows: the hint stands on its own. */
+  if (hint && !hinted) lines.push(blank(), row([{ text: hint, tone: "muted" }]))
   lines.push(blank())
   return lines
 }
@@ -760,7 +785,11 @@ function footer(input: ScreenInput, width: number): Row[] {
       ),
     ]
   }
-  /** In the order drawn, each with its rank: at half width the lowest-ranked go first. */
+  /**
+   * In the order drawn, each with its rank: at half width the lowest-ranked go first. The way out is
+   * rank 0 and never goes — it used to be the lowest, so the first key a narrow pane lost was how to
+   * leave it.
+   */
   const all: [string, string, number][] = [
     ["j/k", "Select", 5],
     ["enter", "Open", 1],
@@ -770,20 +799,31 @@ function footer(input: ScreenInput, width: number): Row[] {
     ["t", input.thinking ? "Hide thinking" : "Show thinking", 7],
     ["i", input.details ? "Timeline" : "Details", 4],
     ["w", "Width", 6],
-    ["esc", "Back", 8],
+    ["esc", "Back", 0],
   ]
   const cost = ([k, what]: [string, string, number]) => k.length + what.length + 5
+  /** The `…` that says the row is not the whole list, and what it costs. */
+  const MORE = "…  "
+  const over = (keys: typeof all) =>
+    PAD.length +
+      keys.reduce((sum, each) => sum + cost(each), 0) +
+      (keys.length < all.length ? MORE.length : 0) >
+    width
   let shown = all
-  while (shown.length > 1 && PAD.length + shown.reduce((sum, each) => sum + cost(each), 0) > width) {
+  while (shown.some((each) => each[2] > 0) && over(shown)) {
     const lowest = Math.max(...shown.map((each) => each[2]))
     shown = shown.filter((each) => each[2] !== lowest)
   }
+  const hint = ([k, what]: [string, string, number]): Run[] => [
+    { text: `[${k}]`, tone: "accent" },
+    { text: ` ${what}  `, tone: "text" },
+  ]
+  const leave = shown.filter((each) => each[2] === 0)
   const keys: Run[] = [
     { text: PAD },
-    ...shown.flatMap(([k, what]): Run[] => [
-      { text: `[${k}]`, tone: "accent" },
-      { text: ` ${what}  `, tone: "text" },
-    ]),
+    ...shown.filter((each) => each[2] > 0).flatMap(hint),
+    ...(shown.length < all.length ? [{ text: MORE, tone: "muted" as const }] : []),
+    ...leave.flatMap(hint),
   ]
   const note =
     input.notice ??

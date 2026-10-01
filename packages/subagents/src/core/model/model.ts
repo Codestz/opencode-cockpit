@@ -444,6 +444,8 @@ export function activityOf(s: Session): Activity {
 export function countsOf(nodes: readonly Node[]): {
   total: number
   running: number
+  /** Of those running, the ones stopped on a question only you can answer. */
+  waiting: number
   done: number
   failed: number
 } {
@@ -451,6 +453,7 @@ export function countsOf(nodes: readonly Node[]): {
   return {
     total: nodes.length,
     running: of((s) => s.status === "running" || s.status === "starting" || s.status === "waiting"),
+    waiting: of((s) => s.status === "waiting"),
     done: of((s) => s.status === "done"),
     failed: of((s) => s.status === "failed"),
   }

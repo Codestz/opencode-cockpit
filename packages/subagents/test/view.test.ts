@@ -391,6 +391,20 @@ describe("stopping and ending", () => {
     expect(narrow).toContain("[x] Stop")
     expect(narrow).not.toMatch(/…\s*$/)
   })
+
+  test("the way out never gives way, and a row that lost keys says so", () => {
+    const busy = applyAll(emptyModel(), working)
+    const nodes = subagentsOf(busy, "p")
+    const session = nodes[0]?.session
+    if (!session) throw new Error("no subagent")
+    for (const width of [40, 60, 100]) {
+      const row = rowText(screenRows({ ...pane(session, nodes), width, height: 20 }).rows.at(-2) ?? [])
+      expect(row).toMatch(/… {2}\[esc\] Back/)
+    }
+    const wide = rowText(screenRows({ ...pane(session, nodes), width: 200, height: 20 }).rows.at(-2) ?? [])
+    expect(wide).not.toContain("…")
+    expect(wide).toContain("[esc] Back")
+  })
 })
 
 describe("calls, as OpenCode draws them", () => {
@@ -425,10 +439,10 @@ describe("calls, as OpenCode draws them", () => {
     const folded = draw().rows.map(rowText).join("\n")
     expect(folded).toContain("line 10")
     expect(folded).not.toContain("line 11")
-    expect(folded).toContain("Click to expand")
+    expect(folded).toContain("[enter] Expand")
     const open = draw(["tool:b"]).rows.map(rowText).join("\n")
     expect(open).toContain("line 14")
-    expect(open).toContain("Click to collapse")
+    expect(open).toContain("[enter] Collapse")
   })
 
   test("a failed command's edge and output are the error colour", () => {
@@ -538,7 +552,7 @@ describe("a big output", () => {
     expect(open).toContain("row 60")
     expect(open).not.toContain("row 61 ")
     expect(open).toContain("… 2,440 more lines")
-    expect(open).toContain("[a] show all")
+    expect(open).toContain("… 2,440 more lines · [a] Show All · [enter] Collapse")
     const whole = screenRows({ ...base, height: 2200, top: 0, whole: new Set(["tool:r"]) })
     const text = whole.rows.map(rowText).join("\n")
     expect(text).toContain("row 2000")

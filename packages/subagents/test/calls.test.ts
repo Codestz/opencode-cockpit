@@ -49,7 +49,7 @@ describe("a long argument climbs the ladder (#32)", () => {
     expect(rows.some((row) => row.includes("I'm reviewing"))).toBe(true)
     expect(rows.some((row) => row.includes("What the code does today"))).toBe(false)
     expect(rows.some((row) => /… \d+ more lines/.test(row))).toBe(true)
-    expect(rows.at(-2)).toContain("Click to expand")
+    expect(rows.some((row) => /… \d+ more lines · \[enter\] Expand$/.test(row))).toBe(true)
   })
 
   test("open: far more of it, still saying what is left, and offering [a]", () => {
@@ -57,14 +57,14 @@ describe("a long argument climbs the ladder (#32)", () => {
     expect(rows.some((row) => row.includes("What the code does today"))).toBe(true)
     expect(rows.some((row) => row.includes("Thanks!"))).toBe(false)
     expect(rows.some((row) => /… \d+ more lines/.test(row))).toBe(true)
-    expect(rows.some((row) => row.includes("Click to collapse · [a] show all"))).toBe(true)
+    expect(rows.some((row) => row.includes("[a] Show All · [enter] Collapse"))).toBe(true)
   })
 
   test("whole: all of it, nothing hidden, and no [a] left to offer", () => {
     const rows = itemText(pane({ open: new Set([key]), whole: new Set([key]) }), key)
     expect(rows.some((row) => row.includes("Thanks!"))).toBe(true)
     expect(rows.some((row) => /more lines?$/.test(row))).toBe(false)
-    expect(rows.some((row) => row.endsWith("Click to collapse"))).toBe(true)
+    expect(rows.some((row) => row.endsWith("[enter] Collapse"))).toBe(true)
   })
 
   test("a call with a long argument and no output still says it opens", () => {
@@ -83,7 +83,7 @@ describe("a long argument climbs the ladder (#32)", () => {
     const list = subagentsOf(m, "p")
     const rows = itemText(pane({ session: list[0]?.session as Session, nodes: list }), "tool:q")
     expect(rows.some((row) => row.includes("… 37 more lines"))).toBe(true)
-    expect(rows.some((row) => row.includes("Click to expand"))).toBe(true)
+    expect(rows.some((row) => row.includes("[enter] Expand"))).toBe(true)
   })
 })
 
