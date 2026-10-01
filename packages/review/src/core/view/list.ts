@@ -70,6 +70,29 @@ const STEP = 1
 const nameRoom = (width: number, indent: number, counts: number): number =>
   Math.max(1, width - 2 - indent - MARK_COLUMNS - counts - 1)
 
+/** Widths already measured, per change set: the list asks every frame, and the answer only moves with git. */
+const measured = new WeakMap<ChangeSet, number>()
+
+/**
+ * The columns the list needs to draw every name whole: the widest row of the tree, every folder open.
+ *
+ * Every folder open rather than as it is, so folding one does not shift the divider under the cursor.
+ * The split clamps this between its minimum and maximum; inside those, the list is as wide as its
+ * names and the diff has the rest.
+ */
+export function listWidth(changes: ChangeSet): number {
+  const known = measured.get(changes)
+  if (known !== undefined) return known
+  const counts = countsColumn(changes)
+  let widest = 0
+  for (const row of treeRows(changes.files.map((file) => file.path))) {
+    const used = 2 + row.depth * STEP + MARK_COLUMNS + row.name.length + counts + 1
+    if (used > widest) widest = used
+  }
+  measured.set(changes, widest)
+  return widest
+}
+
 export function fileRows(changes: ChangeSet, review: Review, state: ViewState, width: number): Row[] {
   if (width <= 0) return []
   const byPath = new Map(changes.files.map((file) => [file.path, file]))

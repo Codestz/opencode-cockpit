@@ -15,21 +15,30 @@
 import type { ChangeSet, Review } from "../model/review.ts"
 import { metrics } from "../perf.ts"
 import { footerRows, headerRows } from "./chrome.ts"
-import { FOOTER_ROWS, GUTTER, HEADER_ROWS, inset, splitColumns, window } from "./geometry.ts"
-import { fileRows, listScroll } from "./list.ts"
+import { type Columns, FOOTER_ROWS, GUTTER, HEADER_ROWS, inset, splitColumns, window } from "./geometry.ts"
+import { fileRows, listScroll, listWidth } from "./list.ts"
 import { cell, faint, type Row } from "./rows.ts"
 import type { Viewport, ViewState } from "./state.ts"
 import { streamWindow } from "./stream.ts"
 
 /**
- * How wide the diff column is for a pane this size — one answer, used by the drawing, the clicks and
- * the keys alike. Heights in the stream depend on it (a note wraps), so two widths would put a click
- * on a different row from the one drawn under it.
+ * How the pane is split for these changes — one answer, used by the drawing, the clicks and the keys
+ * alike. The list is sized from its names, so the split depends on what is being reviewed as well as
+ * on the pane, and a click that worked it out from the pane alone would land a column off.
  */
-export function streamWidth(viewport: Viewport): number {
+export function columnsFor(viewport: Viewport, changes: ChangeSet): Columns {
   const inner = Math.max(0, viewport.width - 2)
   const content = Math.max(1, inner - GUTTER * 2)
-  const columns = splitColumns(content + 2)
+  return splitColumns(content + 2, listWidth(changes))
+}
+
+/**
+ * How wide the diff column is for a pane this size. Heights in the stream depend on it (a note
+ * wraps), so two widths would put a click on a different row from the one drawn under it.
+ */
+export function streamWidth(viewport: Viewport, changes: ChangeSet): number {
+  const content = Math.max(1, Math.max(0, viewport.width - 2) - GUTTER * 2)
+  const columns = columnsFor(viewport, changes)
   return columns.list === 0 ? content : columns.diff
 }
 
@@ -42,7 +51,7 @@ function compose(changes: ChangeSet, review: Review, state: ViewState, viewport:
   const inner = Math.max(0, viewport.width - 2)
   /** What the content gets, once the pane has taken its gutter off each side. */
   const content = Math.max(1, inner - GUTTER * 2)
-  const columns = splitColumns(content + 2)
+  const columns = columnsFor(viewport, changes)
 
   /** The rule spans the pane, edge to edge; everything with words in it sits inside the gutter. */
   const rule: Row = { runs: [{ text: "─".repeat(inner), tone: "border" }] }
@@ -147,7 +156,7 @@ export function visibleDiffRows(
   state: ViewState,
   viewport: Viewport,
 ): { line?: number; target?: string; file?: string; header?: boolean }[] {
-  const width = streamWidth(viewport)
+  const width = streamWidth(viewport, changes)
   const body = Math.max(1, viewport.height - HEADER_ROWS - FOOTER_ROWS)
   return streamWindow(changes, review, state, width, body).map((row) => ({
     ...(row.line === undefined ? {} : { line: row.line }),

@@ -74,55 +74,7 @@ export function frameBounds(variant: Variant, screen: Size): Frame {
   return { left: screen.width - width, top: 0, width, height: screen.height }
 }
 
-/**
- * How the room inside a frame is split between the file list and the diff.
- *
- * `list: 0` means one column: the frame is too narrow to show both, so the view shows the list or
- * the diff and `tab` swaps them.
+/*
+ * How the room inside a frame is split between the file list and the diff lives in `geometry.ts`,
+ * once. A second copy here had drifted to a different minimum (24 against 18) while nothing read it.
  */
-export interface Columns {
-  /** Columns for the file list. `0` for a single-column view. */
-  list: number
-  /** Columns for the diff body. */
-  diff: number
-}
-
-/**
- * The narrowest a diff column may be before two columns stop being worth it. A line of code plus
- * its line number and a change marker is the thing that has to fit.
- */
-export const MIN_DIFF_COLUMNS = 72
-
-/** The narrowest a file list may be before a path stops being recognisable in it. */
-export const MIN_LIST_COLUMNS = 24
-
-/** The widest it is worth making one: past this, extra columns are spent on trailing whitespace. */
-export const MAX_LIST_COLUMNS = 40
-
-/** The share of a frame the list asks for, before the clamps above have their say. */
-export const LIST_SHARE = 0.3
-
-/**
- * How the room inside a frame is split between the file list and the diff, decided by looking at it.
- *
- * The first version was an even 50/50 — what had been asked for, and wrong for the reason a screenshot
- * makes obvious. Paths are short and bounded; lines of code are neither.
- */
-export function splitColumns(width: number): Columns {
-  const inner = Math.max(0, width - 2) // the frame's border
-  /**
-   * Clamped, not even. A 50/50 split is indefensible once you see it rendered: the left column holds
-   * file names and the right holds code, and code is the longer of the two by a wide margin — an even
-   * split spends half a 200-column terminal on `packages/review/src/core/frame.ts` and starves the
-   * lines you are actually reading.
-   *
-   * It is also what makes two columns possible in the right-hand pane at all. Half of a 210-column
-   * terminal is 103 usable columns: an even split leaves 51 for code, which is not a code column, and
-   * this leaves 72, which is.
-   */
-  const list = Math.min(MAX_LIST_COLUMNS, Math.max(MIN_LIST_COLUMNS, Math.floor(inner * LIST_SHARE)))
-  const diff = inner - list - 1 // -1 for the divider between them
-  /** Below this there is no honest two-column view, so the list and the diff take turns instead. */
-  if (diff < MIN_DIFF_COLUMNS) return { list: 0, diff: inner }
-  return { list, diff }
-}

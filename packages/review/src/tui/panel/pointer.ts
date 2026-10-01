@@ -9,8 +9,8 @@
 
 import type { BoxRenderable } from "@opentui/core"
 import { filesElsewhere } from "../../core/model/review.ts"
-import { DIVIDER, GUTTER, splitColumns } from "../../core/view/geometry.ts"
-import { streamWidth, visibleDiffRows } from "../../core/view/layout.ts"
+import { DIVIDER, GUTTER } from "../../core/view/geometry.ts"
+import { columnsFor, streamWidth, visibleDiffRows } from "../../core/view/layout.ts"
 import { listScroll, navigableRows } from "../../core/view/list.ts"
 import type { Viewport } from "../../core/view/state.ts"
 import { headerZone } from "../../core/view/stream.ts"
@@ -42,7 +42,7 @@ export function createPointer(deps: PointerDeps): Pointer {
 
   /** Whether a column belongs to the file list, which is also how the wheel decides what it scrolls. */
   const overList = (x: number, panel: BoxRenderable): boolean => {
-    const columns = splitColumns(panel.width)
+    const columns = columnsFor(deps.viewport(), store.current().changes)
     return columns.list > 0 && x <= panel.x + columns.list
   }
 
@@ -93,9 +93,9 @@ export function createPointer(deps: PointerDeps): Pointer {
 
       /** A heading: the buttons on its right, and folding everywhere else on it. */
       if (at?.header && at.file) {
-        const columns = splitColumns(panel.width)
+        const columns = columnsFor(deps.viewport(), store.current().changes)
         const left = panel.x + 1 + GUTTER + (columns.list > 0 ? columns.list + DIVIDER : 0)
-        const zone = headerZone(streamWidth(deps.viewport()), x - left)
+        const zone = headerZone(streamWidth(deps.viewport(), store.current().changes), x - left)
         surface.view = { ...surface.view, pane: "diff", file: at.file, line: undefined, anchor: undefined }
         if (zone === "viewed") deps.actions.toggleViewed(at.file)
         else if (zone === "note") deps.actions.commentFile(at.file)
