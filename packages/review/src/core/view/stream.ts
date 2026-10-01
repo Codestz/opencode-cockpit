@@ -47,6 +47,13 @@ export const LARGE_DIFF = 1500
  *
  * Open until marked viewed, like GitHub — reading a file and marking it is what folds it out of the
  * way. A hand-folded or hand-opened file stays how it was left, either way.
+ *
+ * Except while a conversation on it is still going. The notes are what a review produces, and a
+ * viewed file folded with two of them waiting showed a heading, a `▐ 2`, and empty space: nothing
+ * said they were there or how to see them. Folding also hid the agent's answer when it came, on the
+ * one file it was answering about. So a file with an unresolved thread stays open until the thread
+ * is resolved or you fold it with `z`; a folded card with a note line in it would have said the
+ * same thing in a row of its own, and still made you open it to read the answer.
  */
 export function isOpen(
   path: string,
@@ -56,6 +63,7 @@ export function isOpen(
 ): boolean {
   if (state.folded?.has(path)) return false
   if (state.opened?.has(path)) return true
+  if (threadsFor(review, path).some((thread) => thread.status !== "resolved")) return true
   if (isRead(review, path)) return false
   return !file || file.additions + file.deletions <= LARGE_DIFF
 }

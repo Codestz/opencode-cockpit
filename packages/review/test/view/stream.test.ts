@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { emptyReview, toggleRead } from "../../src/core/model/review.ts"
+import { emptyReview, open, put, say, type Thread, toggleRead } from "../../src/core/model/review.ts"
 import { rowWidth } from "../../src/core/view/rows.ts"
 import {
   cursorRow,
@@ -51,6 +51,29 @@ describe("the stream", () => {
     expect(opened?.open).toBe(true)
     const byHand = streamOf(changes, emptyReview(), { folded: new Set(["src/a.ts"]) }, WIDTH).segments[1]
     expect(byHand?.open).toBe(false)
+  })
+
+  /** The `huge` fixture: viewed, two notes waiting, and a folded heading over empty space. */
+  test("a viewed file stays open while a note on it is still being discussed", () => {
+    let review = toggleRead(emptyReview(), "src/b.ts")
+    review = open(review, { file: "src/b.ts", line: 6 }, "why this?", "you", 1)
+    expect(streamOf(changes, review, {}, WIDTH).segments[0]?.open).toBe(true)
+
+    /** Answered is still going: the answer is what you came back to read. */
+    review = say(review, review.threads[0]?.id as string, { author: "agent", body: "because", at: 2 })
+    expect(streamOf(changes, review, {}, WIDTH).segments[0]?.open).toBe(true)
+
+    /** Folding by hand still folds it. */
+    expect(streamOf(changes, review, { folded: new Set(["src/b.ts"]) }, WIDTH).segments[0]?.open).toBe(false)
+
+    const settled = put(review, { ...(review.threads[0] as Thread), status: "resolved" })
+    expect(streamOf(changes, settled, {}, WIDTH).segments[0]?.open).toBe(false)
+  })
+
+  test("a very large diff with a note waiting is open, so the note is not hidden", () => {
+    const huge = { ...fileOf("big.lock"), additions: LARGE_DIFF + 1 }
+    const review = open(emptyReview(), { file: "big.lock" }, "is this meant to be here?", "you", 1)
+    expect(streamOf({ source: "branch", files: [huge] }, review, {}, WIDTH).segments[0]?.open).toBe(true)
   })
 
   test("a very large diff starts folded", () => {
