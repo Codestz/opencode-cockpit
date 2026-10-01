@@ -86,17 +86,17 @@ model that uses shells less well.
 Interface only: `dockHeight`, `dockOpen`, `sidebarRows`, `sidebarOrder`, `historyMinutes`, `colors`,
 `defaultView` (`screen` or `log`), `keybinds`, `updateCheck`.
 
-:::tip[Three bays share the sidebar]
-The statusline (140), Subagents (150) and Shell (170) all draw there, in that order; lower draws
+:::tip[Four bays share the sidebar]
+The statusline (140), Subagents (150), Trust (160) and Shell (170) all draw there, in that order; lower draws
 first, on both OpenCodes. One list orders them all — in `~/.config/opencode-cockpit/config.json`, or a project's `.cockpit.json`,
 which wins:
 
 ```json
-{ "sidebar": ["status", "subagents", "shell"] }
+{ "sidebar": ["status", "subagents", "trust", "shell"] }
 ```
 
 A bay the list leaves out keeps its place. A bay's own number (`ui.sidebarOrder` here,
-`statusline.sidebarOrder`, Subagents' `sidebarOrder`) still beats the list.
+`statusline.sidebarOrder`, Subagents' and Trust's `sidebarOrder`) still beats the list.
 :::
 
 :::tip[dockOpen decides how it starts]

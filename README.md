@@ -102,6 +102,20 @@ stops one (and tells the main agent why), `b` moves a blocking one to the backgr
 
 **Sidebar + pane · follow-ups keep context · OpenCode 1 and 2 · [docs](https://codestz.github.io/opencode-cockpit/subagents/overview/) · [`@opencode-cockpit/subagents`](packages/subagents)**
 
+-----
+
+### 🔐  Trust — permissions that learn
+
+`"bash": "ask"` means approving `git status` for the hundredth time; OpenCode's own "Always" means
+approving `docker compose -p prod down -v` because you once approved `docker compose -p cockpit up`.
+**Trust** sits between: approve the *exact same* command three times in a row and it answers for
+you — and says so in the sidebar, every time. A reject resets the count, `rm` and `git push` and
+`--force` cost eight approvals instead of three, and a rule you wrote to be asked (`"git push *":
+"ask"`) is never answered. `/trust` shows what it has learned, revokes, and copies a rule for
+`opencode.json`.
+
+**Sidebar + ledger · exact commands, per agent · OpenCode 1 and 2 · [docs](https://codestz.github.io/opencode-cockpit/trust/overview/) · [`@opencode-cockpit/trust`](packages/trust)**
+
 ---
 
 Each bay is its own npm package with a switch in config. They share the daemon, the config file and
@@ -298,6 +312,7 @@ Each shell's output feeds three views at once: a normalized **log** for the agen
 | [`@opencode-cockpit/review`](packages/review) | Bay 03 — a pull request in the terminal | [README](packages/review/README.md) · [docs](https://codestz.github.io/opencode-cockpit/review/overview/) |
 | [`@opencode-cockpit/updater`](packages/updater) | Bay 04 — every plugin, and an update checked against disk | [README](packages/updater/README.md) |
 | [`@opencode-cockpit/subagents`](packages/subagents) | Bay 05 — every subagent visible, reachable and reused | [README](packages/subagents/README.md) · [docs](https://codestz.github.io/opencode-cockpit/subagents/overview/) |
+| [`@opencode-cockpit/trust`](packages/trust) | Bay 06 — permissions that learn, visibly | [README](packages/trust/README.md) · [docs](https://codestz.github.io/opencode-cockpit/trust/overview/) |
 | [`@opencode-cockpit/daemon`](packages/daemon) | `cockpitd`, the shared process host | [README](packages/daemon/README.md) |
 | [`@opencode-cockpit/client`](packages/client) | Typed, auto-spawning client | [README](packages/client/README.md) |
 | [`@opencode-cockpit/protocol`](packages/protocol) | Wire contracts and schemas | [README](packages/protocol/README.md) |

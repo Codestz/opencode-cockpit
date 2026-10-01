@@ -6,6 +6,29 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Trust — a new bay: permissions that learn.** `@opencode-cockpit/trust`, also in the bundle
+  (`features.trust: false` to switch it off), on OpenCode 1 and 2 alike. Approve the *exact same*
+  command three times in a row and Trust answers OpenCode's prompt for you from then on — visibly.
+  - **Exact, not "similar":** `docker compose -p cockpit up -d` and `docker compose -p prod down -v`
+    never share an approval, nor does one command in two directories. A line is answered only when
+    every command in it is trusted or allowed by config; `$(…)`, `eval`, `sh -c` and the like are
+    always asked. Counts are per project and per agent.
+  - **Dangerous costs more:** `rm`, `git push`, `--force`, `reset --hard`, `down -v`, `kubectl
+    delete`, `terraform apply`, `DROP`, `npm publish`, `sudo`… need `threshold + dangerExtra`
+    (3 + 5) approvals in a row. A reject resets the count; trust unused for 30 days expires.
+  - **Your config wins:** a specific `"git push *": "ask"` is never answered — only a catch-all
+    `ask` is Trust's to fill. Trust reads OpenCode's config and never writes it.
+  - **Only your approvals count:** Trust's own answers, and any reply under 300ms (OpenCode's
+    `--auto`), are not counted.
+  - **Sidebar:** `Trust  4 auto`, what it answered and how often, and the request on screen with its
+    count (`2/3`). Silent when there is nothing to say. A log line per answer; no toasts.
+  - **Ledger:** `/trust` or `ctrl+x p` — what it has learned, revoke (`x`), copy a rule for
+    `opencode.json` (`c`), pause in this project (`p`), and OpenCode's own broad "Always" approvals
+    under a warning. Kept append-only in `~/.local/share/opencode-cockpit/trust/`, shared by every
+    window on the project.
+
 ### Fixed
 
 - **A subagent's shell woke the main agent, and the subagent never heard.** Exit and health notices
