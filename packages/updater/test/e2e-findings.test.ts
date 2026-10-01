@@ -115,7 +115,7 @@ describe("seen against a real install", () => {
     expect(selected.map((r) => r.runs.map((x) => x.text).join("")).join("\n")).not.toMatch(/\][a-z]/)
   })
 
-  test("what the screen cannot act on is faint, not merely quiet", () => {
+  test("what the screen cannot act on is muted, never dimmed past reading", () => {
     const plans = buildPlan({
       plugins: [
         { name: "current", source: "npm", running: "1.0.0" },
@@ -128,11 +128,9 @@ describe("seen against a real install", () => {
     const rows = listRows(plans, 80)
     const row = (name: string) => rows.find((r) => r.target === name)
     expect(row("current")?.runs.every((run) => !run.faint)).toBe(true)
-    expect(
-      row("/work/plugin")
-        ?.runs.filter((run) => run.text.trim())
-        .every((run) => run.faint),
-    ).toBe(true)
+    const local = row("/work/plugin")?.runs.filter((run) => run.text.trim()) ?? []
+    expect(local.length).toBeGreaterThan(0)
+    expect(local.every((run) => run.tone === "muted" && !run.faint)).toBe(true)
   })
 
   test("a local plugin is called by its package name, and its path is the config", async () => {
@@ -159,20 +157,45 @@ describe("seen against a real install", () => {
         ["enter", "Review"],
         ["esc", "Close"],
       ],
-      28,
+      36,
     )
-    expect(
-      row.runs
-        .map((r) => r.text)
+    const text = (r: typeof row) =>
+      r.runs
+        .map((run) => run.text)
         .join("")
-        .trimEnd(),
-    ).toBe("[space] Select")
+        .trimEnd()
+    // "[enter] Review" does not fit in 36 beside the way out: it is dropped whole, not cut, and the
+    // muted "…" says so. "[esc] Close" is the last key to go.
+    expect(text(row)).toBe("[space] Select   …   [esc] Close")
     expect(row.runs.slice(0, 2)).toEqual([
       { text: "[space]", tone: "accent", bold: true },
       { text: " Select", tone: "muted" },
     ])
-    // "[enter] Review" does not fit in what is left of 28: it is dropped whole, not cut.
+    expect(row.runs.find((run) => run.text.includes("…"))?.tone).toBe("muted")
     expect(row.runs.some((r) => r.text.startsWith("[enter]"))).toBe(false)
+    expect(
+      text(
+        keyRow(
+          [
+            ["space", "Select"],
+            ["esc", "Close"],
+          ],
+          28,
+        ),
+      ),
+    ).toBe("[space] Select   [esc] Close")
+    expect(
+      text(
+        keyRow(
+          [
+            ["space", "Select"],
+            ["enter", "Review"],
+            ["esc", "Close"],
+          ],
+          20,
+        ),
+      ),
+    ).toBe("…   [esc] Close")
   })
 
   test("the review never cuts the new spec: the path gives way first, from the left", () => {

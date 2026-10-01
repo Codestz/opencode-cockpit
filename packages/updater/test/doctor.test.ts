@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { memoryDisk } from "../src/core/disk.ts"
-import type { Check } from "../src/doctor/checks.ts"
+import { ago, type Check } from "../src/doctor/checks.ts"
 import type { DoctorIo } from "../src/doctor/gather.ts"
 import { doctor } from "../src/doctor/run.ts"
 
@@ -254,6 +254,8 @@ describe("the logs", () => {
     })
     expect(found["Last run"]?.state).toBe("ok")
     expect(found["Last run"]?.summary).toContain("Cockpit 0.6.0 on OpenCode 2")
+    // Just under an hour before doctor ran, said that way: not the raw ISO stamp from the log.
+    expect(found["Last run"]?.summary).toMatch(/, 59m ago$/)
   })
 
   test("two versions loaded at once is worth saying", async () => {
@@ -350,5 +352,19 @@ describe("the command", () => {
     const { code, out } = await run({}, ["--wat"])
     expect(code).toBe(2)
     expect(out).toContain("Usage:")
+  })
+})
+
+describe("a logged time reads as how long ago", () => {
+  const now = Date.parse("2026-09-30T12:00:00Z")
+  test("by the largest unit that says it", () => {
+    expect(ago("2026-09-30T11:59:30Z", now)).toBe("just now")
+    expect(ago("2026-09-30T11:48:00Z", now)).toBe("12m ago")
+    expect(ago("2026-09-30T05:00:00Z", now)).toBe("7h ago")
+    expect(ago("2026-09-26T12:00:00Z", now)).toBe("4d ago")
+  })
+  test("a time it cannot read, or no clock, is printed as logged", () => {
+    expect(ago("yesterday", now)).toBe("yesterday")
+    expect(ago("2026-09-30T11:00:00Z", undefined)).toBe("2026-09-30T11:00:00Z")
   })
 })

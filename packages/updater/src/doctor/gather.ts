@@ -257,6 +257,7 @@ export async function gatherFacts(io: DoctorIo): Promise<Facts> {
     checkouts,
     log: readLog(io, home),
     daemon: readDaemon(io, home),
+    now: io.now,
     env: {
       git: io.run("git", ["--version"])?.status === 0,
       ps: io.run("ps", ["-o", "pid="])?.status === 0,

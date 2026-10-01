@@ -54,6 +54,8 @@ export interface Facts {
   daemon: DaemonFacts
   env: { git: boolean; ps: boolean; homeWritable: boolean; home: string }
   settings: SettingsFacts
+  /** When doctor ran, so a log line's time reads as `7h ago`. Unset prints the time as logged. */
+  now?: number
 }
 
 export interface LogFacts {
@@ -259,6 +261,22 @@ export function checkConfig(facts: Facts): Check {
   return { title: "Config", state, summary, detail, ...(fix.length ? { fix } : {}) }
 }
 
+/**
+ * A logged time, as how long ago it was. `2026-09-30T03:08:18.610Z` is exact and says nothing at a
+ * glance; "was that this morning's OpenCode or last week's" is the question the line is read for.
+ */
+export function ago(t: string, now: number | undefined): string {
+  const at = Date.parse(t)
+  if (now === undefined || Number.isNaN(at)) return t
+  const s = Math.max(0, Math.round((now - at) / 1000))
+  if (s < 60) return "just now"
+  const m = Math.floor(s / 60)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 48) return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
+}
+
 /** What the log says actually ran — the one answer to "config says one thing, OpenCode runs another". */
 export function checkRunning(facts: Facts): Check {
   const { log } = facts
@@ -276,7 +294,7 @@ export function checkRunning(facts: Facts): Check {
     .sort((a, b) => a.scope.localeCompare(b.scope) || a.entry.localeCompare(b.entry))
     .map(
       (start) =>
-        `${start.scope.padEnd(7)} ${start.entry}  ${start.cockpit ?? "?"}  on OpenCode ${start.opencodeVersion ?? start.opencode ?? "?"}  (${start.t})`,
+        `${start.scope.padEnd(7)} ${start.entry}  ${start.cockpit ?? "?"}  on OpenCode ${start.opencodeVersion ?? start.opencode ?? "?"}  (${ago(start.t, facts.now)})`,
     )
   const versions = new Set(log.starts.map((start) => start.cockpit).filter(Boolean))
   const mixed = versions.size > 1
@@ -285,7 +303,7 @@ export function checkRunning(facts: Facts): Check {
     state: mixed ? "warn" : "ok",
     summary: mixed
       ? `different Cockpit versions loaded: ${[...versions].join(", ")}`
-      : `Cockpit ${newest.cockpit ?? "?"} on OpenCode ${newest.opencodeVersion ?? newest.opencode ?? "?"}, ${newest.t}`,
+      : `Cockpit ${newest.cockpit ?? "?"} on OpenCode ${newest.opencodeVersion ?? newest.opencode ?? "?"}, ${ago(newest.t, facts.now)}`,
     detail,
     ...(mixed ? { fix: ["pin every Cockpit entry at the same version, then restart OpenCode"] } : {}),
   }
@@ -302,9 +320,9 @@ export function checkErrors(facts: Facts): Check {
       .slice(-5)
       .map(
         (line) =>
-          `${line.t}  ${line.lvl.padEnd(5)} ${line.scope}  ${line.msg}${line.message ? `: ${line.message}` : ""}`,
+          `${ago(line.t, facts.now).padEnd(8)}  ${line.lvl.padEnd(5)} ${line.scope}  ${line.msg}${line.message ? `: ${line.message}` : ""}`,
       ),
-    ...daemon.slice(-3).map((line) => `${line.t}  error cockpitd  ${line.msg}`),
+    ...daemon.slice(-3).map((line) => `${ago(line.t, facts.now).padEnd(8)}  error cockpitd  ${line.msg}`),
   ]
   if (total === 0 && warnings.length === 0) {
     return { title: "Errors", state: "ok", summary: "none in the last day" }

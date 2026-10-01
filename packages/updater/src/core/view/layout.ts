@@ -93,10 +93,13 @@ export function listRows(
     const acting = plan.state === "update" || plan.state === "pin"
     const quiet = plan.state === "current" || plan.state === "unknown"
     const inert = plan.state === "internal" || plan.state === "local"
-    const base = {
-      tone: quiet || inert ? ("muted" as const) : ("text" as const),
-      ...(inert ? { faint: true } : {}),
-    }
+    /**
+     * What this screen cannot act on is muted, and no more than muted. It used to be dimmed on top,
+     * which took `local` and its path to about 2:1 against the background: below legible, on rows
+     * that are still information someone opened the dialog to read. The missing checkbox and the
+     * state column already say "nothing to do here".
+     */
+    const base = { tone: quiet || inert ? ("muted" as const) : ("text" as const) }
     const fill: Fill = selection?.cursor === i ? "cursor" : "none"
     const on = (run: Run): Run => ({ ...base, ...run, ...(fill === "none" ? {} : { fill }) })
 
@@ -117,7 +120,7 @@ export function listRows(
       ...(selection
         ? [
             // The cursor is one coloured cell in the margin — the whole focus treatment, as in Review.
-            on(selection.cursor === i ? { text: "▌", tone: "accent", faint: false } : { text: " " }),
+            on(selection.cursor === i ? { text: "▌", tone: "accent" } : { text: " " }),
             on({ text: cell(acting ? (selection.selected.has(plan.name) ? "[x]" : "[ ]") : "", mark - 1) }),
           ]
         : []),
@@ -146,10 +149,7 @@ export function listRows(
       ? [
           {
             runs: fit(
-              [
-                { text: cell("", mark) },
-                { text: `${builtIn} built into OpenCode`, tone: "muted", faint: true },
-              ],
+              [{ text: cell("", mark) }, { text: `${builtIn} built into OpenCode`, tone: "muted" }],
               width,
             ),
           },
@@ -308,18 +308,26 @@ export function titleRow(title: string, note: string, width: number): Row {
 /**
  * The footer's keys in the shape Shell and Review use: `[key]` in the accent, the label muted, three
  * spaces between. A bracketed key is recognised rather than read. Hints drop from the right when the
- * row is too narrow, never cut in half.
+ * row is too narrow, never cut in half — except `esc`, which is the last to go: "how do I leave" is
+ * the first question a dialog is asked, and at sixty columns it was the one the row had dropped. What
+ * was dropped is said with a muted `…`, so the row never pretends to be every key there is.
  */
 export function keyRow(keys: readonly (readonly [string, string])[], width: number): Row {
+  const leave = keys.filter(([key]) => key === "esc")
+  const rest = keys.filter(([key]) => key !== "esc")
+  const size = ([key, label]: readonly [string, string]) => key.length + 2 + 1 + label.length
+  const total = (hints: readonly (readonly [string, string])[], more: boolean) =>
+    hints.reduce((sum, hint) => sum + size(hint), 0) + 3 * Math.max(0, hints.length - 1) + (more ? 4 : 0)
+  let kept = rest.length
+  while (kept > 0 && total([...rest.slice(0, kept), ...leave], kept < rest.length) > width) kept--
   const runs: Run[] = []
-  let used = 0
-  for (const [key, label] of keys) {
-    const size = (runs.length > 0 ? 3 : 0) + key.length + 2 + 1 + label.length
-    if (used + size > width) break
+  const hint = ([key, label]: readonly [string, string]) => {
     if (runs.length > 0) runs.push({ text: "   " })
     runs.push({ text: `[${key}]`, tone: "accent", bold: true }, { text: ` ${label}`, tone: "muted" })
-    used += size
   }
+  for (const each of rest.slice(0, kept)) hint(each)
+  if (kept < rest.length) runs.push({ text: runs.length > 0 ? "   …" : "…", tone: "muted" })
+  for (const each of leave) hint(each)
   return { runs: fit(runs, width) }
 }
 
