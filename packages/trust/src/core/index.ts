@@ -1,4 +1,7 @@
 /** Published entry point: `@opencode-cockpit/trust/core` — the pure half, no OpenCode, no terminal. */
+export { commandOf, type Seen } from "./adapt/seen.ts"
+export { fromV1Event, fromV1Pending, V1_EVENTS } from "./adapt/v1.ts"
+export { fromV2Event, fromV2Pending } from "./adapt/v2.ts"
 export * from "./config.ts"
 export { dangerOf, dangerous } from "./danger.ts"
 export * from "./engine.ts"
