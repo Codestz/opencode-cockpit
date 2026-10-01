@@ -11,10 +11,12 @@ import { cell, cellLeft, type Fill, fit, type Row, type Run } from "./rows.ts"
 
 /** The cursor's margin cell, then `[x] `: four for the box and its gap, one for the margin. */
 const MARK = 5
-const RUNNING = 10
-const PUBLISHED = 12
-/** Wide enough for `not a plugin`, the longest thing the last column says. */
-const STATE = 13
+/** Between every two columns, whatever is cut: `…-plugin-name1.2.0` read as one word. */
+const GAP = 2
+/** What a name keeps before a column beside it is given up so the name can stay readable. */
+const NAME_FLOOR = 20
+/** `latest  ⚠` and `@0.4.1` whole; a longer config is a path, and a path is cut from the left. */
+const CONFIG_FLOOR = 12
 
 /** `~/.config/…` rather than `/Users/someone/.config/…`: the part that says something. */
 export function tildePath(path: string, home: string | undefined): string {
@@ -43,6 +45,78 @@ export interface Selection {
   selected: ReadonlySet<string>
 }
 
+/** The word the last column says, and its tone. Never cut: it is why a row is, or is not, selectable. */
+function stateOf(plan: PluginPlan): Run {
+  switch (plan.state) {
+    case "update":
+      return { text: "↑", tone: "added" }
+    case "pin":
+      return { text: "pin", tone: "warning" }
+    case "unknown":
+      return { text: "unreachable" }
+    case "local":
+      return { text: "local" }
+    case "not-plugin":
+      return { text: "not a plugin", tone: "warning" }
+    default:
+      return { text: "" }
+  }
+}
+
+/** The widths `listRows` draws at; `0` is a column given up for the ones that matter more. */
+export interface ListColumns {
+  name: number
+  running: number
+  config: number
+  published: number
+  state: number
+}
+
+/**
+ * Columns sized to what they hold, as Review's counts column is (docs/building/terminal-ui.md): the
+ * widest entry plus a gap, between a floor and a cap, so spare width stays at the end of the row
+ * rather than opening gaps between columns.
+ *
+ * When the row is short of room, the columns go in the order they stop mattering. The published
+ * version and the state are what the dialog is for, so they always stay, and the state is never cut.
+ * The name keeps `NAME_FLOOR`. Then `running` is kept, then `config` at its floor, and whatever is
+ * left goes back to the name and then to `config`. At 60 columns the dialog used to keep `config` and
+ * drop the version and the `↑` — a list of rows with no reason to tick any of them.
+ */
+export function listColumns(
+  plans: readonly PluginPlan[],
+  width: number,
+  mark: number,
+  configOf: (plan: PluginPlan) => string,
+  nameOf: (plan: PluginPlan) => string,
+): ListColumns {
+  const widest = (texts: string[], floor: number, cap: number) =>
+    Math.max(floor, Math.min(cap, Math.max(0, ...texts.map((t) => t.length)) + GAP))
+  const published = widest(["published", "?", ...plans.map((p) => p.published ?? "")], 11, 20)
+  // The last column: nothing after it needs a gap, and `fit` pads the row to the edge.
+  const state = Math.max(0, ...plans.map((p) => stateOf(p).text.length))
+  const wants = {
+    name: widest(["plugin", ...plans.map(nameOf)], 12, 42),
+    running: widest(["running", ...plans.map((p) => p.running ?? "")], 9, 20),
+    config: widest(["config", ...plans.map(configOf)], 10, 30),
+  }
+  let room = width - mark - published - state
+  const name = Math.max(0, Math.min(wants.name, NAME_FLOOR, room))
+  room -= name
+  const running = room >= wants.running ? wants.running : 0
+  room -= running
+  const config = room >= Math.min(wants.config, CONFIG_FLOOR) ? Math.min(wants.config, CONFIG_FLOOR) : 0
+  room -= config
+  const grown = Math.min(wants.name - name, room)
+  room -= grown
+  const more = config > 0 ? Math.min(wants.config - config, room) : 0
+  return { name: name + grown, running, config: config + more, published, state }
+}
+
+/** Exactly `width`: the text in all but the last `GAP` columns, so a cut text never meets the next. */
+const col = (text: string, width: number, left = false): string =>
+  width <= GAP ? cell(text, width) : `${(left ? cellLeft : cell)(text, width - GAP)}${" ".repeat(GAP)}`
+
 /**
  * The list. With a `selection` it draws the mark column and the cursor, as the dialog does; without
  * one it is the CLI's table.
@@ -59,32 +133,22 @@ export function listRows(
   const builtIn = all.length - plans.length
   const mark = selection ? MARK : 0
 
-  /**
-   * Columns sized to what they hold, as Review's counts column is (docs/building/terminal-ui.md):
-   * the widest entry plus a gap, between a floor and a cap. Fixed widths cut a path to
-   * `…ages/opencode` while a third of the dialog stood empty; now spare width stays at the end of the
-   * row rather than opening gaps between columns, and the state column has a place of its own.
-   */
   const configOf = (plan: PluginPlan): string => {
     const label = configLabel(plan)
     if (plan.state === "local") return tildePath(label, home)
     return plan.frozen && (plan.state === "update" || plan.state === "pin") ? `${label}  ⚠` : label
   }
-  const widest = (texts: string[], floor: number, cap: number) =>
-    Math.max(floor, Math.min(cap, Math.max(0, ...texts.map((t) => t.length)) + 2))
-  const name = widest(["plugin", ...plans.map((p) => p.label ?? p.name)], 12, 36)
-  const room = width - mark - name - RUNNING - PUBLISHED - STATE
-  // Capped low on purpose: a spec is a word, and one long checkout path must not push every version
-  // away from its spec. The path is the least important thing here, so it is what gets cut.
-  const config = Math.max(10, Math.min(room, widest(["config", ...plans.map(configOf)], 10, 30)))
+  // A local plugin with no package name is called by its path, and a path is cut from the left.
+  const nameOf = (plan: PluginPlan): string => plan.label ?? tildePath(plan.name, home)
+  const columns = listColumns(plans, width, mark, configOf, nameOf)
   const header: Row = {
     runs: fit(
       [
         { text: cell("", mark) },
-        { text: cell("plugin", name), tone: "muted" },
-        { text: cell("running", RUNNING), tone: "muted" },
-        { text: cell("config", config), tone: "muted" },
-        { text: cell("published", PUBLISHED), tone: "muted" },
+        { text: col("plugin", columns.name), tone: "muted" },
+        { text: col("running", columns.running), tone: "muted" },
+        { text: col("config", columns.config), tone: "muted" },
+        { text: col("published", columns.published), tone: "muted" },
       ],
       width,
     ),
@@ -104,18 +168,7 @@ export function listRows(
     const on = (run: Run): Run => ({ ...base, ...run, ...(fill === "none" ? {} : { fill }) })
 
     const configText = configOf(plan)
-    const state =
-      plan.state === "update"
-        ? { text: "↑", tone: "added" as const }
-        : plan.state === "pin"
-          ? { text: "pin", tone: "warning" as const }
-          : plan.state === "unknown"
-            ? { text: "unreachable" }
-            : plan.state === "local"
-              ? { text: "local" }
-              : plan.state === "not-plugin"
-                ? { text: "not a plugin", tone: "warning" as const }
-                : { text: "" }
+    const state = stateOf(plan)
     const runs: Run[] = [
       ...(selection
         ? [
@@ -124,23 +177,23 @@ export function listRows(
             on({ text: cell(acting ? (selection.selected.has(plan.name) ? "[x]" : "[ ]") : "", mark - 1) }),
           ]
         : []),
-      on({ text: cell(plan.label ?? plan.name, name) }),
-      on({ text: cell(plan.running ?? "", RUNNING) }),
+      on({ text: col(nameOf(plan), columns.name, plan.label === undefined && plan.state === "local") }),
+      on({ text: col(plan.running ?? "", columns.running) }),
       on(
         acting && plan.frozen
-          ? { text: cell(configText, config), tone: "warning" }
+          ? { text: col(configText, columns.config), tone: "warning" }
           : // A path is cut from the left: its end is the part that says which plugin it is.
-            {
-              text:
-                plan.state === "local" ? `${cellLeft(configText, config - 2)}  ` : cell(configText, config),
-            },
+            { text: col(configText, columns.config, plan.state === "local") },
       ),
       on(
         plan.state === "unknown"
-          ? { text: cell("?", PUBLISHED), tone: "warning" }
-          : { text: cell(plan.published ?? "", PUBLISHED), ...(acting ? { tone: "added" as const } : {}) },
+          ? { text: col("?", columns.published), tone: "warning" }
+          : {
+              text: col(plan.published ?? "", columns.published),
+              ...(acting ? { tone: "added" as const } : {}),
+            },
       ),
-      on({ ...state, text: cell(state.text, STATE) }),
+      on({ ...state, text: cell(state.text, columns.state) }),
     ]
     return { runs: fit(runs, width, fill), target: plan.name }
   })
