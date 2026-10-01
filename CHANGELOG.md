@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **A subagent's shell woke the main agent, and the subagent never heard.** Exit and health notices
+  went to the conversation a shell is shown in, not to the session that started it. They now go to
+  the agent that asked: a subagent still at work gets them inside its turn (steered on OpenCode 2).
+  Once it has finished, a failure goes to the main agent instead, naming the subagent and how to
+  continue it with the error (`task` with `task_id` on OpenCode 1, `subagent` with its `sessionID` on
+  OpenCode 2), so the agent that knows the work picks it up; a clean exit, or health coming back,
+  stays quiet. Shells keep showing in the conversation as before, and a shell started by an older
+  Cockpit is told about as it always was.
+
 ## [0.7.1] - 2026-09-26
 
 ### Added

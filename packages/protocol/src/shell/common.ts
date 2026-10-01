@@ -8,6 +8,13 @@ export const Owner = z.object({
   project: z.string().min(1),
   /** OpenCode session that started it, when started by an agent. */
   session: z.string().min(1).optional(),
+  /**
+   * The session whose tool call started it — a subagent's, when one did. `session` is the
+   * conversation (a subagent's shell is shown where the person is looking), this is
+   * who asked, so notices about the shell go to the agent that cares about it. Optional because an
+   * older plugin never sends it and an older daemon drops it; without it, notices go to `session`.
+   */
+  origin: z.string().min(1).optional(),
   /** Opaque id of the client instance that started it; used to route notifications to one place. */
   instance: z.string().min(1).optional(),
 })

@@ -10,6 +10,7 @@ let env: Awaited<ReturnType<typeof startDaemon>>
 let tools: ReturnType<typeof createTools>
 const asked: string[] = []
 const quiet = new Set<string>()
+const subagentsSeen: string[] = []
 
 const ctx = (sessionID = "ses_1", directory = "/tmp"): ToolContext => ({
   sessionID,
@@ -50,6 +51,7 @@ beforeAll(async () => {
     sessionTitle: async (id) => (id === "ses_2" ? "Refactor auth" : undefined),
     /** `ses_sub` is a subagent running inside `ses_1`, the way a task tool's session is. */
     rootSession: async (id) => (id === "ses_sub" ? "ses_1" : id),
+    subagentStarted: (session, agent) => void subagentsSeen.push(`${session}:${agent}`),
     shellCommand: (command) => ({ command: "/bin/bash", args: ["--noprofile", "--norc", "-c", command] }),
   })
 })
@@ -358,20 +360,29 @@ describe("which conversation a shell belongs to", () => {
     await client.connect()
     const shells = await client.call("shell.list", { owner: {} })
     client.close()
-    return shells.find((s) => s.id === idOf(out))?.owner.session
+    return shells.find((s) => s.id === idOf(out))?.owner
   }
 
-  test("a subagent's shell belongs to the conversation above it", async () => {
+  test("a subagent's shell belongs to the conversation above it, and remembers who asked", async () => {
+    subagentsSeen.length = 0
     const out = await run(
       "shell_start",
       { command: "sleep 5", description: "from a subagent" },
-      ctx("ses_sub"),
+      { ...ctx("ses_sub"), agent: "general" },
     )
-    expect(await ownerOf(out)).toBe("ses_1")
+    const owner = await ownerOf(out)
+    expect(owner?.session).toBe("ses_1")
+    // Notices go to the session that asked, so the daemon has to keep it.
+    expect(owner?.origin).toBe("ses_sub")
+    expect(subagentsSeen).toEqual(["ses_sub:general"])
   })
 
   test("and one started in the conversation itself is unchanged", async () => {
+    subagentsSeen.length = 0
     const out = await run("shell_start", { command: "sleep 5", description: "from the session" })
-    expect(await ownerOf(out)).toBe("ses_1")
+    const owner = await ownerOf(out)
+    expect(owner?.session).toBe("ses_1")
+    expect(owner?.origin).toBe("ses_1")
+    expect(subagentsSeen).toEqual([])
   })
 })

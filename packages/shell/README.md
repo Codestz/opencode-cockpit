@@ -62,7 +62,10 @@ with), so you can ask about shells naturally, including ones started in other se
 Names match ignoring case, then partially on name or command. If a name fits several shells the
 agent gets the candidates instead of a guess.
 
-The agent is messaged when a shell it started exits on its own.
+The agent is messaged when a shell it started exits on its own. A shell a subagent started is shown
+in your conversation, but its messages go to that subagent while it works. Once it has finished, a
+failure goes to the main agent, which is told how to continue that subagent with the error; a clean
+exit is not reported.
 
 ### Watching health
 

@@ -8,7 +8,17 @@ import {
 import type { ShellInfo } from "@opencode-cockpit/protocol/shell"
 import { createClient } from "../connect.ts"
 import { loadConfig } from "../core/config.ts"
-import { describeStatus, formatLines } from "../core/format.ts"
+import { describeStatus } from "../core/format.ts"
+import {
+  activityOf,
+  exitOutcome,
+  exitText,
+  healthOutcome,
+  healthText,
+  type Outcome,
+  routeNotice,
+  subagentNote,
+} from "../core/notice.ts"
 import { createTools } from "./tools/index.ts"
 
 const GUIDANCE = `## Background shells (opencode-cockpit)
@@ -97,11 +107,58 @@ async function shellParts(host: ServerHost, options?: unknown): Promise<ServerPa
     return title
   }
 
-  // Wake the agent when a shell it owns ends on its own.
+  /**
+   * Subagents that started a shell in this window: the agent they ran as (only the tool call says),
+   * and whether they are working on a turn now. OpenCode 1 answers "busy?" itself; OpenCode 2's
+   * agent side cannot, so there the answer is followed from session events, starting from "busy" —
+   * a subagent calling shell_start is mid-turn. Only these sessions are followed, so it stays small.
+   */
+  const subagents = new Map<string, { agent?: string; busy: boolean }>()
+  const originBusy = async (session: string): Promise<boolean | undefined> => {
+    const asked = await host.session.busy?.(session).catch(() => undefined)
+    return asked ?? subagents.get(session)?.busy
+  }
+
+  /**
+   * Sends a notice to whoever should hear it (core/notice.ts decides). `text` is built only when
+   * someone will read it, since an exit notice reads the shell's tail from the daemon.
+   */
+  async function deliver(
+    info: ShellInfo,
+    outcome: Outcome,
+    text: () => Promise<string>,
+    what: string,
+  ): Promise<void> {
+    const origin = info.owner.origin
+    const busy = origin && origin !== info.owner.session ? await originBusy(origin) : undefined
+    const route = routeNotice({ owner: info.owner, outcome, originBusy: busy })
+    log.debug(`${what} notice`, { shell: info.id, origin, busy, outcome, route })
+    if (route.kind === "drop") return
+    if (route.kind === "deliver") {
+      await host.session.notify(route.session, await text(), { steer: route.steer })
+      return
+    }
+    const sub = {
+      session: route.subagent,
+      agent:
+        subagents.get(route.subagent)?.agent ??
+        (await host.session.get(route.subagent).catch(() => undefined))?.agent,
+      title: await sessionTitle(route.subagent).catch(() => undefined),
+    }
+    await host.session.notify(route.session, `${await text()}\n${subagentNote(sub, host.version)}`)
+  }
+
+  // Tell the agent that started a shell when it ends on its own.
   cockpit.on("shell.exited", (info) => {
     if (info.owner.instance !== instance || !info.owner.session) return
     if (quiet.delete(info.id) || config.notify?.exit === false) return
-    void notifyExit(info).catch((error) => log.warn("exit notice not delivered", { shell: info.id, error }))
+    const tail = async () => {
+      const page = await cockpit.call("shell.read", { id: info.id, tail: config.notify?.tailLines ?? 15 })
+      return exitText(info, page.lines)
+    }
+    void deliver(info, exitOutcome(info), tail, "exit").catch((error) =>
+      log.warn("exit notice not delivered", { shell: info.id, error }),
+    )
   })
 
   // A watcher's health changed. This is the whole point of watching: one message per change, never
@@ -110,40 +167,10 @@ async function shellParts(host: ServerHost, options?: unknown): Promise<ServerPa
     const info = event.info
     if (config.notify?.watch === false) return
     if (info.owner.instance !== instance || !info.owner.session || event.current === "pending") return
-    const text = [
-      `<shell_health id="${info.id}" title="${info.title}" status="${event.current}">`,
-      `${info.watch?.preset ?? "watch"}: ${event.previous} → ${event.current}`,
-      event.summary ?? "",
-      "</shell_health>",
-      event.current === "ok"
-        ? "Previously reported problems in this shell are resolved."
-        : `Investigate with shell_read id=${info.id} if this affects your current task.`,
-    ]
-      .filter(Boolean)
-      .join("\n")
-    void host.session
-      .notify(info.owner.session, text)
-      .catch((error) => log.warn("health notice not delivered", { shell: info.id, error }))
+    void deliver(info, healthOutcome(event.current), async () => healthText(info, event), "health").catch(
+      (error) => log.warn("health notice not delivered", { shell: info.id, error }),
+    )
   })
-
-  async function notifyExit(info: ShellInfo): Promise<void> {
-    const session = info.owner.session as string
-    const page = await cockpit.call("shell.read", { id: info.id, tail: config.notify?.tailLines ?? 15 })
-    const failed =
-      info.status === "failed" ||
-      (info.status === "exited" && info.exitCode !== 0) ||
-      info.status === "killed"
-    const text = [
-      `<shell_exited id="${info.id}" title="${info.title}">`,
-      describeStatus(info),
-      page.lines.length > 0 ? `last output:\n${formatLines(page.lines)}` : "(no output)",
-      "</shell_exited>",
-      failed
-        ? `Investigate with shell_read id=${info.id} grep="error|fail" if the failure matters to the task.`
-        : `Full output: shell_read id=${info.id}.`,
-    ].join("\n")
-    await host.session.notify(session, text)
-  }
 
   return {
     tools: createTools({
@@ -154,6 +181,9 @@ async function shellParts(host: ServerHost, options?: unknown): Promise<ServerPa
       config,
       sessionTitle,
       rootSession,
+      subagentStarted: (session, agent) => {
+        subagents.set(session, { agent: agent || subagents.get(session)?.agent, busy: true })
+      },
       shellCommand: (command) => ({ command: userShell, args: ["-c", command] }),
     }),
 
@@ -186,7 +216,14 @@ async function shellParts(host: ServerHost, options?: unknown): Promise<ServerPa
       return system
     },
 
+    event: (event) => {
+      const activity = activityOf(event)
+      const known = activity && subagents.get(activity.session)
+      if (known) known.busy = activity.busy
+    },
+
     sessionDeleted: async (sessionID) => {
+      subagents.delete(sessionID)
       const owned = await cockpit
         .call("shell.list", { owner: { session: sessionID } })
         .catch(() => [] as ShellInfo[])

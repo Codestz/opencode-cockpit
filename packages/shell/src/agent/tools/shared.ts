@@ -25,6 +25,12 @@ export interface ToolDeps {
    * leaves shells where they were, which is what happened before this existed.
    */
   rootSession?(sessionID: string | undefined): Promise<string | undefined>
+  /**
+   * A subagent (a session other than the conversation) just started a shell. It is mid-turn by
+   * definition, and its agent name is only known here, from the tool call — notices about the shell
+   * need both.
+   */
+  subagentStarted?(sessionID: string, agent: string): void
 }
 
 /** What every tool shares: the client, name resolution, permission prompts and abort handling. */

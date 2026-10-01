@@ -102,16 +102,22 @@ export function shellStart(kit: ToolKit): ToolDefinition {
       const orphanMinutes = lifecycle.orphanAfterMinutes ?? 60
       const removeMinutes = lifecycle.removeFinishedAfterMinutes ?? 30
       const shell = deps.shellCommand(args.command)
+      const conversation = (await deps.rootSession?.(ctx.sessionID).catch(() => undefined)) ?? ctx.sessionID
+      if (ctx.sessionID && conversation !== ctx.sessionID) deps.subagentStarted?.(ctx.sessionID, ctx.agent)
       const info = await client.call("shell.start", {
         command: shell.command,
         args: shell.args,
         cwd: args.workdir || ctx.directory,
         env: { ...deps.env(), ...args.env },
         title: args.description,
-        /** The conversation, not the subagent that happens to be running inside it. */
+        /**
+         * Shown in the conversation, not under the subagent that happens to be running inside it;
+         * but notices go to `origin`, the session that asked, which is the one waiting on them.
+         */
         owner: {
           project: ctx.directory,
-          session: (await deps.rootSession?.(ctx.sessionID).catch(() => undefined)) ?? ctx.sessionID,
+          session: conversation,
+          ...(ctx.sessionID ? { origin: ctx.sessionID } : {}),
           instance: deps.instance,
         },
         timeoutMs: seconds(args.timeoutSeconds ?? defaults.timeoutSeconds),
