@@ -49,19 +49,19 @@ for (const version of [1, 2] as const) {
       const { nodes } = await model(version)
       for (const width of WIDTHS) {
         const lines = sidebarLines({ nodes, width, now: Date.now(), frame: 3 })
-        expect(lines.length).toBe(3) // heading, and two lines for the one subagent
+        expect(lines.length).toBe(2) // the heading, and one line for the one finished subagent
         for (const line of lines) expect(rowWidth(line.row)).toBe(width)
       }
     })
 
-    test("both of a subagent's lines open it; the heading opens nothing", async () => {
+    /** Finished, it is one row: there is nothing it is doing, so no second row says `done`. */
+    test("a finished subagent is one row that opens it; the heading opens nothing", async () => {
       const { nodes } = await model(version)
       const lines = sidebarLines({ nodes, width: 40, now: Date.now(), frame: 0 })
       const id = nodes[0]?.session.id
-      expect(lines.map((line) => line.id)).toEqual([undefined, id, id])
+      expect(lines.map((line) => line.id)).toEqual([undefined, id])
       expect(rowText(lines[0]?.row ?? []).trimEnd()).toMatch(/^Subagents +1 done$/)
-      expect(rowText(lines[1]?.row ?? [])).toContain("explore")
-      expect(rowText(lines[2]?.row ?? []).trimEnd()).toMatch(/└ done +\d+ calls · \d+s$/)
+      expect(rowText(lines[1]?.row ?? []).trimEnd()).toMatch(/^● explore .+ \d+ calls · \d+s$/)
     })
 
     test("the pane: exactly its height, every row exactly its width, in every state", async () => {
@@ -134,7 +134,8 @@ for (const version of [1, 2] as const) {
       const call = screenRows(base).keys.find((key) => key.startsWith("tool:")) as string
       const screen = screenRows({ ...base, selected: call, open: new Set([call]), top: 0 })
       screen.rows.forEach((row, i) => {
-        expect(rowText(row).startsWith("▌")).toBe(screen.items[i] === call || i === 0)
+        /** `▌` is the cursor and nothing else: the header no longer wears it. */
+        expect(rowText(row).startsWith("▌")).toBe(screen.items[i] === call)
       })
     })
 
@@ -399,7 +400,7 @@ describe("stopping and ending", () => {
     if (!session) throw new Error("no subagent")
     for (const width of [40, 60, 100]) {
       const row = rowText(screenRows({ ...pane(session, nodes), width, height: 20 }).rows.at(-2) ?? [])
-      expect(row).toMatch(/… {2}\[esc\] Back/)
+      expect(row).toMatch(/… {3}\[esc\] Back/)
     }
     const wide = rowText(screenRows({ ...pane(session, nodes), width: 200, height: 20 }).rows.at(-2) ?? [])
     expect(wide).not.toContain("…")

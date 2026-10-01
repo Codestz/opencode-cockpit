@@ -5,13 +5,16 @@
  * The sidebar is a narrow column shared with Context, Shells and the statusline; rows are exactly
  * its width, and an entry's lines stay two however long its task or target is.
  *
- *   Subagents                   2 running
+ *   Subagents         2 running · 1 done
  *   ⠙ explore Map the auth flow
  *     └ grep "session"  9 calls · 51s
  *     ⠙ advisor Review the plan      ×6
  *       └ 2 running · thinking    3s
- *   ● general Update README
- *     └ done            3 calls · 28s
+ *   ● Update README       3 calls · 28s
+ *
+ * A finished entry is one row: there is nothing it is doing, and a second row saying `done` under
+ * every one of seven finished subagents was what pushed the rest under `+ 3 more`. What is still
+ * doing something — running, waiting on you, failed, stopped — keeps the row that says what.
  *
  * Working entries come first at every level, and children stay under their parent. Subagents with
  * the same parent, agent and task are one entry with a count (`×6`), which is not the same thing as
@@ -19,16 +22,24 @@
  */
 
 import {
+  HEADING,
+  moreText,
+  STATE_WORD,
+  type State,
+  stateMark,
+  summaryRuns,
+} from "@opencode-cockpit/client/design"
+import {
   type Activity,
   activityOf,
-  countsOf,
   type Group,
   groupsOf,
   groupWorking,
   type Node,
+  type Session,
   working,
 } from "../model/model.ts"
-import { elapsed, fit, type Row, type Run, spin, spread } from "./rows.ts"
+import { elapsed, fit, type Row, type Run, spread } from "./rows.ts"
 
 export interface SidebarLine {
   row: Row
@@ -52,22 +63,21 @@ export interface SidebarInput {
   fadeAfter?: number
 }
 
-/** The mark before a subagent's name: its state, at a glance. */
-function mark(activity: Activity, frame: number): Run {
-  switch (activity.kind) {
-    /** A dot, coloured by how it ended — a check mark drew as a thin "√" in many terminal fonts. */
-    case "done":
-      return { text: "●", tone: "success" }
-    case "failed":
-      return { text: "●", tone: "error" }
-    case "waiting":
-      return { text: "○", tone: "warning" }
-    default:
-      return { text: spin(frame), tone: "accent" }
-  }
+/** Stopped — by you, or with the main agent — is not broken: OpenCode reports it as an error. */
+export const stoppedOn = (error: string | undefined): boolean => /abort|interrupt|cancel/i.test(error ?? "")
+
+/** A session in the words every bay shares (client/design), so it wears the same tone and mark. */
+export function stateOf(session: Session): State {
+  if (session.status === "waiting") return "waiting"
+  if (session.status === "failed") return stoppedOn(session.error) ? "stopped" : "failed"
+  if (session.status === "done") return "done"
+  return "running"
 }
 
-/** The second line: the current call and its target, or thinking/writing/waiting/done/failed. */
+/**
+ * The second line: the current call and its target, or thinking/writing/waiting/failed/stopped. A
+ * finished one has none.
+ */
 function doing(activity: Activity): Row {
   switch (activity.kind) {
     case "tool":
@@ -76,12 +86,12 @@ function doing(activity: Activity): Row {
         { text: activity.text, tone: "text" },
       ]
     case "failed":
-      /** Stopped — by you, or with the main agent — is not broken. */
-      return /abort|interrupt|cancel/i.test(activity.text)
-        ? [{ text: "cancelled", tone: "warning" }]
+      /** One event, one state: it was drawn red, worded orange and counted as failed in the heading. */
+      return stoppedOn(activity.text)
+        ? [{ text: STATE_WORD.stopped, tone: "muted" }]
         : [{ text: `failed: ${activity.text}`, tone: "error" }]
     case "done":
-      return [{ text: "done", tone: "success" }]
+      return [{ text: STATE_WORD.done, tone: "muted" }]
     /** The one line that needs you: drawn in the tone of its mark, not muted like an idle one. */
     case "waiting":
       return [{ text: activity.text, tone: "warning" }]
@@ -89,6 +99,13 @@ function doing(activity: Activity): Row {
       return [{ text: activity.text, tone: "muted" }]
   }
 }
+
+/**
+ * The agent's name, when it says something. `general` is what a subagent is when nobody chose one,
+ * and on every row it cost eight columns the title needed; the pane's header still names it. Any
+ * other agent is named, muted — it qualifies the title rather than competing with it.
+ */
+const agentRun = (agent: string): Run[] => (agent === "general" ? [] : [{ text: `${agent} `, tone: "muted" }])
 
 /** When the last of a group's members ended. */
 const endedAt = (group: Group): number => Math.max(...group.members.map((s) => s.ended ?? s.started))
@@ -127,29 +144,19 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
   const { nodes, width, now, frame } = input
   /** Silence is the rule: no subagents, no block. */
   if (nodes.length === 0 || width < 8) return []
-  /** Every subagent, faded and grouped ones included: the heading counts sessions, not rows. */
-  const counts = countsOf(nodes)
   /**
-   * What needs your eye: how many are working, else how it ended. One stopped on a permission is
-   * not "running" in any sense that matters to you — it is waiting on you, the one state in the
-   * block you have to act on — so it is counted apart, in the warning tone its mark already wears.
+   * Every subagent, faded and grouped ones included: the heading counts sessions, not rows. Every
+   * state there is, not only the worst — `1 failed` sat over six done ones — in the words and order
+   * every block's heading uses (client/design); narrow, history gives way and what needs you stays.
    */
+  const counts: Partial<Record<State, number>> = {}
+  for (const node of nodes) {
+    const state = stateOf(node.session)
+    counts[state] = (counts[state] ?? 0) + 1
+  }
   const title = "Subagents"
-  const both = `${counts.running - counts.waiting} running · ${counts.waiting} needs you`
-  /** Too narrow for both halves: the half that needs you stays, the spinners below say the rest. */
-  const busy =
-    counts.waiting > 0 && title.length + 1 + both.length > width ? 0 : counts.running - counts.waiting
-  const summary: Run[] =
-    counts.running > 0
-      ? [
-          ...(busy > 0 ? [{ text: `${busy} running`, tone: "accent" as const }] : []),
-          ...(busy > 0 && counts.waiting > 0 ? [{ text: " · ", tone: "muted" as const }] : []),
-          ...(counts.waiting > 0 ? [{ text: `${counts.waiting} needs you`, tone: "warning" as const }] : []),
-        ]
-      : counts.failed
-        ? [{ text: `${counts.failed} failed`, tone: "error" }]
-        : [{ text: `${counts.done} done`, tone: "muted" }]
-  const lines: SidebarLine[] = [{ row: spread([{ text: title, tone: "text", bold: true }], summary, width) }]
+  const summary: Run[] = summaryRuns(counts, width - title.length - 1)
+  const lines: SidebarLine[] = [{ row: spread([{ text: title, ...HEADING }], summary, width) }]
 
   /**
    * Working ones first, so the one you are wondering about is never folded away; then the latest
@@ -171,22 +178,9 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
   for (const { group } of visible) {
     const session = group.lead
     const activity = activityOf(session)
+    const state = stateOf(session)
     const indent = "  ".repeat(Math.min(group.depth, 3))
     const id = session.id
-    const name: Row = [
-      { text: indent },
-      mark(activity, frame),
-      { text: ` ${session.agent} `, tone: "info" },
-      { text: session.title || session.task || "subagent", tone: "text" },
-    ]
-    lines.push({
-      id,
-      /** The count stays whole at the edge; the task gives way to it. */
-      row:
-        group.members.length > 1
-          ? spread(name, [{ text: `×${group.members.length}`, tone: "muted" }], width)
-          : fit(name, width),
-    })
     /**
      * Always the whole run, as the pane's header says it. A live entry used to show how long its
      * current step had taken and a finished one its total, so one column meant two things and a run
@@ -194,6 +188,31 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
      */
     const since = (working(session) ? now : (session.ended ?? now)) - session.started
     const calls = session.entries.filter((entry) => entry.kind === "tool").length
+    /** Said in words: a bare "157 · 34m" read as a puzzle. */
+    const took = calls > 0 ? `${calls} call${calls === 1 ? "" : "s"} · ${elapsed(since)}` : elapsed(since)
+    const count = group.members.length > 1 ? `×${group.members.length}` : ""
+    const name: Row = [
+      { text: indent },
+      stateMark(state, frame),
+      { text: " " },
+      ...agentRun(session.agent),
+      { text: session.title || session.task || "subagent", tone: "text" },
+    ]
+
+    /** Finished, and nothing under it still working: one row, its numbers on the right. */
+    if (state === "done" && !groupWorking(group)) {
+      lines.push({
+        id,
+        row: spread(name, [{ text: count ? `${took}  ${count}` : took, tone: "muted" }], width),
+      })
+      continue
+    }
+
+    lines.push({
+      id,
+      /** The count stays whole at the edge; the task gives way to it. */
+      row: count ? spread(name, [{ text: count, tone: "muted" }], width) : fit(name, width),
+    })
     /** Continued by the main agent, or messaged by you: each is a round. */
     const rounds = session.entries.filter((entry) => entry.kind === "prompt").length
     /**
@@ -211,13 +230,7 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
           ...(rounds > 1 ? [{ text: ` · ${rounds} rounds`, tone: "muted" as const }] : []),
         ],
         /** Right-aligned, so the target gives way and the numbers stay whole. */
-        /** Said in words: a bare "157 · 34m" read as a puzzle. */
-        [
-          {
-            text: calls > 0 ? `${calls} call${calls === 1 ? "" : "s"} · ${elapsed(since)}` : elapsed(since),
-            tone: "muted",
-          },
-        ],
+        [{ text: took, tone: "muted" }],
         width,
       ),
     })
@@ -227,6 +240,6 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
   const hidden = placed
     .filter((entry) => !chosen.has(entry))
     .reduce((sum, entry) => sum + entry.group.members.length, 0)
-  if (hidden > 0) lines.push({ row: fit([{ text: `  + ${hidden} more`, tone: "muted" }], width) })
+  if (hidden > 0) lines.push({ row: fit([{ text: `  ${moreText(hidden)}`, tone: "muted" }], width) })
   return lines
 }

@@ -1,7 +1,7 @@
 /**
  * One subagent, in the pane: its run as a timeline you can move through and open.
  *
- *   ▌⠙ EXPLORE  Scan architecture opportunities                          running 3m32s
+ *    ⠙ EXPLORE  Scan architecture opportunities                          running 3m32s
  *     space-bunny-free · background · launched by build · 108 calls · 14 steps · 2.2M tok
  *     ‹ 2/3 ›  general Review diff   explore Scan arch…   general Verify
  *
@@ -23,6 +23,15 @@
  * the body scrolls. Pure, like everything in `core/`.
  */
 
+import {
+  closeHint,
+  fitHints,
+  type Hint,
+  hintRuns,
+  STATE_WORD,
+  stateMark,
+  toneOf,
+} from "@opencode-cockpit/client/design"
 import type { Entry, Node, Session } from "../model/model.ts"
 import { ARG_PREVIEW, argumentRows, large } from "./args.ts"
 import { markdownRows, plain } from "./markdown.ts"
@@ -39,6 +48,7 @@ import {
   widthOf,
   wrap,
 } from "./rows.ts"
+import { stateOf } from "./sidebar.ts"
 import { type Renderer, rendererOf, type Todo, targetOf, todosOf } from "./tools.ts"
 
 export interface ScreenInput {
@@ -698,18 +708,15 @@ function detailLines(input: ScreenInput, width: number): Line[] {
 
 function header(input: ScreenInput, width: number): Row[] {
   const { session, now, frame, nodes } = input
-  const glyph: Run =
-    session.status === "done"
-      ? { text: "●", tone: "success", fill: "band" }
-      : session.status === "failed"
-        ? { text: "●", tone: "error", fill: "band" }
-        : { text: spin(frame), tone: "accent", fill: "band" }
+  /** The mark, tone and word the sidebar gives the same run (client/design). */
+  const now_ = stateOf(session)
+  const glyph: Run = { ...stateMark(now_, frame), fill: "band" }
   const state = running(session)
     ? session.status === "waiting"
       ? `waiting ${elapsed(now - session.since)}`
       : `running ${elapsed(now - session.started)}`
     : session.status === "failed"
-      ? `${/abort|interrupt|cancel/i.test(session.error ?? "") ? "cancelled" : "failed"} after ${elapsed((session.ended ?? now) - session.started)}`
+      ? `${STATE_WORD[now_]} after ${elapsed((session.ended ?? now) - session.started)}`
       : `done in ${elapsed((session.ended ?? now) - session.started)}`
   const tools = session.entries.filter((entry) => entry.kind === "tool").length
   const meta = [
@@ -725,7 +732,8 @@ function header(input: ScreenInput, width: number): Row[] {
   const rows: Row[] = [
     spread(
       [
-        { text: "▌", tone: "accent", fill: "band" },
+        /** A space, not `▌`: that glyph is the cursor, and the header is not a selected row. */
+        { text: " ", fill: "band" },
         glyph,
         { text: ` ${session.agent.toUpperCase()} `, tone: "info", bold: true, fill: "band" },
         { text: ` ${session.title || "subagent"}`, tone: "text", bold: true, fill: "band" },
@@ -733,7 +741,7 @@ function header(input: ScreenInput, width: number): Row[] {
       [
         {
           text: `${state} `,
-          tone: running(session) ? "accent" : session.status === "failed" ? "error" : "muted",
+          tone: toneOf(now_),
           fill: "band",
         },
       ],
@@ -773,58 +781,36 @@ function footer(input: ScreenInput, width: number): Row[] {
         ],
         width,
       ),
+      /** The keys in the shape every footer uses; the note gives way to them. */
       spread(
         [{ text: `${PAD}  to ${session.agent} · ${hint}`, tone: "muted" }],
         [
-          { text: "enter", tone: "accent" },
-          { text: " send  ", tone: "muted" },
-          { text: "esc", tone: "accent" },
-          { text: " cancel ", tone: "muted" },
+          ...hintRuns({ key: "enter", label: "Send" }),
+          { text: "   " },
+          ...hintRuns(closeHint("Cancel")),
+          { text: " " },
         ],
         width,
       ),
     ]
   }
   /**
-   * In the order drawn, each with its rank: at half width the lowest-ranked go first. The way out is
-   * rank 0 and never goes — it used to be the lowest, so the first key a narrow pane lost was how to
-   * leave it.
+   * In the order drawn, each with its rank: at half width the lowest-ranked go first, and the way out
+   * never does — it used to be the lowest, so the first key a narrow pane lost was how to leave it.
+   * The cutting, the `…` and the shape are the ones every bay shares (client/design).
    */
-  const all: [string, string, number][] = [
-    ["j/k", "Select", 5],
-    ["enter", "Open", 1],
-    ["m", "Message", 2],
-    ["x", running(session) ? "Stop" : "Remove", 3],
-    ...(running(session) && !session.background ? [["b", "Background", 4] as [string, string, number]] : []),
-    ["t", input.thinking ? "Hide thinking" : "Show thinking", 7],
-    ["i", input.details ? "Timeline" : "Details", 4],
-    ["w", "Width", 6],
-    ["esc", "Back", 0],
+  const all: Hint[] = [
+    { key: "j/k", label: "Select", priority: 5 },
+    { key: "enter", label: "Open", priority: 9 },
+    { key: "m", label: "Message", priority: 8 },
+    { key: "x", label: running(session) ? "Stop" : "Remove", priority: 7 },
+    ...(running(session) && !session.background ? [{ key: "b", label: "Background", priority: 6 }] : []),
+    { key: "t", label: input.thinking ? "Hide Thinking" : "Show Thinking", priority: 3 },
+    { key: "i", label: input.details ? "Timeline" : "Details", priority: 6 },
+    { key: "w", label: "Width", priority: 4 },
+    closeHint("Back"),
   ]
-  const cost = ([k, what]: [string, string, number]) => k.length + what.length + 5
-  /** The `…` that says the row is not the whole list, and what it costs. */
-  const MORE = "…  "
-  const over = (keys: typeof all) =>
-    PAD.length +
-      keys.reduce((sum, each) => sum + cost(each), 0) +
-      (keys.length < all.length ? MORE.length : 0) >
-    width
-  let shown = all
-  while (shown.some((each) => each[2] > 0) && over(shown)) {
-    const lowest = Math.max(...shown.map((each) => each[2]))
-    shown = shown.filter((each) => each[2] !== lowest)
-  }
-  const hint = ([k, what]: [string, string, number]): Run[] => [
-    { text: `[${k}]`, tone: "accent" },
-    { text: ` ${what}  `, tone: "text" },
-  ]
-  const leave = shown.filter((each) => each[2] === 0)
-  const keys: Run[] = [
-    { text: PAD },
-    ...shown.filter((each) => each[2] > 0).flatMap(hint),
-    ...(shown.length < all.length ? [{ text: MORE, tone: "muted" as const }] : []),
-    ...leave.flatMap(hint),
-  ]
+  const keys: Run[] = [{ text: PAD }, ...fitHints(all, width - PAD.length).runs]
   const note =
     input.notice ??
     (session.status === "done" ? "Finished — message it; the main agent hears the answer." : "")

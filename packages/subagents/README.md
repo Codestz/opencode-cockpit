@@ -16,10 +16,10 @@ opencode plugin add @opencode-cockpit/subagents@0.7.1                   # OpenCo
 
 ## What it does
 
-**In the sidebar**, a Subagents block: each subagent in this conversation, its type and task, and
-under it what it is doing now — `grep "session" src/auth/**`, `thinking`, `waiting for permission`,
-`done · 2 rounds`, `cancelled` — with how many calls and how long on the right. A subagent that
-launched its own has them indented under it.
+**In the sidebar**, a Subagents block: each subagent in this conversation, its task — and its type,
+unless it is `general` — and under one still at it, what it is doing now: `grep "session" src/auth/**`,
+`thinking`, `waiting for permission`, `stopped` — with how many calls and how long on the right. A
+finished one is a single row. A subagent that launched its own has them indented under it.
 
 **Click one** — or `ctrl+x w`, or `/subagents` — and its run opens in a pane on the right, half the
 window or all of it: its model and who launched it, the task, then the run. A shell command or a file

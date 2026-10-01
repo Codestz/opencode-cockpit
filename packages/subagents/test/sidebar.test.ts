@@ -4,6 +4,8 @@ import { applyAll, emptyModel, groupsOf, type Model, subagentsOf } from "../src/
 import {
   ADVISOR_ROOT,
   advisorSample,
+  FINISHED_ROOT,
+  finishedSample,
   LATE_ROOT,
   lateSample,
   SAMPLE_NOW,
@@ -118,7 +120,7 @@ describe("an advisor asked again and again", () => {
 
   test("the heading counts subagents, not entries: the planner and two advisors are running", () => {
     expect(heading({ nodes, width: 40, now: SAMPLE_NOW, frame: 0, fadeAfter: 30_000 })).toMatch(
-      /^Subagents +3 running$/,
+      /^Subagents +3 running · 6 done$/,
     )
   })
 
@@ -130,7 +132,8 @@ describe("an advisor asked again and again", () => {
       ...sub("v3", "plan", 6, 7, "Check", "advisor"),
     ])
     const lines = sidebarLines({ nodes: subagentsOf(done, "p"), width: 40, now: 8, frame: 0 })
-    expect(rowText(lines[3]?.row ?? []).trimEnd()).toMatch(/● advisor Check +×3$/)
+    /** Finished: one row, how long the latest took, then the count. */
+    expect(rowText(lines[3]?.row ?? []).trimEnd()).toMatch(/● advisor Check +0s {2}×3$/)
     expect(lines[3]?.id).toBe("v3")
   })
 
@@ -190,7 +193,7 @@ describe("finished nested subagents leave the sidebar", () => {
   test("the heading still counts them, and they are not folded into '+ N more'", () => {
     const lines = text(at(60_000, 30_000))
     expect(lines).toHaveLength(3)
-    expect(lines[0]).toMatch(/1 running$/)
+    expect(lines[0]).toMatch(/1 running · 1 done$/)
     const all = applyAll(emptyModel(), [
       ...changes,
       { type: "status", id: "plan", status: "idle", at: 20_000 },
@@ -202,7 +205,7 @@ describe("finished nested subagents leave the sidebar", () => {
     const m = applyAll(emptyModel(), sub("solo", "p", 0, 1_000))
     expect(
       text({ nodes: subagentsOf(m, "p"), width: 40, now: 10_000_000, frame: 0, fadeAfter: 1 }),
-    ).toHaveLength(3)
+    ).toHaveLength(2)
   })
 
   test("a group leaves only when every member has been done that long", () => {
@@ -229,7 +232,8 @@ describe("finished nested subagents leave the sidebar", () => {
       ...sub("deep", "mid", 1_500, undefined, "Deep"),
     ])
     const lines = text({ nodes: subagentsOf(m, "p"), width: 40, now: 99_000, frame: 0, fadeAfter: 30_000 })
-    expect(lines.filter((line) => /general (Mid|Deep)/.test(line))).toHaveLength(2)
+    /** `general` is not named: it is what a subagent is when nobody chose one. */
+    expect(lines.filter((line) => /\S (Mid|Deep)/.test(line))).toHaveLength(2)
   })
 
   test("they stay reachable: the pane's list is still every subagent", () => {
@@ -312,5 +316,44 @@ describe("what needs you, and how long", () => {
     /** Started at 1s, now 51s: not the 11s since it began waiting. */
     expect(lines.find((line) => line.includes("waiting for permission"))).toMatch(/50s$/)
     expect(lines.find((line) => line.includes("thinking"))).toMatch(/51s$/)
+  })
+})
+
+describe("everything ended (the screenshots)", () => {
+  const nodes = subagentsOf(applyAll(emptyModel(), finishedSample()), FINISHED_ROOT)
+  const input = (width: number): SidebarInput => ({
+    nodes,
+    width,
+    now: SAMPLE_NOW,
+    frame: 0,
+    fadeAfter: 30_000,
+  })
+
+  /** It said only the worst — `1 failed` — over six that were done. */
+  test("the heading counts every state, and a run you stopped is not a failure", () => {
+    expect(heading(input(42))).toMatch(/^Subagents +7 done · 1 stopped$/)
+    expect(heading(input(42))).not.toContain("failed")
+  })
+
+  test("a finished subagent is one row; one you stopped keeps its row that says so", () => {
+    const lines = text(input(60))
+    expect(lines.some((line) => line.includes("└ done"))).toBe(false)
+    expect(lines.find((line) => line.includes("Prod DB forensics"))).toMatch(/94 calls · 13m23s$/)
+    const at = lines.findIndex((line) => line.includes("ContractDetails"))
+    expect(lines[at + 1]).toMatch(/└ stopped +8 calls · 24s$/)
+  })
+
+  /** Colour is for what asks something of you; seven finished dots in a colour said nothing. */
+  test("nothing that has ended is coloured", () => {
+    for (const line of sidebarLines(input(60))) {
+      for (const run of line.row) expect(["success", "error", "warning", "accent"]).not.toContain(run.tone)
+    }
+  })
+
+  test("`general` is not named on every row; any other agent is, quietly", () => {
+    const lines = sidebarLines(input(60))
+    expect(lines.some((line) => rowText(line.row).includes("general"))).toBe(false)
+    const advisor = lines.find((line) => rowText(line.row).includes("orchestrator"))
+    expect(advisor?.row.find((run) => run.text.startsWith("orchestrator"))?.tone).toBe("muted")
   })
 })

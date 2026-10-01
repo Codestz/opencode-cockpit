@@ -18,6 +18,8 @@ import {
   CALLS_ROOT,
   CALLS_SERVERS,
   callsSample,
+  FINISHED_ROOT,
+  finishedSample,
   LATE_ROOT,
   lateSample,
   SAMPLE_NOW,
@@ -63,6 +65,11 @@ const FIXTURES: Record<string, { changes: () => Change[]; root: string; about: s
   sample: { changes: sample, root: SAMPLE_ROOT, about: "three subagents mid-flight (the default)" },
   advisor: { changes: advisorSample, root: ADVISOR_ROOT, about: "a planner asking an advisor six times" },
   late: { changes: lateSample, root: LATE_ROOT, about: "a late runner after finished ones" },
+  finished: {
+    changes: finishedSample,
+    root: FINISHED_ROOT,
+    about: "everything ended: six done, one stopped",
+  },
 }
 
 const args = process.argv.slice(2)

@@ -251,7 +251,7 @@ function run(
   start: number,
   end: number | undefined,
   calls: number,
-  ending: "idle" | "failed" = "idle",
+  ending: "idle" | "failed" | "stopped" = "idle",
 ): Change[] {
   const out: Change[] = [
     { type: "session", id, parentID, agent, title, at: start },
@@ -272,7 +272,9 @@ function run(
     out.push(
       ending === "failed"
         ? { type: "status", id, status: "failed", error: "rate limited", at: end }
-        : { type: "status", id, status: "idle", at: end },
+        : ending === "stopped"
+          ? { type: "status", id, status: "failed", error: "The operation was aborted.", at: end }
+          : { type: "status", id, status: "idle", at: end },
     )
   return out
 }
@@ -308,6 +310,39 @@ export function advisorSample(): Change[] {
     ...advise(4, 95, 104),
     ...advise(5, 110),
     ...advise(6, 114),
+  ]
+}
+
+export const FINISHED_ROOT = "ses_shadcn"
+
+/**
+ * A conversation where everything has ended, as a real one looked on a work machine: six finished,
+ * two of them with an advisor consulted under them, and one you stopped. Drawn before the shared
+ * design, it was seven `└ done` rows in the success colour, a stopped run with a red dot and an
+ * orange word, a heading saying only `1 failed`, and `+ 3 more` hiding half of it.
+ */
+export function finishedSample(): Change[] {
+  const t = (s: number) => SAMPLE_NOW - 2_400_000 + s * 1000
+  const root = FINISHED_ROOT
+  return [
+    { type: "session", id: root, agent: "build", title: "Shadcn migration for web and merchant", at: t(0) },
+    ...run("ses_f_trace", root, "explore", "Trace renewal order generation", t(10), t(10 + 1688), 117),
+    ...run("ses_f_db", root, "general", "Prod DB forensics COM-1736", t(20), t(20 + 803), 94),
+    ...run("ses_f_tiles", root, "general", "Convert merchant contract tiles", t(60), t(60 + 621), 52),
+    ...run("ses_f_tiles_adv", "ses_f_tiles", "orchestrator", "Advisor consult", t(300), t(340), 1),
+    ...run("ses_f_header", root, "general", "Convert web portal header", t(90), t(2_390), 64),
+    ...run("ses_f_header_adv", "ses_f_header", "orchestrator", "Advisor consult", t(2_350), t(2_385), 1),
+    ...run("ses_f_story", root, "general", "Author Storybook foundation stories", t(120), t(120 + 492), 46),
+    ...run(
+      "ses_f_details",
+      root,
+      "general",
+      "Convert ContractDetails to shadcn",
+      t(200),
+      t(224),
+      8,
+      "stopped",
+    ),
   ]
 }
 

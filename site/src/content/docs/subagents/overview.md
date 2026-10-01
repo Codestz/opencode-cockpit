@@ -20,17 +20,19 @@ A **Subagents** block: every subagent of the conversation you are in, its type a
 it what it is doing now — with how many calls and how long on the right.
 
 ```
-Subagents                  2 running
+Subagents    1 running · 1 needs you
 ⠹ explore Map the authentication fl…
-  └ grep "session" src… 4 calls · 4s
-○ general Fix the failing login test
-  └ waiting for permis… 3 calls · 2s
-● general Update README for the new…
-  └ done · 2 rounds    3 calls · 28s
+  └ grep "session" sr… 6 calls · 51s
+○ Fix the failing login test
+  └ waiting for permi… 3 calls · 50s
+● Update README for t… 3 calls · 28s
 ```
 
-A spinner is working, `○` waits on a permission, a green `●` finished, an amber `cancelled` was
-stopped. A subagent that launched its own has them indented under it. Working subagents are always
+A spinner is working and `○` waits on you — the two in colour, because they are the two that may
+need you; a red `●` failed. A finished subagent is a quiet `●` and one row; one you stopped says
+`stopped`, quietly too, since stopping is not failing. The heading counts every state, and keeps
+what needs you when the column is narrow. The agent is named unless it is `general`, the one a
+subagent is when nobody chose. A subagent that launched its own has them indented under it. Working subagents are always
 shown; finished ones fold into a count past `sidebarRows`, and leave after `hideFinishedAfter`
 minutes if you set it. No subagents, no block.
 
