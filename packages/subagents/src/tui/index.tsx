@@ -422,6 +422,13 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
     /** Opens the item, or folds it: whichever it is not now. */
     const toggle = (key: string | undefined = surface.selected) => {
       if (!key) return
+      /** A `task` call that launched a subagent is a way into it — the same pane ←/→ would reach. */
+      const child = shown?.links.get(key)
+      if (child && model.sessions.has(child) && !isHidden(child)) {
+        log.debug("follow task", { key, child })
+        open(child)
+        return
+      }
       const isOpen = shown?.opened.includes(key) ?? false
       if (isOpen) {
         surface.opened.delete(key)
