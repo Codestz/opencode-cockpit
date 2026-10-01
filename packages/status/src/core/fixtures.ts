@@ -9,7 +9,10 @@
 
 import type { SessionSnapshot, StatusContext } from "./context.ts"
 
-export type FixtureName = "fresh" | "working" | "full" | "unpriced" | "retrying" | "empty"
+export type FixtureName = "fresh" | "working" | "busy" | "full" | "unpriced" | "retrying" | "empty"
+
+/** Two days and fifteen hours after the session was created: a conversation reopened, not a new one. */
+const NOW = 2 * 24 * 3600_000 + 15 * 3600_000
 
 const session = (over: Partial<SessionSnapshot> = {}): SessionSnapshot => ({
   id: "ses_preview",
@@ -19,6 +22,8 @@ const session = (over: Partial<SessionSnapshot> = {}): SessionSnapshot => ({
   priced: true,
   messages: 8,
   startedAt: 0,
+  // The last answer: asked six minutes ago, finished in 3m42s.
+  turn: { startedAt: NOW - 360_000, endedAt: NOW - 360_000 + 222_000 },
   model: { providerID: "anthropic", modelID: "claude-opus-5-20260101", contextLimit: 200_000 },
   tokens: { input: 265, output: 60, reasoning: 0, cache: { read: 84_900, write: 0 } },
   diff: { files: 3, additions: 42, deletions: 7 },
@@ -27,7 +32,7 @@ const session = (over: Partial<SessionSnapshot> = {}): SessionSnapshot => ({
 })
 
 const base = (over: Partial<StatusContext> = {}): StatusContext => ({
-  now: 2 * 24 * 3600_000 + 15 * 3600_000,
+  now: NOW,
   directory: "/Users/you/code/checkout-service/src",
   worktree: "/Users/you/code/checkout-service",
   home: "/Users/you",
@@ -53,6 +58,7 @@ export const FIXTURES: Record<FixtureName, { about: string; ctx: StatusContext }
         priced: false,
         model: undefined,
         tokens: undefined,
+        turn: undefined,
         diff: { files: 0, additions: 0, deletions: 0 },
         todo: { total: 0, completed: 0 },
       }),
@@ -60,6 +66,13 @@ export const FIXTURES: Record<FixtureName, { about: string; ctx: StatusContext }
   },
   /** The ordinary case: a few turns in, mostly cache. */
   working: { about: "a few turns in, mostly served from cache", ctx: base({ session: session() }) },
+  /** A turn running: the clock that matters is this one, and it is counted once. */
+  busy: {
+    about: "a turn running, a minute in",
+    ctx: base({
+      session: session({ status: "busy", turn: { startedAt: NOW - 62_000, endedAt: NOW - 20_000 } }),
+    }),
+  },
   /** Nearly out of room, which is when the design has to shout. */
   full: {
     about: "the context nearly full, a long session",
@@ -91,6 +104,7 @@ export const FIXTURES: Record<FixtureName, { about: string; ctx: StatusContext }
       session: session({
         status: "retry",
         startedAt: 0,
+        turn: { startedAt: 0 },
         retry: { attempt: 2, message: "rate limited", next: 6_000 },
       }),
     }),

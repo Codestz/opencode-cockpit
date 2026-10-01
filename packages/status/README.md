@@ -34,7 +34,7 @@ leaves out:
 | `session.status` | working, or `retry 2 in 5s` — OpenCode shows a spinner, not why it stalled |
 | `git.diff` | `+150 / -30` for this session |
 | `todo` | `3/7 todo`, and nothing once the list is done |
-| `session.time` | `12m04s` |
+| `session.time` | `took 3m42s` — how long the last answer took; quiet while one is running |
 | `diagnostics` | only when an LSP or MCP server is unhealthy |
 
 Everything else is one line of config away — including the things the host shows, if you want them
@@ -120,12 +120,18 @@ it fits. How full the context is survives a 60-column window; the version string
 | `tokens` | `78.5k tok` | |
 | `cost` | session spend | `currency`, `showZero` |
 | `todo` | `3/7 todo` | `showComplete` |
-| `session.status` | working, or a retry and its countdown | |
-| `session.time` | elapsed | `coarse` |
+| `session.status` | `working 1m02s` since the prompt, or a retry and its countdown | |
+| `session.time` | the session's age, or with `of: "turn"` how long the last answer took | `of`: `session` \| `turn`, `coarse` |
 | `diagnostics` | unhealthy LSP and MCP servers | |
 | `version` | this bay's version | |
 | `text` | literal text | `value` |
 | `command` | the output of a shell command | `name`, `row` |
+
+`session.time` has two clocks. Bare, it is how old the conversation is — from its creation, so one
+reopened days later reads `2d 15h` — and a line you already wrote keeps that. `{ "type":
+"session.time", "of": "turn" }` is what the built-in lines use: `took 3m42s` once an answer is
+done, and nothing while one is running, because `session.status` is counting it from the same
+prompt.
 
 Every segment takes `prefix`, `suffix`, `priority`, `color` (a tone name or `#rrggbb`) and `icon`.
 

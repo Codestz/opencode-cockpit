@@ -35,7 +35,14 @@ export interface SessionSnapshot {
   /** False when no model in play has prices, so cost is 0 because nobody said otherwise. */
   priced: boolean
   messages: number
+  /** When the session was created: how old the conversation is, not how long anything took. */
   startedAt?: number
+  /**
+   * The newest turn: from the prompt that started it to the last reply that finished. `endedAt` is
+   * the latest reply to finish so far, so while the turn runs it marks a step, not the end — read
+   * it together with `status`.
+   */
+  turn?: Turn
   /**
    * What is uncommitted in the working tree.
    *
@@ -45,6 +52,34 @@ export interface SessionSnapshot {
    */
   diff: DiffCounts
   todo: { total: number; completed: number }
+}
+
+export interface Turn {
+  startedAt: number
+  endedAt?: number
+}
+
+/** A message as far as a turn is concerned. Both OpenCode versions carry these two times. */
+export interface TimedMessage {
+  role: "user" | "assistant" | "other"
+  created?: number
+  completed?: number
+}
+
+/**
+ * The newest turn in a session's messages: the last prompt, and the last reply after it to finish.
+ * A session with no prompt yet has no turn, and says nothing rather than zero.
+ */
+export function lastTurn(messages: readonly TimedMessage[]): Turn | undefined {
+  const at = messages.findLastIndex((m) => m.role === "user" && m.created !== undefined)
+  const startedAt = messages[at]?.created
+  if (startedAt === undefined) return undefined
+  let endedAt: number | undefined
+  for (const message of messages.slice(at + 1)) {
+    if (message.role !== "assistant" || message.completed === undefined) continue
+    endedAt = Math.max(endedAt ?? message.completed, message.completed)
+  }
+  return endedAt === undefined ? { startedAt } : { startedAt, endedAt }
 }
 
 export interface ServiceSnapshot {

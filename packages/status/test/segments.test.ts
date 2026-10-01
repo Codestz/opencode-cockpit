@@ -257,9 +257,15 @@ describe("the rest of the built-ins", () => {
     expect(render("session.time", old)?.text).toBe("2d 13h")
   })
 
-  test("busy reports how long it has been working", () => {
-    const working = ctx({ now: 90_000, session: session({ status: "busy", startedAt: 30_000 }) })
+  test("busy reports how long this turn has been working, not how old the session is", () => {
+    const working = ctx({
+      now: 90_000,
+      session: session({ status: "busy", startedAt: 0, turn: { startedAt: 30_000 } }),
+    })
     expect(render("session.status", working)?.text).toBe("working 1m00s")
+    // With no prompt to count from, it says what it knows rather than the session's age.
+    const unknown = ctx({ now: 90_000, session: session({ status: "busy", startedAt: 0 }) })
+    expect(render("session.status", unknown)?.text).toBe("working")
   })
 
   test("diagnostics name what is broken and count the rest", () => {

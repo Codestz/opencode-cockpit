@@ -1,7 +1,14 @@
 import { homedir } from "node:os"
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import type { Host, V2Context } from "@opencode-cockpit/client/host"
-import type { SessionSnapshot, StatusContext, TokenCounts } from "../../core/context.ts"
+import {
+  lastTurn,
+  type SessionSnapshot,
+  type StatusContext,
+  type TimedMessage,
+  type TokenCounts,
+  type Turn,
+} from "../../core/context.ts"
 import type { DiffCounts } from "../../core/diff.ts"
 
 /**
@@ -81,6 +88,13 @@ export function sessionSnapshot(
     priced: model?.priced ?? false,
     messages: messages.length,
     ...(session?.time.created ? { startedAt: session.time.created } : { startedAt: now }),
+    ...withTurn(
+      messages.map((message) => ({
+        role: message.role,
+        created: num(message.time?.created),
+        completed: message.role === "assistant" ? num(message.time?.completed) : undefined,
+      })),
+    ),
     diff,
     todo: { total: todos.length, completed },
   }
@@ -112,6 +126,12 @@ function describeModel(
 const num = (value: unknown): number | undefined =>
   typeof value === "number" && Number.isFinite(value) ? value : undefined
 
+/** The newest turn, spread into a snapshot only when there is one. */
+const withTurn = (messages: readonly TimedMessage[]): { turn?: Turn } => {
+  const turn = lastTurn(messages)
+  return turn ? { turn } : {}
+}
+
 /**
  * The same snapshot from OpenCode 2's data.
  *
@@ -137,6 +157,7 @@ export function sessionSnapshotV2(
     tokens?: TokenCounts
     model?: { id?: string; providerID?: string }
     cost?: number
+    time?: { created?: number; completed?: number }
   }[]
   let tokens: TokenCounts | undefined
   let model: { id?: string; providerID?: string } | undefined
@@ -176,6 +197,13 @@ export function sessionSnapshotV2(
     priced: Array.isArray(info?.cost) && info.cost.length > 0,
     messages: messages.length,
     startedAt: num(session?.time?.created) ?? now,
+    ...withTurn(
+      messages.map((message) => ({
+        role: message.type === "user" ? "user" : message.type === "assistant" ? "assistant" : "other",
+        created: num(message.time?.created),
+        completed: message.type === "assistant" ? num(message.time?.completed) : undefined,
+      })),
+    ),
     diff,
     todo: { total: 0, completed: 0 },
   }

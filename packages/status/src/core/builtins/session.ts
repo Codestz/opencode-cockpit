@@ -6,6 +6,10 @@ import { duration, preciseDuration } from "../format.ts"
 import type { SegmentDef } from "../types.ts"
 import { formatted } from "./settings.ts"
 
+/** "3m42s" while you are watching it; "2h 5m" once the seconds stop mattering, or with `coarse`. */
+const clock = (elapsed: number, config: SegmentConfig): string =>
+  config.coarse === true ? duration(Math.max(0, elapsed)) : preciseDuration(Math.max(0, elapsed))
+
 export const SEGMENTS: SegmentDef[] = [
   {
     name: "todo",
@@ -46,7 +50,9 @@ export const SEGMENTS: SegmentDef[] = [
         }
       }
       if (session.status === "busy") {
-        const started = session.startedAt
+        // From the prompt, not from the session's creation: a conversation reopened two days later
+        // was `working 2d 15h` within a second of being asked something.
+        const started = session.turn?.startedAt
         return {
           text: started ? `working ${preciseDuration(ctx.now - started)}` : "working",
           tone: "info",
@@ -59,14 +65,31 @@ export const SEGMENTS: SegmentDef[] = [
     name: "session.time",
     icon: "◷",
     priority: 20,
+    /**
+     * Two clocks, chosen with `of`.
+     *
+     * `"session"`, the default, is how old the conversation is: from its creation, so one reopened
+     * two days later reads `2d 15h`. It stays the default so a line someone wrote keeps saying what
+     * it said.
+     *
+     * `"turn"` is how long the last answer took — `took 3m42s` — which is what "how long" means while
+     * you are working. It is silent while a turn runs, because `session.status` is already counting
+     * that one (`working 1m02s`, from the same prompt), and two clocks on one line is one too many.
+     * The built-in lines use it.
+     */
     render(ctx, config) {
-      const started = ctx.session?.startedAt
+      const session = ctx.session
+      // `"turn"` is labelled because nothing else says which clock it is; the default line draws
+      // no icons. `"session"` keeps its bare number, and its `◷`, for the lines already written.
+      if (config.of === "turn") {
+        const turn = session?.turn
+        if (!turn || turn.endedAt === undefined || session?.status !== "idle") return undefined
+        return { text: `took ${clock(turn.endedAt - turn.startedAt, config)}`, tone: "muted" }
+      }
+      const started = session?.startedAt
       // `=== undefined`, not falsy: a startedAt of 0 is a real instant, not a missing one.
       if (started === undefined) return undefined
-      const elapsed = ctx.now - started
-      // "3m42s" while you are watching it; "2h 5m" once the seconds stop mattering.
-      const text = config.coarse === true ? duration(elapsed) : preciseDuration(elapsed)
-      return { text, tone: "muted" }
+      return { text: clock(ctx.now - started, config), tone: "muted" }
     },
   },
 ]

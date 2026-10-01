@@ -212,7 +212,7 @@ export function asStatusConfig(input: unknown): StatusConfig {
  *
  * It took a long walk to arrive here, and the shape is the point. A capacity bar that means
  * something at a glance, the total beside the three quantities that make it up, what changed, how
- * long it has been. Colour carries which is which; the separators carry the grouping.
+ * long the last answer took. Colour carries which is which; the separators carry the grouping.
  *
  * It does repeat one thing OpenCode already shows -- the token count and the percentage, which its
  * footer carries in a corner. That is deliberate. The rule is not to avoid every fact the host
@@ -228,7 +228,7 @@ export const DEFAULT_SEGMENTS: (string | SegmentConfig)[] = [
   { type: "tokens", format: "in {input}", color: "info", icon: "" },
   { type: "tokens", format: "out {output}", color: "accent", icon: "" },
   { type: "git.diff", icon: "" },
-  { type: "session.time", icon: "" },
+  { type: "session.time", of: "turn", icon: "" },
   "todo",
   "session.status",
   "diagnostics",
@@ -272,7 +272,7 @@ export const PRESETS: Record<
       "cost",
       { type: "git.diff", icon: "" },
       "todo",
-      { type: "session.time", icon: "" },
+      { type: "session.time", of: "turn", icon: "" },
       "session.status",
       "diagnostics",
     ],
@@ -291,7 +291,7 @@ export const PRESETS: Record<
       { type: "tokens", format: "tk {total}", icon: "" },
       { type: "tokens", format: "cache {cacheRead}", color: "success", icon: "" },
       { type: "git.diff", icon: "" },
-      { type: "session.time", icon: "" },
+      { type: "session.time", of: "turn", icon: "" },
       "todo",
       "diagnostics",
     ],
