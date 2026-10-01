@@ -13,6 +13,7 @@
  * Nothing here knows about OpenTUI or about ANSI.
  */
 
+import { checkbox } from "@opencode-cockpit/client/design"
 import { type ChangeSet, type FileChange, isRead, type Review, threadsFor } from "../model/review.ts"
 import { changeOf, changeWord, keeps, tallyRuns } from "./counts.ts"
 import { awayRows, diffHeight, diffRows, withCursor } from "./diff.ts"
@@ -156,8 +157,8 @@ const TAIL = 2
 const innerWidth = (width: number) => Math.max(1, width - 2)
 
 /** Right-aligned on the heading, so they sit where a pointer can find them in every width. */
-export const VIEWED = " [✓] viewed "
-export const UNVIEWED = " [ ] viewed "
+export const VIEWED = ` ${checkbox(true)} viewed `
+export const UNVIEWED = ` ${checkbox(false)} viewed `
 export const NOTE = " + note "
 /** Below this the heading is for the name; the buttons go and the keys still work. */
 const BUTTONS_FROM = 48

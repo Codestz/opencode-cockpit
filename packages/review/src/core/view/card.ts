@@ -16,6 +16,7 @@
  * you recognise without reading — and it costs no extra row.
  */
 
+import { HINT_GAP, hintRuns, toneOf } from "@opencode-cockpit/client/design"
 import { type Anchor, type Thread, threadWhere, waitingOn } from "../model/thread.ts"
 
 /** Just the name of it: the card needs to know which of the three, not where the code went. */
@@ -35,12 +36,16 @@ export interface CardStyle {
   focused?: boolean
 }
 
+/**
+ * A thread's tone is its state's, as every bay draws it (client/design): your turn is the warning —
+ * the one state that needs you — the agent's turn is running, and a resolved thread is done, and
+ * quiet. Gone is worse than moved, and reads as the colour of something you no longer act on.
+ */
 const toneFor = (thread: Thread, state: AnchorState): Tone => {
-  /** Gone is worse than moved, and reads as the colour of something you no longer have to act on. */
   if (state === "outdated") return "muted"
   if (state === "moved") return "warning"
-  if (thread.status === "resolved") return "success"
-  return waitingOn(thread) === "you" ? "warning" : "accent"
+  if (thread.status === "resolved") return toneOf("done")
+  return toneOf(waitingOn(thread) === "you" ? "waiting" : "running")
 }
 
 const statusWord = (thread: Thread, state: AnchorState): string => {
@@ -106,11 +111,11 @@ export function cardRows(
    * Where it is, and how it stands — as a dim label and a badge, the way a heading works.
    *
    * Upper case and muted: it is the least important text in the band and should be read last, after
-   * the conversation it introduces. The status is bracketed rather than coloured-in, so the only
-   * solid blocks in the band are the names of who is speaking.
+   * the conversation it introduces. The status is a bare word in its tone, never bracketed:
+   * brackets are keys and checkboxes, and `[WAITING]` beside `[c] Reply` read as one more key.
    */
   const where = (style.inline ? threadWhere(thread) : `${thread.file} · ${threadWhere(thread)}`).toUpperCase()
-  const status = `[${statusWord(thread, anchor)}]`
+  const status = statusWord(thread, anchor)
   /**
    * The two sit together, not one at each end of the pane.
    *
@@ -160,10 +165,11 @@ export function cardRows(
     rows.push(
       band([
         { text: " ".repeat(BADGE), fill: BAND },
-        { text: "[c]", tone: "accent", bold: true, fill: BAND },
-        { text: " Reply  ", tone: "muted", fill: BAND },
-        { text: "[x]", tone: "accent", bold: true, fill: BAND },
-        { text: " Remove", tone: "muted", fill: BAND },
+        ...[
+          ...hintRuns({ key: "c", label: "Reply" }),
+          { text: " ".repeat(HINT_GAP) },
+          ...hintRuns({ key: "x", label: "Remove" }),
+        ].map((run): Run => ({ ...run, fill: BAND })),
       ]),
     )
   }

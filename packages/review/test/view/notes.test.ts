@@ -69,7 +69,7 @@ describe("a thread on a line", () => {
     }
     const rows = text(diffRows(file, review, { context: 3 }, 80))
     const heading = rows.find((row) => row.includes("LINE 2")) as string
-    expect(heading).toContain("[YOUR TURN]")
+    expect(heading).toContain("YOUR TURN")
     expect(heading).not.toContain("a.ts")
     expect(rows.join(" ")).toContain("because the caller holds the lock")
   })

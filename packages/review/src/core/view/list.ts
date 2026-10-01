@@ -6,6 +6,7 @@
  * jump at random.
  */
 
+import { GLYPH } from "@opencode-cockpit/client/design"
 import { type ChangeSet, isRead, type Review } from "../model/review.ts"
 import { changeWord, keeps, tallyRuns } from "./counts.ts"
 import type { Fill, Row, Run } from "./rows.ts"
@@ -174,7 +175,8 @@ export function fileRows(changes: ChangeSet, review: Review, state: ViewState, w
          * A tick when it has been read, and nothing at all when it has not — an unread marker on every
          * row is noise on the rows you have not got to yet, which is most of them.
          */
-        { text: read ? "✓" : " ", tone: "success", fill: band },
+        /** A ticked box, not a signal: viewed asks nothing of you, so it is quiet. */
+        { text: read ? GLYPH.check : " ", tone: "muted", fill: band },
         { text: indent, fill: band },
         { text: " ".repeat(MARK_COLUMNS), fill: band },
         ...named(row.name, changeWord(file), room, {

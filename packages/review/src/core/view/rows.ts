@@ -24,6 +24,8 @@ export type Tone =
   | "lineNumber"
   | "success"
   | "warning"
+  /** Something went wrong: a failed git call, a review that would not load. Not a deleted line. */
+  | "error"
   | "keyword"
   | "string"
   | "number"

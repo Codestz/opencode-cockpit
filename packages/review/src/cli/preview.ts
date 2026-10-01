@@ -50,6 +50,7 @@ const FG: Record<Tone, string> = {
   lineNumber: `${ESC}[38;2;108;112;134m`,
   success: `${ESC}[38;2;166;227;161m`,
   warning: `${ESC}[38;2;249;226;175m`,
+  error: `${ESC}[38;2;243;139;168m`,
   keyword: `${ESC}[38;2;203;166;247m`,
   string: `${ESC}[38;2;166;227;161m`,
   number: `${ESC}[38;2;250;179;135m`,
