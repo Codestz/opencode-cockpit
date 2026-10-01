@@ -134,6 +134,14 @@
         "solid-js": "1.9.12",
       },
     },
+    "packages/trust": {
+      "name": "@opencode-cockpit/trust",
+      "version": "0.7.1",
+      "dependencies": {
+        "@opencode-ai/plugin": "1.18.31",
+        "@opencode-cockpit/client": "workspace:*",
+      },
+    },
     "packages/updater": {
       "name": "@opencode-cockpit/updater",
       "version": "0.7.1",
@@ -269,6 +277,8 @@
     "@opencode-cockpit/status": ["@opencode-cockpit/status@workspace:packages/status"],
 
     "@opencode-cockpit/subagents": ["@opencode-cockpit/subagents@workspace:packages/subagents"],
+
+    "@opencode-cockpit/trust": ["@opencode-cockpit/trust@workspace:packages/trust"],
 
     "@opencode-cockpit/updater": ["@opencode-cockpit/updater@workspace:packages/updater"],
 
