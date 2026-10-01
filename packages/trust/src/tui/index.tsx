@@ -1,0 +1,465 @@
+/** @jsxImportSource @opentui/solid */
+
+/**
+ * Trust's interface half — the only half it has. OpenCode's `permission.ask` server hook is declared
+ * and never called (docs/opencode/permissions.md), so a plugin answers a request the way OpenCode's
+ * own auto mode does: from the interface, on `permission.asked`, with a reply of "once".
+ *
+ * Everything that decides is in `core/`; this file wires it to the host: events in, a reply out, the
+ * ledger file read and appended, and the two surfaces — the sidebar block and the ledger dialog.
+ */
+
+import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
+import { bindingLookup, dualTui, type Host, type Layer } from "@opencode-cockpit/client/host"
+import { sidebarOrder } from "@opencode-cockpit/client/sidebar"
+import type { BoxRenderable } from "@opentui/core"
+import { createSignal } from "solid-js"
+import { commandOf, type Seen } from "../core/adapt/seen.ts"
+import { loadTrustConfig, resolveSettings, type TrustConfig } from "../core/config.ts"
+import { createEngine } from "../core/engine.ts"
+import type { Request } from "../core/keys.ts"
+import type { Event } from "../core/ledger.ts"
+import { trustPaths } from "../core/paths.ts"
+import { rulesFrom } from "../core/rules.ts"
+import { configSnippet, ledgerItems, ledgerRows } from "../core/view/ledger.ts"
+import type { Row, Tone } from "../core/view/rows.ts"
+import { sidebarRows } from "../core/view/sidebar.ts"
+import { createJournal } from "./journal.ts"
+import { createSource } from "./source.ts"
+import { Ledger } from "./view/ledger.tsx"
+import { Rows } from "./view/rows.tsx"
+
+const TRUST_PACKAGE = "@opencode-cockpit/trust"
+
+/** `<leader>p`, for permissions: free on both OpenCodes (1.18.32's and 2.0.18's defaults) and in Cockpit. */
+const DEFAULT_KEYS = {
+  "cockpit.trust.ledger": "<leader>p",
+}
+
+export type TrustTuiOptions = TrustConfig
+
+/** How often other windows' events are read from the ledger, and pending requests checked. */
+const SYNC_MS = 3_000
+/** Calls remembered for their command line: far more than can be waiting at once. */
+const CALLS_MAX = 500
+/** The host's dialog: as wide as xlarge allows (Shell's console measured it). */
+const DIALOG_COLUMNS = 116
+
+/** Trust's interface half as a factory, so the `opencode-cockpit` bundle can include it. */
+export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } = {}) {
+  return async (api: Host, rawOptions?: unknown) => {
+    const log = api.log.child("trust")
+    const claim = claimFeature(api.renderer, "trust", source)
+    if (!claim.active) {
+      log.warn("configured twice", { owner: claim.owner, skipped: source })
+      api.ui.toast({
+        variant: "warning",
+        title: "Trust",
+        message: duplicateFeatureMessage("Trust", claim.owner, source),
+      })
+      return
+    }
+    api.lifecycle.onDispose(() => claim.release())
+
+    const directory = api.state.path.directory
+    const config = await loadTrustConfig(directory, rawOptions)
+    const settings = resolveSettings(config)
+    if (!settings.enabled) {
+      log.info("off by config", { directory })
+      return
+    }
+    const keys = bindingLookup({ ...DEFAULT_KEYS, ...config.keybinds })
+    const paths = trustPaths(directory)
+    const journal = createJournal(paths)
+    const engine = createEngine({ ...settings, keep: 20 })
+
+    /** OpenCode's config as its `config.get` returned it; undefined until read, and Trust stays out. */
+    let opencodeConfig: unknown
+    let rulesReady = false
+    /** Something you should know about. The sidebar says it whatever else it has to say. */
+    let trouble: string | undefined
+    const calls = new Map<string, { line?: string; workdir?: string }>()
+    const agents = new Map<string, string>()
+
+    // --- painting ----------------------------------------------------------------------------------
+
+    const [lines, setLines] = createSignal<readonly Row[]>([])
+    const [dialogRows, setDialogRows] = createSignal<readonly Row[]>([])
+    let block: BoxRenderable | undefined
+    let drawnAt = 0
+    let said = ""
+    const sidebarWidth = () => {
+      /** The container the host gave the block, as Subagents measures it: the block's own width follows its rows. */
+      const parent = (block?.parent as { width?: number } | null | undefined)?.width ?? 0
+      const own = block?.width ?? 0
+      const measured = parent >= 12 ? Math.min(parent, own >= 12 ? own : parent) : own
+      return measured >= 12 ? measured : Math.max(20, Math.min(40, Math.floor(api.renderer.width / 4) - 2))
+    }
+
+    const ledger = { open: false, selected: 0, notice: undefined as { text: string; tone: Tone } | undefined }
+    const items = () => ledgerItems(engine.state, settings, Date.now())
+
+    const paint = () => {
+      drawnAt = sidebarWidth()
+      const next = sidebarRows({
+        width: drawnAt,
+        recent: engine.recent(),
+        count: engine.count(),
+        pending: engine.pending(),
+        state: engine.state,
+        limit: settings.sidebarRows,
+        ...(trouble ? { trouble } : {}),
+      })
+      /** Only when they changed: new rows rebuild every line of the block. */
+      const text = JSON.stringify(next)
+      if (text !== said) {
+        said = text
+        setLines(next)
+      }
+      if (ledger.open) {
+        const list = items()
+        ledger.selected = Math.max(0, Math.min(ledger.selected, list.length - 1))
+        const height = api.renderer.height
+        setDialogRows(
+          ledgerRows({
+            width: Math.max(40, Math.min(DIALOG_COLUMNS, api.renderer.width - 2)),
+            height: Math.max(10, height - Math.floor(height / 4) * 2),
+            items: list,
+            selected: ledger.selected,
+            state: engine.state,
+            settings,
+            now: Date.now(),
+            ...(ledger.notice ? { notice: ledger.notice } : {}),
+          }).rows,
+        )
+      }
+      api.renderer.requestRender()
+    }
+    /** Several changes in one turn are one paint (Shell's painter). */
+    let scheduled = false
+    const draw = () => {
+      if (scheduled) return
+      scheduled = true
+      setTimeout(() => {
+        scheduled = false
+        try {
+          paint()
+        } catch (error) {
+          log.error("paint failed", { error })
+        }
+      }, 0)
+    }
+
+    // --- the ledger file ---------------------------------------------------------------------------
+
+    /** Everything new in the file — this window's events and every other's — into the state. */
+    const sync = () =>
+      journal
+        .read()
+        .then(({ events, reset }) => {
+          if (events.length === 0 && !reset) return
+          engine.load(events, { reset })
+          draw()
+        })
+        .catch((error) => {
+          log.error("ledger unreadable", { file: paths.events, error })
+          trouble = "ledger unreadable — see cockpit.log"
+          draw()
+        })
+
+    const write = (events: readonly Event[]) => {
+      if (events.length === 0) return
+      journal
+        .append(events)
+        .then(() => {
+          if (trouble?.startsWith("ledger not saved")) trouble = undefined
+          return sync()
+        })
+        .catch((error) => {
+          log.error("ledger not saved", { file: paths.events, error })
+          trouble = `ledger not saved: ${(error as NodeJS.ErrnoException).code ?? "error"}`
+          draw()
+        })
+    }
+
+    // --- requests ----------------------------------------------------------------------------------
+
+    const loadRules = async () => {
+      try {
+        opencodeConfig = await feed.config()
+        rulesReady = true
+        if (trouble?.startsWith("OpenCode's config")) trouble = undefined
+        log.debug("rules", { rules: rulesFrom(opencodeConfig).length })
+      } catch (error) {
+        /** Without the rules there is no knowing what you asked to be asked about: Trust stays out. */
+        rulesReady = false
+        log.error("config unreadable", { error })
+        trouble = "OpenCode's config unreadable — not answering"
+      }
+      draw()
+    }
+
+    const asked = (request: Request, at: number) => {
+      /**
+       * Decided at once, in the event's own turn: OpenCode's `--auto` answers in 15–22ms, and a
+       * decision that waited on a file read could land after it and answer a request already gone.
+       */
+      if (!rulesReady) return
+      const call = request.call ? (calls.get(request.call) ?? feed.call(request)) : undefined
+      const agent =
+        agents.get(request.sessionID) ?? feed.agent(request.sessionID, request.messageID) ?? "unknown"
+      const { judgement, event } = engine.ask({
+        request,
+        context: { ...call, root: directory },
+        agent,
+        rules: rulesFrom(opencodeConfig, agent),
+        at,
+      })
+      log.debug("asked", { request: request.id, permission: request.permission, agent, why: judgement.why })
+      write([event])
+      draw()
+      if (!judgement.answer) return
+      feed
+        .approve(request)
+        .then(() => {
+          const auto = engine.answered(request.id, Date.now())
+          if (auto) write([auto])
+          log.info("auto", {
+            request: request.id,
+            session: request.sessionID,
+            call: request.call,
+            permission: request.permission,
+            agent,
+            subjects: judgement.items.map((item) => item.subject),
+            why: judgement.why,
+            ms: Date.now() - at,
+          })
+          if (trouble?.startsWith("an answer failed")) trouble = undefined
+          draw()
+        })
+        .catch((error) => {
+          /** The prompt is still there and yours: your answer to it counts as any other. */
+          engine.failed(request.id)
+          log.warn("auto reply failed", { request: request.id, error })
+          trouble = `an answer failed: ${error instanceof Error ? error.message : String(error)}`
+          draw()
+        })
+    }
+
+    const feed = createSource(api, log, (seen: Seen[]) => {
+      const at = Date.now()
+      for (const each of seen) {
+        switch (each.type) {
+          case "call": {
+            calls.set(each.call, commandOf(each.input))
+            if (calls.size > CALLS_MAX) calls.delete(calls.keys().next().value as string)
+            break
+          }
+          case "agent":
+            agents.set(each.sessionID, each.agent)
+            break
+          case "config":
+            void loadRules()
+            break
+          case "asked":
+            asked(each.request, at)
+            break
+          case "replied": {
+            const { events, credit } = engine.replied({ requestID: each.requestID, reply: each.reply, at })
+            if (credit.kind === "ignored")
+              log.debug("reply not counted", { request: each.requestID, why: credit.why })
+            write(events)
+            draw()
+            break
+          }
+        }
+      }
+    })
+
+    /** Requests already waiting when Trust started, and any the events never told us were answered. */
+    const reconcile = async (adopt: boolean) => {
+      const listed = await feed.pending().catch((error) => {
+        log.debug("pending list failed", { error })
+        return undefined
+      })
+      if (!listed) return
+      const ids = new Set<string>()
+      for (const each of listed) {
+        if (each.type !== "asked") continue
+        ids.add(each.request.id)
+        /** Its asking was not seen, so "now" stands in for it: a person answers later still. */
+        if (adopt) asked(each.request, Date.now())
+      }
+      engine.reconcile(ids)
+      draw()
+    }
+
+    const boot = async () => {
+      await sync()
+      await loadRules()
+      await reconcile(true)
+      log.info("ready", {
+        ledger: paths.events,
+        threshold: settings.threshold,
+        dangerExtra: settings.dangerExtra,
+        expireDays: settings.expireDays,
+        rules: rulesReady,
+      })
+    }
+    void boot()
+
+    let ticking: ReturnType<typeof setInterval> | undefined = setInterval(() => {
+      void sync()
+      if (engine.pending().length > 0) void reconcile(false)
+      /** The sidebar was laid out, or resized, since the rows were drawn. */
+      if (sidebarWidth() !== drawnAt) draw()
+    }, SYNC_MS)
+
+    // --- the ledger dialog -------------------------------------------------------------------------
+
+    const notice = (text: string, tone: Tone = "muted") => {
+      ledger.notice = { text, tone }
+      draw()
+    }
+    const selectedItem = () => items()[ledger.selected]
+
+    const revoke = () => {
+      const item = selectedItem()
+      if (!item) return
+      if (item.kind === "always")
+        return notice(
+          'OpenCode keeps its own "always" until it restarts — Trust cannot take it back.',
+          "warning",
+        )
+      const { entry } = item
+      write([
+        {
+          v: 1,
+          at: Date.now(),
+          type: "revoked",
+          permission: entry.permission,
+          agent: entry.agent,
+          subject: entry.subject,
+        },
+      ])
+      log.info("revoked", { permission: entry.permission, agent: entry.agent, subject: entry.subject })
+      notice(`Revoked: ${entry.subject} is asked again until you approve it ${settings.threshold}× more.`)
+    }
+
+    const copy = () => {
+      const item = selectedItem()
+      if (!item) return
+      const snippet = configSnippet(item)
+      const ok = api.renderer.copyToClipboardOSC52?.(snippet.text) ?? false
+      notice(
+        ok
+          ? `Copied ${snippet.text} — paste it into opencode.json${snippet.note ? `; ${snippet.note}` : ""}.`
+          : `This terminal refused the clipboard. The rule: ${snippet.text}`,
+        ok ? "success" : "warning",
+      )
+    }
+
+    const togglePause = () => {
+      const paused = !engine.state.paused
+      write([{ v: 1, at: Date.now(), type: paused ? "paused" : "resumed" }])
+      log.info(paused ? "paused" : "resumed", { directory })
+      if (ledger.open)
+        notice(paused ? "Paused in this project: Trust keeps counting, and answers nothing." : "Resumed.")
+      else
+        api.ui.toast({
+          variant: "info",
+          title: "Trust",
+          message: paused ? "Paused in this project." : "Answering again in this project.",
+        })
+    }
+
+    const move = (by: number) => {
+      ledger.selected = Math.max(0, Math.min(items().length - 1, ledger.selected + by))
+      ledger.notice = undefined
+      draw()
+    }
+
+    const dialogLayer = (): Layer => ({
+      priority: 100,
+      commands: [
+        { name: "cockpit.trust.down", title: "Next rule", run: () => move(1) },
+        { name: "cockpit.trust.up", title: "Previous rule", run: () => move(-1) },
+        { name: "cockpit.trust.revoke", title: "Revoke this rule", run: () => revoke() },
+        { name: "cockpit.trust.copy", title: "Copy as config", run: () => copy() },
+        { name: "cockpit.trust.togglePause", title: "Pause or resume", run: () => togglePause() },
+        { name: "cockpit.trust.close", title: "Close", run: () => api.ui.dialog.clear() },
+      ],
+      bindings: [
+        { key: "j,down", cmd: "cockpit.trust.down" },
+        { key: "k,up", cmd: "cockpit.trust.up" },
+        { key: "x", cmd: "cockpit.trust.revoke" },
+        { key: "c", cmd: "cockpit.trust.copy" },
+        { key: "p", cmd: "cockpit.trust.togglePause" },
+        { key: "q", cmd: "cockpit.trust.close" },
+      ],
+    })
+
+    const openLedger = () => {
+      /** Config may have changed since: what the dialog says about "ask" rules should be today's. */
+      void loadRules()
+      ledger.open = true
+      ledger.notice = undefined
+      paint()
+      api.ui.dialog.replace(
+        () => <Ledger api={api} rows={dialogRows} keys={dialogLayer} />,
+        () => {
+          ledger.open = false
+        },
+      )
+      api.ui.dialog.setSize("xlarge")
+      log.debug("ledger: open", { rules: items().length })
+    }
+
+    api.keymap.registerLayer({
+      commands: [
+        {
+          name: "cockpit.trust.ledger",
+          title: "Trust: what it answers for you",
+          category: "Trust",
+          namespace: "palette",
+          slashName: "trust",
+          run: () => openLedger(),
+        },
+        {
+          name: "cockpit.trust.pause",
+          title: "Trust: pause or resume in this project",
+          category: "Trust",
+          namespace: "palette",
+          run: () => togglePause(),
+        },
+      ],
+      bindings: keys.gather("cockpit", Object.keys(DEFAULT_KEYS)),
+    })
+
+    api.slots.register({
+      /** Between Subagents (150) and the shells (170) by default; lower draws first. */
+      order: sidebarOrder("trust", 160, config.sidebarOrder, { directory }),
+      slots: {
+        sidebar_content: () => (
+          <Rows
+            api={api}
+            rows={lines}
+            onReady={(box) => {
+              block = box
+              draw()
+            }}
+          />
+        ),
+      },
+    })
+
+    api.lifecycle.onDispose(() => {
+      clearInterval(ticking)
+      ticking = undefined
+      feed.dispose()
+    })
+  }
+}
+
+/** One entry for both OpenCodes: v1 calls `tui`, v2 calls `setup` (docs/opencode/v2.md). */
+export default dualTui("opencode-cockpit.trust", createTrustTui())

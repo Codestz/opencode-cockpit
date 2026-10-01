@@ -77,7 +77,7 @@ export interface EngineOptions extends Thresholds {
 export interface Engine {
   readonly state: State
   /** Events read from the ledger file, in file order. */
-  load(events: readonly Event[]): void
+  load(events: readonly Event[], options?: { reset?: boolean }): void
   /**
    * A request was asked. Returns the judgement and the `asked` event to write; when the judgement is
    * to answer, the request is marked ours *before* the reply is sent, so the `replied` it causes is
@@ -112,7 +112,13 @@ export function createEngine(initial: EngineOptions): Engine {
   let events: Event[] = []
   let state = emptyState()
   const pending = new Map<string, Pending>()
-  const ours = new Set<string>()
+  /** Requests this window decided to answer, until the answer is recorded or fails. */
+  const ours = new Map<string, Pending>()
+  /**
+   * Every request this window answered, kept after the answer is recorded: the reply our answer causes
+   * can arrive before or after our call returns, and either way it is ours.
+   */
+  const mine = new Set<string>()
   const answered: Answered[] = []
   let total = 0
 
@@ -129,7 +135,11 @@ export function createEngine(initial: EngineOptions): Engine {
     get state() {
       return state
     },
-    load(more) {
+    load(more, { reset = false } = {}) {
+      if (reset) {
+        events = []
+        state = emptyState()
+      }
       events = events.concat(more)
       applyAll(state, more, fold())
     },
@@ -137,12 +147,17 @@ export function createEngine(initial: EngineOptions): Engine {
       const judgement = decide({ request, context, agent, rules, state, settings: options, now: at })
       const entry: Pending = { request, agent, askedAt: at, judgement }
       pending.set(request.id, entry)
-      if (judgement.answer) ours.add(request.id)
+      if (judgement.answer) {
+        ours.set(request.id, entry)
+        mine.add(request.id)
+        if (mine.size > 500) mine.delete(mine.values().next().value as string)
+      }
       return { judgement, event: { v: 1, at, type: "asked", why: judgement.why, ...about(entry) } }
     },
     answered(requestID, at) {
-      const entry = pending.get(requestID)
+      const entry = ours.get(requestID)
       if (!entry) return undefined
+      ours.delete(requestID)
       pending.delete(requestID)
       total++
       const subjects = entry.judgement.items.map((item) => item.subject)
@@ -160,16 +175,16 @@ export function createEngine(initial: EngineOptions): Engine {
     },
     failed(requestID) {
       ours.delete(requestID)
+      mine.delete(requestID)
     },
     replied({ requestID, reply, at }) {
       const entry = pending.get(requestID)
-      const mine = ours.delete(requestID)
       pending.delete(requestID)
       const given = credit({
         reply,
         ...(entry ? { askedAt: entry.askedAt, always: entry.request.always } : {}),
         repliedAt: at,
-        ours: mine,
+        ours: mine.has(requestID),
       })
       if (!entry || given.kind === "ignored") return { events: [], credit: given }
       /** Nothing to count — unless it was an "always", which the ledger shows whatever it covered. */

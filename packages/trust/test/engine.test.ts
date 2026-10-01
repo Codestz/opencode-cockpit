@@ -301,6 +301,16 @@ describe("pause and always", () => {
     expect(w.engine.state.always[0]?.patterns).toEqual(["echo *"])
   })
 
+  test("our reply's echo may come before our call returns: still ours, still recorded", () => {
+    const w = world()
+    w.approve("ls", 3)
+    const { id } = w.ask("ls")
+    expect(w.reply(id, "once", 5)).toEqual({ kind: "ignored", why: "answered by Trust" })
+    expect(w.engine.answered(id, 2_000_000)?.type).toBe("auto")
+    expect(w.engine.count()).toBe(1)
+    expect(w.engine.pending()).toEqual([])
+  })
+
   test("a failed reply of ours leaves the person's answer to count", () => {
     const w = world()
     w.approve("ls", 3)
