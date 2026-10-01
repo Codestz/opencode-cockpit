@@ -121,23 +121,33 @@ async function start(permission?: unknown): Promise<Fake> {
 }
 
 let n = 0
-/** The agent runs `line`: its call, then its request. A person answers after `after` ms, or nobody does. */
-async function run(fake: Fake, line: string, after?: number) {
+/**
+ * The agent runs `line`: its call's arguments and its request, in either order — measured on 1.18.32,
+ * the arguments usually arrive *after* the request. A person answers after `after` ms, or nobody does.
+ */
+async function run(
+  fake: Fake,
+  line: string,
+  after?: number,
+  order: "call first" | "asked first" = "call first",
+) {
   n++
   const call = `call_${n}`
   const id = `per_${n}`
-  fake.emit({
-    type: "message.part.updated",
-    properties: {
-      part: {
-        type: "tool",
-        callID: call,
-        sessionID: "ses_1",
-        messageID: "msg_1",
-        state: { status: "running", input: { command: line } },
+  const argue = () =>
+    fake.emit({
+      type: "message.part.updated",
+      properties: {
+        part: {
+          type: "tool",
+          callID: call,
+          sessionID: "ses_1",
+          messageID: "msg_1",
+          state: { status: "running", input: { command: line } },
+        },
       },
-    },
-  })
+    })
+  if (order === "call first") argue()
   fake.emit({
     type: "permission.asked",
     properties: {
@@ -149,6 +159,10 @@ async function run(fake: Fake, line: string, after?: number) {
       tool: { messageID: "msg_1", callID: call },
     },
   })
+  if (order === "asked first") {
+    await wait(3)
+    argue()
+  }
   await wait(10)
   if (
     after !== undefined &&
@@ -177,6 +191,17 @@ describe("Trust in a host", () => {
     expect(types.filter((type) => type === "auto")).toHaveLength(1)
     /** The echo of our own reply is not a fourth approval. */
     expect(types.filter((type) => type === "approved")).toHaveLength(3)
+  })
+
+  test("the call's arguments arriving after the request, as OpenCode 1 sends them", async () => {
+    const fake = await start()
+    for (let i = 0; i < 3; i++) await run(fake, "cd web && bun test", 320, "asked first")
+    const id = await run(fake, "cd web && bun test", undefined, "asked first")
+    expect(fake.replies).toEqual([{ requestID: id, reply: "once" }])
+    const approved = fake.ledger().filter((event) => event.type === "approved") as unknown as {
+      items: { subject: string }[]
+    }[]
+    expect(approved.map((event) => event.items)).toEqual(Array(3).fill([{ subject: "(in web) bun test" }]))
   })
 
   test("a specific ask is never answered", async () => {

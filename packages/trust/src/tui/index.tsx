@@ -40,6 +40,8 @@ export type TrustTuiOptions = TrustConfig
 
 /** How often other windows' events are read from the ledger, and pending requests checked. */
 const SYNC_MS = 3_000
+/** How long a bash request waits for its call's command line before it is decided without one. */
+const PARK_MS = 1_000
 /** Calls remembered for their command line: far more than can be waiting at once. */
 const CALLS_MAX = 500
 /** The host's dialog: as wide as xlarge allows (Shell's console measured it). */
@@ -199,13 +201,48 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
       draw()
     }
 
+    /**
+     * Bash requests whose call has not said its command line yet, by call id. Measured on 1.18.32: the
+     * call's `running` update — the one carrying `command` — arrived *after* `permission.asked` for
+     * three requests in four (the first call of a turn was the exception). So a request without its
+     * line waits for it, briefly; one that never gets it is decided without, which means asked.
+     */
+    const parked = new Map<string, { request: Request; at: number; timer: ReturnType<typeof setTimeout> }>()
+
+    const lineOf = (request: Request) =>
+      request.call ? (calls.get(request.call) ?? feed.call(request)) : undefined
+
     const asked = (request: Request, at: number) => {
       /**
-       * Decided at once, in the event's own turn: OpenCode's `--auto` answers in 15–22ms, and a
-       * decision that waited on a file read could land after it and answer a request already gone.
+       * Decided as soon as the request can be read, never after a file read: OpenCode's `--auto`
+       * answers in 15–22ms, and a decision that waited on the disk could answer a request already gone.
        */
       if (!rulesReady) return
-      const call = request.call ? (calls.get(request.call) ?? feed.call(request)) : undefined
+      const call = lineOf(request)
+      if (
+        request.permission === "bash" &&
+        call?.line === undefined &&
+        request.call &&
+        !parked.has(request.call)
+      ) {
+        const key = request.call
+        parked.set(key, { request, at, timer: setTimeout(() => unpark(key), PARK_MS) })
+        return
+      }
+      decideNow(request, at, call)
+    }
+
+    /** The call's line arrived, a reply came first, or the wait ran out: decide with what is known. */
+    const unpark = (key: string) => {
+      const waiting = parked.get(key)
+      if (!waiting) return
+      parked.delete(key)
+      clearTimeout(waiting.timer)
+      if (!lineOf(waiting.request)) log.debug("no command line", { request: waiting.request.id, call: key })
+      decideNow(waiting.request, waiting.at, lineOf(waiting.request))
+    }
+
+    const decideNow = (request: Request, at: number, call: ReturnType<typeof lineOf>) => {
       const agent =
         agents.get(request.sessionID) ?? feed.agent(request.sessionID, request.messageID) ?? "unknown"
       const { judgement, event } = engine.ask({
@@ -253,6 +290,7 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
           case "call": {
             calls.set(each.call, commandOf(each.input))
             if (calls.size > CALLS_MAX) calls.delete(calls.keys().next().value as string)
+            if (parked.has(each.call) && calls.get(each.call)?.line !== undefined) unpark(each.call)
             break
           }
           case "agent":
@@ -265,6 +303,8 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
             asked(each.request, at)
             break
           case "replied": {
+            /** Answered while it waited for its line: decided first, so the answer counts against it. */
+            for (const [key, waiting] of parked) if (waiting.request.id === each.requestID) unpark(key)
             const { events, credit } = engine.replied({ requestID: each.requestID, reply: each.reply, at })
             if (credit.kind === "ignored")
               log.debug("reply not counted", { request: each.requestID, why: credit.why })
@@ -290,7 +330,7 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
         /** Its asking was not seen, so "now" stands in for it: a person answers later still. */
         if (adopt) asked(each.request, Date.now())
       }
-      engine.reconcile(ids)
+      engine.reconcile(ids, Date.now())
       draw()
     }
 
@@ -454,6 +494,8 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
     })
 
     api.lifecycle.onDispose(() => {
+      for (const waiting of parked.values()) clearTimeout(waiting.timer)
+      parked.clear()
       clearInterval(ticking)
       ticking = undefined
       feed.dispose()

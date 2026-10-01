@@ -324,7 +324,10 @@ describe("pause and always", () => {
     const w = world()
     const { id } = w.ask("ls")
     w.ask("pwd")
-    w.engine.reconcile(new Set([id]))
+    const young = w.engine.pending()[1]?.askedAt ?? 0
+    w.engine.reconcile(new Set([id]), young + 1_000)
+    expect(w.engine.pending()).toHaveLength(2)
+    w.engine.reconcile(new Set([id]), young + 60_000)
     expect(w.engine.pending().map((p) => p.request.id)).toEqual([id])
   })
 })

@@ -23,6 +23,9 @@ import type { ConfigRule } from "./rules.ts"
 /** Faster than this, nobody read the prompt. Measured: auto mode 15–22ms, a person 1.2s and up. */
 export const PERSON_MS = 300
 
+/** How long a request must have been pending before the host's list may say it is gone. */
+export const RECONCILE_AFTER_MS = 10_000
+
 export type Reply = "once" | "always" | "reject"
 
 export type Credit =
@@ -97,7 +100,7 @@ export interface Engine {
   /** A reply arrived — ours, OpenCode's, a person's. The events to write, and what it was taken for. */
   replied(input: { requestID: string; reply: Reply; at: number }): { events: Event[]; credit: Credit }
   /** Requests the host says are no longer pending: answered while we were not looking. */
-  reconcile(stillPending: ReadonlySet<string>): void
+  reconcile(stillPending: ReadonlySet<string>, now: number): void
   pending(): Pending[]
   /** Trust's answers in this window, newest first. */
   recent(): Answered[]
@@ -199,9 +202,11 @@ export function createEngine(initial: EngineOptions): Engine {
         credit: given,
       }
     },
-    reconcile(stillPending) {
-      for (const id of [...pending.keys()]) {
+    reconcile(stillPending, now) {
+      for (const [id, entry] of [...pending]) {
         if (stillPending.has(id) || ours.has(id)) continue
+        /** A list is a moment, and events lag it: a request this young may simply not be in it yet. */
+        if (now - entry.askedAt < RECONCILE_AFTER_MS) continue
         pending.delete(id)
       }
     },

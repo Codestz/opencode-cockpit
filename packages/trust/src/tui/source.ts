@@ -8,7 +8,7 @@
  * | events | `api.event.on(type)` | `ctx.data.listen` |
  * | answer | `client.permission.reply({ requestID, reply })` | `client.permission.reply({ sessionID, requestID, decision })` |
  * | config | `client.config.get()` — merged | `client.config.get({ location })` — documents, lowest first |
- * | pending | `client.permission.list()` | `client.permission.request.list({ location })` |
+ * | pending | `client.permission.list()` | not read (see `pending` below) |
  *
  * What it hears becomes `Seen` through the pure adapters in `core/adapt/`.
  */
@@ -17,7 +17,7 @@ import type { Host } from "@opencode-cockpit/client/host"
 import type { Log } from "@opencode-cockpit/client/log"
 import { commandOf, obj, type Seen, str } from "../core/adapt/seen.ts"
 import { fromV1Event, fromV1Pending, V1_EVENTS } from "../core/adapt/v1.ts"
-import { fromV2Event, fromV2Pending } from "../core/adapt/v2.ts"
+import { fromV2Event } from "../core/adapt/v2.ts"
 import type { Request } from "../core/keys.ts"
 
 export interface Source {
@@ -106,10 +106,14 @@ export function createSource(api: Host, log: Log, emit: (seen: Seen[]) => void):
     async config() {
       return unwrap(await v2.client.config.get({ location: location() }))
     },
+    /**
+     * Not read on OpenCode 2. Its `permission.request.list({ location })` exists, but a real 2.0.18 run
+     * listed nothing for a request that was on screen, and an empty list read as "all answered" would
+     * forget the person's pending request — whose approval would then not count. Replies arrive as
+     * events; that is enough.
+     */
     async pending() {
-      const list = v2.client.permission?.request?.list
-      if (typeof list !== "function") return undefined
-      return fromV2Pending(unwrap(await list({ location: location() })))
+      return undefined
     },
     call: () => undefined,
     agent(sessionID) {
