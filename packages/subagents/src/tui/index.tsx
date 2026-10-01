@@ -29,6 +29,13 @@ export interface SubagentsTuiOptions {
    * works again.
    */
   hideFinishedAfter?: number
+  /**
+   * Seconds a finished *nested* subagent — one a subagent launched, an advisor it asks again and
+   * again — stays in the sidebar; 30 unless set, a negative number keeps them. As with
+   * `hideFinishedAfter` it is only out of the sidebar: the heading still counts it and the pane's
+   * `[` `]` still reach it. Seconds rather than minutes because these come and go in seconds.
+   */
+  hideNestedAfter?: number
   /** Where the block sits among sidebar blocks; lower draws first (Shell 150, statusline 200). */
   sidebarOrder?: number
   keybinds?: Record<string, string>
@@ -163,6 +170,19 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
 
     // --- painting ----------------------------------------------------------------------------------
 
+    /** Milliseconds a finished nested subagent stays in the sidebar; undefined keeps it. */
+    const nested = typeof options.hideNestedAfter === "number" ? options.hideNestedAfter : 30
+    const fadeAfter = nested >= 0 ? nested * 1000 : undefined
+    /** A finished nested one that has yet to leave: the clock has to keep drawing until it does. */
+    const fading = () =>
+      fadeAfter !== undefined &&
+      nodes().some(
+        ({ session, depth }) =>
+          depth >= 1 &&
+          (session.status === "done" || session.status === "failed") &&
+          Date.now() - (session.ended ?? 0) < fadeAfter + 2000,
+      )
+
     const paint = () => {
       const now = Date.now()
       const list = nodes()
@@ -182,6 +202,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
         now,
         frame,
         limit: options.sidebarRows ?? 6,
+        ...(fadeAfter !== undefined ? { fadeAfter } : {}),
       })
       /** Only when they changed: new rows rebuild every line of the block, and a scroll is many paints. */
       const said = JSON.stringify(next)
@@ -320,7 +341,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       if (working()) {
         frame++
         draw()
-      } else if (options.hideFinishedAfter !== undefined) draw() // finished ones age out with nothing running
+      } else if (options.hideFinishedAfter !== undefined || fading()) draw() // finished ones age out with nothing running
     }, 1000)
     let fast: ReturnType<typeof setInterval> | undefined
 

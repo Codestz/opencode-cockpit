@@ -226,7 +226,30 @@ export interface Node {
   depth: number
 }
 
-/** The subagents under `root`, depth first, oldest first at each level. */
+/** Still at it: anything short of having ended. */
+export const working = (s: Session): boolean => s.status !== "done" && s.status !== "failed"
+
+/**
+ * Siblings, working ones first, then oldest first inside each half. Nothing but a status change moves
+ * a row: a new subagent joins the end of its half, and two that started together keep their order by
+ * id. Ordered by start rather than by last activity on purpose — a list that reshuffles on every tool
+ * call cannot be clicked.
+ */
+function siblingOrder<T>(busy: (item: T) => boolean, first: (item: T) => Session) {
+  return (a: T, b: T): number => {
+    const x = first(a)
+    const y = first(b)
+    return (
+      Number(busy(b)) - Number(busy(a)) || x.started - y.started || (x.id < y.id ? -1 : x.id > y.id ? 1 : 0)
+    )
+  }
+}
+
+/**
+ * The subagents under `root`, depth first; at each level working ones first, then oldest first. One
+ * that has finished but launched one still working counts as working, so a running subagent is never
+ * listed below finished ones, and children always sit directly under their parent.
+ */
 export function subagentsOf(model: Model, root: string): Node[] {
   const children = new Map<string, Session[]>()
   for (const s of model.sessions.values()) {
@@ -235,10 +258,25 @@ export function subagentsOf(model: Model, root: string): Node[] {
     list.push(s)
     children.set(s.parentID, list)
   }
+  const busy = new Map<string, boolean>()
+  /** It, or anything under it, working. A cycle in parentage counts as not. */
+  const busyTree = (s: Session, path: Set<string>): boolean => {
+    const known = busy.get(s.id)
+    if (known !== undefined) return known
+    if (path.has(s.id)) return false
+    path.add(s.id)
+    const result = working(s) || (children.get(s.id) ?? []).some((child) => busyTree(child, path))
+    busy.set(s.id, result)
+    return result
+  }
+  const order = siblingOrder<Session>(
+    (s) => busyTree(s, new Set()),
+    (s) => s,
+  )
   const out: Node[] = []
   const seen = new Set<string>()
   const walk = (parent: string, depth: number) => {
-    const list = (children.get(parent) ?? []).sort((a, b) => a.started - b.started)
+    const list = (children.get(parent) ?? []).sort(order)
     for (const s of list) {
       if (seen.has(s.id)) continue // a cycle in parentage would otherwise never end
       seen.add(s.id)
@@ -248,6 +286,75 @@ export function subagentsOf(model: Model, root: string): Node[] {
   }
   walk(root, 0)
   return out
+}
+
+/**
+ * One sidebar entry: subagents under the same parent with the same agent and the same task — an
+ * "advisor" a subagent asks again and again. Each is a session of its own, so they are not rounds
+ * (a round is another prompt within one session); they are one entry with a count, rather than a
+ * column of identical rows pushing everything else out of the sidebar.
+ */
+export interface Group {
+  /** The member the entry describes and a click opens: one held on you, else working, else the latest. */
+  lead: Session
+  /** Every member, oldest first. */
+  members: Session[]
+  depth: number
+  /** The entries under any of its members, in sibling order. */
+  children: Group[]
+}
+
+/** Untitled ones are never assumed to be the same. */
+const groupKey = (s: Session): string => {
+  const title = s.title || s.task
+  return title ? `${s.parentID ?? ""}\u0000${s.agent}\u0000${title}` : `\u0000${s.id}`
+}
+
+/** Held on a permission needs you first; then the newest still working; then the newest finished. */
+function leadOf(members: readonly Session[]): Session {
+  return (
+    members.filter((s) => s.status === "waiting").at(-1) ??
+    members.filter(working).at(-1) ??
+    (members.at(-1) as Session)
+  )
+}
+
+/** Whether anything in it, or under it, is working. */
+export const groupWorking = (group: Group): boolean =>
+  group.members.some(working) || group.children.some(groupWorking)
+
+/**
+ * `nodes`, as `subagentsOf` gives them, folded into entries as a tree. Entries keep the sibling order,
+ * keyed on the group's *first* member: a group does not move because a different member of it is the
+ * one running, only because the group as a whole started or stopped working.
+ */
+export function groupsOf(nodes: readonly Node[]): Group[] {
+  const listed = new Set(nodes.map((node) => node.session.id))
+  const depthOf = new Map(nodes.map((node) => [node.session.id, node.depth]))
+  const under = new Map<string, Session[]>()
+  const top: Session[] = []
+  for (const { session } of nodes) {
+    const parent = session.parentID
+    if (parent && listed.has(parent)) under.set(parent, [...(under.get(parent) ?? []), session])
+    else top.push(session)
+  }
+  const order = siblingOrder<Group>(groupWorking, (group) => group.members[0] as Session)
+  const build = (level: readonly Session[]): Group[] => {
+    const buckets = new Map<string, Session[]>()
+    for (const s of level) buckets.set(groupKey(s), [...(buckets.get(groupKey(s)) ?? []), s])
+    return [...buckets.values()]
+      .map((members): Group => {
+        members.sort((a, b) => a.started - b.started || (a.id < b.id ? -1 : 1))
+        return {
+          lead: leadOf(members),
+          members,
+          depth: depthOf.get((members[0] as Session).id) ?? 0,
+          children: build(members.flatMap((member) => under.get(member.id) ?? [])),
+        }
+      })
+      .sort(order)
+  }
+  return build(top)
 }
 
 /** The conversation a session belongs to: up its parents to the one with none. */
