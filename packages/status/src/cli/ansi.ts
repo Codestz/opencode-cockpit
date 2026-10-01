@@ -34,15 +34,15 @@ const fg = ([r, g, b]: [number, number, number]) => `${ESC}[38;2;${r};${g};${b}m
 const bg = ([r, g, b]: [number, number, number]) => `${ESC}[48;2;${r};${g};${b}m`
 const RESET = `${ESC}[0m`
 
-/** Dim is rendered as a darker colour rather than the SGR attribute, which terminals disagree on. */
-function darken([r, g, b]: [number, number, number]): [number, number, number] {
-  return [Math.round(r * 0.62), Math.round(g * 0.62), Math.round(b * 0.62)]
-}
-
+/**
+ * A dim run is the muted colour, exactly as the statusline paints it (`toneColour(theme, "muted")`
+ * in `tui/components/statusline.tsx`) — not a darker shade of it. The preview used to darken the
+ * colour to 62%, which put labels at about 2.9:1 on the background: a preview that looked worse than
+ * the product, and the one instrument a design is judged by.
+ */
 export function paint(run: Run): string {
   const own = run.color ? hexRgb(run.color) : undefined
-  let colour = own ?? TONE_RGB[run.tone ?? "text"]
-  if (run.dim) colour = darken(colour)
+  const colour = own ?? TONE_RGB[run.dim ? "muted" : (run.tone ?? "text")]
   const back = run.bg ? hexRgb(run.bg) : run.bgTone ? TONE_RGB[run.bgTone] : undefined
   return [back ? bg(back) : "", fg(colour), run.bold ? `${ESC}[1m` : "", run.text, RESET].join("")
 }

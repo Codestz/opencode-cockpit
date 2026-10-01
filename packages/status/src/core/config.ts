@@ -282,6 +282,12 @@ export const PRESETS: Record<
     surface: "sidebar",
     segments: [
       { type: "context", style: "bar", width: 14, icon: "" },
+      /**
+       * Why it stalled — `retry 2 in 5s` — which OpenCode shows as a spinner and nothing more. It is
+       * the reason this bay exists, so it outranks everything but the bar when rows run out; under
+       * the bar rather than above it, so a row that comes and goes does not move the bar about.
+       */
+      { type: "session.status", priority: 95 },
       { type: "tokens", format: "tk {total}", icon: "" },
       { type: "tokens", format: "cache {cacheRead}", color: "success", icon: "" },
       { type: "git.diff", icon: "" },

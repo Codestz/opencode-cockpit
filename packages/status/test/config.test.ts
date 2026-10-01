@@ -14,7 +14,11 @@ import {
   readStatusFile,
   resolveLines,
 } from "../src/core/config.ts"
-import { findSegment } from "../src/core/segments.ts"
+import { FIXTURES } from "../src/core/fixtures.ts"
+import { fitColumn } from "../src/core/render.ts"
+import { buildSegments, findSegment } from "../src/core/segments.ts"
+
+const rowText = (runs: readonly { text: string }[]) => runs.map((run) => run.text).join("")
 
 const dirs: string[] = []
 const tmp = () => {
@@ -115,6 +119,20 @@ describe("presets", () => {
   test("a preset brings its own surface", () => {
     expect(resolveLines({ preset: "sidebar" })[0]?.surface).toBe("sidebar")
     expect(resolveLines({ preset: "sidebar" })[0]?.stack).toBe("vertical")
+  })
+
+  /** Why a turn stalled is what OpenCode does not show; the sidebar preset dropped it entirely. */
+  test("every preset says why a turn stalled, and the sidebar keeps it when rows run out", () => {
+    for (const [name, preset] of Object.entries(PRESETS))
+      expect(
+        preset.segments.map((s) => asSegmentConfig(s).type),
+        name,
+      ).toContain("session.status")
+    const line = resolveLines({ preset: "sidebar" })[0]
+    const ctx = { ...FIXTURES.retrying.ctx, width: 34 }
+    const built = buildSegments(ctx, (line?.segments ?? []).map(asSegmentConfig))
+    const kept = fitColumn(built, 34, 3).segments.map((segment) => rowText(segment.runs))
+    expect(kept.some((row) => row.includes("retry 2"))).toBe(true)
   })
 
   test("anything written beside it wins", () => {
