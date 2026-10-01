@@ -1,6 +1,21 @@
 import type { TuiThemeCurrent } from "@opencode-ai/plugin/tui"
+import {
+  CLOSE_KEY,
+  GLYPH,
+  type Hint,
+  keyName,
+  labelCase,
+  duration as ran,
+  STATE_WORD,
+  type State,
+  type StateTone,
+  stateMark,
+  toneOf,
+} from "@opencode-cockpit/client/design"
 import type { ScreenRun, ShellInfo } from "@opencode-cockpit/protocol/shell"
 import { duration } from "../../core/format.ts"
+
+export { SPINNER } from "@opencode-cockpit/client/design"
 
 /** What a human cares about, derived from status + exit code so every surface agrees. */
 export type Kind = "run" | "fail" | "stop" | "done"
@@ -14,36 +29,45 @@ export function kindOf(s: ShellInfo): Kind {
 
 export const BADGE_LABEL: Record<Kind, string> = { run: "RUN", fail: "FAIL", stop: "STOP", done: "DONE" }
 
-/** Braille spinner: single-width in every terminal font. */
-export const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+/** A shell's kind in the words every bay shares, so it wears the tone and mark every bay does. */
+export const STATE: Record<Kind, State> = { run: "running", fail: "failed", stop: "stopped", done: "done" }
 
-export function kindColor(theme: TuiThemeCurrent, kind: Kind) {
-  switch (kind) {
-    case "run":
-      return theme.success
-    case "fail":
-      return theme.error
-    case "stop":
+/** The tone a kind wears: running is the accent, as a running subagent's is — green means it worked. */
+export const kindTone = (kind: Kind): StateTone => toneOf(STATE[kind])
+
+/** The one place a tone becomes a colour for the components that draw straight from the theme. */
+export function toneColor(theme: TuiThemeCurrent, tone: StateTone | "success" | "text" | "border") {
+  switch (tone) {
+    case "accent":
+      return theme.accent
+    case "warning":
       return theme.warning
-    case "done":
+    case "success":
+      return theme.success
+    case "error":
+      return theme.error
+    case "border":
+      return theme.border
+    case "text":
+      return theme.text
+    default:
       return theme.textMuted
   }
 }
 
+export const kindColor = (theme: TuiThemeCurrent, kind: Kind) => toneColor(theme, kindTone(kind))
+
 /**
- * The status mark: a coloured rule and its label, in a fixed 7 columns so lists line up.
+ * The status mark: the state's mark and its word, in a fixed 6 columns so lists line up.
  *
- * It used to be a filled pill. Filled blocks have to be as wide as their text, so a column of
- * them stacks into a wall of colour that competes with the shell names beside it; a rule carries
- * the same colour in one column and lets the list breathe.
+ * It used to be a filled pill, then a coloured `▌` rule. A pill stacked into a wall of colour; the
+ * rule borrowed the glyph every other surface uses for the cursor, so a list of shells looked like a
+ * list of selections. The mark is the one a subagent wears — a spinner while it runs, a dot once it
+ * ends — and the word says what the colour says, for anyone who cannot tell the colours apart.
  */
 export function badgeText(kind: Kind, frame = 0): string {
-  if (kind === "run") return `▌ ${SPINNER[frame % SPINNER.length]} RUN`
-  return `▌ ${BADGE_LABEL[kind].padEnd(5)}`
+  return `${stateMark(STATE[kind], frame).text} ${BADGE_LABEL[kind].padEnd(4)}`
 }
-
-/** The rule itself, so it can be coloured apart from the label it marks. */
-export const BADGE_RULE = "▌"
 
 const RANK: Record<Kind, number> = { run: 0, fail: 1, stop: 2, done: 3 }
 
@@ -126,8 +150,9 @@ export function watchLabel(s: ShellInfo): string {
   const watch = s.watch
   if (!watch) return ""
   const name = watch.preset && watch.preset !== "watch" ? `watch ${watch.preset}` : "watch"
-  if (watch.status === "pending") return `${name} …`
-  const mark = watch.status === "ok" ? "✓" : watch.status === "fail" ? "✗" : "?"
+  if (watch.status === "pending") return `${name} ${GLYPH.more}`
+  /** A watch is a check, so it says so with the check marks, not the state marks. */
+  const mark = watch.status === "ok" ? GLYPH.check : watch.status === "fail" ? GLYPH.cross : "?"
   return `${name} ${mark}`
 }
 
@@ -145,17 +170,21 @@ export function watchColor(theme: TuiThemeCurrent, s: ShellInfo) {
   }
 }
 
-/** Compact detail for narrow lists. */
+/**
+ * Compact detail for narrow lists: how long it ran, in the sidebar's one kind of time — or, for a
+ * failure, the exit code, which is the fact worth the room.
+ *
+ * A finished shell said `4m ago` here, beside a subagent's `28m08s`: "since" in one block and "for"
+ * in the next, in one column. The badge already says it stopped or finished.
+ */
 export function shortDetail(s: ShellInfo, now: number): string {
   switch (kindOf(s)) {
-    case "run":
-      return duration(now - s.startedAt)
     case "fail":
       return s.status === "failed" ? "no start" : `exit ${s.exitCode ?? "?"}`
-    case "stop":
-      return "stopped"
-    case "done":
-      return s.endedAt ? since(now - s.endedAt) : "done"
+    case "run":
+      return ran(now - s.startedAt)
+    default:
+      return s.endedAt !== undefined ? ran(s.endedAt - s.startedAt) : STATE_WORD[STATE[kindOf(s)]]
   }
 }
 
@@ -242,18 +271,14 @@ export function truncate(text: string, max: number): string {
 }
 
 /**
- * One key and what it does.
+ * One key and what it does, in the `[key] Label` shape every bay writes (`@opencode-cockpit/client/design`).
  *
  * The console used to say `i type · c ^C · r restart · tab screen · / search log`, which is a
  * sentence you have to parse before you can use it — the reader has to work out where each key stops
- * and its description starts. Review settled this already: a bracketed key is a *shape*, recognised
- * rather than read, and it does that work without spending colour, which the console needs for the
- * shells themselves.
+ * and its description starts. A bracketed key is a *shape*, recognised rather than read, and it does
+ * that work without spending colour, which the console needs for the shells themselves.
  */
-export interface KeyHint {
-  key: string
-  /** Dropped when the console is too narrow for words; the key alone is still a handhold. */
-  label: string
+export interface KeyHint extends Hint {
   /**
    * `act` does something to the shell in front of you and earns a place on the row whatever the
    * width. `more` moves, switches or manages, and lives in the details panel, which has room to lay
@@ -278,6 +303,9 @@ export interface ConsoleKeysState {
   full?: boolean
 }
 
+/** The way out, on every row whatever else is there: "how do I leave" is never one press away. */
+const CLOSE: KeyHint = { key: CLOSE_KEY, label: "Close", tier: "act", close: true }
+
 /** Only the keys that do something right now: no actions without a target, no concepts from elsewhere. */
 export function consoleKeys(state: ConsoleKeysState): KeyHint[] {
   if (!state.shell) {
@@ -285,15 +313,16 @@ export function consoleKeys(state: ConsoleKeysState): KeyHint[] {
     return [
       { key: "n", label: "New", tier: "act" },
       ...(state.scope === "session" ? [{ key: "s", label: "Whole Project", tier: "act" as const }] : []),
-      { key: "esc", label: "Close", tier: "act" },
+      CLOSE,
     ]
   }
+  /** In the order drawn; a narrow row keeps typing and stopping, and gives up `^C` and restart first. */
   const keys: KeyHint[] = state.running
     ? [
-        { key: "i", label: "Type", tier: "act" },
-        { key: "c", label: "^C", tier: "act" },
-        { key: "r", label: "Restart", tier: "act" },
-        { key: "x", label: "Stop", tier: "act" },
+        { key: "i", label: "Type", tier: "act", priority: 9 },
+        { key: "c", label: "^C", tier: "act", priority: 6 },
+        { key: "r", label: "Restart", tier: "act", priority: 5 },
+        { key: "x", label: "Stop", tier: "act", priority: 8 },
       ]
     : [
         { key: "r", label: "Run Again", tier: "act" },
@@ -302,7 +331,8 @@ export function consoleKeys(state: ConsoleKeysState): KeyHint[] {
   if (state.view === "log" && state.filtered) keys.push({ key: "⌫", label: "Clear Filter", tier: "more" })
   keys.push({ key: "tab", label: state.view === "log" ? "Screen" : "Log", tier: "more" })
   if (state.view !== "details") keys.push({ key: "/", label: "Search Log", tier: "more" })
-  if (state.count > 1) keys.push({ key: "[ ]", label: "Switch Shell", tier: "more" })
+  /** Named for the arrows, which are bound beside `[` and `]`: a key called `[ ]` read as a checkbox. */
+  if (state.count > 1) keys.push({ key: "←/→", label: "Switch Shell", tier: "more" })
   keys.push({
     key: "s",
     label: state.scope === "session" ? "Whole Project" : "This Session",
@@ -310,12 +340,12 @@ export function consoleKeys(state: ConsoleKeysState): KeyHint[] {
   })
   if (state.finished > 0) keys.push({ key: "D", label: "Clear Done", tier: "more" })
   keys.push({ key: "w", label: state.full ? "Dialog" : "Full Screen", tier: "more" })
-  keys.push({ key: "n", label: "New Shell", tier: "more" }, { key: "esc", label: "Close", tier: "more" })
+  keys.push({ key: "n", label: "New Shell", tier: "more" }, CLOSE)
   return keys
 }
 
 /**
- * The row under the console: what acts on this shell, and the way to everything else.
+ * The row under the console: what acts on this shell, the way to everything else, and the way out.
  *
  * A footer carrying every key is a wall — nine bracketed keys with no room for their words, which is
  * what it became. These are the ones whose absence would cost a press right now; the rest are a
@@ -323,9 +353,16 @@ export function consoleKeys(state: ConsoleKeysState): KeyHint[] {
  */
 export function footerHints(state: ConsoleKeysState): KeyHint[] {
   const all = consoleKeys(state)
-  const acting = all.filter((hint) => hint.tier === "act")
-  if (acting.length === all.length) return all
-  return [...acting, { key: "?", label: state.view === "details" ? "Back" : "Details", tier: "act" }]
+  const acting = all.filter((hint) => hint.tier === "act" && !hint.close)
+  if (all.every((hint) => hint.tier === "act")) return all
+  /** The way to every other key outranks any one of them: a narrow row keeps it and drops `r`. */
+  const more: KeyHint = {
+    key: "?",
+    label: state.view === "details" ? "Back" : "Details",
+    tier: "act",
+    priority: 10,
+  }
+  return [...acting, more, CLOSE]
 }
 
 /** Everything the footer left out, for the panel that has room for it. */
@@ -342,7 +379,7 @@ export function panelHints(state: ConsoleKeysState): KeyHint[] {
  */
 export function keyRows(hints: readonly KeyHint[], cols: number): [string, string][] {
   if (hints.length === 0) return []
-  const cell = (hint: KeyHint) => `${hint.key.padEnd(5)}${hint.label}`
+  const cell = (hint: KeyHint) => `${keyName(hint.key).padEnd(5)}${labelCase(hint.label)}`
   const cells = hints.map(cell)
   /** The second column starts just past the longest first one — not at half the panel. */
   const gutter = Math.min(
@@ -356,64 +393,6 @@ export function keyRows(hints: readonly KeyHint[], cols: number): [string, strin
     rows.push([index === 0 ? "keys" : "", right ? `${left.padEnd(gutter)}${right}` : left])
   }
   return rows
-}
-
-/** The gap between two hints, in cells. Must match what the console actually prints. */
-export const HINT_GAP = 3
-
-/**
- * What one hint costs: `[key]`, its label, and the gap after it.
- *
- * The gap was counted as two while the console printed three, so every hint was a cell wider than
- * measured and a row of nine ran a key and a half past the edge. Arithmetic that disagrees with the
- * renderer is worse than no arithmetic: it fits confidently and wrongly.
- */
-export const hintWidth = (hint: KeyHint, withLabel: boolean, gap = HINT_GAP): number =>
-  hint.key.length + 2 + (withLabel && hint.label ? hint.label.length + 1 : 0) + gap
-
-/** A hint, and whether this row has the width to say what it does. */
-export interface FittedHint extends KeyHint {
-  labelled: boolean
-}
-
-export interface FittedRow {
-  hints: FittedHint[]
-  /** Keys that did not fit at all. Shown as `…`, so the row never pretends to be the whole list. */
-  dropped: number
-}
-
-/**
- * As much of the row as fits, giving up the least useful thing first.
- *
- * The keys are already ordered by how often they are wanted, so the last label goes first, then the
- * one before it; only when there are no labels left does a key itself drop. An earlier version was
- * all-or-nothing — one label too many and every label went, leaving a roomy console showing nine
- * bare brackets that said nothing.
- *
- * The final hint is measured without its trailing gap, because nothing follows it.
- */
-export function fitHints(hints: readonly KeyHint[], cols: number): FittedRow {
-  const fitted: FittedHint[] = hints.map((hint) => ({ ...hint, labelled: true }))
-  const width = (): number =>
-    fitted.reduce(
-      (sum, hint, index) => sum + hintWidth(hint, hint.labelled, index === fitted.length - 1 ? 0 : HINT_GAP),
-      0,
-    )
-  for (let index = fitted.length - 1; index >= 0 && width() > cols; index--) {
-    ;(fitted[index] as FittedHint).labelled = false
-  }
-  /** Room for the `…` that says the row is not the whole list. */
-  const ellipsis = 2
-  /**
-   * The way out is the last key to go, wherever it sits in the row: "how do I leave" is the first
-   * question anyone asks of a modal surface, and the one a narrow row used to answer first.
-   */
-  const close = (hint: KeyHint) => hint.key === "esc"
-  while (fitted.length > 0 && width() > cols - (fitted.length < hints.length ? ellipsis : 0)) {
-    const at = fitted.findLastIndex((hint) => !close(hint))
-    fitted.splice(at === -1 ? fitted.length - 1 : at, 1)
-  }
-  return { hints: fitted, dropped: hints.length - fitted.length }
 }
 
 /** What one row of the `/shells` list says, as data — the dialog only paints it. */

@@ -1,9 +1,10 @@
 /** @jsxImportSource @opentui/solid */
+import { FEWER_TEXT, moreText, type State, summaryRuns } from "@opencode-cockpit/client/design"
 import type { Host } from "@opencode-cockpit/client/host"
 import type { BoxRenderable } from "@opentui/core"
 import { createMemo, createSignal, For, Show } from "solid-js"
-import { sidebarCounts, sidebarRow } from "../lib/sidebar.ts"
-import { kindColor, kindOf, watchColor } from "../lib/view.ts"
+import { sidebarRow } from "../lib/sidebar.ts"
+import { kindColor, kindOf, STATE, toneColor, watchColor } from "../lib/view.ts"
 import type { ShellStore } from "../state/store.ts"
 
 export interface SidebarProps {
@@ -21,7 +22,19 @@ export function SidebarShells(props: SidebarProps) {
   const theme = () => props.api.theme.current
   const limit = () => Math.max(1, props.store.showAll() ? (props.expandedRows ?? 12) : (props.rows ?? 5))
 
-  const counts = createMemo(() => sidebarCounts(props.store.shells()))
+  /**
+   * Every count, in the words and tones the Subagents heading uses beside it (client/design): it read
+   * `7 done` in one block and `2 run · 1 fail` in this one. Sized from the measured width below, less
+   * the name: a fourth count gives way, never what is running or failed.
+   */
+  const tally = createMemo(() => {
+    const out: Partial<Record<State, number>> = {}
+    for (const shell of props.store.shells()) {
+      const state = STATE[kindOf(shell)]
+      out[state] = (out[state] ?? 0) + 1
+    }
+    return out
+  })
 
   // Running shells and recent failures first; everything else only when expanded.
   const candidates = createMemo(() => (props.store.showAll() ? props.store.shells() : props.store.visible()))
@@ -49,6 +62,8 @@ export function SidebarShells(props: SidebarProps) {
       : Math.max(20, Math.min(30, Math.floor(props.api.renderer.width / 4) - 2))
   })
 
+  const counts = createMemo(() => summaryRuns(tally(), Math.max(8, width() - "Shells ".length)))
+
   return (
     <Show when={props.store.shells().length > 0}>
       <box
@@ -57,11 +72,21 @@ export function SidebarShells(props: SidebarProps) {
         }}
         onSizeChange={() => setResized((n) => n + 1)}
       >
-        {/* A row of air under the heading, so the title reads as a heading and not as a list item. */}
-        <text fg={theme().text} wrapMode="none" marginBottom={1}>
-          <b>Shells</b>
-          <span style={{ fg: theme().textMuted }}> {counts()}</span>
-        </text>
+        {/*
+         * The title on the left and what needs your eye flush right, as the Subagents heading draws
+         * it; and no row of air under it, as no other block in the sidebar has one.
+         */}
+        <box flexDirection="row">
+          <text fg={theme().text} wrapMode="none" flexShrink={0}>
+            <b>Shells</b>
+          </text>
+          <box flexGrow={1} />
+          <text wrapMode="none" flexShrink={0}>
+            <For each={counts()}>
+              {(part) => <span style={{ fg: toneColor(theme(), part.tone ?? "muted") }}>{part.text}</span>}
+            </For>
+          </text>
+        </box>
         <For each={shown()}>
           {(shell) => {
             const row = () => sidebarRow(shell, props.store.now(), props.store.frame(), width())
@@ -81,13 +106,17 @@ export function SidebarShells(props: SidebarProps) {
             )
           }}
         </For>
+        {/*
+         * Said as the Subagents block says it (`+ 3 more`), under the names rather than under the
+         * marks; a click still unfolds it here, and folds it back.
+         */}
         <Show when={overflow() > 0 || props.store.showAll()}>
           <text fg={theme().textMuted} wrapMode="none" onMouseUp={() => props.store.toggleAll()}>
             {props.store.showAll()
               ? overflow() > 0
-                ? `▾ ${overflow()} more in ${props.consoleShortcut()} console`
-                : "▾ show fewer"
-              : `▸ ${overflow()} more`}
+                ? `  ${moreText(overflow())} · ${props.consoleShortcut()} console`
+                : `  ${FEWER_TEXT}`
+              : `  ${moreText(overflow())}`}
           </text>
         </Show>
       </box>

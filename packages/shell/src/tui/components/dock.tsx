@@ -1,4 +1,12 @@
 /** @jsxImportSource @opentui/solid */
+import {
+  FEWER_TEXT,
+  HINT_GAP,
+  type Hint,
+  type HintRun,
+  hintRuns,
+  moreText,
+} from "@opencode-cockpit/client/design"
 import type { Host } from "@opencode-cockpit/client/host"
 import { useTerminalDimensions } from "@opentui/solid"
 import { createMemo, For, Show } from "solid-js"
@@ -23,7 +31,8 @@ export interface DockProps {
   height: number
   /** Paint the colours programs print (config: ui.colors). */
   colors?: boolean
-  hint: () => string
+  /** The keys that reach the console and hide the dock, as every footer writes them. */
+  hint: () => Hint[]
   onOpenConsole: (id: string) => void
 }
 
@@ -104,13 +113,30 @@ export function Dock(props: DockProps) {
               flexShrink={0}
               onMouseUp={() => props.store.toggleAll()}
             >
-              {props.store.showAll() ? "▾ fewer" : `▸ ${overflow()} more`}
+              {props.store.showAll() ? FEWER_TEXT : moreText(overflow())}
             </text>
           </Show>
         </Show>
         <box flexGrow={1} />
         <text fg={theme().textMuted} wrapMode="none" flexShrink={0}>
-          {props.hint()}
+          <For
+            each={props
+              .hint()
+              .flatMap((hint, at): HintRun[] => [
+                ...(at > 0 ? [{ text: " ".repeat(HINT_GAP) }] : []),
+                ...hintRuns(hint),
+              ])}
+          >
+            {(run) =>
+              run.tone === "accent" ? (
+                <span style={{ fg: theme().accent }}>
+                  <b>{run.text}</b>
+                </span>
+              ) : (
+                <span style={{ fg: theme().textMuted }}>{run.text}</span>
+              )
+            }
+          </For>
         </text>
       </box>
       <Show when={props.store.selected()}>

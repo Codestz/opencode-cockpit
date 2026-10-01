@@ -12,7 +12,7 @@
  */
 
 import type { ShellInfo } from "@opencode-cockpit/protocol/shell"
-import { BADGE_RULE, badgeText, type Kind, kindOf, shortDetail, watchLabel } from "./view.ts"
+import { badgeText, type Kind, kindOf, shortDetail, watchLabel } from "./view.ts"
 
 export interface SidebarRow {
   kind: Kind
@@ -56,7 +56,8 @@ export const sidebarRowText = (row: SidebarRow): string =>
 export function sidebarRow(shell: ShellInfo, now: number, frame: number, width: number): SidebarRow {
   const kind = kindOf(shell)
   const badge = badgeText(kind, frame)
-  const label = badge.slice(BADGE_RULE.length)
+  /** The badge has no rule of its own any more (`▌` means the cursor, client/design): all label. */
+  const label = badge
   const detail = shortDetail(shell, now)
   const watch = watchLabel(shell)
   /** One column after the badge, one before the facts: the title is never flush against either. */
@@ -75,7 +76,7 @@ export function sidebarRow(shell: ShellInfo, now: number, frame: number, width: 
   const titleWidth = Math.max(0, room - watchText.length - keptDetail.length)
   const row: SidebarRow = {
     kind,
-    rule: BADGE_RULE,
+    rule: "",
     label,
     title: ` ${cut(shell.title, titleWidth)} `,
     watch: watchText,

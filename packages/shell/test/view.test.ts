@@ -1,11 +1,10 @@
 import { describe, expect, test } from "bun:test"
+import { fitHints } from "@opencode-cockpit/client/design"
 import type { ShellInfo } from "@opencode-cockpit/protocol/shell"
 import {
   consoleKeys,
   displayCommand,
-  fitHints,
   footerHints,
-  HINT_GAP,
   keyRows,
   kindOf,
   order,
@@ -121,12 +120,12 @@ describe("the two tiers of keys", () => {
    * The footer was a wall of nine bracketed keys with no room for their words. What acts on the
    * shell in front of you stays; everything else is one press away, in a panel with room.
    */
-  test("the footer carries what acts on this shell, and the way to the rest", () => {
-    expect(footerHints(base).map((hint) => hint.key)).toEqual(["i", "c", "r", "x", "?"])
+  test("the footer carries what acts on this shell, the way to the rest, and the way out", () => {
+    expect(footerHints(base).map((hint) => hint.key)).toEqual(["i", "c", "r", "x", "?", "esc"])
   })
 
   test("a finished shell has different actions and the same escape hatch", () => {
-    expect(footerHints({ ...base, running: false }).map((hint) => hint.key)).toEqual(["r", "d", "?"])
+    expect(footerHints({ ...base, running: false }).map((hint) => hint.key)).toEqual(["r", "d", "?", "esc"])
   })
 
   test("with no shell there is nothing to move to, so nothing is hidden", () => {
@@ -142,7 +141,7 @@ describe("the two tiers of keys", () => {
   /** Both halves come from one list, so the panel cannot drift out of step with the footer. */
   test("every key is in exactly one of the two", () => {
     const all = consoleKeys(base).map((hint) => hint.key)
-    const split = [...footerHints(base), ...panelHints(base)]
+    const split = [...new Set([...footerHints(base), ...panelHints(base)])]
       .map((hint) => hint.key)
       .filter((key) => key !== "?")
     expect(split.sort()).toEqual(all.sort())
@@ -152,9 +151,9 @@ describe("the two tiers of keys", () => {
   test("the panel lays them out two to a line, aligned", () => {
     expect(keyRows(panelHints(base), 96)).toEqual([
       ["keys", "tab  Screen          /    Search Log"],
-      ["", "[ ]  Switch Shell    s    Whole Project"],
+      ["", "←/→  Switch Shell    s    Whole Project"],
       ["", "D    Clear Done      w    Full Screen"],
-      ["", "n    New Shell       esc  Close"],
+      ["", "n    New Shell"],
     ])
   })
 
@@ -208,8 +207,8 @@ describe("the console's keys", () => {
   })
 
   test("switching shells is offered only when there is another one", () => {
-    expect(keysOf({ count: 1 })).not.toContain("[ ]")
-    expect(keysOf({ count: 2 })).toContain("[ ]")
+    expect(keysOf({ count: 1 })).not.toContain("←/→")
+    expect(keysOf({ count: 2 })).toContain("←/→")
   })
 
   test("clearing finished shells is offered only when some are finished", () => {
@@ -230,56 +229,24 @@ describe("the console's keys", () => {
 })
 
 describe("fitting the keys to the row", () => {
-  const hints = [
-    { key: "i", label: "Type" },
-    { key: "c", label: "^C" },
-    { key: "r", label: "Restart" },
-  ]
-  /** Exactly what the console prints, so the arithmetic can be checked against the string. */
-  const printed = (cols: number) => {
-    const row = fitHints(hints, cols)
-    const text = row.hints
-      .map((hint) => (hint.labelled ? `[${hint.key}] ${hint.label}` : `[${hint.key}]`))
-      .join(" ".repeat(HINT_GAP))
-    return row.dropped > 0 ? `${text} …` : text
-  }
-
-  test("a wide row keeps every word", () => {
-    expect(printed(200)).toBe("[i] Type   [c] ^C   [r] Restart")
-  })
-
-  /**
-   * The bug this replaced: one label too many and *every* label went, so a roomy console showed
-   * `[r] [d] [tab] [/]` and said nothing at all.
-   */
-  test("the last label goes first, not all of them", () => {
-    expect(printed(30)).toBe("[i] Type   [c] ^C   [r]")
-    expect(printed(22)).toBe("[i] Type   [c]   [r]")
-  })
-
-  test("keys only drop once there are no labels left to drop", () => {
-    expect(printed(15)).toBe("[i]   [c]   [r]")
-    expect(printed(12)).toBe("[i]   [c] …")
-  })
-
-  /**
-   * The row ran a key and a half off the edge because the gap was counted as two and printed as
-   * three. What is measured has to be what is drawn.
-   */
-  test("what is printed never exceeds the room it was given", () => {
-    for (let cols = 3; cols <= 60; cols++) expect(printed(cols).length).toBeLessThanOrEqual(cols)
-  })
-
-  test("a row that is not the whole list says so", () => {
-    expect(fitHints(hints, 12).dropped).toBe(1)
-    expect(fitHints(hints, 200).dropped).toBe(0)
-  })
-
-  test("the way out is the last key to go", () => {
-    const leaving = [...hints, { key: "esc", label: "Close", tier: "act" as const }]
-    const row = fitHints(leaving, 14)
-    expect(row.hints.map((hint) => hint.key)).toEqual(["i", "esc"])
-    expect(row.dropped).toBe(2)
+  /** The fitting itself is the shared one (client/test/design.test.ts); this is Shell's use of it. */
+  test("the console's own row keeps its way out at any width", () => {
+    const base = {
+      shell: true,
+      running: true,
+      view: "log" as const,
+      filtered: false,
+      count: 2,
+      scope: "session" as const,
+      finished: 1,
+    }
+    for (let cols = 16; cols <= 120; cols++) {
+      const said = fitHints(footerHints(base), cols)
+        .runs.map((run) => run.text)
+        .join("")
+      expect(said.length).toBe(cols)
+      expect(said.trimEnd().endsWith("[esc] Close")).toBe(true)
+    }
   })
 })
 

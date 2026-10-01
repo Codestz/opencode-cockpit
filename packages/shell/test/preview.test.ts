@@ -46,10 +46,10 @@ describe("the sidebar row", () => {
       }
   })
 
-  test("starts every title in the same column, after the seven-column badge", () => {
+  test("starts every title in the same column, after the six-column badge", () => {
     for (const shell of SAMPLE_LIST) {
       const row = sidebarRow(shell, SAMPLE_NOW, 2, 38)
-      expect(`${row.rule}${row.label}`.length).toBe(7)
+      expect(`${row.rule}${row.label}`.length).toBe(6)
       expect(row.title[0]).toBe(" ")
       expect(row.title[1]).toBe(shell.title[0])
     }

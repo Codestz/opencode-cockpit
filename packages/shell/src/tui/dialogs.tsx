@@ -140,7 +140,7 @@ export function pickShell(api: Host, store: ShellStore, open: (id?: string) => v
             value: s.id,
             description: item.description,
             category: item.category,
-            footer: `● ${item.status}`,
+            footer: item.status,
           }
         }),
       ],

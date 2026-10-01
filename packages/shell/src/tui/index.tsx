@@ -398,9 +398,10 @@ const shellTui = async (api: Host, rawOptions?: unknown) => {
                 store={store}
                 height={height()}
                 colors={options.colors}
-                hint={() =>
-                  `${shortcut("cockpit.shells.console")} console · ${shortcut("cockpit.shells.dock")} hide`
-                }
+                hint={() => [
+                  { key: shortcut("cockpit.shells.console"), label: "Console" },
+                  { key: shortcut("cockpit.shells.dock"), label: "Hide" },
+                ]}
                 onOpenConsole={(id) => openConsole(id)}
               />
             ) : null}

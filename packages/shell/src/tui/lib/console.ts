@@ -8,6 +8,7 @@
  * Pure on purpose: every state of the console can be checked from a test.
  */
 
+import { CLOSE_KEY, fitHints, GLYPH, type Hint, hintRuns } from "@opencode-cockpit/client/design"
 import type { LogLine, ScreenResult, ShellInfo } from "@opencode-cockpit/protocol/shell"
 import { detailRows } from "./details.ts"
 import { splitMatches } from "./search.ts"
@@ -15,10 +16,10 @@ import {
   badgeText,
   type ConsoleKeysState,
   displayCommand,
-  fitHints,
   footerHints,
   keyRows,
   kindOf,
+  kindTone,
   panelHints,
   relativeCwd,
   statusDetail,
@@ -89,8 +90,6 @@ const REASON_LINES = 3
 /** The smallest body the dialog shrinks to, so a quiet shell does not collapse to a line. */
 const MIN_BODY = 6
 
-const KIND_TONE: Record<string, Tone> = { run: "success", fail: "error", stop: "warning", done: "muted" }
-
 /**
  * Pads a row out to exactly `width` cells, cutting whatever does not fit.
  *
@@ -130,7 +129,7 @@ function headRows(input: ConsoleInput): Row[] {
   const cols = innerCols(width)
   if (!shell) return []
   const kind = kindOf(shell)
-  const tone = KIND_TONE[kind]
+  const tone = kindTone(kind)
   const status = [statusDetail(shell, input.now), shell.run > 1 ? `run ${shell.run}` : "", input.position]
     .filter(Boolean)
     .join(" · ")
@@ -222,6 +221,29 @@ function bodyLines(input: ConsoleInput, room: number): Row[] {
   return all.slice(Math.max(0, end - room), end).map((line) => [{ text: truncate(line, cols) }])
 }
 
+/**
+ * A mode and how to leave it: the mode in a word or two, its keys in the same `[key] Label` shape as
+ * every footer, then what it means if there is room. These were sentences — `TYPING: keys go to the
+ * shell (ctrl+c included) · ctrl+] stop typing` — and the way out of typing, the least guessable key
+ * in the product, was the part a narrow console cut. The mode's name is kept whole, the keys get the
+ * rest, and the note only what is left over.
+ */
+function modeRow(lead: Row, hints: readonly Hint[], cols: number, note = ""): Row {
+  const said = lead.reduce((sum, run) => sum + run.text.length, 0)
+  const keys = fitHints(hints, Math.max(0, cols - said - 3)).runs
+  const used = said + 3 + keys.reduce((sum, run) => sum + run.text.length, 0) - trailing(keys)
+  /** A note cut to a word or two says less than none, so it shows whole or at a useful length. */
+  const room = cols - used - 3
+  const told: Row = note && room >= 12 ? [{ text: "   " }, { text: truncate(note, room), tone: "muted" }] : []
+  return [{ text: pad }, ...lead, { text: "   " }, ...keys.slice(0, trailing(keys) ? -1 : undefined), ...told]
+}
+
+/** The padding a fitted row ends in, which a row with something after it does not need. */
+const trailing = (runs: readonly { text: string }[]): number => {
+  const last = runs.at(-1)
+  return last && last.text.trim() === "" ? last.text.length : 0
+}
+
 /** The row under the body: a notice, a mode and how to leave it, or the keys that act right now. */
 function footer(input: ConsoleInput): Row {
   const cols = innerCols(input.width)
@@ -231,20 +253,37 @@ function footer(input: ConsoleInput): Row {
       input.notice.text,
       input.notice.tone === "error" ? "error" : input.notice.tone === "success" ? "success" : "warning",
     )
-  if (input.searching) return said(`search: ${input.draft}▏· enter filters · esc cancels`, "accent")
+  if (input.searching)
+    return modeRow(
+      [
+        { text: "search: ", tone: "muted" },
+        { text: input.draft, tone: "accent" },
+        { text: GLYPH.caret, tone: "accent" },
+      ],
+      [
+        { key: "enter", label: "Filter" },
+        { key: CLOSE_KEY, label: "Cancel", close: true },
+      ],
+      cols,
+    )
   if (input.typing)
-    return said("TYPING: keys go to the shell (ctrl+c included) · ctrl+] stop typing", "accent")
+    return modeRow(
+      [{ text: "TYPING", tone: "accent", bold: true }],
+      [{ key: "ctrl+]", label: "Stop Typing", close: true }],
+      cols,
+      "every key goes to the shell, ctrl+c too",
+    )
   if (input.up > 0 && input.view !== "details")
-    return said(`↑ ${input.up} rows up · j/k scroll · G follows the output`, "accent")
-  const fitted = fitHints(footerHints(input.keys), cols)
-  return [
-    { text: pad },
-    ...fitted.hints.flatMap((hint): Run[] => [
-      { text: `[${hint.key}]`, tone: "accent", bold: true },
-      { text: `${hint.labelled ? ` ${hint.label}` : ""}   `, tone: "muted" },
-    ]),
-    ...(fitted.dropped > 0 ? [{ text: "…", tone: "muted" as const }] : []),
-  ]
+    return modeRow(
+      [{ text: `↑ ${input.up} rows up`, tone: "accent" }],
+      [
+        { key: "j/k", label: "Scroll" },
+        { key: "G", label: "Follow" },
+        { key: CLOSE_KEY, label: "Close", close: true },
+      ],
+      cols,
+    )
+  return [{ text: pad }, ...fitHints(footerHints(input.keys), cols).runs]
 }
 
 /** How many body rows the console shows for this input — what a typing program is sized to. */
@@ -270,13 +309,7 @@ export function bodyHeight(input: ConsoleInput): number {
  */
 const moreRow = (count: number, full: boolean): Row => [
   { text: `↓ ${count} more`, tone: "muted" },
-  ...(full
-    ? []
-    : [
-        { text: "   " },
-        { text: "[w]", tone: "accent" as const, bold: true },
-        { text: " Full Screen", tone: "muted" as const },
-      ]),
+  ...(full ? [] : [{ text: "   " }, ...hintRuns({ key: "w", label: "Full Screen" })]),
 ]
 
 export function consoleRows(input: ConsoleInput): Row[] {
@@ -289,7 +322,8 @@ export function consoleRows(input: ConsoleInput): Row[] {
       fit(
         [
           { text: pad },
-          { text: "Press n to start one. The agent starts its own with shell_start.", tone: "muted" },
+          ...hintRuns({ key: "n", label: "" }),
+          { text: " starts one. The agent starts its own with shell_start.", tone: "muted" },
         ],
         width,
       ),

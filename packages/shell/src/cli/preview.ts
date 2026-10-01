@@ -12,15 +12,16 @@
  */
 
 import type { TuiThemeCurrent } from "@opencode-ai/plugin/tui"
+import { type State as Shared, summaryRuns } from "@opencode-cockpit/client/design"
 import type { ScreenResult, ShellInfo } from "@opencode-cockpit/protocol/shell"
 import { type ConsoleInput, consoleRows, type Row, type Run } from "../tui/lib/console.ts"
-import { sidebarCounts, sidebarRow } from "../tui/lib/sidebar.ts"
+import { sidebarRow } from "../tui/lib/sidebar.ts"
 import {
-  BADGE_RULE,
   badgeText,
   displayCommand,
   kindColor,
   kindOf,
+  STATE,
   statusDetail,
   tailRuns,
   truncate,
@@ -94,13 +95,18 @@ function fitRow(row: Row, width: number): Row {
 // --- the sidebar ---------------------------------------------------------------------------------
 
 function sidebar(list: readonly ShellInfo[], width: number): Row[] {
+  /** As `components/sidebar.tsx` draws it: the name left, every count flush right, no row of air. */
+  const tally: Partial<Record<Shared, number>> = {}
+  for (const shell of list) tally[STATE[kindOf(shell)]] = (tally[STATE[kindOf(shell)]] ?? 0) + 1
+  const counts = summaryRuns(tally, Math.max(8, width - "Shells ".length))
+  const used = "Shells".length + counts.reduce((n, part) => n + part.text.length, 0)
   const heading: Row = [
     { text: "Shells", bold: true },
-    { text: ` ${sidebarCounts(list)}`, tone: "muted" },
+    { text: " ".repeat(Math.max(1, width - used)) },
+    ...counts.map((part): Run => ({ text: part.text, tone: part.tone ?? "muted" })),
   ]
   return [
     fitRow(heading, width),
-    fitRow([], width),
     ...list.map((shell): Row => {
       const row = sidebarRow(shell, SAMPLE_NOW, 2, width)
       const kind = hex(kindColor(theme, kindOf(shell)))
@@ -142,8 +148,7 @@ function dock(list: readonly ShellInfo[], selected: ShellInfo, screen: ScreenRes
       const kind = hex(kindColor(theme, kindOf(shell)))
       return [
         on({ text: " " }),
-        { text: BADGE_RULE, fg: kind, bg: back },
-        { text: badgeText(kindOf(shell), 2).slice(BADGE_RULE.length), fg: kind, bg: back, bold: true },
+        { text: badgeText(kindOf(shell), 2), fg: kind, bg: back, bold: true },
         {
           text: ` ${truncate(shell.title, 22)} `,
           bg: back,

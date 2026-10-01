@@ -123,8 +123,10 @@ Things to ask:
 
 Watched shells also show their health (`tsc ✓`, `vitest ✗`) in the panel, sidebar and console.
 
-Status reads the same everywhere: `RUN` (with a spinner), `FAIL`, `STOP`, `DONE`. Running shells
-and recent failures stay visible; everything else folds into `▸ N more`.
+Status reads the same everywhere, and the way the Subagents block beside it reads: `⠹ RUN` in the
+accent, `● FAIL` in red, and `● STOP` and `● DONE` quiet, because a finished shell asks nothing of
+you. The sidebar says how long each one ran. Running shells and recent failures stay visible;
+everything else folds into `+ N more`.
 
 **Console keys**, and only the ones that apply right now. Running shell: `i` type (every key goes to
 the program, `ctrl+]` to stop typing), `c` ctrl+c, `r` restart, `x` stop. Finished shell: `r` run
