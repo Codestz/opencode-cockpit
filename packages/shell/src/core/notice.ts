@@ -11,6 +11,14 @@ import { describeStatus, formatLines } from "./format.ts"
  * does the work, and the main agent is never told (measured, docs/opencode/agents.md). So a failure
  * goes up to the conversation, which can hand it back to that subagent; a clean result stays quiet.
  *
+ * A failure told to a subagent mid-run is not the end of it either. In the 0.8 load test the "Flaky
+ * shell" subagent was told its shell crashed, answered "the failure is expected, nothing to fix", and
+ * the main agent — which owned the task — only found the crash in shell_list. So the conversation is
+ * also told, once, when that subagent's run ends: which of its shells failed, and that it was told.
+ * Not at the moment of failure (the subagent is the one placed to act, and the main agent is usually
+ * waiting on it), and not about clean results — the least that still means a failed shell a subagent
+ * started cannot pass the main agent by. `relayed` and `relayText` below.
+ *
  * Pure, so the decision is tested without a daemon or an OpenCode.
  */
 
@@ -82,6 +90,49 @@ export function subagentNote(sub: Subagent, version: 1 | 2): string {
   return [
     `This shell was started by ${who} (session ${sub.session}), which has already finished, so it was not told.`,
     `If the failure matters, continue that subagent with the error rather than redoing its work: ${how} and a prompt that includes the output above.`,
+  ].join("\n")
+}
+
+/**
+ * Whether a notice the conversation did not get must reach it when the subagent's run ends: a failure
+ * handed to a subagent that is not the conversation. A clean result never is.
+ */
+export function relayed(route: Route, owner: ShellInfo["owner"], outcome: Outcome): boolean {
+  return (
+    outcome === "failure" &&
+    route.kind === "deliver" &&
+    Boolean(owner.session) &&
+    route.session !== owner.session
+  )
+}
+
+/** One shell that failed while a subagent worked, as the conversation is told of it. */
+export interface Relayed {
+  id: string
+  title: string
+  /** How it failed: `crashed with exit code 1 after 5s`, `fail: 2 errors`. */
+  status: string
+}
+
+/**
+ * Told to the conversation when a subagent that was told of failed shells finishes: which ones, that
+ * it was told, and how to hand it back if its answer did not deal with them.
+ */
+export function relayText(sub: Subagent, shells: readonly Relayed[], version: 1 | 2): string {
+  const who = [sub.agent ? `the ${sub.agent} subagent` : "a subagent", sub.title ? `"${sub.title}"` : ""]
+    .filter(Boolean)
+    .join(" ")
+  const how =
+    version === 1
+      ? `call the task tool with task_id "${sub.session}"`
+      : `call the subagent tool with sessionID "${sub.session}"`
+  const many = shells.length > 1
+  return [
+    `<subagent_shells_failed session="${sub.session}">`,
+    `${many ? `${shells.length} shells` : "A shell"} started by ${who} (session ${sub.session}) failed while it worked:`,
+    ...shells.map((shell) => `- ${shell.id} "${shell.title}": ${shell.status}`),
+    "</subagent_shells_failed>",
+    `It was told at the time, and has now finished. Check its answer dealt with ${many ? "them" : "it"}; if not and it matters, continue that subagent with the error rather than redoing its work: ${how}. shell_read id=${shells[0]?.id ?? "<id>"} shows the output.`,
   ].join("\n")
 }
 

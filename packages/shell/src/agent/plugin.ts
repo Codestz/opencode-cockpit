@@ -16,6 +16,9 @@ import {
   healthOutcome,
   healthText,
   type Outcome,
+  type Relayed,
+  relayed,
+  relayText,
   routeNotice,
   subagentNote,
 } from "../core/notice.ts"
@@ -128,24 +131,48 @@ async function shellParts(host: ServerHost, options?: unknown): Promise<ServerPa
     outcome: Outcome,
     text: () => Promise<string>,
     what: string,
+    brief: string,
   ): Promise<void> {
     const origin = info.owner.origin
     const busy = origin && origin !== info.owner.session ? await originBusy(origin) : undefined
     const route = routeNotice({ owner: info.owner, outcome, originBusy: busy })
     log.debug(`${what} notice`, { shell: info.id, origin, busy, outcome, route })
+    /** A shell that recovered is no longer news for the conversation. */
+    if (origin && outcome === "clean") relays.get(origin)?.delete(info.id)
     if (route.kind === "drop") return
     if (route.kind === "deliver") {
+      if (relayed(route, info.owner, outcome) && info.owner.session) {
+        const pending = relays.get(route.session) ?? new Map<string, Relayed & { root: string }>()
+        pending.set(info.id, { id: info.id, title: info.title, status: brief, root: info.owner.session })
+        relays.set(route.session, pending)
+      }
       await host.session.notify(route.session, await text(), { steer: route.steer })
       return
     }
-    const sub = {
-      session: route.subagent,
-      agent:
-        subagents.get(route.subagent)?.agent ??
-        (await host.session.get(route.subagent).catch(() => undefined))?.agent,
-      title: await sessionTitle(route.subagent).catch(() => undefined),
-    }
+    const sub = await describeSubagent(route.subagent)
     await host.session.notify(route.session, `${await text()}\n${subagentNote(sub, host.version)}`)
+  }
+
+  const describeSubagent = async (session: string) => ({
+    session,
+    agent: subagents.get(session)?.agent ?? (await host.session.get(session).catch(() => undefined))?.agent,
+    title: await sessionTitle(session).catch(() => undefined),
+  })
+
+  /**
+   * Failures told to a subagent mid-run, by subagent: the conversation hears of them when that
+   * subagent's run ends (core/notice.ts says why). Kept until then; a shell that recovers leaves.
+   */
+  const relays = new Map<string, Map<string, Relayed & { root: string }>>()
+  const relay = async (subagent: string) => {
+    const pending = relays.get(subagent)
+    relays.delete(subagent)
+    if (!pending || pending.size === 0) return
+    const shells = [...pending.values()]
+    const root = (shells[0] as { root: string }).root
+    const text = relayText(await describeSubagent(subagent), shells, host.version)
+    log.debug("relay notice", { subagent, root, shells: shells.map((shell) => shell.id) })
+    await host.session.notify(root, text)
   }
 
   // Tell the agent that started a shell when it ends on its own.
@@ -156,7 +183,7 @@ async function shellParts(host: ServerHost, options?: unknown): Promise<ServerPa
       const page = await cockpit.call("shell.read", { id: info.id, tail: config.notify?.tailLines ?? 15 })
       return exitText(info, page.lines)
     }
-    void deliver(info, exitOutcome(info), tail, "exit").catch((error) =>
+    void deliver(info, exitOutcome(info), tail, "exit", describeStatus(info)).catch((error) =>
       log.warn("exit notice not delivered", { shell: info.id, error }),
     )
   })
@@ -167,9 +194,14 @@ async function shellParts(host: ServerHost, options?: unknown): Promise<ServerPa
     const info = event.info
     if (config.notify?.watch === false) return
     if (info.owner.instance !== instance || !info.owner.session || event.current === "pending") return
-    void deliver(info, healthOutcome(event.current), async () => healthText(info, event), "health").catch(
-      (error) => log.warn("health notice not delivered", { shell: info.id, error }),
-    )
+    const brief = `${info.watch?.preset ?? "watch"} reports ${event.current}${event.summary ? `: ${event.summary}` : ""}`
+    void deliver(
+      info,
+      healthOutcome(event.current),
+      async () => healthText(info, event),
+      "health",
+      brief,
+    ).catch((error) => log.warn("health notice not delivered", { shell: info.id, error }))
   })
 
   return {
@@ -220,6 +252,10 @@ async function shellParts(host: ServerHost, options?: unknown): Promise<ServerPa
       const activity = activityOf(event)
       const known = activity && subagents.get(activity.session)
       if (known) known.busy = activity.busy
+      if (activity && !activity.busy && relays.has(activity.session))
+        void relay(activity.session).catch((error) =>
+          log.warn("relay notice not delivered", { subagent: activity.session, error }),
+        )
     },
 
     sessionDeleted: async (sessionID) => {

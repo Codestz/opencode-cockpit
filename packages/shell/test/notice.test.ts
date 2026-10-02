@@ -6,6 +6,8 @@ import {
   exitText,
   healthOutcome,
   healthText,
+  relayed,
+  relayText,
   routeNotice,
   subagentNote,
 } from "../src/core/notice.ts"
@@ -142,6 +144,47 @@ describe("the notices", () => {
 
   test("a subagent whose name and title are unknown is still named by its session", () => {
     expect(subagentNote({ session: "ses_sub" }, 1)).toContain("started by a subagent (session ses_sub)")
+  })
+})
+
+describe("a failure told to a running subagent also reaches the conversation (0.8 load test)", () => {
+  const route = (outcome: "failure" | "clean", originBusy: boolean | undefined) =>
+    routeNotice({ owner: owner("ses_sub"), outcome, originBusy })
+
+  test("held for the conversation: a failure steered into a running subagent", () => {
+    expect(relayed(route("failure", true), owner("ses_sub"), "failure")).toBe(true)
+  })
+
+  test("not held: clean results, failures the conversation already got, the conversation's own shells", () => {
+    expect(relayed(route("clean", true), owner("ses_sub"), "clean")).toBe(false)
+    expect(relayed(route("failure", false), owner("ses_sub"), "failure")).toBe(false)
+    const own = routeNotice({ owner: owner("ses_root"), outcome: "failure", originBusy: true })
+    expect(relayed(own, owner("ses_root"), "failure")).toBe(false)
+    const user = routeNotice({ owner: { project: "/p" }, outcome: "failure", originBusy: undefined })
+    expect(relayed(user, { project: "/p" }, "failure")).toBe(false)
+  })
+
+  test("names the subagent, each failed shell, that it was told, and how to hand it back", () => {
+    const text = relayText(
+      { session: "ses_sub", agent: "general", title: "Flaky shell starter" },
+      [{ id: "sh_ch6u4lz4", title: "flaky", status: "crashed with exit code 1 after 5s" }],
+      1,
+    )
+    expect(text).toContain('A shell started by the general subagent "Flaky shell starter" (session ses_sub)')
+    expect(text).toContain('- sh_ch6u4lz4 "flaky": crashed with exit code 1 after 5s')
+    expect(text).toContain("It was told at the time, and has now finished")
+    expect(text).toContain('task_id "ses_sub"')
+    expect(text).toContain("shell_read id=sh_ch6u4lz4")
+    const two = relayText(
+      { session: "ses_sub" },
+      [
+        { id: "sh_a", title: "a", status: "x" },
+        { id: "sh_b", title: "b", status: "y" },
+      ],
+      2,
+    )
+    expect(two).toContain("2 shells started by a subagent")
+    expect(two).toContain('sessionID "ses_sub"')
   })
 })
 
