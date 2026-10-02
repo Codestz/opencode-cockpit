@@ -121,6 +121,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **A subagent continued a day later read "stopped after 24h04m".** The time shown is now its last
+  round's — "done in 4m00s (round 2)" in the pane and tools, "· 2 rounds" in the sidebar — with when
+  it first started ("first started yesterday 22:17").
+- **The subagents a cancelled subagent launched kept spinning.** Those still running are shown as
+  stopped in the sidebar, the pane and the tools, unless OpenCode says they are still at work.
+- **On OpenCode 1 a message about a shell could replace a subagent's answer** when it arrived as the
+  subagent finished. A running subagent there is no longer messaged about its shells: a failure goes
+  to the conversation when it finishes, and subagents are asked to check their shells before
+  answering. OpenCode 2 is unchanged.
+- **On OpenCode 2, subagents from before a restart could not be reached.** `subagents_read` and
+  `subagents_wait` take their id, and `subagents_list` says why they are missing until they act.
 - **A subagent's long arguments could not be read.** A long `ask_advisor` question was cut at three
   rows folded and twenty open, and `a` reached only the output. Arguments now climb the same ladder:
   three rows folded, sixty open, up to two thousand with `a`, always saying `… N more lines`. A cut
