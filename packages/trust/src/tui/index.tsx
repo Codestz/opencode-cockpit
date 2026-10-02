@@ -21,21 +21,23 @@ import type { Request } from "../core/keys.ts"
 import type { Event } from "../core/ledger.ts"
 import { trustPaths } from "../core/paths.ts"
 import { rulesFrom } from "../core/rules.ts"
+import { configSnippet, type Outcome, revoke, type Target, widen, widenScope } from "../core/view/actions.ts"
+import { type ActivityView, activityRows, targetOf } from "../core/view/activity.ts"
 import {
-  configSnippet,
-  type LedgerMode,
-  type Line,
-  ledgerModel,
-  ledgerRows,
-  type Outcome,
-  revokeLine,
-  widenLine,
-} from "../core/view/ledger.ts"
+  ALWAYS_KEY,
+  type ExplorerView,
+  explorerRows,
+  type Node,
+  nodeTarget,
+  reveal,
+} from "../core/view/explorer.ts"
+import type { Family } from "../core/view/model.ts"
+import type { Hit } from "../core/view/parts.ts"
 import type { Row, Tone } from "../core/view/rows.ts"
 import { sidebarRows, tally } from "../core/view/sidebar.ts"
 import { createJournal } from "./journal.ts"
 import { createSource } from "./source.ts"
-import { Ledger } from "./view/ledger.tsx"
+import { Dialog } from "./view/dialog.tsx"
 import { Rows } from "./view/rows.tsx"
 
 const TRUST_PACKAGE = "@opencode-cockpit/trust"
@@ -107,26 +109,31 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
       return measured >= 12 ? measured : Math.max(20, Math.min(40, Math.floor(api.renderer.width / 4) - 2))
     }
 
-    const ledger = {
+    /**
+     * The dialog: the activity `/trust` opens on, and the ledger behind `l`. Each keeps its own cursor
+     * by key, so a rule revoked or a family folded moves the rows about, not the cursor.
+     */
+    const dialog = {
       open: false,
-      /** The line under the cursor, by key: folding a family moves lines about, not the cursor. */
-      selected: undefined as string | undefined,
-      /** Commands approved once are folded until `a` lists them (core/view/ledger.ts, ledgerShown). */
-      all: false,
-      /** Families opened with `space`, `enter` or `→`; every family starts folded. */
-      opened: new Set<string>(),
+      view: "activity" as "activity" | "ledger",
+      /** `?`: every key, in the body's place. */
+      keys: false,
       notice: undefined as { text: string; tone: Tone } | undefined,
-      /** `i` opens the details of the cursor's line, `?` every key; `esc` closes them before the dialog. */
-      mode: "list" as LedgerMode,
+      activity: undefined as string | undefined,
+      node: undefined as string | undefined,
+      /** Families opened, and those whose tail is listed too; every family starts folded. */
+      opened: new Set<string>(),
+      full: new Set<string>(),
+      filter: "",
+      /** `/` pressed: the text typed so far, until enter or esc. */
+      typing: undefined as string | undefined,
+      /** `tab` into the card: the focused button. */
+      button: undefined as number | undefined,
     }
-    const reading = () => ({ state: engine.state, settings, now: Date.now() })
-    const model = () => ledgerModel({ ...reading(), all: ledger.all, open: ledger.opened })
-    const lines = () => model().lines
-    /** The cursor's index, put back on a line that exists when its own went (revoked, folded). */
-    const cursor = (list: readonly Line[]) => {
-      const at = list.findIndex((line) => line.key === ledger.selected)
-      return at >= 0 ? at : 0
-    }
+    /** What was drawn last: actions and clicks act on what is on screen. */
+    let shown: { activity?: ActivityView; ledger?: ExplorerView } = {}
+    const reading = () => ({ state: engine.state, settings, now: Date.now(), history: engine.history })
+    const project = directory.split(/[\\/]/).filter(Boolean).at(-1) ?? ""
 
     /**
      * Off by default (core/config.ts): the sidebar is crowded, and Trust answers the same without it.
@@ -157,25 +164,41 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
         said = text
         setLines(next)
       }
-      if (ledger.open) {
-        const { lines: list, folded } = model()
-        ledger.selected = list[cursor(list)]?.key
+      if (dialog.open) {
         const height = api.renderer.height
-        setDialogRows(
-          ledgerRows({
-            width: Math.max(40, Math.min(DIALOG_COLUMNS, api.renderer.width - 2)),
-            height: Math.max(11, height - Math.floor(height / 4) * 2),
-            lines: list,
-            ...(ledger.selected !== undefined ? { selected: ledger.selected } : {}),
-            folded,
-            all: ledger.all,
-            state: engine.state,
-            settings,
-            now: Date.now(),
-            ...(ledger.notice ? { notice: ledger.notice } : {}),
-            mode: ledger.mode,
-          }).rows,
-        )
+        const size = {
+          width: Math.max(40, Math.min(DIALOG_COLUMNS, api.renderer.width - 2)),
+          height: Math.max(11, height - Math.floor(height / 4) * 2),
+          project,
+          ...reading(),
+          ...(dialog.notice ? { notice: dialog.notice } : {}),
+          ...(dialog.keys ? { keys: true } : {}),
+        }
+        if (dialog.view === "activity") {
+          const view = activityRows({
+            ...size,
+            ...(dialog.activity !== undefined ? { selected: dialog.activity } : {}),
+          })
+          dialog.activity = view.item?.key
+          shown = { activity: view }
+          setDialogRows(view.rows)
+        } else {
+          const view = explorerRows({
+            ...size,
+            open: dialog.opened,
+            full: dialog.full,
+            filter: dialog.filter,
+            ...(dialog.node !== undefined ? { selected: dialog.node } : {}),
+            ...(dialog.button !== undefined ? { focus: { button: dialog.button } } : {}),
+            ...(dialog.typing !== undefined ? { typing: dialog.typing } : {}),
+          })
+          dialog.node = view.node?.key
+          if (dialog.button !== undefined && view.buttons.length > 0)
+            dialog.button = Math.min(dialog.button, view.buttons.length - 1)
+          else dialog.button = undefined
+          shown = { ledger: view }
+          setDialogRows(view.rows)
+        }
       }
       api.renderer.requestRender()
     }
@@ -400,12 +423,20 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
     // --- the ledger dialog -------------------------------------------------------------------------
 
     const notice = (text: string, tone: Tone = "muted") => {
-      ledger.notice = { text, tone }
+      dialog.notice = { text, tone }
       draw()
     }
-    const selectedLine = () => {
-      const list = lines()
-      return list[cursor(list)]
+
+    /** What `x`, `w` and `c` act on: the cursor's item or node, as last drawn. */
+    const selected = (): { target: Target; families: readonly Family[] } | undefined => {
+      if (dialog.view === "activity") {
+        const view = shown.activity
+        if (!view?.item) return undefined
+        return { target: targetOf(view.item, view.model), families: view.model.families }
+      }
+      const view = shown.ledger
+      if (!view?.node) return undefined
+      return { target: nodeTarget(view.node), families: view.model.families }
     }
 
     /** What `w` and `x` decided, appended and said. Nothing is ever rewritten in the ledger. */
@@ -424,57 +455,20 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
       notice(outcome.notice.text, outcome.notice.tone)
     }
 
-    const revoke = () => {
-      const line = selectedLine()
-      if (line) act("revoked", revokeLine(line, reading(), Date.now()))
+    const revokeSelected = () => {
+      const now = selected()
+      if (now) act("revoked", revoke(now.target, reading(), Date.now()))
     }
 
-    const widen = () => {
-      const line = selectedLine()
-      if (line) act("widen", widenLine(line, Date.now()))
+    const widenSelected = () => {
+      const now = selected()
+      if (now) act("widen", widen(widenScope(now.target, now.families), now.families, Date.now()))
     }
-
-    /**
-     * `space`/`enter`: a heading opens or folds; a row inside a family folds it and keeps the cursor on
-     * it. `→` only opens and `←` only folds — on a row inside a family, `←` goes to its heading.
-     */
-    const fold = (way: "toggle" | "open" | "close" = "toggle") => {
-      const line = selectedLine()
-      if (!line || line.kind === "always") return
-      if (line.kind === "rule" && !line.nested) return
-      if (way === "open" && line.kind === "rule") return
-      /** A family folds per section: `fold` names its heading in the one the cursor is in. */
-      const key = line.fold
-      if (way === "close" && line.kind === "rule") ledger.selected = `f:${key}`
-      else if (ledger.opened.has(key) && way !== "open") {
-        ledger.opened.delete(key)
-        ledger.selected = `f:${key}`
-      } else if (!ledger.opened.has(key) && way !== "close") ledger.opened.add(key)
-      else return
-      ledger.notice = undefined
-      draw()
-    }
-
-    /** `i` and `?`: one view at a time, and the same key again goes back to the list. */
-    const view = (mode: LedgerMode) => {
-      ledger.mode = ledger.mode === mode ? "list" : mode
-      ledger.notice = undefined
-      draw()
-    }
-
-    /** Every key but `?` acts on the list: from the key list it goes back to the list first. */
-    const listed =
-      (run: () => void): (() => void) =>
-      () => {
-        if (ledger.mode === "keys") ledger.mode = "list"
-        run()
-        draw()
-      }
 
     const copy = () => {
-      const line = selectedLine()
-      if (!line) return
-      const snippet = configSnippet(line)
+      const now = selected()
+      if (!now) return
+      const snippet = configSnippet(now.target)
       const ok = api.renderer.copyToClipboardOSC52?.(snippet.text) ?? false
       notice(
         ok
@@ -488,7 +482,7 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
       const paused = !engine.state.paused
       write([{ v: 1, at: Date.now(), type: paused ? "paused" : "resumed" }])
       log.info(paused ? "paused" : "resumed", { directory })
-      if (ledger.open)
+      if (dialog.open)
         notice(paused ? "Paused in this project: Trust keeps counting, and answers nothing." : "Resumed.")
       else
         api.ui.toast({
@@ -498,81 +492,255 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
         })
     }
 
+    /** Every key but `?` acts on the screen: from the key list it goes back to the screen first. */
+    const listed =
+      (run: () => void): (() => void) =>
+      () => {
+        dialog.keys = false
+        run()
+        draw()
+      }
+
     const move = (by: number) => {
-      const list = lines()
-      ledger.selected = list[Math.max(0, Math.min(list.length - 1, cursor(list) + by))]?.key
-      ledger.notice = undefined
+      dialog.notice = undefined
+      if (dialog.view === "activity") {
+        const items = shown.activity?.model.items ?? []
+        const at = Math.max(
+          0,
+          items.findIndex((item) => item.key === dialog.activity),
+        )
+        dialog.activity = items[Math.max(0, Math.min(items.length - 1, at + by))]?.key
+      } else {
+        const nodes = shown.ledger?.model.nodes ?? []
+        const at = Math.max(
+          0,
+          nodes.findIndex((node) => node.key === dialog.node),
+        )
+        dialog.node = nodes[Math.max(0, Math.min(nodes.length - 1, at + by))]?.key
+        dialog.button = undefined
+      }
       draw()
     }
 
-    const toggleAll = () => {
-      ledger.all = !ledger.all
-      ledger.notice = undefined
+    /** Into the ledger, on `key` when given; the activity keeps its cursor for the way back. */
+    const toLedger = (key?: string) => {
+      dialog.view = "ledger"
+      dialog.button = undefined
+      dialog.notice = undefined
+      if (key !== undefined) dialog.node = key
+      draw()
+    }
+
+    /** `enter` on the activity: why — the card of the rule that answered, or that is close, in the ledger. */
+    const why = () => {
+      const view = shown.activity
+      const item = view?.item
+      if (!view || !item) return toLedger()
+      if (item.kind === "always") return toLedger(ALWAYS_KEY)
+      const subject =
+        item.kind === "answer"
+          ? { permission: item.answer.permission, subject: item.answer.items[0]?.subject ?? "" }
+          : { permission: item.command.permission, subject: item.command.subject }
+      toLedger(reveal({ open: dialog.opened, full: dialog.full }, view.model.families, subject))
+    }
+
+    const node = (): Node | undefined => shown.ledger?.node
+
+    /**
+     * `space`/`enter` on a heading opens or folds it; on `+ N more` it lists the rest; on a command in a
+     * family it folds the family, the cursor going to its heading. `→` only opens, `←` only folds.
+     */
+    const fold = (way: "toggle" | "open" | "close" = "toggle") => {
+      const at = node()
+      if (!at || at.kind === "always") return
+      dialog.notice = undefined
+      const key = at.family.key
+      if (at.kind === "more") {
+        if (way !== "close") dialog.full.add(key)
+        else {
+          dialog.opened.delete(key)
+          dialog.node = `f:${key}`
+        }
+      } else if (at.kind === "command") {
+        if (!at.nested || way === "open") return
+        dialog.opened.delete(key)
+        dialog.full.delete(key)
+        dialog.node = `f:${key}`
+      } else if (dialog.opened.has(key) && way !== "open") {
+        dialog.opened.delete(key)
+        dialog.full.delete(key)
+      } else if (!dialog.opened.has(key) && way !== "close") dialog.opened.add(key)
+      draw()
+    }
+
+    /** The card's buttons: `tab` in and out, `←`/`→` between them, `enter` presses the focused one. */
+    const buttons = () => shown.ledger?.buttons ?? []
+    const press = (action: string) => {
+      if (action === "revoke") revokeSelected()
+      else if (action === "widen") widenSelected()
+      else if (action === "copy") copy()
+      else if (action === "ledger") toLedger()
+    }
+
+    const enter = () => {
+      if (dialog.view === "activity") return why()
+      if (dialog.button !== undefined) {
+        const button = buttons()[dialog.button]
+        if (button && !button.off) press(button.action)
+        return
+      }
+      const at = node()
+      if (at?.kind === "command" || at?.kind === "always") {
+        if (buttons().length > 0) dialog.button = 0
+        return draw()
+      }
+      fold()
+    }
+
+    const sideways = (by: 1 | -1) => {
+      if (dialog.view !== "ledger") return
+      if (dialog.button !== undefined) {
+        const count = buttons().length
+        dialog.button = count > 0 ? (dialog.button + by + count) % count : undefined
+        return draw()
+      }
+      fold(by > 0 ? "open" : "close")
+    }
+
+    const tab = () => {
+      if (dialog.view !== "ledger") return
+      dialog.button = dialog.button === undefined && buttons().length > 0 ? 0 : undefined
+      draw()
+    }
+
+    const filter = () => {
+      if (dialog.view === "activity") dialog.view = "ledger"
+      dialog.typing = dialog.filter
+      dialog.button = undefined
+      draw()
+    }
+
+    /** A click: a button presses, a row takes the cursor. */
+    const click = (x: number, y: number) => {
+      const hits: readonly Hit[] =
+        (dialog.view === "activity" ? shown.activity?.hits : shown.ledger?.hits) ?? []
+      const on = hits.find(
+        (hit) => hit.y === y && (hit.x0 === undefined || x >= hit.x0) && (hit.x1 === undefined || x < hit.x1),
+      )
+      if (!on) return
+      dialog.keys = false
+      if (on.kind === "button") {
+        dialog.notice = undefined
+        return press(on.action)
+      }
+      dialog.notice = undefined
+      if (dialog.view === "activity") dialog.activity = on.key
+      else {
+        dialog.node = on.key
+        dialog.button = undefined
+      }
       draw()
     }
 
     const dialogLayer = (): Layer => ({
       priority: 100,
       commands: [
-        { name: "cockpit.trust.down", title: "Next rule", run: listed(() => move(1)) },
-        { name: "cockpit.trust.up", title: "Previous rule", run: listed(() => move(-1)) },
+        { name: "cockpit.trust.down", title: "Next", run: listed(() => move(1)) },
+        { name: "cockpit.trust.up", title: "Previous", run: listed(() => move(-1)) },
+        { name: "cockpit.trust.enter", title: "Why, open, or press", run: listed(() => enter()) },
         { name: "cockpit.trust.fold", title: "Open or fold a family", run: listed(() => fold()) },
-        { name: "cockpit.trust.open", title: "Open a family", run: listed(() => fold("open")) },
         {
-          name: "cockpit.trust.shut",
-          title: "Fold a family, or go to its heading",
-          run: listed(() => fold("close")),
+          name: "cockpit.trust.right",
+          title: "Open a family, or the next button",
+          run: listed(() => sideways(1)),
         },
-        { name: "cockpit.trust.details", title: "Show or hide the details", run: () => view("details") },
-        { name: "cockpit.trust.keys", title: "Show or hide every key", run: () => view("keys") },
+        {
+          name: "cockpit.trust.left",
+          title: "Fold a family, or the previous button",
+          run: listed(() => sideways(-1)),
+        },
+        {
+          name: "cockpit.trust.l",
+          title: "Open the ledger, or a family in it",
+          run: listed(() => (dialog.view === "activity" ? toLedger() : sideways(1))),
+        },
+        { name: "cockpit.trust.tab", title: "Into the card and back", run: listed(() => tab()) },
+        { name: "cockpit.trust.filter", title: "Filter the ledger", run: listed(() => filter()) },
+        {
+          name: "cockpit.trust.keys",
+          title: "Show or hide every key",
+          run: () => {
+            dialog.keys = !dialog.keys
+            dialog.notice = undefined
+            draw()
+          },
+        },
         {
           name: "cockpit.trust.revoke",
-          title: "Revoke a rule, or forget its count",
-          run: listed(() => revoke()),
+          title: "Revoke, or forget a count",
+          run: listed(() => revokeSelected()),
         },
         {
           name: "cockpit.trust.widen",
           title: "Trust the whole family, or undo it",
-          run: listed(() => widen()),
+          run: listed(() => widenSelected()),
         },
         { name: "cockpit.trust.copy", title: "Copy as config", run: listed(() => copy()) },
         { name: "cockpit.trust.togglePause", title: "Pause or resume", run: listed(() => togglePause()) },
-        {
-          name: "cockpit.trust.all",
-          title: "Show or fold commands approved once",
-          run: listed(() => toggleAll()),
-        },
         { name: "cockpit.trust.close", title: "Close", run: () => api.ui.dialog.clear() },
       ],
       bindings: [
         { key: "j,down", cmd: "cockpit.trust.down" },
         { key: "k,up", cmd: "cockpit.trust.up" },
-        { key: "space,return", cmd: "cockpit.trust.fold" },
-        { key: "l,right", cmd: "cockpit.trust.open" },
-        { key: "h,left", cmd: "cockpit.trust.shut" },
-        { key: "i", cmd: "cockpit.trust.details" },
+        { key: "return", cmd: "cockpit.trust.enter" },
+        { key: "space", cmd: "cockpit.trust.fold" },
+        { key: "right", cmd: "cockpit.trust.right" },
+        { key: "h,left", cmd: "cockpit.trust.left" },
+        { key: "l", cmd: "cockpit.trust.l" },
+        { key: "tab", cmd: "cockpit.trust.tab" },
+        { key: "/", cmd: "cockpit.trust.filter" },
         { key: "?,shift+/", cmd: "cockpit.trust.keys" },
         { key: "x", cmd: "cockpit.trust.revoke" },
         { key: "w", cmd: "cockpit.trust.widen" },
         { key: "c", cmd: "cockpit.trust.copy" },
         { key: "p", cmd: "cockpit.trust.togglePause" },
-        { key: "a", cmd: "cockpit.trust.all" },
         { key: "q", cmd: "cockpit.trust.close" },
       ],
     })
 
     /**
-     * `esc` closes the details or the key list before the dialog. The host's dialog takes `esc` before
-     * any layer would hear it, so it is caught ahead of the keymap, as Shell's search does — and only
-     * while there is something of ours to close: otherwise the host closes the dialog as it always has.
+     * Ahead of the keymap, because the host's dialog takes `esc` before any layer hears it (Shell's
+     * search does the same): the filter being typed gets every key; and `esc` steps back one thing at
+     * a time — the key list, the card's buttons, the filter, the ledger — before the host closes the
+     * dialog from the activity, as it always has.
      */
     api.lifecycle.onDispose(
       api.keymap.intercept(
         (ctx) => {
-          if (!ledger.open || ledger.mode === "list" || ctx.event.name !== "escape") return
+          if (!dialog.open) return
+          const event = ctx.event
+          if (dialog.typing !== undefined) {
+            ctx.consume({ preventDefault: true, stopPropagation: true })
+            if (event.name === "escape") dialog.typing = undefined
+            else if (event.name === "return" || event.name === "enter") {
+              dialog.filter = dialog.typing.trim()
+              dialog.typing = undefined
+              dialog.node = undefined
+            } else if (event.name === "backspace") dialog.typing = dialog.typing.slice(0, -1)
+            else if (event.sequence && !event.ctrl && !event.meta && event.sequence >= " ")
+              dialog.typing += event.sequence
+            return draw()
+          }
+          if (event.name !== "escape") return
+          if (dialog.keys) dialog.keys = false
+          else if (dialog.view === "activity") return
+          else if (dialog.button !== undefined) dialog.button = undefined
+          else if (dialog.filter !== "") {
+            dialog.filter = ""
+            dialog.node = undefined
+          } else dialog.view = "activity"
           ctx.consume({ preventDefault: true, stopPropagation: true })
-          ledger.mode = "list"
-          ledger.notice = undefined
+          dialog.notice = undefined
           draw()
         },
         { priority: 10_000 },
@@ -582,25 +750,33 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
     const openLedger = () => {
       /** Config may have changed since: what the dialog says about "ask" rules should be today's. */
       void loadRules()
-      ledger.open = true
-      ledger.notice = undefined
-      ledger.mode = "list"
+      Object.assign(dialog, {
+        open: true,
+        view: "activity",
+        keys: false,
+        notice: undefined,
+        activity: undefined,
+        typing: undefined,
+        button: undefined,
+      })
       paint()
       api.ui.dialog.replace(
         () => (
-          <Ledger
+          <Dialog
             api={api}
             rows={dialogRows}
             keys={dialogLayer}
             onScroll={(by) => listed(() => move(by))()}
+            onClick={(x, y) => click(x, y)}
           />
         ),
         () => {
-          ledger.open = false
+          dialog.open = false
+          dialog.typing = undefined
         },
       )
       api.ui.dialog.setSize("xlarge")
-      log.debug("ledger: open", { lines: lines().length })
+      log.debug("trust: open", { items: shown.activity?.model.items.length ?? 0 })
     }
 
     api.keymap.registerLayer({

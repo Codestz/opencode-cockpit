@@ -2,18 +2,19 @@ import { describe, expect, test } from "bun:test"
 import { createEngine } from "../src/core/engine.ts"
 import { DAY, type Event } from "../src/core/ledger.ts"
 import { SAMPLE_NOW, SAMPLE_SETTINGS, SAMPLES } from "../src/core/sample.ts"
+import { configSnippet, revoke, widen, widenScope } from "../src/core/view/actions.ts"
+import { activityModel, activityRows, answerWhy, targetOf } from "../src/core/view/activity.ts"
 import {
-  configSnippet,
-  type LedgerMode,
-  type Line,
-  ledgerItems,
-  ledgerModel,
-  ledgerRows,
-  ledgerShown,
-  revokeLine,
-  sectionOfLine,
-  widenLine,
-} from "../src/core/view/ledger.ts"
+  ALWAYS_KEY,
+  explorerModel,
+  explorerRows,
+  historyRuns,
+  type Node,
+  nodeTarget,
+  reveal,
+  TAIL,
+} from "../src/core/view/explorer.ts"
+import { countsOf } from "../src/core/view/model.ts"
 import { type Row, rowText, widthOf } from "../src/core/view/rows.ts"
 import { sidebarRows, tally } from "../src/core/view/sidebar.ts"
 
@@ -34,75 +35,69 @@ const sidebarOf = (name: string, width: number, shown = false) => {
 
 type Make = () => ReturnType<(typeof SAMPLES)["empty"]>
 const engineOf = (name: string) => (SAMPLES[name] as Make)().engine
+const readingOf = (name: string) => {
+  const engine = engineOf(name)
+  return { engine, state: engine.state, settings: SAMPLE_SETTINGS, now: SAMPLE_NOW, history: engine.history }
+}
+const textOf = (rows: readonly Row[]) => rows.map(rowText).join("\n")
+const footerOf = (rows: readonly Row[]) => rowText(rows.at(-1) ?? []).trimEnd()
 
-/** The dialog as it draws `name`: every family open unless told otherwise, the cursor on `pick`. */
-const ledgerOf = (
+const activity = (
   name: string,
-  width: number,
-  height: number,
+  width = 100,
+  height = 24,
+  extra: { selected?: string; keys?: boolean } = {},
+) => {
+  const reading = readingOf(name)
+  return { ...reading, ...activityRows({ ...reading, width, height, project: "app", ...extra }) }
+}
+
+/** The ledger with `open` families, the cursor on what `pick` finds. */
+const ledger = (
+  name: string,
   options: {
-    open?: boolean
-    all?: boolean
-    pick?: (lines: readonly Line[]) => Line | undefined
-    mode?: LedgerMode
+    width?: number
+    height?: number
+    open?: "all" | "none"
+    filter?: string
+    pick?: (nodes: readonly Node[]) => Node | undefined
+    focus?: { button: number }
+    typing?: string
+    keys?: boolean
   } = {},
 ) => {
-  const engine = engineOf(name)
-  const reading = { state: engine.state, settings: SAMPLE_SETTINGS, now: SAMPLE_NOW }
-  const closed = ledgerModel({ ...reading, all: options.all ?? false, open: new Set() })
-  const open = new Set(
-    options.open === false ? [] : closed.lines.flatMap((line) => (line.kind === "family" ? [line.fold] : [])),
-  )
-  const { lines, folded } = ledgerModel({ ...reading, all: options.all ?? false, open })
-  const selected = (options.pick ?? ((list) => list[0]))(lines)?.key
+  const reading = readingOf(name)
+  const open = new Set<string>()
+  const full = new Set<string>()
+  if (options.open === "all")
+    for (const family of explorerModel({ ...reading, open, full, filter: "" }).families) {
+      open.add(family.key)
+      full.add(family.key)
+    }
+  const filter = options.filter ?? ""
+  const model = explorerModel({ ...reading, open, full, filter })
+  const selected = (options.pick ?? ((nodes) => nodes[0]))(model.nodes)?.key
   return {
-    engine,
-    lines,
-    folded,
-    ...ledgerRows({
-      width,
-      height,
-      lines,
-      folded,
-      ...(options.all ? { all: true } : {}),
-      ...(options.mode ? { mode: options.mode } : {}),
-      ...(selected !== undefined ? { selected } : {}),
+    ...reading,
+    open,
+    full,
+    ...explorerRows({
       ...reading,
+      open,
+      full,
+      filter,
+      width: options.width ?? 100,
+      height: options.height ?? 24,
+      project: "app",
+      ...(selected !== undefined ? { selected } : {}),
+      ...(options.focus ? { focus: options.focus } : {}),
+      ...(options.typing !== undefined ? { typing: options.typing } : {}),
+      ...(options.keys ? { keys: true } : {}),
     }),
   }
 }
-
-const textOf = (rows: readonly Row[]) => rows.map(rowText).join("\n")
-/** Everything under the rule the details open with: the facts, then the keys. */
-const below = (rows: readonly Row[]) =>
-  textOf(rows.slice(rows.findIndex((row) => rowText(row).startsWith(" ──")) + 1))
-/** The details of the line `pick` finds, and their keys. */
-const detailsOf = (
-  name: string,
-  pick: (lines: readonly Line[]) => Line | undefined,
-  width = 100,
-  height = 30,
-) => {
-  const view = ledgerOf(name, width, height, { pick, mode: "details" })
-  return { ...view, text: below(view.rows) }
-}
-const footerOf = (rows: readonly Row[]) => rowText(rows.at(-1) ?? []).trimEnd()
-type Section = "answers" | "learning"
-/** The row for `subject`, in the answers or in what is still counting; the first found otherwise. */
-const lineFor = (lines: readonly Line[], subject: string, section?: Section) =>
-  lines.find(
-    (line) =>
-      line.kind === "rule" &&
-      line.rule.subject === subject &&
-      (section === undefined || line.rule.section === section),
-  )
-const headingFor = (lines: readonly Line[], family: string, section?: Section) =>
-  lines.find(
-    (line) =>
-      line.kind === "family" &&
-      line.family.family === family &&
-      (section === undefined || line.family.section === section),
-  )
+const commandNode = (subject: string) => (nodes: readonly Node[]) =>
+  nodes.find((node) => node.kind === "command" && node.command.subject === subject)
 
 describe("the grid: every row exactly its width", () => {
   for (const name of Object.keys(SAMPLES)) {
@@ -111,24 +106,40 @@ describe("the grid: every row exactly its width", () => {
         for (const shown of [false, true])
           for (const row of sidebarOf(name, width, shown)) expect(widthOf(rowText(row))).toBe(width)
     })
-    test(`ledger · ${name}`, () => {
-      for (const width of [40, 60, 80, 100, 116, 140])
-        for (const height of [8, 12, 30])
-          for (const open of [false, true])
-            for (const mode of ["list", "details", "keys"] as const) {
-              const { rows, lines } = ledgerOf(name, width, height, { open, mode })
+    test(`activity · ${name}`, () => {
+      for (const width of [40, 60, 80, 116, 140])
+        for (const height of [8, 11, 20, 40])
+          for (const keys of [false, true]) {
+            const first = activity(name, width, height, { keys })
+            const each = [undefined, ...first.model.items.map((item) => item.key)]
+            for (const selected of each) {
+              const { rows } = activity(name, width, height, { keys, ...(selected ? { selected } : {}) })
               expect(rows.length).toBe(Math.max(height, 11))
               for (const row of rows) expect(widthOf(rowText(row))).toBe(width)
-              /** The cursor on every kind of line: the summary, the details and the keys change with it. */
-              if (mode !== "keys")
-                for (const line of lines) {
-                  const each = ledgerOf(name, width, height, { open, mode, pick: () => line })
-                  expect(each.rows.length).toBe(Math.max(height, 11))
-                  for (const row of each.rows) expect(widthOf(rowText(row))).toBe(width)
-                }
             }
-      /** Every line of a crowded sample, three modes, eighteen sizes: slow, and the point. */
-    }, 30_000)
+          }
+    }, 60_000)
+    test(`ledger · ${name}`, () => {
+      for (const width of [40, 60, 89, 90, 116, 140])
+        for (const height of [8, 20, 40])
+          for (const open of ["none", "all"] as const) {
+            const nodes = ledger(name, { width, height, open }).model.nodes.slice(0, 16)
+            for (const node of [undefined, ...nodes])
+              for (const extra of [{}, { focus: { button: 1 } }, { typing: "he" }]) {
+                const view = ledger(name, {
+                  width,
+                  height,
+                  open,
+                  ...(node ? { pick: () => node } : {}),
+                  ...extra,
+                })
+                expect(view.rows.length).toBe(Math.max(height, 11))
+                for (const row of view.rows) expect(widthOf(rowText(row))).toBe(width)
+              }
+            const keys = ledger(name, { width, height, open, keys: true })
+            for (const row of keys.rows) expect(widthOf(rowText(row))).toBe(width)
+          }
+    }, 120_000)
   }
 })
 
@@ -218,423 +229,254 @@ describe("the sidebar", () => {
   })
 })
 
-describe("the ledger", () => {
-  test("what answers, then what is counting, then OpenCode's own always — each under its heading", () => {
-    const { rows, lines } = ledgerOf("busy", 100, 30)
-    const sections = lines.map(sectionOfLine)
-    /** A section is one run of lines, in this order. */
-    expect(sections.filter((each, at) => each !== sections[at - 1])).toEqual([
-      "answers",
-      "learning",
-      "always",
-    ])
-    const text = textOf(rows)
-    expect(text).toMatch(/Answers for you {2}\d+ commands.*answered {2}last/)
-    expect(text).toMatch(/Learning {2}\d+ commands?.*approved {2}last/)
-    expect(text).toContain(`OpenCode's own "always"`)
-    expect(text).toMatch(/○ git push origin feat\/trust {2}dangerous\s+build\s+5 of 8/)
+describe("the week, as the activity reads it", () => {
+  test("answers per day, today last, and the feed newest first", () => {
+    const { model } = activity("busy")
+    expect(model.week).toHaveLength(7)
+    expect(model.week.reduce((sum, each) => sum + each, 0)).toBeGreaterThan(model.today)
+    const times = model.feed.map((item) => (item.kind === "answer" ? item.answer.at : 0))
+    expect([...times].sort((a, b) => b - a)).toEqual(times)
   })
 
-  test("the header says whether Trust is answering; only paused is worth a colour", () => {
-    const on = ledgerOf("crowded", 100, 30).rows[0] ?? []
-    expect(rowText(on).trimEnd()).toMatch(/Trust in this project\s+on$/)
-    const paused = ledgerOf("crowded-paused", 100, 30).rows[0] ?? []
-    expect(rowText(paused)).toContain("paused — counting, answering nothing")
-    expect(paused.find((run) => run.text.startsWith("paused"))?.tone).toBe("warning")
-  })
-
-  test("colour marks a row, it does not label it: agents, counts and times are muted", () => {
-    const { rows, lines } = ledgerOf("crowded", 100, 60)
-    expect(lines.length).toBeGreaterThan(20)
-    for (const row of rows.slice(2, -5).filter((each) => !rowText(each).includes("approved once")))
-      for (const run of row.slice(-4)) if (run.text.trim() !== "") expect(run.tone).toBe("muted")
-  })
-
-  test("among what is counting, the closest to trusted comes first", () => {
-    const { lines } = ledgerOf("crowded", 100, 40, { open: false })
-    const left = lines.flatMap((line) =>
-      line.kind === "rule" && line.rule.section === "learning"
-        ? [(line.rule.entries[0]?.danger ? 8 : 3) - (line.rule.entries[0]?.streak ?? 0)]
-        : [],
-    )
-    expect(left.length).toBeGreaterThan(3)
-    expect(left).toEqual([...left].sort((a, b) => a - b))
-  })
-
-  test("one agent everywhere: the agent column is left out", () => {
-    expect(textOf(ledgerOf("first", 100, 20).rows)).not.toContain("agent")
-    expect(textOf(ledgerOf("crowded", 100, 20).rows)).toContain("agent")
-  })
-
-  test("the cursor's row is filled, marked in its margin, and stays in view", () => {
-    const { rows, lines } = ledgerOf("busy", 80, 12, { pick: (list) => list.at(-1) })
-    expect(lines.length).toBeGreaterThan(5)
-    const selected = rows.filter((row) => row.every((run) => run.fill === "selected"))
-    expect(selected).toHaveLength(1)
-    expect(selected[0]?.[0]).toMatchObject({ text: "▌", tone: "accent" })
-  })
-
-  test("nothing learned: it says how Trust learns", () => {
-    const text = textOf(ledgerOf("empty", 100, 20).rows)
-    expect(text).toContain("Nothing learned yet. Approve the same command 3 times in a row")
-    expect(text).toContain("A dangerous one takes 8.")
-  })
-
-  test("a rule as config, to paste", () => {
-    const { lines } = ledgerOf("busy", 100, 30)
-    const built = lines.find((line) => line.kind === "rule" && line.rule.subject.startsWith("(in"))
-    if (!built) throw new Error("no placed rule")
-    expect(configSnippet(built)).toEqual({
-      text: '{"permission":{"bash":{"bun run build":"allow"}}}',
-      note: "a config rule cannot say where a command runs: this one allows it anywhere",
-    })
-    const fetch = lines.find((line) => line.kind === "rule" && line.rule.permission === "webfetch")
-    if (!fetch) throw new Error("no webfetch rule")
-    expect(configSnippet(fetch).text).toBe(
-      '{"permission":{"webfetch":{"https://docs.example.com/*":"allow"}}}',
-    )
-  })
-
-  test("commands approved once are one quiet row under what is counting, and [a] lists them", () => {
-    const engine = engineOf("crowded")
-    const every = ledgerItems(engine.state, SAMPLE_SETTINGS, SAMPLE_NOW)
-    const folded = ledgerShown(every, SAMPLE_SETTINGS, SAMPLE_NOW, false)
-    const all = ledgerShown(every, SAMPLE_SETTINGS, SAMPLE_NOW, true)
-    expect(all).toEqual({ items: every, folded: 0 })
-    expect(folded.items.length + folded.folded).toBe(every.length)
-    expect(folded.folded).toBeGreaterThan(100)
-    const shut = textOf(ledgerOf("crowded", 100, 60, { open: false }).rows)
-    expect(shut).toContain(`+ ${folded.folded} more approved once · [a] lists them`)
-    expect(shut.indexOf("more approved once")).toBeGreaterThan(shut.indexOf("Learning"))
-    expect(shut.indexOf("more approved once")).toBeLessThan(shut.indexOf("OpenCode's own"))
-    const details = (all: boolean) =>
-      textOf(ledgerOf("crowded", 100, 60, { all, open: false, mode: "details" }).rows)
-    expect(details(false)).toContain("[a] Show All")
-    expect(details(true)).toContain("[a] Show Fewer")
-    const open = textOf(ledgerOf("crowded", 100, 60, { all: true, open: false }).rows)
-    expect(open).not.toContain("approved once ·")
-  })
-
-  test("a list taller than the dialog says how many lines are above and below", () => {
-    const { rows, lines } = ledgerOf("families", 80, 11, { pick: (list) => list[5] })
-    expect(lines.length).toBeGreaterThan(5)
-    expect(rows.map(rowText).some((line) => /↑ \d+ more above|↓ \d+ more below/.test(line))).toBe(true)
-    for (const row of rows) expect(widthOf(rowText(row))).toBe(80)
-  })
-
-  test("in the details, [p] Pause outlasts copying when the keys do not all fit", () => {
-    const { rows } = ledgerOf("crowded", 80, 16, {
-      pick: (lines) => headingFor(lines, "exit"),
-      mode: "details",
-    })
-    const footer = footerOf(rows)
-    expect(footer).toContain("[p] Pause")
-    expect(footer).not.toContain("[c] Copy As Config")
-    expect(footer.endsWith("[esc] Hide Details")).toBe(true)
+  test("a rule's moments read back as how it earned its trust", () => {
+    const { history } = readingOf("busy")
+    const marks = history.marks.get(JSON.stringify(["bash", "build", "git status --short"])) ?? []
+    const text = historyRuns(marks, 3, 30 * DAY, SAMPLE_NOW)
+      .map((run) => run.text)
+      .join("")
+    expect(text).toMatch(/^✓ \d+d {2}✓ \d+d {2}✓ \d+d {2}→ trusted {2}answered \d+×$/)
   })
 })
 
-describe("families in the ledger", () => {
-  test("variants of one program are one family, folded until opened", () => {
-    const shut = ledgerOf("families", 100, 30, { open: false })
-    expect(headingFor(shut.lines, "ls", "answers")).toBeDefined()
-    expect(lineFor(shut.lines, "ls -la")).toBeUndefined()
-    expect(textOf(shut.rows)).toMatch(/▸ ls {2}any ls … · 4 commands\s+general\s+4×/)
-    const open = ledgerOf("families", 100, 30)
-    const rows = open.lines.filter((line) => line.kind === "rule" && line.family.family === "ls")
-    expect(rows.map((line) => (line.kind === "rule" ? line.rule.subject : "")).sort()).toEqual([
-      "ls -R docs",
-      "ls -la",
-      "ls -la src",
-      "ls -x",
-    ])
-    expect(textOf(open.rows)).toContain("▾ ls  any ls …")
+describe("the activity: what Trust did, then what it is about to do", () => {
+  test("today's answers, a sparkline of the week, what is close, OpenCode's own, the rules", () => {
+    const text = textOf(activity("busy").rows)
+    expect(text).toMatch(/TODAY {2}Trust answered \d+ prompts for you/)
+    expect(text).toContain("last 7 days")
+    expect(text).toContain("ALMOST THERE")
+    expect(text).toContain("! WATCH OUT")
+    expect(text).toMatch(/RULES {2}\d+ trusted · \d+ learning · \d+ seen once/)
+    expect(text).toContain(" l Open the ledger ")
+    expect(footerOf(activity("busy").rows)).toMatch(/^ \[enter\] Why .*\[esc\] Close$/)
   })
 
-  test("a family folds in the section it is drawn in", () => {
-    const engine = engineOf("crowded")
-    const reading = { state: engine.state, settings: SAMPLE_SETTINGS, now: SAMPLE_NOW, all: false }
-    const echo = headingFor(ledgerModel({ ...reading, open: new Set() }).lines, "echo", "answers")
-    if (echo?.kind !== "family") throw new Error("no echo heading")
-    const { lines } = ledgerModel({ ...reading, open: new Set([echo.fold]) })
-    const nested = lines.filter((line) => line.kind === "rule" && line.nested)
-    expect(nested.map((line) => (line.kind === "rule" ? line.fold : ""))).toEqual([echo.fold, echo.fold])
-    expect(lineFor(lines, "echo boom", "learning")?.kind).toBe("rule")
+  test("why each answer was given, in words", () => {
+    const reading = readingOf("busy")
+    const said = activityModel(reading).feed.map((item) =>
+      item.kind === "answer" ? answerWhy(item.answer, reading) : "",
+    )
+    expect(said).toContain("both commands trusted")
+    expect(said).toContain("in a family you widened: cat")
+    expect(said.some((each) => /^trusted .*, 3 in a row$/.test(each))).toBe(true)
   })
 
-  test("a family of one rule is drawn as that one row, a word a font merges said in words", () => {
-    const { lines, rows } = ledgerOf("families", 100, 30)
-    expect(headingFor(lines, "echo")).toBeUndefined()
-    const echo = lineFor(lines, "echo ---")
-    expect(echo?.kind === "rule" && echo.nested).toBe(false)
-    expect(textOf(rows)).toMatch(/\n.● echo "---" {2}\(3 hyphens\)\s+general/)
+  test("what is close comes closest first, dangerous last, with a meter and a badge", () => {
+    const { model, rows } = activity("busy")
+    const close = model.almost.map((item) => (item.kind === "almost" ? item.command.subject : ""))
+    expect(close.at(-1)).toBe("git push origin feat/trust")
+    const row = rows.map(rowText).find((each) => each.includes("git push origin feat/trust")) ?? ""
+    expect(row).toContain("▰▰▰▰▰▱▱▱")
+    expect(row).toContain("5 of 8")
+    expect(row).toContain(" dangerous ")
   })
 
-  test("a command trusted for one agent and counting for another is a row in each section", () => {
-    const { lines, rows } = ledgerOf("families", 100, 30)
-    const answers = lineFor(lines, "git status --short", "answers")
-    const learning = lineFor(lines, "git status --short", "learning")
-    expect(answers?.kind === "rule" && answers.rule.entries.map((entry) => entry.agent)).toEqual(["build"])
-    expect(learning?.kind === "rule" && learning.rule.entries.map((entry) => entry.agent)).toEqual([
+  test("a new project says how Trust learns, and has no lists to show", () => {
+    const text = textOf(activity("empty").rows)
+    expect(text).toContain("Nothing answered yet")
+    expect(text).toContain("Approve the same command 3 times in a row")
+    expect(text).toContain("nothing learned yet")
+    expect(text).not.toContain("ALMOST THERE")
+    expect(text).not.toContain("WATCH OUT")
+  })
+
+  test("paused, the header says so and the keys offer the way back", () => {
+    const { rows } = activity("paused")
+    expect(rowText(rows[0] ?? [])).toContain("○ paused")
+    expect(footerOf(rows)).toContain("[p] Resume")
+  })
+
+  test("the cursor's row is marked and filled, and stays in view in a short dialog", () => {
+    const { model } = activity("crowded", 100, 11)
+    const last = model.items.at(-1)?.key
+    const { rows } = activity("crowded", 100, 11, last ? { selected: last } : {})
+    const marked = rows.filter((row) => row[0]?.text === "▌")
+    expect(marked).toHaveLength(1)
+    expect(marked[0]?.every((run) => run.fill !== undefined && run.fill !== "none")).toBe(true)
+  })
+
+  test("the ledger button is a click target", () => {
+    const { hits } = activity("busy")
+    expect(hits.some((hit) => hit.kind === "button" && hit.action === "ledger")).toBe(true)
+  })
+})
+
+describe("the ledger: families as a tree, a card for the selection", () => {
+  test("each command appears once, under its family", () => {
+    const { model } = ledger("crowded", { open: "all" })
+    const keys = model.nodes.flatMap((node) => (node.kind === "command" ? [node.command.key] : []))
+    expect(new Set(keys).size).toBe(keys.length)
+    expect(keys.length).toBe(model.commands.length)
+  })
+
+  test("a family opens to its first commands and folds the rest into + N more", () => {
+    const reading = readingOf("crowded")
+    const families = explorerModel({ ...reading, open: new Set(), full: new Set(), filter: "" }).families
+    const head = families.find((family) => family.family === "head")
+    expect(head?.commands.length).toBeGreaterThan(TAIL + 1)
+    const open = new Set([head?.key ?? ""])
+    const nodes = explorerModel({ ...reading, open, full: new Set(), filter: "" }).nodes
+    const more = nodes.find((node) => node.kind === "more")
+    expect(more?.kind === "more" && more.hidden).toBe((head?.commands.length ?? 0) - TAIL)
+  })
+
+  test("reveal opens a command's family, its tail too, and returns its row", () => {
+    const reading = readingOf("crowded")
+    const families = explorerModel({ ...reading, open: new Set(), full: new Set(), filter: "" }).families
+    const head = families.find((family) => family.family === "head")
+    const last = head?.commands.at(-1)
+    const tree = { open: new Set<string>(), full: new Set<string>() }
+    const key = reveal(tree, families, { permission: "bash", subject: last?.subject ?? "" })
+    const nodes = explorerModel({ ...reading, ...tree, filter: "" }).nodes
+    expect(nodes.some((node) => node.key === key)).toBe(true)
+  })
+
+  test("the card: the command, each agent's standing, the history that earned it, the buttons", () => {
+    const view = ledger("busy", { pick: commandNode("git status --short"), open: "all" })
+    const text = textOf(view.rows)
+    expect(text).toContain("✓ Trusted for  build  · answered")
+    expect(text).toMatch(/History +✓ \d+d {2}✓ \d+d {2}✓ \d+d {2}→ trusted/)
+    expect(text).toContain("3 approvals in a row, all yours")
+    expect(text).toMatch(/Still asks +git status · git status --short > out\.txt/)
+    expect(text).toContain(" x Revoke ")
+    expect(text).toContain(" w Trust any git status ")
+    expect(text).toContain(" c Copy rule ")
+  })
+
+  test("a command trusted for one agent and counting for another: one row, both standings", () => {
+    const view = ledger("crowded", { pick: commandNode("git status --short"), open: "all" })
+    const text = textOf(view.rows)
+    expect(text).toContain("✓ Trusted for  build ")
+    expect(text).toContain("for  general ")
+  })
+
+  test("a dangerous command: a red meter, its badge, and a w that never widens", () => {
+    const view = ledger("dangerous", { pick: commandNode("git push origin feat/trust") })
+    const text = textOf(view.rows)
+    expect(text).toContain("▰▰▰▰▰▱▱▱")
+    expect(text).toMatch(/Dangerous +git push — 8 in a row instead of 3/)
+    expect(view.buttons.find((each) => each.key === "w")?.off).toBe(true)
+  })
+
+  test("a family you widened says so, and w undoes it", () => {
+    const view = ledger("families", {
+      pick: (nodes) => nodes.find((node) => node.kind === "family" && node.family.widened.length > 0),
+    })
+    expect(textOf(view.rows)).toMatch(/✓ Any ls … trusted for {2}general /)
+    expect(view.buttons.find((each) => each.key === "w")?.label).toBe("Undo any ls")
+  })
+
+  test("OpenCode's own always is the last node, and cannot be revoked", () => {
+    const view = ledger("busy", { pick: (nodes) => nodes.at(-1) })
+    expect(view.node?.key).toBe(ALWAYS_KEY)
+    expect(textOf(view.rows)).toContain("until OpenCode restarts")
+    expect(view.buttons.find((each) => each.key === "x")?.off).toBe(true)
+  })
+
+  test("wide, the card is beside the tree; under 90 columns, under it", () => {
+    expect(ledger("busy", { width: 100 }).wide).toBe(true)
+    const narrow = ledger("busy", { width: 80, pick: commandNode("git status --short"), open: "all" })
+    expect(narrow.wide).toBe(false)
+    const text = textOf(narrow.rows)
+    expect(text.indexOf("FAMILIES")).toBeLessThan(text.indexOf("Exactly"))
+    expect(narrow.rows.some((row) => row[0]?.text === "▌")).toBe(true)
+  })
+
+  test("the filter keeps what matches, and the heading shows what is typed", () => {
+    const view = ledger("crowded", { filter: "head" })
+    expect(
+      view.model.nodes.every((node) => node.kind !== "command" || node.command.subject.includes("head")),
+    ).toBe(true)
+    expect(textOf(ledger("crowded", { typing: "hea" }).rows)).toContain("/ hea▍")
+  })
+
+  test("tab into the card focuses a button, and the keys change to say so", () => {
+    const view = ledger("busy", {
+      pick: commandNode("git status --short"),
+      open: "all",
+      focus: { button: 0 },
+    })
+    expect(view.rows.some((row) => row.some((run) => run.fill === "buttonOn"))).toBe(true)
+    expect(footerOf(view.rows)).toContain("[enter] Press")
+  })
+
+  test("buttons are click targets where they are drawn", () => {
+    const view = ledger("busy", { pick: commandNode("git status --short"), open: "all" })
+    for (const hit of view.hits)
+      if (hit.kind === "button") {
+        const row = rowText(view.rows[hit.y] ?? [])
+        expect(
+          row
+            .slice(hit.x0, hit.x1)
+            .trim()
+            .startsWith(hit.action === "revoke" ? "x" : hit.action === "widen" ? "w" : "c"),
+        ).toBe(true)
+      }
+    expect(view.hits.filter((hit) => hit.kind === "button")).toHaveLength(3)
+  })
+
+  test("the footer: move, fold, card, filter, keys, and esc goes back", () => {
+    expect(footerOf(ledger("busy", { width: 116 }).rows)).toBe(
+      " [↑/↓] Move   [←/→] Fold   [tab] Card   [/] Filter   [p] Pause   [?] Keys   [esc] Back",
+    )
+  })
+
+  test("the counts: one per command", () => {
+    const { model } = ledger("crowded")
+    const counts = countsOf(model.commands)
+    expect(counts.trusted + counts.learning + counts.once).toBe(model.commands.length)
+  })
+})
+
+describe("acting on a selection", () => {
+  const at = SAMPLE_NOW + 1
+  test("x on a trusted command revokes it for every agent", () => {
+    const view = ledger("crowded", { pick: commandNode("git status --short"), open: "all" })
+    const outcome = revoke(nodeTarget(view.node as Node), view, at)
+    expect(outcome.events.map((event) => event.type === "revoked" && event.agent).sort()).toEqual([
+      "build",
       "general",
     ])
-    expect(textOf(rows)).toMatch(/○ git status --short\s+general\s+2 of 3/)
-    /** Counting stays per agent: two entries in the state, not one. */
-    expect(
-      [...engineOf("families").state.entries.values()].filter(
-        (entry) => entry.subject === "git status --short",
-      ),
-    ).toHaveLength(2)
-    expect(detailsOf("families", () => answers).text).toContain("Still learning for general: 2 of 3.")
   })
 
-  test("global flags do not split a family: git -C x status is git status", () => {
-    const { lines } = ledgerOf("families", 100, 30)
-    const status = headingFor(lines, "git status", "answers")
-    expect(status?.kind === "family" && status.family.rules.map((rule) => rule.subject).sort()).toEqual([
-      "git -C packages/web status",
-      "git status --short",
-    ])
-  })
-
-  test("the details say exactly what a row is, one labelled fact a row", () => {
-    const { text } = detailsOf("families", (lines) => lineFor(lines, "echo ---"))
-    expect(text).toContain('Exactly     echo "---"  — "---" is 3 hyphens, which some fonts draw as one line')
-    expect(text).toContain("Answers     this exact text, for general. Forgotten after 30 days unused.")
-    expect(text).toContain('Still asks  echo · echo "---" > out.txt · any other argument')
-    expect(text).toContain("[w] Trust Any echo")
-  })
-
-  test("the details on a rule still counting say how far it has to go, and [x] forgets", () => {
-    const { text } = detailsOf("families", (lines) => lineFor(lines, "src/view.ts"))
-    expect(text).toContain("Approved    2 of 3 in a row, as build — 1 more approval and Trust answers it.")
-    expect(text).toContain("[x] Forget")
-  })
-
-  test("the details on a heading say what the family holds and what [w] would do", () => {
-    const pick = (lines: readonly Line[]) => headingFor(lines, "git status", "answers")
-    const { text } = detailsOf("families", pick)
-    expect(text).toMatch(/Family {6}git status · 2 commands answered: /)
-    expect(text).toContain("Widen       [w] answers any git status … for build")
-    expect(footerOf(ledgerOf("families", 100, 30, { pick }).rows)).toContain("[space] Fold")
-  })
-
-  test("a widened family says so, what still asks, and how to stop it", () => {
-    const pick = (lines: readonly Line[]) => headingFor(lines, "ls")
-    const { text } = detailsOf("families", pick)
-    expect(text).toContain("Widened     any ls … for general — you widened it 15m ago.")
-    expect(text).toContain("Still asks  dangerous ones, and any that write a file or run another program.")
-    expect(text).toContain("To stop     [w] back to exact rules   [x] revokes it and its 4 rules")
-    expect(footerOf(ledgerOf("families", 100, 30, { pick }).rows)).toContain("[w] Undo Any ls")
-  })
-
-  test("a dangerous rule offers no [w], and its details say it never widens", () => {
-    const pick = (lines: readonly Line[]) => lineFor(lines, "git push origin feat/trust")
-    const { text, rows } = detailsOf("families", pick)
-    expect(text).toContain("Dangerous   git push — 8 in a row instead of 3, and never widened as a family.")
-    expect(footerOf(rows)).not.toContain("[w]")
-    expect(footerOf(ledgerOf("families", 100, 30, { pick }).rows)).not.toContain("[w]")
-  })
-
-  test("OpenCode's own always: what it means, and that only a restart ends it", () => {
-    const { rows, text } = detailsOf("crowded", (lines) => lines.at(-1), 100, 40)
-    expect(text).toContain("Means       OpenCode answers every command that starts this way for general")
-    expect(text).toContain("Until       OpenCode restarts.")
-    expect((rows.at(-1) ?? []).find((run) => run.text === "[x]")?.faint).toBe(true)
-  })
-
-  test("the keys keep a command lowercase, and the way out last", () => {
-    for (const width of [40, 60, 80, 140]) {
-      const { rows } = ledgerOf("families", width, 30, {
-        pick: (lines) => headingFor(lines, "git status", "answers"),
-      })
-      const footer = footerOf(rows)
-      expect(footer.endsWith("[esc] Close") || footer.endsWith("[esc]")).toBe(true)
-      expect(footer).not.toContain("Git Status")
-    }
-  })
-})
-
-describe("acting on a line", () => {
-  const reading = (name: string) => {
-    const engine = engineOf(name)
-    return { state: engine.state, settings: SAMPLE_SETTINGS, now: SAMPLE_NOW }
-  }
-
-  test("[w] on a safe family writes one widened event for the row's agent", () => {
-    const { lines } = ledgerOf("families", 100, 30)
-    const outcome = widenLine(lineFor(lines, "echo ---") as Line, 5)
+  test("x on an answer given through a widening stops the widening", () => {
+    const reading = readingOf("busy")
+    const model = activityModel(reading)
+    const item = model.feed.find((each) => each.kind === "answer" && each.answer.items.some((i) => i.via))
+    const outcome = revoke(targetOf(item as NonNullable<typeof item>, model), reading, at)
     expect(outcome.events).toEqual([
-      { v: 1, at: 5, type: "widened", permission: "bash", agent: "general", family: "echo" },
+      { v: 1, at, type: "unwidened", permission: "bash", agent: "general", family: "cat" },
     ])
-    expect(outcome.notice.text).toContain("Trusted any echo … for general")
   })
 
-  test("[w] on a dangerous family writes nothing and says why", () => {
-    const { lines } = ledgerOf("families", 100, 30)
-    const outcome = widenLine(lineFor(lines, "git push origin feat/trust") as Line, 5)
-    expect(outcome.events).toEqual([])
-    expect(outcome.notice).toEqual({
-      text: "Not widened: git push is dangerous — each one earns trust on its own.",
-      tone: "warning",
+  test("w on a safe command widens its family for its agent; on a dangerous one, nothing", () => {
+    const view = ledger("busy", { pick: commandNode("bun --version") })
+    const families = view.model.families
+    const ok = widen(widenScope(nodeTarget(view.node as Node), families), families, at)
+    expect(ok.events).toEqual([
+      { v: 1, at, type: "widened", permission: "bash", agent: "build", family: "bun" },
+    ])
+    const danger = ledger("busy", { pick: commandNode("git push origin feat/trust") })
+    const refused = widen(widenScope(nodeTarget(danger.node as Node), families), families, at)
+    expect(refused.events).toEqual([])
+    expect(refused.notice.text).toContain("dangerous")
+  })
+
+  test("c on a widened family is a wildcard, and says config cannot name the agent", () => {
+    const view = ledger("families", {
+      pick: (nodes) => nodes.find((node) => node.kind === "family" && node.family.widened.length > 0),
     })
-  })
-
-  test("[w] on a widened family un-widens it", () => {
-    const { lines } = ledgerOf("families", 100, 30)
-    expect(widenLine(headingFor(lines, "ls") as Line, 9).events).toEqual([
-      { v: 1, at: 9, type: "unwidened", permission: "bash", agent: "general", family: "ls" },
-    ])
-    expect(widenLine(lineFor(lines, "ls -la") as Line, 9).events.map((event) => event.type)).toEqual([
-      "unwidened",
-    ])
-  })
-
-  test("[x] on a heading revokes every rule in it, and its widening, and says how many", () => {
-    const { lines } = ledgerOf("families", 100, 30)
-    const outcome = revokeLine(headingFor(lines, "ls") as Line, reading("families"), 7)
-    expect(outcome.events.filter((event) => event.type === "revoked")).toHaveLength(4)
-    expect(outcome.events.filter((event) => event.type === "unwidened")).toHaveLength(1)
-    expect(outcome.notice.text).toBe(
-      "Revoked 4 rules in ls, and its widening — each is asked again until approved 3× in a row.",
-    )
-  })
-
-  test("[x] acts on its own section: revoking what answers does not forget what is counting", () => {
-    const { lines } = ledgerOf("families", 100, 30)
-    const now = reading("families")
-    const agentsOf = (line: Line | undefined) =>
-      revokeLine(line as Line, now, 7).events.map((event) => (event.type === "revoked" ? event.agent : ""))
-    expect(agentsOf(lineFor(lines, "git status --short", "answers"))).toEqual(["build"])
-    expect(agentsOf(lineFor(lines, "git status --short", "learning"))).toEqual(["general"])
-    expect(revokeLine(lineFor(lines, "git status --short", "learning") as Line, now, 7).notice.text).toBe(
-      "Forgot the count for git status --short: it starts again from 0.",
-    )
-  })
-
-  test("[x] on a heading still counting forgets its counts and widens nothing back", () => {
-    const { lines } = ledgerOf("crowded", 100, 30, { open: false })
-    const outcome = revokeLine(headingFor(lines, "head", "learning") as Line, reading("crowded"), 7)
-    expect(outcome.events.every((event) => event.type === "revoked")).toBe(true)
-    expect(outcome.events).toHaveLength(4)
-    expect(outcome.notice.text).toBe("Forgot 4 counts in head: each starts again from 0.")
-  })
-
-  test("[c] on a widened family is a wildcard, and says config cannot name the agent", () => {
-    const { lines } = ledgerOf("families", 100, 30)
-    const snippet = configSnippet(headingFor(lines, "ls") as Line)
-    expect(snippet.text).toBe('{"permission":{"bash":{"ls *":"allow"}}}')
+    const snippet = configSnippet(nodeTarget(view.node as Node))
+    expect(snippet.text).toBe(JSON.stringify({ permission: { bash: { "ls *": "allow" } } }))
     expect(snippet.note).toContain("config cannot say which agent")
-    /** An edit family, as a heading would hold it: its folder, and a `*` that reaches below it. */
-    const ls = headingFor(lines, "ls") as Extract<Line, { kind: "family" }>
-    const src: Line = { ...ls, family: { ...ls.family, permission: "edit", family: "src/", widened: [] } }
-    expect(configSnippet(src).text).toBe('{"permission":{"edit":{"src/*":"allow"}}}')
-  })
-})
-
-describe("the summary, the details and the keys", () => {
-  const exit = (lines: readonly Line[]) => headingFor(lines, "exit")
-
-  test("by default the list takes the height, with one quiet line about the cursor's line", () => {
-    const list = ledgerOf("crowded", 100, 20, { pick: exit })
-    const details = ledgerOf("crowded", 100, 20, { pick: exit, mode: "details" })
-    const listed = (rows: readonly Row[]) => rows.filter((row) => /[●○▸▾!] /.test(rowText(row))).length
-    expect(listed(list.rows)).toBeGreaterThan(listed(details.rows))
-    const text = textOf(list.rows)
-    expect(text).not.toMatch(/^ (Family|Closest|Widen) {2,}/m)
-    const summary = rowText(list.rows.at(-2) ?? [])
-    expect(summary.trimEnd()).toBe(" exit · 2 counting, closest 2 of 3 · [i] details")
-    expect(widthOf(summary)).toBe(100)
-    /** Quiet: only the key and the command are not muted. */
-    const loud = (list.rows.at(-2) ?? []).filter((run) => run.text.trim() !== "" && run.tone !== "muted")
-    expect(loud.map((run) => run.text)).toEqual(["exit", "[i]"])
-  })
-
-  test("the summary on each kind of line", () => {
-    const summary = (pick: (lines: readonly Line[]) => Line | undefined, name = "crowded") =>
-      rowText(ledgerOf(name, 100, 30, { pick }).rows.at(-2) ?? []).trimEnd()
-    expect(summary((lines) => lineFor(lines, "ls -la"))).toBe(
-      " ls -la · answers for build and general · [i] details",
-    )
-    expect(summary((lines) => lines.find((line) => line.kind === "always"))).toBe(
-      " ! ls src * · OpenCode's own, until it restarts · [i] details",
-    )
-    expect(summary((lines) => lineFor(lines, "git push origin feat/trust"))).toBe(
-      " git push origin feat/trust  dangerous · 5 of 8 as build, 3 more to go · [i] details",
-    )
-    /** Narrow, the summary is cut before its key, never through it. */
-    const narrow = rowText(
-      ledgerOf("crowded", 40, 20, { pick: (lines) => lineFor(lines, "ls -la") }).rows.at(-2) ?? [],
-    )
-    expect(narrow.trimEnd().endsWith("… · [i] details")).toBe(true)
-    expect(widthOf(narrow)).toBe(40)
-  })
-
-  test("the details wrap whole, and the list gives up rows but keeps the cursor's line", () => {
-    for (const height of [11, 14, 20]) {
-      const { rows, text } = detailsOf("crowded", exit, 80, height)
-      expect(text).toContain("ones that run another program.")
-      expect(text).toMatch(/build keeps\s+its own count\./)
-      expect(text).not.toMatch(/\w…/)
-      expect(rows.filter((row) => row.every((run) => run.fill === "selected"))).toHaveLength(1)
-    }
-  })
-
-  test("a notice takes the summary's place, or the rule's over the details", () => {
-    const notice = { text: "Forgot 2 counts in exit: each starts again from 0.", tone: "muted" as const }
-    const engine = engineOf("crowded")
-    const reading = { state: engine.state, settings: SAMPLE_SETTINGS, now: SAMPLE_NOW }
-    const { lines, folded } = ledgerModel({ ...reading, all: false, open: new Set() })
-    for (const mode of ["list", "details"] as const) {
-      const { rows } = ledgerRows({ width: 100, height: 20, lines, folded, notice, mode, ...reading })
-      expect(textOf(rows)).toContain(notice.text)
-      expect(textOf(rows)).not.toContain("[i] details")
-      expect(textOf(rows).includes(" ───")).toBe(false)
-    }
-  })
-
-  test("the keys: what acts on the line, the details, every key, and the way out last", () => {
-    const list = footerOf(ledgerOf("crowded", 140, 20, { pick: exit, open: false }).rows)
-    expect(list).toBe(
-      " [space] Open   [x] Forget   [w] Trust Any exit   [i] Details   [?] Keys   [esc] Close",
-    )
-    const details = footerOf(ledgerOf("crowded", 140, 20, { pick: exit, mode: "details" }).rows)
-    expect(details).toContain("[c] Copy As Config")
-    expect(details).toContain("[a] Show All")
-    expect(details).toContain("[p] Pause")
-    expect(details.endsWith("[esc] Hide Details")).toBe(true)
-    /** Paused, the way back is offered without a trip to `?`. */
-    expect(footerOf(ledgerOf("crowded-paused", 140, 20, { pick: exit }).rows)).toContain("[p] Resume")
-  })
-
-  test("short of room, [w] drops its family's name before a key is dropped", () => {
-    const pick = (lines: readonly Line[]) => headingFor(lines, "git status", "answers")
-    const wide = footerOf(ledgerOf("families", 100, 30, { pick }).rows)
-    expect(wide).toContain("[w] Trust Any git status")
-    const narrow = footerOf(ledgerOf("families", 90, 30, { pick }).rows)
-    expect(narrow).toContain("[w] Trust Any   ")
-    expect(narrow).toContain("[space] Fold")
-    expect(narrow).not.toContain("…")
-  })
-
-  test("? lists every key, one line each, and how to leave it", () => {
-    const { rows } = ledgerOf("crowded", 100, 20, { mode: "keys" })
-    const text = textOf(rows)
-    for (const keys of [
-      "[j/k] [↑/↓]",
-      "[space] [enter]",
-      "[←/h] [→/l]",
-      "[i]",
-      "[x]",
-      "[w]",
-      "[c]",
-      "[a]",
-      "[p]",
-    ])
-      expect(text).toMatch(new RegExp(`^ ${keys.replace(/[[\]/?]/g, "\\$&")} +[A-Z]`, "m"))
-    expect(text).toContain("[?] [esc]")
-    expect(footerOf(rows)).toBe(" [esc] Hide Keys")
-    /** A window too short for them all says how many are below. */
-    expect(textOf(ledgerOf("crowded", 80, 11, { mode: "keys" }).rows)).toContain("↓ 3 more keys below")
   })
 })

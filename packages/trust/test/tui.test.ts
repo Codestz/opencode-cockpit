@@ -18,6 +18,10 @@ const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 interface Fake {
   host: Host
+  /** What the plugin registered with the host's keymap, and the dialog it put up. */
+  layers: { commands: { name: string; run: () => void }[] }[]
+  intercepts: ((ctx: unknown) => void)[]
+  dialog: { render?: () => unknown; closed?: () => void; open: boolean }
   emit: (event: unknown) => void
   replies: unknown[]
   disposers: (() => void)[]
@@ -29,6 +33,9 @@ function fakeV1(permission: unknown = { bash: "ask" }): Fake {
   const replies: unknown[] = []
   const disposers: (() => void)[] = []
   const pending = new Map<string, unknown>()
+  const layers: Fake["layers"] = []
+  const intercepts: Fake["intercepts"] = []
+  const dialog: Fake["dialog"] = { open: false }
   const emit = (event: unknown) => {
     const { type, properties } = event as { type: string; properties: { id?: string; requestID?: string } }
     if (type === "permission.asked" && properties.id) pending.set(properties.id, properties)
@@ -72,12 +79,28 @@ function fakeV1(permission: unknown = { bash: "ask" }): Fake {
     kv: { get: (_: string, fallback: unknown) => fallback, set: () => {} },
     ui: {
       toast: () => {},
-      dialog: { replace: () => {}, clear: () => {}, setSize: () => {}, depth: 0 },
+      dialog: {
+        replace: (render: () => unknown, closed: () => void) => {
+          Object.assign(dialog, { render, closed, open: true })
+        },
+        clear: () => {
+          dialog.open = false
+          dialog.closed?.()
+        },
+        setSize: () => {},
+        depth: 0,
+      },
     },
     keymap: {
-      registerLayer: () => () => {},
-      useLayer: () => {},
-      intercept: () => () => {},
+      registerLayer: (layer: Fake["layers"][number]) => {
+        layers.push(layer)
+        return () => {}
+      },
+      useLayer: (layer: () => Fake["layers"][number]) => layers.push(layer()),
+      intercept: (handler: (ctx: unknown) => void) => {
+        intercepts.push(handler)
+        return () => {}
+      },
       shortcut: () => "",
     },
     slots: { register: () => {} },
@@ -96,7 +119,7 @@ function fakeV1(permission: unknown = { bash: "ask" }): Fake {
       return []
     }
   }
-  return { host, emit, replies, disposers, ledger }
+  return { host, emit, replies, disposers, ledger, layers, intercepts, dialog }
 }
 
 let current: Fake | undefined
@@ -243,5 +266,53 @@ describe("Trust in a host", () => {
     /** Writing a file is not what "any ls" meant: left to you. */
     await run(fake, "ls > out.txt")
     expect(fake.replies).toHaveLength(1)
+  })
+})
+
+describe("the dialog", () => {
+  /** A command by name from any layer the plugin registered, the dialog's own included. */
+  const command = (fake: Fake, name: string) => {
+    for (const layer of [...fake.layers].reverse()) {
+      const found = layer.commands.find((each) => each.name === name)
+      if (found) return found
+    }
+    throw new Error(`no command ${name}`)
+  }
+  /** `esc` through the plugin's intercept: whether it was taken, or left for the host to close the dialog. */
+  const pressEscape = (fake: Fake) => {
+    let consumed = false
+    const ctx = { event: { name: "escape" }, consume: () => (consumed = true) }
+    for (const handler of fake.intercepts) handler(ctx)
+    return consumed
+  }
+
+  test("/trust opens on the activity; l the ledger; esc back to the activity, then the host closes", async () => {
+    const fake = await start()
+    command(fake, "cockpit.trust.ledger").run()
+    expect(fake.dialog.open).toBe(true)
+    /** The dialog's own keys are registered when the host draws it; drawing beyond that needs a renderer. */
+    try {
+      fake.dialog.render?.()
+    } catch {}
+    expect(pressEscape(fake)).toBe(false)
+    command(fake, "cockpit.trust.l").run()
+    expect(pressEscape(fake)).toBe(true)
+    expect(pressEscape(fake)).toBe(false)
+  })
+
+  test("the filter takes every key while typed, and esc cancels it before leaving the ledger", async () => {
+    const fake = await start()
+    command(fake, "cockpit.trust.ledger").run()
+    try {
+      fake.dialog.render?.()
+    } catch {}
+    command(fake, "cockpit.trust.filter").run()
+    let consumed = false
+    for (const handler of fake.intercepts)
+      handler({ event: { name: "q", sequence: "q" }, consume: () => (consumed = true) })
+    expect(consumed).toBe(true)
+    expect(pressEscape(fake)).toBe(true)
+    expect(pressEscape(fake)).toBe(true)
+    expect(pressEscape(fake)).toBe(false)
   })
 })

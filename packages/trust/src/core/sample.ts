@@ -135,6 +135,56 @@ function crowd(s: Steps): void {
   s.pending("git push origin feat/trust")
 }
 
+/** A week of a project, as steps: rules earned early on, answered on most days since, the newest today. */
+function week(s: Steps): void {
+  const general = (line: string, times: number, how: "once" | "always" = "once") =>
+    s.approve(line, times, how, "bash", "general")
+  const hour = 3_600_000
+  s.at(SAMPLE_NOW - 8 * DAY)
+  s.approve("git status --short", 3)
+  s.approve("echo trust-test", 3)
+  s.approve("bun test", 3)
+  s.approve("src/app.ts", 3, "once", "edit")
+  general("ls -la", 3)
+  general("head -30", 3)
+  general("cat package.json", 2)
+  s.widen("cat", "general")
+  s.at(SAMPLE_NOW - 6 * DAY - 5 * hour)
+  s.auto("git status --short", 1)
+  s.at(SAMPLE_NOW - 4 * DAY - 3 * hour)
+  s.auto("git status --short", 2)
+  s.auto("ls -la", 1, "bash", "general")
+  s.at(SAMPLE_NOW - 3 * DAY - 2 * hour)
+  s.auto("bun test", 1)
+  s.at(SAMPLE_NOW - 2 * DAY - 6 * hour)
+  s.auto("git status --short", 3)
+  s.auto("src/app.ts", 2, "edit")
+  s.at(SAMPLE_NOW - DAY - 4 * hour)
+  s.auto("echo trust-test", 2)
+  s.at(SAMPLE_NOW - DAY + 2 * hour)
+  general("head -40", 2)
+  general("head -60", 2)
+  general("head -80 README.md", 1)
+  general("git status --short -uno", 2)
+  s.approve("bun --version", 2)
+  general("sleep 5", 1)
+  s.approve("git push origin feat/trust", 5)
+  general("find . -name '*.md'", 1, "always")
+  general("sort -rn", 1, "always")
+  for (const once of ["wc -l src/app.ts", "sed -n 1,40p src/app.ts", "pwd"]) s.approve(once, 1)
+  s.at(SAMPLE_NOW - 50 * 60_000)
+  s.auto("cat src/app.ts", 1, "bash", "general")
+  s.at(SAMPLE_NOW - 20 * 60_000)
+  s.auto("git status --short && echo trust-test", 1)
+  s.at(SAMPLE_NOW - 12 * 60_000)
+  s.auto("bun test", 1)
+  s.at(SAMPLE_NOW - 3 * 60_000)
+  s.auto("ls -la", 1, "bash", "general")
+  s.auto("git status --short", 1)
+  s.at(SAMPLE_NOW - 2_000)
+  s.pending("git push origin feat/trust")
+}
+
 export const SAMPLES: Record<string, () => Sample> = {
   /** A new install: nothing approved, nothing to say. */
   empty: () => ({ engine: build(() => {}) }),
@@ -151,24 +201,26 @@ export const SAMPLES: Record<string, () => Sample> = {
     }),
   }),
 
-  /** A busy project: several trusted, a dangerous one half way, an "always" given to OpenCode. */
-  busy: () => ({
+  /**
+   * A busy week, as the activity screen was designed from: rules earned over the week and answered
+   * most days, a family widened by hand, commands one approval away, a dangerous one half way, and an
+   * "always" given to OpenCode itself.
+   */
+  busy: () => ({ engine: build(week) }),
+
+  /** Dangerous commands on their way: each needs eight in a row, and none of their families widens. */
+  dangerous: () => ({
     engine: build((s) => {
+      s.at(SAMPLE_NOW - 2 * DAY)
       s.approve("git status", 3)
-      s.approve("bun test", 3)
-      s.approve("src/app.ts", 3, "once", "edit")
-      s.approve("https://docs.example.com/guide", 3, "once", "webfetch")
-      s.approve("cd packages/web && bun run build", 4)
       s.approve("git push origin feat/trust", 5)
-      s.approve("docker compose -p cockpit logs -f api", 1, "always")
-      s.approve("ls -la", 3, "once", "bash", "general")
+      s.approve("rm -rf dist", 7)
+      s.approve("docker compose -p prod down -v", 2)
+      s.approve("kubectl delete pod web-0", 3, "once", "bash", "general")
       s.at(SAMPLE_NOW - 3_600_000)
-      s.auto("git status", 6)
-      s.auto("bun test", 4)
-      s.auto("src/app.ts", 2, "edit")
-      s.auto("cd packages/web && bun run build", 1)
+      s.auto("git status", 2)
       s.at(SAMPLE_NOW - 2_000)
-      s.pending("git push origin feat/trust")
+      s.pending("rm -rf dist")
     }),
   }),
 
@@ -217,11 +269,9 @@ export const SAMPLES: Record<string, () => Sample> = {
     return { engine }
   },
 
-  /** Paused: still learning, answering nothing — and the block says so. */
+  /** The busy week, paused: still learning, answering nothing — and every surface says so. */
   paused: () => {
-    const engine = build((s) => {
-      s.approve("git status", 3)
-    })
+    const engine = build(week)
     engine.load([{ v: 1, at: SAMPLE_NOW - 60_000, type: "paused" }])
     return { engine }
   },
