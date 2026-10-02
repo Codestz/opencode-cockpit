@@ -85,6 +85,31 @@ describe("review_list", () => {
     expect(await run("review_list", { status: "all" })).toContain("rv_000000002")
   })
 
+  /**
+   * Its words are the agent's: the store calls the person `you`, and printed as stored, a thread the
+   * agent had answered read "waiting on you" — its own work, come back round as work for it.
+   */
+  test("says who a thread waits on from the agent's side, and counts the two apart", async () => {
+    await store().save(thread())
+    await store().save(
+      thread({
+        id: "rv_000000002",
+        status: "answered",
+        entries: [
+          { author: "you", body: "why thirty?", at: 1 },
+          { author: "agent", body: "Matches the server's limit.", at: 2 },
+        ],
+      }),
+    )
+    const said = await run("review_list", {})
+    expect(said).toContain("(1 waiting on you, 1 waiting on the person)")
+    expect(said).toContain("[open, waiting on you]")
+    expect(said).toContain("[answered, waiting on the person]")
+    expect(said).toContain("    person: why thirty?")
+    expect(said).toContain("    you: Matches the server's limit.")
+    expect(said.indexOf("rv_000000001")).toBeLessThan(said.indexOf("rv_000000002"))
+  })
+
   test("one file at a time, by suffix", async () => {
     await store().save(thread())
     await store().save(thread({ id: "rv_000000002", file: "src/other.ts" }))

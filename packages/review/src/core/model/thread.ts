@@ -208,10 +208,17 @@ export function tally(threads: readonly Thread[]): Tally {
  * Used by `review_list` to describe what is waiting, and by submit to carry the whole review as text
  * when the agent has no tools to fetch it with. Both are the same job — saying what a thread is — and
  * two versions of it would drift into disagreeing about what a thread is.
+ *
+ * Both readers are the agent, so it is written from the agent's side: the stored authors are the
+ * interface's (`you` is the person at the keyboard), and printed as they are stored, a thread the
+ * agent had answered read "waiting on you" — to the agent, its own work come back round.
  */
 export function describeThread(thread: Thread, after?: string | undefined): string {
   const waiting = waitingOn(thread)
-  const state = thread.status === "resolved" ? "resolved" : `${thread.status}, waiting on ${waiting}`
+  const state =
+    thread.status === "resolved"
+      ? "resolved"
+      : `${thread.status}, waiting on ${waiting === "agent" ? "you" : "the person"}`
   const anchor = anchorOf(thread, after)
   /**
    * Said differently for the two, because they ask for different things.
@@ -225,7 +232,9 @@ export function describeThread(thread: Thread, after?: string | undefined): stri
       : anchor.state === "outdated"
         ? " · OUTDATED: the lines it was written against are no longer in the file"
         : ""
-  const said = thread.entries.map((entry) => `    ${entry.author}: ${entry.body}`).join("\n")
+  const said = thread.entries
+    .map((entry) => `    ${entry.author === "agent" ? "you" : "person"}: ${entry.body}`)
+    .join("\n")
   const quoted = thread.quoted?.length
     ? `\n  code as it was:\n${thread.quoted.map((line) => `    ${line}`).join("\n")}`
     : ""
