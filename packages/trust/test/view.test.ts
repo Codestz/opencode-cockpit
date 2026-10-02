@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test"
+import { createEngine } from "../src/core/engine.ts"
+import { DAY, type Event } from "../src/core/ledger.ts"
 import { SAMPLE_NOW, SAMPLE_SETTINGS, SAMPLES } from "../src/core/sample.ts"
 import {
   configSnippet,
@@ -11,7 +13,7 @@ import {
   widenLine,
 } from "../src/core/view/ledger.ts"
 import { type Row, rowText, widthOf } from "../src/core/view/rows.ts"
-import { sidebarRows } from "../src/core/view/sidebar.ts"
+import { sidebarRows, tally } from "../src/core/view/sidebar.ts"
 
 const sidebarOf = (name: string, width: number, shown = false) => {
   const { engine, trouble } = (SAMPLES[name] as () => ReturnType<(typeof SAMPLES)["empty"]>)()
@@ -23,6 +25,7 @@ const sidebarOf = (name: string, width: number, shown = false) => {
     state: engine.state,
     limit: 3,
     shown,
+    ...(shown ? { project: tally(engine.state, SAMPLE_SETTINGS, SAMPLE_NOW) } : {}),
     ...(trouble ? { trouble } : {}),
   })
 }
@@ -99,10 +102,66 @@ describe("the sidebar", () => {
   })
 
   /** Shown from the palette with nothing yet, an empty block read as a command that did nothing. */
-  test("asked for, a quiet block still draws its heading", () => {
+  test("asked for, a project with nothing learned says so", () => {
     const rows = sidebarOf("empty", 36, true).map((row) => rowText(row).trimEnd())
-    expect(rows[0]).toBe(`Trust${" ".repeat(11)}nothing answered yet`)
-    expect(sidebarOf("first", 36, true)).toEqual(sidebarOf("first", 36))
+    expect(rows[0]).toBe(`Trust${" ".repeat(12)}nothing learned yet`)
+  })
+
+  /**
+   * A window just opened has answered nothing, while the ledger holds the project's history: shown,
+   * the heading tallies the history instead of staying silent.
+   */
+  test("asked for, a new window shows the project's standing", () => {
+    const about = (i: number, subject: string, agent = "build") => ({
+      request: `per_${subject}_${agent}_${i}`,
+      session: "ses_old",
+      call: `call_${subject}_${agent}_${i}`,
+      permission: "bash",
+      agent,
+      items: [{ subject }],
+    })
+    const at = SAMPLE_NOW - 3 * DAY
+    const events: Event[] = [
+      ...[1, 2, 3].map((i) => ({
+        v: 1 as const,
+        at: at + i,
+        type: "approved" as const,
+        ...about(i, "git status"),
+      })),
+      /** The same command earned by a second agent is still one command. */
+      ...[1, 2, 3].map((i) => ({
+        v: 1 as const,
+        at: at + 10 + i,
+        type: "approved" as const,
+        ...about(i, "git status", "general"),
+      })),
+      { v: 1, at: at + 20, type: "approved", ...about(1, "ls -la") },
+    ]
+    const engine = createEngine(SAMPLE_SETTINGS)
+    engine.load(events)
+    const input = {
+      width: 36,
+      recent: engine.recent(),
+      count: engine.count(),
+      pending: engine.pending(),
+      state: engine.state,
+      limit: 3,
+    }
+    expect(engine.count()).toBe(0)
+    expect(sidebarRows(input)).toEqual([])
+    const project = tally(engine.state, SAMPLE_SETTINGS, SAMPLE_NOW)
+    expect(project).toEqual({ trusted: 1, counting: 1 })
+    const rows = sidebarRows({ ...input, shown: true, project }).map((row) => rowText(row).trimEnd())
+    expect(rows[0]).toBe(`Trust${" ".repeat(9)}1 trusted · 1 counting`)
+    /** Too narrow for all of it, the heading keeps what it can. */
+    expect(rowText(sidebarRows({ ...input, width: 20, shown: true, project })[0] ?? []).trimEnd()).toBe(
+      `Trust${" ".repeat(6)}1 trusted`,
+    )
+  })
+
+  test("asked for, this window's answers lead the project's standing", () => {
+    const rows = sidebarOf("busy", 50, true).map((row) => rowText(row).trimEnd())
+    expect(rows[0]).toMatch(/^Trust +\d+ auto · \d+ trusted( · \d+ counting)?$/)
   })
 
   test("a failure always speaks", () => {

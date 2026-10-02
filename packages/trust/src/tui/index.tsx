@@ -31,7 +31,7 @@ import {
   widenLine,
 } from "../core/view/ledger.ts"
 import type { Row, Tone } from "../core/view/rows.ts"
-import { sidebarRows } from "../core/view/sidebar.ts"
+import { sidebarRows, tally } from "../core/view/sidebar.ts"
 import { createJournal } from "./journal.ts"
 import { createSource } from "./source.ts"
 import { Ledger } from "./view/ledger.tsx"
@@ -145,6 +145,7 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
               state: engine.state,
               limit: settings.sidebarRows,
               shown: inSidebar,
+              ...(inSidebar ? { project: tally(engine.state, settings, Date.now()) } : {}),
               ...(trouble ? { trouble } : {}),
             })
       /** Only when they changed: new rows rebuild every line of the block. */

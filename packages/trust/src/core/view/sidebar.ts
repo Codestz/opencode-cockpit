@@ -10,8 +10,11 @@
  * one is a request on screen now and how far it is from being trusted. Answers are visible every
  * time — that is the bargain that makes answering for you acceptable — but the block says nothing
  * when there is nothing to say: no answers yet, nothing counting, not paused. A failure always speaks.
- * Asked for (`shown`: the setting, or the palette's toggle), a quiet block still draws its heading —
- * `Trust  nothing answered yet` — or showing it looks like a command that did nothing.
+ *
+ * Asked for (`shown`: the setting, or the palette's toggle), the heading says where the project
+ * stands rather than only this window — `Trust  2 auto · 5 trusted · 1 counting` — since a window
+ * just opened has answered nothing yet while the ledger holds plenty. It is never silent then: a
+ * project with nothing learned says so, or showing the block looks like a command that did nothing.
  *
  * An answer given through a family you widened says so — `● ls -R docs · any ls  1×` — because
  * that rule was never approved by itself, and the answer should not look as if it had been.
@@ -25,8 +28,8 @@
 import { HEADING_GAP } from "@opencode-cockpit/client/design"
 import type { Answered, Pending } from "../engine.ts"
 import { anyOf, showSubject } from "../family.ts"
-import { keyOf, type State } from "../ledger.ts"
-import { fit, type Row, spread } from "./rows.ts"
+import { keyOf, type State, standing, type Thresholds } from "../ledger.ts"
+import { fit, type Row, spread, widthOf } from "./rows.ts"
 
 export interface SidebarInput {
   width: number
@@ -40,8 +43,56 @@ export interface SidebarInput {
   trouble?: string
   /** Answers listed; the count in the heading covers the rest. */
   limit: number
-  /** You asked for the block: with nothing to say it draws its heading rather than nothing. */
+  /**
+   * You asked for the block: its heading tallies the project (`project`), and it draws even with
+   * nothing to say this window.
+   */
   shown?: boolean
+  /** The project's commands, from the whole ledger (`tally`). */
+  project?: Tally
+}
+
+/** Commands in the project's ledger: trusted by some agent, or on their way there. */
+export interface Tally {
+  trusted: number
+  counting: number
+}
+
+/**
+ * One count per command, however many agents it was approved for — as the ledger lists them: trusted
+ * when any agent trusts it, counting when none does yet but one has approvals that still count.
+ */
+export function tally(state: State, settings: Thresholds, now: number): Tally {
+  const commands = new Map<string, boolean>()
+  for (const entry of state.entries.values()) {
+    const where = standing(entry, entry.danger, settings, now)
+    if (!where.trusted && where.have === 0) continue
+    const key = JSON.stringify([entry.permission, entry.subject])
+    commands.set(key, commands.get(key) === true || where.trusted)
+  }
+  let trusted = 0
+  for (const is of commands.values()) if (is) trusted++
+  return { trusted, counting: commands.size - trusted }
+}
+
+/**
+ * The heading's right side when you asked for the block: as much of `2 auto · 5 trusted · 1 counting`
+ * as fits beside the name, the least telling part going first.
+ */
+function summary(count: number, project: Tally, room: number): Row {
+  const parts: Row[] = [
+    ...(count > 0 ? [[{ text: `${count} auto`, tone: "success" as const }]] : []),
+    ...(project.trusted > 0 ? [[{ text: `${project.trusted} trusted`, tone: "success" as const }]] : []),
+    ...(project.counting > 0 ? [[{ text: `${project.counting} counting`, tone: "warning" as const }]] : []),
+  ]
+  if (parts.length === 0) return [{ text: "nothing learned yet", tone: "muted" }]
+  for (let take = parts.length; take > 1; take--) {
+    const row = parts
+      .slice(0, take)
+      .flatMap((part, i) => (i === 0 ? part : [{ text: " · ", tone: "muted" as const }, ...part]))
+    if (widthOf(row.map((run) => run.text).join("")) <= room) return row
+  }
+  return parts[0] ?? []
 }
 
 /** `edit src/app.ts`, but a command is just the command: bash is the common case. */
@@ -91,10 +142,10 @@ export function sidebarRows(input: SidebarInput): Row[] {
       [{ text: "Trust", tone: "text", bold: true }],
       state.paused
         ? [{ text: "paused", tone: "warning" }]
-        : input.count > 0
-          ? [{ text: `${input.count} auto`, tone: "success" }]
-          : quiet
-            ? [{ text: "nothing answered yet", tone: "muted" }]
+        : input.shown
+          ? summary(input.count, input.project ?? { trusted: 0, counting: 0 }, width - 6)
+          : input.count > 0
+            ? [{ text: `${input.count} auto`, tone: "success" }]
             : [],
       width,
     ),
