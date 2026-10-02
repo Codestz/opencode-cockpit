@@ -3,7 +3,7 @@
 A statusline for [OpenCode](https://opencode.ai) you can actually configure: declarative segments,
 your own TypeScript, or the statusline script you already wrote for Claude Code.
 
-![The statusline under an OpenCode conversation: a context bar at 40%, the token total with its cache, input and output parts, the session diff, elapsed time and todo progress](https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/statusline.png)
+![The statusline under an OpenCode conversation: a context bar at 40%, the token total with its cache, input and output parts, what is uncommitted, elapsed time and todo progress](https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/statusline.png)
 
 Part of [opencode-cockpit](https://github.com/Codestz/opencode-cockpit). Install it on its own, or
 get it with every other bay through the `opencode-cockpit` bundle.
@@ -34,7 +34,7 @@ to: the path, the branch, the model, the spend.
 | --- | --- |
 | `context` | `▐█████▉········▌ 43%` — how full the window is |
 | `tokens` | `tk 85.2k │ cache 84.9k │ in 265 │ out 60` — the total, then what it is made of |
-| `git.diff` | `+150 / -30` for this session |
+| `git.diff` | `+150 / -30` — what is uncommitted, from `git diff --shortstat HEAD` |
 | `session.time` | `took 3m42s` — how long the last answer took; quiet while one is running |
 | `todo` | `3/7 todo`, and nothing once the list is done |
 | `session.status` | working, or `retry 2 in 5s` — OpenCode shows a spinner, not why it stalled |
@@ -121,7 +121,7 @@ it fits. How full the context is survives a 60-column window; the version string
 | --- | --- | --- |
 | `cwd` | folder, relative to the worktree | `maxWidth` |
 | `git.branch` | current branch, dimmed on the default branch | |
-| `session.diff` | `+150 / -30` — what **this session** changed, not the working tree | |
+| `git.diff` | `+150 / -30` — what is uncommitted: `git diff --shortstat HEAD` | |
 | `model` | `claude-opus-5` | `full` |
 | `context` | how full the window is | `style`: `percent` \| `bar` \| `gradient` \| `split`, `width`, `warnAt`, `dangerAt` |
 | `tokens` | `78.5k tok` | |
@@ -142,24 +142,25 @@ prompt.
 
 Every segment takes `prefix`, `suffix`, `priority`, `color` (a tone name or `#rrggbb`) and `icon`.
 
-`session.diff` reports what OpenCode's own Files list shows: the files **this session** changed. A
-file you edited by hand was never part of the session and will not appear.
+`git.diff` counts what is uncommitted — staged and unstaged together, against the last commit — so
+you can check it by running the command yourself. Untracked files are left out: git cannot count
+lines in a file it has never seen. The command runs only when a line carries the segment, at most
+once every two seconds.
 
-For the **working tree**, pair a command with the `worktree` segment in `examples/bottom.ts` — a
-built-in that shelled out would stop being a pure function of the snapshot, which is what makes
-every one of them testable without a filesystem:
+For the file count as well, pair a command with the `worktree` segment in `examples/bottom.ts`:
 
 ```jsonc
 {
   "commands": { "tree": { "run": "git diff --shortstat", "intervalMs": 5000 } },
   "segments": [
-    { "type": "session.diff", "prefix": "session " },
+    { "type": "git.diff", "prefix": "uncommitted " },
     { "type": "worktree", "prefix": "tree " }
   ]
 }
 ```
 
-`session.diff` also answers to `git.diff`, its old and more misleading name.
+`git.diff` also answers to `session.diff`, the name it had while the numbers came from OpenCode's own
+file list.
 
 **A segment with nothing to say says nothing.** `cost` hides itself where nobody declared prices
 rather than reporting `$0.00`; `context` hides itself where nobody declared a window rather than

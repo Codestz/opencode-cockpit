@@ -82,6 +82,18 @@ anywhere in the console, whether or not you can see them.
 
 Filtering happens in the daemon, so a 40,000-line dev server costs nothing to search.
 
+## See it without OpenCode
+
+```sh
+bunx @opencode-cockpit/shell preview
+bunx @opencode-cockpit/shell preview --part console --state failed --columns 60
+```
+
+Draws the sidebar block, the dock and the console — empty, running, failed, details, a filtered log,
+finished — from sample shells, in your terminal, with no OpenCode and no daemon running. `--part`
+picks `sidebar`, `dock` or `console`; `--width` sets the sidebar's width, `--columns` the dock's and
+the console's; `--help` lists the states. Plain text under `NO_COLOR` or into a pipe.
+
 ## Commands
 
 `/shells-stop` stops the shells you are looking at; `/shells-stop-all` stops every shell in the

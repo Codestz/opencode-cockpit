@@ -1,13 +1,13 @@
 ---
 title: Trust
-description: Permissions that learn — approve the exact same command a few times in a row and Trust answers for you, visibly, every time.
+description: Permissions that learn — approve the exact same command a few times in a row and Trust answers for you, and records every answer.
 ---
 
 `"bash": "ask"` means approving `git status` for the hundredth time. OpenCode's own "Always" is
 broader than it looks: it approves by prefix, and its prefixes count flags as words, so approving
 `docker compose -p cockpit up -d` also approves `docker compose -p prod down -v`. Trust sits between:
 you approve, it counts, and once you have approved the *exact same* command enough times in a row it
-answers for you — and shows it, every time.
+answers for you — and records it, every time.
 
 ```sh
 opencode plugin @opencode-cockpit/trust@0.7.1 --global --force     # OpenCode 1
@@ -62,6 +62,16 @@ Trust never writes `opencode.json`. The ledger copies a rule for you to paste.
 
 ## In the sidebar
 
+The block is **hidden by default**: the sidebar already carries the statusline, subagents and
+shells, and Trust answers exactly the same without it — `/trust` shows what it did. To show it:
+
+```json title="~/.config/opencode-cockpit/config.json (or a project's .cockpit.json)"
+{ "trust": { "sidebar": true } }
+```
+
+"Trust: show or hide in the sidebar" in the command palette flips it for this session; it is not
+remembered. Hidden or not, a failure — a ledger that could not be saved — always shows there.
+
 ```
 Trust                      4 auto
 ● git status                   7×
@@ -92,7 +102,7 @@ cannot get in before OpenCode's own handler.
  ▾ git status                              build, general               2 trusted  2m ago
      ● git status --short                  build, general   trusted, 2/3 · 2 auto  2m ago
      ● git -C packages/web status          build                          trusted  2d ago
- ● echo "---"                              general               trusted · 1 auto  5m ago
+ ● echo "---"  3 hyphens                   general               trusted · 1 auto  5m ago
  ▾ edit src/                                               1 trusted · 1 counting  2d ago
      ● edit src/app.ts                     build                          trusted  2d ago
      ○ edit src/view.ts                    build                              2/3  2d ago
@@ -102,7 +112,7 @@ cannot get in before OpenCode's own handler.
  + 4 approved once · [a] show all
 
  ────────────────────────────────────────────────────────────────────────────────────────
- Exactly   echo "---"
+ Exactly   echo "---"  3 hyphens
  Answers   only this exact text, as general. Still asks: echo · echo "---" > out.txt
 
  [x] Revoke   [w] Trust Any echo   [c] Copy As Config   [a] Show All   …   [esc] Close
@@ -135,8 +145,11 @@ both, each with its own count: `git status --short  build, general  trusted, 2/3
 
 The panel under the list says what the selected line is, with every argument quoted where a font
 could merge it: a programming font draws `---` as one line, so `echo ---` is shown `echo "---"`; so
-are `->`, `==`, `!=`, `<=`, `>=`, `www` and any word that is only punctuation. Then a sentence: what
-it answers, as which agent, and what still asks. On a family: what it holds, and what `w` would do.
+are `->`, `==`, `!=`, `<=`, `>=`, `www` and any word that is only punctuation. Quotes are not
+enough on their own — a ligature font still merges `---` inside them — so an argument that is only
+punctuation is also said in words, beside its row in the list and here: `echo "---"  3 hyphens`,
+`hyphen, greater-than` for `->`. Then a sentence: what it answers, as which agent, and what still
+asks. On a family: what it holds, and what `w` would do.
 
 ### Trusting a whole family
 
@@ -177,6 +190,7 @@ In the bundle's entry (`"trust": { … }`), the package's own, or the `trust` se
 | `dangerExtra` | `5` | What a dangerous command costs on top |
 | `expireDays` | `30` | Days unused before trust has to be earned again; `0` never |
 | `enabled` | `true` | `false` turns Trust off |
+| `sidebar` | `false` | Show the block in the sidebar. The palette's "Trust: show or hide in the sidebar" flips it for the session |
 | `sidebarRows` | `3` | Answers listed in the sidebar |
 | `sidebarOrder` | `160` | Where the block sits in the sidebar; lower draws first |
 | `keybinds` | `{ "cockpit.trust.ledger": "<leader>p" }` | The key that opens the ledger |

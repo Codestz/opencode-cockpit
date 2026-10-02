@@ -17,7 +17,8 @@ Or through the bundle, where it is on by default.
 ## In the sidebar
 
 A **Subagents** block: every subagent of the conversation you are in, its type and task, and under
-it what it is doing now — with how many calls and how long on the right.
+it what it is doing now — with how many calls and how long the whole run has taken on the right.
+Working ones come first, oldest first, so a late runner never sits under a pile of finished ones.
 
 ```
 Subagents    1 running · 1 needs you
@@ -32,9 +33,12 @@ A spinner is working and `○` waits on you — the two in colour, because they 
 need you; a red `●` failed. A finished subagent is a quiet `●` and one row; one you stopped says
 `stopped`, quietly too, since stopping is not failing. The heading counts every state, and keeps
 what needs you when the column is narrow. The agent is named unless it is `general`, the one a
-subagent is when nobody chose. A subagent that launched its own has them indented under it. Working subagents are always
-shown; finished ones fold into a count past `sidebarRows`, and leave after `hideFinishedAfter`
-minutes if you set it. No subagents, no block.
+subagent is when nobody chose. A subagent that launched its own has them indented under it, and subagents with the same parent,
+agent and task — a helper asked again and again — are one entry with a count (`×6`). A finished
+nested one leaves the sidebar after `hideNestedAfter` seconds (30 by default); the heading still
+counts it and the pane still reaches it. Working subagents are always shown; finished ones fold
+into a count past `sidebarRows`, and leave after `hideFinishedAfter` minutes if you set it. No
+subagents, no block.
 
 The sidebar reads statusline, subagents, shells, top to bottom — `"sidebar"` in
 [Cockpit's config](/configuration/) reorders it.
@@ -50,10 +54,20 @@ and tokens so far. Then the run, the way OpenCode draws its own:
 - **the task** the main agent gave it, as a card at the top;
 - **its thinking** — "Thought · 1.2s" and the words, folded to one line with `t`;
 - **a shell command or a file change** as a box: the command, then its output — ten lines folded,
-  sixty open, all of it with `a` — and "Click to expand" when there is more; red when it failed;
+  sixty open, all of it with `a` — and a row that says what is hidden and the key that shows it
+  (`… 2 more lines · [enter] Expand`); red when it failed;
 - **reads, searches and fetches** as one quiet line each — `→ Read src/auth/session.ts`,
-  `✱ Grep "session"  9 matches` — that open into a box of their arguments and output;
-- **its answer**, drawn as markdown as it is written.
+  `✱ Grep "session"  9 matches` — that open into a box of their arguments and output; `webfetch`
+  and `websearch` show the URL or the query;
+- **a task** names the subagent it launched, and `enter` goes there; **todos** are a checklist; an
+  **MCP tool** is titled `server · tool`; anything else is boxed once its arguments are large;
+- **its answer**, drawn as markdown as it is written — emphasis, links, and a code fence's language
+  on its first row.
+
+**Arguments climb the same ladder as output.** Each one shows three rows folded, sixty open and up to
+two thousand with `a`, always saying `… N more lines`, so a long question to an advisor can be read
+in full. A short value is one row, a long string is markdown under its name (verbatim for file
+tools), and an object is indented JSON. Thinking is drawn as markdown too, muted.
 
 Every item is selectable: `j` `k` move the cursor, `enter` or a click opens or folds. The pane follows
 the run as it grows; scroll or move the cursor and it stays where you put it until `G`.
@@ -63,7 +77,7 @@ the run as it grows; scroll or move the cursor and it stays where you put it unt
 | `j` `k` | Move the cursor through the run's items |
 | `enter` · a click | Open or fold the item under it |
 | `e` | Open, or fold, every call |
-| `a` | A call's whole output — open shows its first 60 lines, whole up to 2,000 |
+| `a` | A call's whole output and arguments — open shows the first 60 lines, whole up to 2,000 |
 | `t` | Show or hide thinking — shown by default, and remembered |
 | `m` | Write it a message, at the foot of the pane (pasting works) |
 | `x` | Stop it (press twice) — or, once it has finished, remove it from the list |
@@ -79,9 +93,17 @@ the run as it grows; scroll or move the cursor and it stays where you put it unt
 
 A subagent that already read the code does a follow-up in seconds; a new one starts from nothing.
 Cockpit asks the main agent to continue the subagent that did the work — OpenCode 1's `task_id`,
-OpenCode 2's `sessionID` — rather than launch a new one, and gives it a `subagents_list` tool: each
-subagent's id, task, state and last answer, for when the id has scrolled out of its context. The list
-says when a subagent was cancelled, and when it ended on a progress note rather than an answer.
+OpenCode 2's `sessionID` — rather than launch a new one, and gives it three tools for when the id has
+scrolled out of its context:
+
+| Tool | What it answers |
+| --- | --- |
+| `subagents_list` | Each subagent's id, task, state — with when it ended, by the clock — and last answer; says when one was cancelled, or ended on a progress note rather than an answer |
+| `subagents_read id [after]` | One subagent in full: why it stopped, its task, its whole final answer, and every call it made — paged with a cursor. Works on cancelled ones, which can be continued |
+| `subagents_wait [ids] [any] [timeoutSeconds]` | Blocks until background subagents finish, fail, are cancelled or stop on a permission — never longer than its timeout — and returns each one's state and answer |
+
+The tools, the pane and the sidebar state a run's title, calls, state and duration from the same
+functions, so what the agent is told is what you see.
 
 So you just ask, in the main conversation: *"the review missed the refresh flow — get that checked
 too."* Each new round shows in the pane under a "Round 2" rule, with who started it — "build
@@ -124,6 +146,10 @@ main agent to do that for independent work, whenever its tool offers it:
 export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true   # ~/.zshrc, then start OpenCode 1
 ```
 
+`npx opencode-cockpit@latest doctor` warns when it is missing. Without it, the main agent is told not
+to ask for the background, and to launch independent subagents in one message so they run side by
+side.
+
 One launched in the foreground can still be moved: `b` in the pane — or OpenCode's own `ctrl+b` in the
 conversation — and the main agent carries on. It moves every subagent that conversation is waiting
 on, under the same condition on OpenCode 1.
@@ -136,6 +162,7 @@ In the bundle's entry (`"subagents": { … }`) or this package's own:
 | --- | --- | --- |
 | `sidebarRows` | `6` | Subagents shown before the rest fold into a count, working ones first |
 | `hideFinishedAfter` | unset | Minutes a finished subagent stays in the sidebar; unset keeps it for the conversation |
+| `hideNestedAfter` | `30` | Seconds a finished *nested* subagent — one a subagent launched — stays in the sidebar; a negative number keeps them |
 | `sidebarOrder` | `150` | Where the block sits among sidebar blocks; lower draws first |
 | `keybinds` | `{ "cockpit.subagents.open": "<leader>w" }` | The key that opens the one working now |
 | `guidance` | `true` | Tell the main agent about background subagents and follow-ups (agent side) |
@@ -155,4 +182,6 @@ Switch the whole bay off in the bundle with `{ "features": { "subagents": false 
 bunx @opencode-cockpit/subagents preview
 ```
 
-Draws the sidebar block and the pane from a sample run, in your terminal.
+Draws the sidebar block and the pane from a sample run, in your terminal. `--fixture <name>` draws
+another conversation (`--help` lists them); `--fixture calls` draws every kind of call, with
+`--columns` and `--state closed|open|whole`.

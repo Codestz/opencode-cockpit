@@ -10,25 +10,33 @@ sidebar. Bay 02, new in 0.3.0.
 
 That is the default line — what you get having written no configuration at all.
 
-## What it shows by default, and why it's so little
+## What it shows by default, and why
 
 OpenCode's own furniture already carries a lot. Its footer has the path, the branch and the token
 count. Its sidebar has the context percentage and the spend. Its prompt has the agent and the model.
 
-A statusline that repeats those buys a second copy of something already on screen. Configured
-carelessly, the context percentage can end up drawn five times in one window. So the default line is
-what the host leaves out:
+The default line repeats one of those on purpose — the token count and the percentage — because it
+says them better: a bar you read without looking, with the total's parts beside it, is a different
+instrument from `78.5K (39%)` in a corner. What stays out are the facts a second copy adds nothing
+to: the path, the branch, the model, the spend.
 
 | Segment | Says |
 | --- | --- |
-| `session.status` | working, or `retry 2 in 5s` — OpenCode shows a spinner, not why it stalled |
+| `context` | `▐█████▉········▌ 43%` — how full the window is |
+| `tokens` | `tk 85.2k │ cache 84.9k │ in 265 │ out 60` — the total, then what it is made of |
 | `git.diff` | `+150 / -30` — what is uncommitted, from `git diff --shortstat HEAD` |
+| `session.time` | `took 3m42s` — how long the last answer took; quiet while one is running |
 | `todo` | `3/7 todo`, and nothing once the list is finished |
-| `session.time` | `12m04s` |
+| `session.status` | `working 1m02s`, or `retry 2 in 5s` — OpenCode shows a spinner, not why it stalled |
 | `diagnostics` | only when an LSP or MCP server is unhealthy |
 
-Everything the host shows is still available as a segment — the default just doesn't assume you
-want it twice.
+Words are the labels, muted, and the figures are in the text colour; colour is kept for what it
+signals — the bar's level (calm, the warning from 75%, the error from 90%), what was added and
+removed, a retry. A part that is zero, such as `cache` on a provider with no prompt cache, is left
+out rather than drawn as `cache 0`.
+
+Everything else is one line of config away — including the things the host shows, if you want them
+in both places.
 
 ## The rule every segment follows
 

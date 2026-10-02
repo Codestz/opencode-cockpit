@@ -36,14 +36,32 @@ fatal: a config written against a newer version costs you a segment, not the lin
 | `tokens` | `78.5k tok` | |
 | `cost` | session spend | `currency`, `showZero` |
 | `todo` | `3/7 todo` | `showComplete` |
-| `session.status` | working, or a retry and its countdown | |
-| `session.time` | elapsed | `coarse` |
+| `session.status` | `working 1m02s` since your prompt, or a retry and its countdown | |
+| `session.time` | the conversation's age, or with `of: "turn"` how long the last answer took | `of`: `session` \| `turn`, `coarse` |
 | `diagnostics` | unhealthy LSP and MCP servers | |
 | `version` | the bay's version | |
 | `text` | literal text | `value` |
 | `command` | a shell command's output | `name`, `row` |
 
 Every one also takes `prefix`, `suffix`, `priority`, `color` and `icon`.
+
+## Which clock `session.time` is
+
+`session.time` has two clocks, and `of` picks one:
+
+| `of` | Shows | |
+| --- | --- | --- |
+| `"session"`, or left out | `2d 15h` | how old the conversation is, from its creation |
+| `"turn"` | `took 3m42s` | how long the last answer took, from your prompt to the last reply after it; nothing while one is running, and nothing before the first |
+
+```json
+{ "type": "session.time", "of": "turn" }
+```
+
+Every built-in line and preset that shows the time uses the turn, so a conversation reopened two
+days later no longer reads `2d 15h` with no word beside it. A line you wrote yourself keeps the
+session's age until you add `of`. While a turn runs, `session.status` counts it from the same
+prompt — `working 1m02s` — so the two never show the same clock twice.
 
 ## What `git.diff` counts
 

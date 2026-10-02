@@ -63,8 +63,9 @@ daemon that owns all long-lived state. Shells therefore survive OpenCode restart
 across OpenCode windows. The daemon starts on demand through the OpenCode binary itself
 (`BUN_BE_BUN=1`), so users need no separate runtime, and exits after an idle timeout.
 
-**Features are plugins.** Each feature (`packages/shell`, later `packages/agents`) is a complete
-OpenCode plugin that users can install alone. `packages/opencode` (`opencode-cockpit`) is a thin
+**Features are plugins.** Each feature — a *bay*: `packages/shell`, `status`, `review`, `updater`,
+`subagents` and `trust` — is a complete OpenCode plugin that users can install alone. Only Shell
+needs the daemon; the others talk to OpenCode alone, through the same `client` helpers. `packages/opencode` (`opencode-cockpit`) is a thin
 bundle: it calls each feature's plugin factories and merges their hooks (`compose.ts`), with a
 `features` option to switch some off.
 
@@ -75,9 +76,23 @@ imports OpenCode; features never import each other.
 |---|---|
 | `protocol` | Zod contracts for every method (`contract`) and event (`events`), error codes, NDJSON framing, paths, build id |
 | `daemon` | `core/` (RPC server with backpressure, router validating params, module host, idle lifecycle, logger) and `modules/shell/` |
-| `client` | Connection, spawn lock, handshake, reconnect, idempotent retry, upgrade-only daemon replacement, `claimFeature` duplicate guard |
+| `client` | Connection, spawn lock, handshake, reconnect, idempotent retry, upgrade-only daemon replacement, `claimFeature` duplicate guard; the `host`/`server` layer each OpenCode version supplies, the shared `log` and `sidebar`, and `design` (below) |
 | `shell` | `core/` (pure logic both halves use), `agent/` (plugin + one file per tool), `tui/` (`components/`, `state/`, `lib/`), and thin entry files |
+| `status` | The statusline: segments, presets, modules and Claude Code statusline commands |
+| `review` | A pull request in the terminal: the diff, notes on lines, and the `review_*` tools |
+| `updater` | `/plugins-update` and `npx opencode-cockpit update`: every installed plugin, updated and read back |
+| `subagents` | Every subagent in the sidebar and a pane, and the `subagents_*` tools |
+| `trust` | Permissions that learn: exact command signatures, the danger table, the ledger |
 | `opencode` | The bundle: `server.ts`, `tui.ts`, `compose.ts` (hook merging), `features.ts` (switches and options) |
+
+### One design system
+
+Every bay draws into the same terminal and three share the sidebar, so the visual decisions live in
+one module, `@opencode-cockpit/client/design`: the tone each state wears (running is the accent,
+needing you the warning, failed the error, done and stopped quiet), one glyph per meaning, the
+gauge thresholds, the `[key] Label` grammar with `esc` as the way out, `fitHints` for key rows that
+never drop that way out, and a sidebar heading's counts (`summaryRuns`). Import it rather than
+deciding again in a bay; a copy drifts within a release, and these did.
 
 ### Loading the same feature twice
 
@@ -194,6 +209,9 @@ rather than mocking the process layer.
 - `packages/client/test`: protocol acceptance, lifecycle, reuse, build mismatch
 - `packages/shell/test`: agent tools (including OpenCode's raw argument quirks), the panel's view
   helpers, and the store that decides which shells the panel is about
+- `packages/status`, `review`, `updater`, `subagents`, `trust`: each bay's pure `core/` against
+  fixtures and real git repositories, rows checked at several widths, and adapters tested against
+  event shapes captured from OpenCode 1 and 2
 - `packages/opencode/test`: hook composition, feature options, duplicate-load guard
 
 Run them with `bun run test`, not a bare `bun test`. solid-js resolves to its SSR build under Bun's

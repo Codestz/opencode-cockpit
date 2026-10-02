@@ -1,7 +1,7 @@
 # @opencode-cockpit/trust
 
 **Permissions that learn.** You approve a command yourself. After you have approved *the same
-command* a few times in a row, Trust approves it for you — and shows it, every time. A reject resets
+command* a few times in a row, Trust approves it for you — and records it, every time. A reject resets
 the count, a dangerous command costs more approvals, and nothing you told OpenCode to always ask
 about is ever answered for you.
 
@@ -53,6 +53,12 @@ threshold **plus** `dangerExtra` approvals in a row — eight by default. They s
 
 ## In the sidebar
 
+The block is **hidden by default** — the sidebar already carries the statusline, subagents and
+shells, and Trust answers the same without it. `"trust": { "sidebar": true }` in
+`~/.config/opencode-cockpit/config.json` or a project's `.cockpit.json` shows it; the palette's
+"Trust: show or hide in the sidebar" flips it for this session only. Hidden or not, a failure — a
+ledger that could not be saved — always shows there.
+
 ```
 Trust                      4 auto
 ● git status                   7×
@@ -80,7 +86,7 @@ counting, no block. Each answer is also a line in `~/.cache/opencode-cockpit/coc
  ▾ git status                              build, general               2 trusted  2m ago
      ● git status --short                  build, general   trusted, 2/3 · 2 auto  2m ago
      ● git -C packages/web status          build                          trusted  2d ago
- ● echo "---"                              general               trusted · 1 auto  5m ago
+ ● echo "---"  3 hyphens                   general               trusted · 1 auto  5m ago
  ▾ edit src/                                               1 trusted · 1 counting  2d ago
      ● edit src/app.ts                     build                          trusted  2d ago
      ○ edit src/view.ts                    build                              2/3  2d ago
@@ -90,7 +96,7 @@ counting, no block. Each answer is also a line in `~/.cache/opencode-cockpit/coc
  + 4 approved once · [a] show all
 
  ────────────────────────────────────────────────────────────────────────────────────────
- Exactly   echo "---"
+ Exactly   echo "---"  3 hyphens
  Answers   only this exact text, as general. Still asks: echo · echo "---" > out.txt
 
  [x] Revoke   [w] Trust Any echo   [c] Copy As Config   [a] Show All   …   [esc] Close
@@ -104,7 +110,9 @@ counting, no block. Each answer is also a line in `~/.cache/opencode-cockpit/coc
 - **One row per command**, even when two agents earned it: `git status --short  build, general
   trusted, 2/3`. Counting stays per agent.
 - **Exactly** says what the selected line is with every argument quoted where a font could merge it
-  (`echo "---"`, never `echo ──`), and in a sentence what it answers and what still asks.
+  (`echo "---"`, never `echo ──`), and in a sentence what it answers and what still asks. An argument
+  that is only punctuation is also said in words, beside its row and here (`echo "---"  3 hyphens`),
+  because a ligature font merges `---` even inside quotes.
 - **`w` trusts the whole family**, for the selected rule's agent — on purpose, never by itself. Any
   `ls …` is then answered for that agent, **except** a dangerous command, one that writes a file
   through a redirection (`ls > out.txt`; `2>/dev/null` and `2>&1` write nothing and are fine), one
@@ -137,6 +145,7 @@ In the bundle's entry (`"trust": { … }`), this package's own, or the `trust` s
 | `dangerExtra` | `5` | What a dangerous command costs on top |
 | `expireDays` | `30` | Days unused before trust has to be earned again; `0` never |
 | `enabled` | `true` | `false` turns Trust off (the bundle also has `features.trust: false`) |
+| `sidebar` | `false` | Show the block in the sidebar. The palette's "Trust: show or hide in the sidebar" flips it for the session |
 | `sidebarRows` | `3` | Answers listed in the sidebar |
 | `sidebarOrder` | `160` | Where the block sits in the sidebar; lower draws first |
 | `keybinds` | `{ "cockpit.trust.ledger": "<leader>p" }` | The key that opens the ledger |

@@ -8,7 +8,7 @@
 
 **Give [OpenCode](https://opencode.ai) the instruments it does not ship with.**
 
-**[Documentation →](https://codestz.github.io/opencode-cockpit/)**  ·  [Install](https://codestz.github.io/opencode-cockpit/start/install/)  ·  [Shell](https://codestz.github.io/opencode-cockpit/shell/overview/)  ·  [Review](https://codestz.github.io/opencode-cockpit/review/overview/)  ·  [Statusline](https://codestz.github.io/opencode-cockpit/status/overview/)  ·  [Changelog](CHANGELOG.md)
+**[Documentation →](https://codestz.github.io/opencode-cockpit/)**  ·  [Install](https://codestz.github.io/opencode-cockpit/start/install/)  ·  [Shell](https://codestz.github.io/opencode-cockpit/shell/overview/)  ·  [Review](https://codestz.github.io/opencode-cockpit/review/overview/)  ·  [Statusline](https://codestz.github.io/opencode-cockpit/status/overview/)  ·  [Updater](https://codestz.github.io/opencode-cockpit/updater/overview/)  ·  [Subagents](https://codestz.github.io/opencode-cockpit/subagents/overview/)  ·  [Trust](https://codestz.github.io/opencode-cockpit/trust/overview/)  ·  [Changelog](CHANGELOG.md)
 
 A tool call has to finish. A dev server does not, and neither does the context window filling up
 behind you. Cockpit is the instrument panel: things your agent can use, and things that tell you
@@ -82,7 +82,7 @@ published, and updates the ones you pick. It pins an exact version through OpenC
 works whatever version you are stuck on, because it comes from npm rather than from the copy that
 cannot update itself.
 
-**Every plugin, not just this one · [`@opencode-cockpit/updater`](packages/updater)**
+**Every plugin, not just this one · [docs](https://codestz.github.io/opencode-cockpit/updater/overview/) · [`@opencode-cockpit/updater`](packages/updater)**
 
 ---
 
@@ -96,23 +96,26 @@ shell command and file change as a box with its output, and the answer as it is 
 Then it makes them reusable. Ask the main agent for a follow-up on a subagent's work and it continues
 *that* subagent — which already read the code — instead of starting a new one. Press `m` to message a
 subagent yourself: the main agent is told what it answered, without a turn being spent on it. `x`
-stops one (and tells the main agent why), `b` moves a blocking one to the background.
+stops one (and tells the main agent why), `b` moves a blocking one to the background. The main agent
+can read any of them in full with `subagents_read`, and wait on the ones in the background with
+`subagents_wait`.
 
 ![A subagent at work beside the conversation: its run in a pane, a question put to it from the pane, and the exchange added to the main conversation](media/subagents.gif)
 
-**Sidebar + pane · follow-ups keep context · OpenCode 1 and 2 · [docs](https://codestz.github.io/opencode-cockpit/subagents/overview/) · [`@opencode-cockpit/subagents`](packages/subagents)**
+**Sidebar + pane · 3 agent tools · follow-ups keep context · OpenCode 1 and 2 · [docs](https://codestz.github.io/opencode-cockpit/subagents/overview/) · [`@opencode-cockpit/subagents`](packages/subagents)**
 
------
+---
 
 ### 🔐  Trust — permissions that learn
 
 `"bash": "ask"` means approving `git status` for the hundredth time; OpenCode's own "Always" means
 approving `docker compose -p prod down -v` because you once approved `docker compose -p cockpit up`.
 **Trust** sits between: approve the *exact same* command three times in a row and it answers for
-you — and says so in the sidebar, every time. A reject resets the count, `rm` and `git push` and
+you — and records every answer, in the ledger and the log, and in the sidebar if you turn it on. A reject resets the count, `rm` and `git push` and
 `--force` cost eight approvals instead of three, and a rule you wrote to be asked (`"git push *":
-"ask"`) is never answered. `/trust` shows what it has learned, revokes, and copies a rule for
-`opencode.json`.
+"ask"`) is never answered. `/trust` shows what it has learned, grouped into families (`git -C x status`
+is `git status`), revokes, copies a rule for `opencode.json` — and `w` trusts a whole family, but
+only when you press it.
 
 **Sidebar + ledger · exact commands, per agent · OpenCode 1 and 2 · [docs](https://codestz.github.io/opencode-cockpit/trust/overview/) · [`@opencode-cockpit/trust`](packages/trust)**
 
@@ -263,7 +266,9 @@ files only.
 Later sources win key by key, and an invalid file is ignored rather than fatal. You can categorize
 your own commands, define watch rules, cap how long shells live, choose what may interrupt the
 agent, and trade context tokens for accuracy. Each feature's README documents its own settings:
-[Shell](packages/shell#configuration).
+[Shell](packages/shell#configuration), [Statusline](packages/status#configuration),
+[Updater](packages/updater#settings), [Subagents](packages/subagents#settings),
+[Trust](packages/trust#settings).
 
 ## Troubleshooting
 
@@ -310,7 +315,7 @@ Each shell's output feeds three views at once: a normalized **log** for the agen
 | [`@opencode-cockpit/shell`](packages/shell) | Bay 01 — background terminals | [README](packages/shell/README.md) · [docs](https://codestz.github.io/opencode-cockpit/shell/overview/) |
 | [`@opencode-cockpit/status`](packages/status) | Bay 02 — the statusline | [README](packages/status/README.md) · [docs](https://codestz.github.io/opencode-cockpit/status/overview/) |
 | [`@opencode-cockpit/review`](packages/review) | Bay 03 — a pull request in the terminal | [README](packages/review/README.md) · [docs](https://codestz.github.io/opencode-cockpit/review/overview/) |
-| [`@opencode-cockpit/updater`](packages/updater) | Bay 04 — every plugin, and an update checked against disk | [README](packages/updater/README.md) |
+| [`@opencode-cockpit/updater`](packages/updater) | Bay 04 — every plugin, and an update checked against disk | [README](packages/updater/README.md) · [docs](https://codestz.github.io/opencode-cockpit/updater/overview/) |
 | [`@opencode-cockpit/subagents`](packages/subagents) | Bay 05 — every subagent visible, reachable and reused | [README](packages/subagents/README.md) · [docs](https://codestz.github.io/opencode-cockpit/subagents/overview/) |
 | [`@opencode-cockpit/trust`](packages/trust) | Bay 06 — permissions that learn, visibly | [README](packages/trust/README.md) · [docs](https://codestz.github.io/opencode-cockpit/trust/overview/) |
 | [`@opencode-cockpit/daemon`](packages/daemon) | `cockpitd`, the shared process host | [README](packages/daemon/README.md) |
