@@ -194,7 +194,7 @@ describe("families in the ledger", () => {
     expect(headingFor(lines, "echo")).toBeUndefined()
     const echo = lineFor(lines, "echo ---")
     expect(echo?.kind === "rule" && echo.nested).toBe(false)
-    expect(textOf(rows)).toMatch(/\n ● echo "---"\s+general/)
+    expect(textOf(rows)).toMatch(/\n ● echo "---" {2}3 hyphens\s+general/)
   })
 
   test("the same command earned by two agents is one row naming both", () => {

@@ -125,17 +125,27 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
       return at >= 0 ? at : 0
     }
 
+    /**
+     * Off by default (core/config.ts): the sidebar is crowded, and Trust answers the same without it.
+     * The palette flips it for the session; config decides where it starts. Not remembered across
+     * restarts — remembered UI state makes a command look dead (docs/opencode/gotchas.md).
+     */
+    let inSidebar = settings.sidebar
     const paint = () => {
       drawnAt = sidebarWidth()
-      const next = sidebarRows({
-        width: drawnAt,
-        recent: engine.recent(),
-        count: engine.count(),
-        pending: engine.pending(),
-        state: engine.state,
-        limit: settings.sidebarRows,
-        ...(trouble ? { trouble } : {}),
-      })
+      /** Hidden, the block says nothing — except trouble: a failure always speaks. */
+      const next =
+        !inSidebar && !trouble
+          ? []
+          : sidebarRows({
+              width: drawnAt,
+              recent: engine.recent(),
+              count: engine.count(),
+              pending: engine.pending(),
+              state: engine.state,
+              limit: settings.sidebarRows,
+              ...(trouble ? { trouble } : {}),
+            })
       /** Only when they changed: new rows rebuild every line of the block. */
       const text = JSON.stringify(next)
       if (text !== said) {
@@ -523,6 +533,17 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
           namespace: "palette",
           slashName: "trust",
           run: () => openLedger(),
+        },
+        {
+          name: "cockpit.trust.sidebar",
+          title: "Trust: show or hide in the sidebar",
+          category: "Trust",
+          namespace: "palette",
+          run: () => {
+            inSidebar = !inSidebar
+            log.debug("sidebar", { shown: inSidebar })
+            paint()
+          },
         },
         {
           name: "cockpit.trust.pause",

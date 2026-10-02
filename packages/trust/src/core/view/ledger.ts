@@ -39,6 +39,7 @@ import {
   readSubject,
   redirected,
   showSubject,
+  spelledSubject,
   widenable,
 } from "../family.ts"
 import {
@@ -284,6 +285,7 @@ function ruleCells(rule: RuleGroup, nested: boolean, reading: Reading): Cells {
       answered ? { text: "● ", tone: "success" } : { text: "○ ", tone: "warning" },
       ...prefix(rule.permission),
       { text: showSubject(rule.permission, rule.subject), tone: "text" },
+      ...spelledRuns(rule.permission, rule.subject),
       ...(danger ? [{ text: `  ${danger}`, tone: "error" as const }] : []),
     ],
     agent: rule.entries.map((entry) => entry.agent).join(", "),
@@ -345,6 +347,12 @@ function alwaysCells(always: Always, now: number): Cells {
     status: [{ text: "until restart", tone: "muted" }],
     when: ago(now - always.at),
   }
+}
+
+/** `  3 hyphens`, muted, after a command a font could misdraw; nothing otherwise. */
+function spelledRuns(permission: string, subject: string): Run[] {
+  const said = spelledSubject(permission, subject)
+  return said ? [{ text: `  ${said}`, tone: "muted" }] : []
 }
 
 function cellsOf(line: Line, reading: Reading): Cells {
@@ -592,7 +600,11 @@ export function explain(line: Line, reading: Reading): { exact: Said; said: Said
   return {
     exact: {
       label: "Exactly",
-      runs: [...prefix(line.rule.permission), plain(showSubject(line.rule.permission, line.rule.subject))],
+      runs: [
+        ...prefix(line.rule.permission),
+        plain(showSubject(line.rule.permission, line.rule.subject)),
+        ...spelledRuns(line.rule.permission, line.rule.subject),
+      ],
     },
     said: ruleSaid(line.rule, reading),
   }

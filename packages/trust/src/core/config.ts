@@ -24,6 +24,12 @@ export interface TrustConfig {
   dangerExtra?: number
   /** Days a trusted command may go unused before it has to be earned again. Default 30; 0 never. */
   expireDays?: number
+  /**
+   * Whether Trust draws a block in the sidebar. Default false: the sidebar already carries the
+   * statusline, subagents and shells, and Trust works the same without it — `/trust` opens the
+   * ledger, and the palette's "Trust: show in sidebar" brings the block back for the session.
+   */
+  sidebar?: boolean
   /** Answers by Trust listed in the sidebar. Default 3. */
   sidebarRows?: number
   /** Where the block sits among sidebar blocks; lower draws first. */
@@ -36,6 +42,7 @@ export interface TrustSettings {
   threshold: number
   dangerExtra: number
   expireDays: number
+  sidebar: boolean
   sidebarRows: number
 }
 
@@ -44,6 +51,7 @@ export const DEFAULTS: TrustSettings = {
   threshold: 3,
   dangerExtra: 5,
   expireDays: 30,
+  sidebar: false,
   sidebarRows: 3,
 }
 
@@ -55,6 +63,7 @@ const KEYS = [
   "threshold",
   "dangerExtra",
   "expireDays",
+  "sidebar",
   "sidebarRows",
   "sidebarOrder",
   "keybinds",
@@ -126,6 +135,7 @@ export function resolveSettings(config: TrustConfig): TrustSettings {
     threshold: whole(config.threshold, DEFAULTS.threshold, 1),
     dangerExtra: whole(config.dangerExtra, DEFAULTS.dangerExtra, 0),
     expireDays: whole(config.expireDays, DEFAULTS.expireDays, 0),
+    sidebar: config.sidebar === true,
     sidebarRows: whole(config.sidebarRows, DEFAULTS.sidebarRows, 0),
   }
 }

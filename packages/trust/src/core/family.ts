@@ -341,6 +341,59 @@ function controlEscape(char: string): string {
   return isControl(char) ? `\\x${(char.codePointAt(0) ?? 0).toString(16).padStart(2, "0")}` : char
 }
 
+/** What each character a font may merge is called, so a run can be said in words. */
+const NAMES: Record<string, [string, string]> = {
+  "-": ["hyphen", "hyphens"],
+  "=": ["equals sign", "equals signs"],
+  ">": ["greater-than", "greater-thans"],
+  "<": ["less-than", "less-thans"],
+  "!": ["exclamation mark", "exclamation marks"],
+  ".": ["dot", "dots"],
+  ":": ["colon", "colons"],
+  "/": ["slash", "slashes"],
+  "&": ["ampersand", "ampersands"],
+  "|": ["pipe", "pipes"],
+  "*": ["asterisk", "asterisks"],
+  "~": ["tilde", "tildes"],
+  "+": ["plus", "pluses"],
+  "#": ["hash", "hashes"],
+}
+
+/**
+ * The runs of a word a font may draw as one glyph, said in words: `---` is "3 hyphens", `->` is
+ * "hyphen, greater-than". Quotes were not enough — inside them `"---"` still drew as `"──"` on the
+ * user's screen — so the ledger says it in letters, which no font merges.
+ */
+export function spelled(word: string): string | undefined {
+  const runs = word.match(new RegExp(LIGATURE.source, "g"))
+  if (!runs) return undefined
+  const said = runs.map((run) => {
+    const parts: string[] = []
+    for (const group of run.match(/(.)\1*/g) ?? []) {
+      const name = NAMES[group[0] as string]
+      if (!name) return undefined
+      parts.push(group.length === 1 ? name[0] : `${group.length} ${name[1]}`)
+    }
+    return parts.join(", ")
+  })
+  if (said.some((each) => each === undefined)) return undefined
+  return [...new Set(said)].join("; ")
+}
+
+/** The spelled runs of every argument of a subject, for the ledger to put beside it. */
+export function spelledSubject(permission: string, subject: string): string | undefined {
+  if (canonical(permission) !== "bash") return undefined
+  const read = readSubject(subject)
+  if (!read) return undefined
+  /** Only words that are punctuation and nothing else: `---` is unreadable, `../src` and URLs are not. */
+  const words = read.command.argv.filter(
+    (word, i) =>
+      !(read.command.redirects ?? []).includes(i) && !isRedirect(word) && /^[^A-Za-z0-9\s]+$/.test(word),
+  )
+  const said = [...new Set(words.map(spelled).filter((each): each is string => each !== undefined))]
+  return said.length > 0 ? said.join("; ") : undefined
+}
+
 /** A command as the ledger shows it: every argument unambiguous, redirections as redirections. */
 export function showCommand(command: Command): string {
   const env = command.env.map((word) => {

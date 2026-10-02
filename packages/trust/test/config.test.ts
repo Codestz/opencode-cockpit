@@ -70,3 +70,11 @@ describe("paths", () => {
     expect(projectSlug("/../../etc")).toBe("etc")
   })
 })
+
+describe("the sidebar block", () => {
+  test("is off unless asked for: the sidebar is crowded and Trust answers the same without it", () => {
+    expect(resolveSettings({}).sidebar).toBe(false)
+    expect(resolveSettings({ sidebar: true }).sidebar).toBe(true)
+    expect(resolveSettings({ sidebar: "yes" as unknown as boolean }).sidebar).toBe(false)
+  })
+})

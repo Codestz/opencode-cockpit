@@ -7,6 +7,8 @@ import {
   readSubject,
   shown,
   showSubject,
+  spelled,
+  spelledSubject,
   widenable,
 } from "../src/core/family.ts"
 import { parse } from "../src/core/shell.ts"
@@ -210,5 +212,22 @@ describe("showing a command so no font can merge it", () => {
   test("what a widening answers, in words", () => {
     expect(anyOf("bash", "ls")).toBe("any ls …")
     expect(anyOf("edit", "src/")).toBe("any file in src/")
+  })
+})
+
+describe("arguments a font could merge are said in words", () => {
+  test("runs of punctuation are spelled", () => {
+    expect(spelled("---")).toBe("3 hyphens")
+    expect(spelled("->")).toBe("hyphen, greater-than")
+    expect(spelled("==")).toBe("2 equals signs")
+    expect(spelled("plain")).toBeUndefined()
+  })
+
+  test("only arguments that are punctuation alone get a note", () => {
+    expect(spelledSubject("bash", "echo ---")).toBe("3 hyphens")
+    expect(spelledSubject("bash", "ls ../src")).toBeUndefined()
+    expect(spelledSubject("bash", "curl https://example.com")).toBeUndefined()
+    expect(spelledSubject("bash", "echo hello")).toBeUndefined()
+    expect(spelledSubject("edit", "src/a.ts")).toBeUndefined()
   })
 })
