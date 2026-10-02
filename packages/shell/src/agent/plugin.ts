@@ -30,6 +30,18 @@ Block with shell_wait (pattern, port, idle, exit) instead of sleeping; follow ou
 You are messaged when a shell you started exits, and — once that subagent finishes — when a shell one of your subagents started failed; shell_list says which subagent started each shell.
 For processes that never exit (tsc --watch, vitest --watch, dev servers), shell_watch reports only when their health changes — use it instead of re-reading their logs.`
 
+/**
+ * What a subagent is told on OpenCode 1, where it is never messaged while it works (core/notice.ts:
+ * the message would become its answer): to look at its shells itself before it answers.
+ */
+const SUBAGENT_V1 =
+  "As a subagent on this OpenCode you are not messaged about your shells while you work — a message would replace your answer. Before you answer, check the shells you started with shell_wait or shell_list; a failure you leave is reported to your caller once you finish."
+
+/** The guidance for one session: a subagent on OpenCode 1 is told it hears nothing while it works. */
+export function shellGuidance(version: 1 | 2, subagent: boolean): string {
+  return version === 1 && subagent ? `${GUIDANCE}\n${SUBAGENT_V1}` : GUIDANCE
+}
+
 export const SHELL_PACKAGE = "@opencode-cockpit/shell"
 
 export interface ShellServerOptions {
@@ -135,17 +147,24 @@ async function shellParts(host: ServerHost, options?: unknown): Promise<ServerPa
   ): Promise<void> {
     const origin = info.owner.origin
     const busy = origin && origin !== info.owner.session ? await originBusy(origin) : undefined
-    const route = routeNotice({ owner: info.owner, outcome, originBusy: busy })
+    const route = routeNotice({ owner: info.owner, outcome, originBusy: busy, version: host.version })
     log.debug(`${what} notice`, { shell: info.id, origin, busy, outcome, route })
     /** A shell that recovered is no longer news for the conversation. */
     if (origin && outcome === "clean") relays.get(origin)?.delete(info.id)
     if (route.kind === "drop") return
+    if (relayed(route, info.owner, outcome) && info.owner.session) {
+      const subagent = route.kind === "hold" ? route.subagent : route.session
+      const pending = relays.get(subagent) ?? new Map<string, Relayed & { root: string }>()
+      pending.set(info.id, { id: info.id, title: info.title, status: brief, root: info.owner.session })
+      relays.set(subagent, pending)
+    }
+    /** Held, on OpenCode 1: the subagent is told nothing, the conversation hears when it finishes. */
+    if (route.kind === "hold") {
+      /** Finished while we asked: the event that relays has passed, so relay now. */
+      if ((await originBusy(route.subagent)) === false) await relay(route.subagent)
+      return
+    }
     if (route.kind === "deliver") {
-      if (relayed(route, info.owner, outcome) && info.owner.session) {
-        const pending = relays.get(route.session) ?? new Map<string, Relayed & { root: string }>()
-        pending.set(info.id, { id: info.id, title: info.title, status: brief, root: info.owner.session })
-        relays.set(route.session, pending)
-      }
       await host.session.notify(route.session, await text(), { steer: route.steer })
       return
     }
@@ -222,9 +241,9 @@ async function shellParts(host: ServerHost, options?: unknown): Promise<ServerPa
 
     system: async (sessionID) => {
       const system: string[] = []
-      if (config.guidance !== false) system.push(GUIDANCE)
       /** Shells are owned by the conversation, so "is this mine?" has to ask about the same thing. */
       const here = (await rootSession(sessionID).catch(() => undefined)) ?? sessionID
+      if (config.guidance !== false) system.push(shellGuidance(host.version, here !== sessionID))
       const listLimit = config.listRunningShells ?? 15
       if (listLimit <= 0) return system
       const running = await cockpit

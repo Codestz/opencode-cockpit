@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { Owner, ShellInfo, StartParams } from "@opencode-cockpit/protocol/shell"
+import { shellGuidance } from "../src/agent/plugin.ts"
 import {
   activityOf,
   exitOutcome,
@@ -57,13 +58,43 @@ describe("where a notice goes", () => {
     })
   })
 
-  test("a subagent still running: that subagent, steered into its turn", () => {
+  test("a subagent still running, on OpenCode 2: that subagent, steered into its turn", () => {
     for (const outcome of ["failure", "clean"] as const)
-      expect(routeNotice({ owner: owner("ses_sub"), outcome, originBusy: true })).toEqual({
-        kind: "deliver",
-        session: "ses_sub",
-        steer: true,
-      })
+      for (const version of [2, undefined] as const)
+        expect(routeNotice({ owner: owner("ses_sub"), outcome, originBusy: true, version })).toEqual({
+          kind: "deliver",
+          session: "ses_sub",
+          steer: true,
+        })
+  })
+
+  test("a subagent still running, on OpenCode 1: never messaged — its failure is held for the conversation", () => {
+    /** A message to it there starts a turn after its answer, and the task hands back that turn instead. */
+    expect(
+      routeNotice({ owner: owner("ses_sub"), outcome: "failure", originBusy: true, version: 1 }),
+    ).toEqual({
+      kind: "hold",
+      session: "ses_root",
+      subagent: "ses_sub",
+    })
+    const clean = routeNotice({ owner: owner("ses_sub"), outcome: "clean", originBusy: true, version: 1 })
+    expect(clean.kind).toBe("drop")
+  })
+
+  test("OpenCode 1 changes nothing for the conversation's own shells or a finished subagent", () => {
+    expect(
+      routeNotice({ owner: owner("ses_root"), outcome: "failure", originBusy: true, version: 1 }),
+    ).toEqual({
+      kind: "deliver",
+      session: "ses_root",
+      steer: false,
+    })
+    expect(
+      routeNotice({ owner: owner("ses_sub"), outcome: "failure", originBusy: false, version: 1 }).kind,
+    ).toBe("parent")
+    expect(
+      routeNotice({ owner: owner("ses_sub"), outcome: "failure", originBusy: undefined, version: 1 }).kind,
+    ).toBe("parent")
   })
 
   test("a finished subagent's failure: the conversation, naming the subagent", () => {
@@ -155,6 +186,13 @@ describe("a failure told to a running subagent also reaches the conversation (0.
     expect(relayed(route("failure", true), owner("ses_sub"), "failure")).toBe(true)
   })
 
+  test("held for the conversation: a failure kept from a running subagent on OpenCode 1", () => {
+    const held = routeNotice({ owner: owner("ses_sub"), outcome: "failure", originBusy: true, version: 1 })
+    expect(relayed(held, owner("ses_sub"), "failure")).toBe(true)
+    const clean = routeNotice({ owner: owner("ses_sub"), outcome: "clean", originBusy: true, version: 1 })
+    expect(relayed(clean, owner("ses_sub"), "clean")).toBe(false)
+  })
+
   test("not held: clean results, failures the conversation already got, the conversation's own shells", () => {
     expect(relayed(route("clean", true), owner("ses_sub"), "clean")).toBe(false)
     expect(relayed(route("failure", false), owner("ses_sub"), "failure")).toBe(false)
@@ -172,7 +210,9 @@ describe("a failure told to a running subagent also reaches the conversation (0.
     )
     expect(text).toContain('A shell started by the general subagent "Flaky shell starter" (session ses_sub)')
     expect(text).toContain('- sh_ch6u4lz4 "flaky": crashed with exit code 1 after 5s')
-    expect(text).toContain("It was told at the time, and has now finished")
+    /** On OpenCode 1 it was never told: the conversation is the only one who knows. */
+    expect(text).toContain("It was not told")
+    expect(text).not.toContain("It was told at the time")
     expect(text).toContain('task_id "ses_sub"')
     expect(text).toContain("shell_read id=sh_ch6u4lz4")
     const two = relayText(
@@ -184,6 +224,7 @@ describe("a failure told to a running subagent also reaches the conversation (0.
       2,
     )
     expect(two).toContain("2 shells started by a subagent")
+    expect(two).toContain("It was told at the time, and has now finished. Check its answer dealt with them")
     expect(two).toContain('sessionID "ses_sub"')
   })
 })
@@ -240,5 +281,18 @@ describe("the origin in the protocol", () => {
 
   test("must be a session id, not empty", () => {
     expect(Owner.safeParse({ project: "/p", origin: "" }).success).toBe(false)
+  })
+})
+
+describe("the guidance says who is messaged", () => {
+  test("a subagent on OpenCode 1 is told it hears nothing while it works, and to check its shells", () => {
+    const text = shellGuidance(1, true)
+    expect(text).toContain("not messaged about your shells while you work")
+    expect(text).toContain("shell_wait")
+  })
+
+  test("the conversation, and anyone on OpenCode 2, get the guidance as it was", () => {
+    expect(shellGuidance(1, false)).toBe(shellGuidance(2, true))
+    expect(shellGuidance(2, false)).not.toContain("not messaged")
   })
 })

@@ -19,6 +19,13 @@ import { describeStatus, formatLines } from "./format.ts"
  * waiting on it), and not about clean results — the least that still means a failed shell a subagent
  * started cannot pass the main agent by. `relayed` and `relayText` below.
  *
+ * On OpenCode 1 nothing is told to a running subagent at all: a failure is only held for that relay,
+ * a clean result dropped (the subagent can wait on its shell with shell_wait). A message cannot join
+ * the turn the subagent is in there: it waits for the turn to end and starts another, and the `task`
+ * tool hands the main agent the subagent's *last* message — measured, the reply to a notice became
+ * the task's answer and the real one was lost. OpenCode 2 steers it into the running turn, and the
+ * answer stays the subagent's own.
+ *
  * Pure, so the decision is tested without a daemon or an OpenCode.
  */
 
@@ -30,6 +37,11 @@ export type Route =
   | { kind: "deliver"; session: string; steer: boolean }
   /** The subagent that asked has finished: tell the conversation, naming the subagent. */
   | { kind: "parent"; session: string; subagent: string }
+  /**
+   * The subagent that asked is running, on OpenCode 1: tell it nothing — the message would become
+   * its answer — and tell the conversation (`session`) when it finishes.
+   */
+  | { kind: "hold"; session: string; subagent: string }
   | { kind: "drop"; reason: string }
 
 export interface RouteInput {
@@ -41,14 +53,21 @@ export interface RouteInput {
    * it, instead of waking a subagent nobody is listening to.
    */
   originBusy: boolean | undefined
+  /** Which OpenCode: 1 cannot steer a message into a running turn. Unset is read as 2. */
+  version?: 1 | 2
 }
 
-export function routeNotice({ owner, outcome, originBusy }: RouteInput): Route {
+export function routeNotice({ owner, outcome, originBusy, version }: RouteInput): Route {
   const root = owner.session
   if (!root) return { kind: "drop", reason: "started by the user" }
   const origin = owner.origin
   // No origin (an older plugin or daemon), or the conversation itself asked: as it always was.
   if (!origin || origin === root) return { kind: "deliver", session: root, steer: false }
+  /** OpenCode 1 messages a running subagent with nothing, good news or bad: either could become its answer. */
+  if (originBusy === true && version === 1)
+    return outcome === "failure"
+      ? { kind: "hold", session: root, subagent: origin }
+      : { kind: "drop", reason: "OpenCode 1: a message to a running subagent would replace its answer" }
   if (originBusy === true) return { kind: "deliver", session: origin, steer: true }
   if (outcome === "failure") return { kind: "parent", session: root, subagent: origin }
   return { kind: "drop", reason: "the subagent that started it has finished, and nothing failed" }
@@ -95,15 +114,13 @@ export function subagentNote(sub: Subagent, version: 1 | 2): string {
 
 /**
  * Whether a notice the conversation did not get must reach it when the subagent's run ends: a failure
- * handed to a subagent that is not the conversation. A clean result never is.
+ * handed to a subagent that is not the conversation, or held from one (OpenCode 1). A clean result
+ * never is.
  */
 export function relayed(route: Route, owner: ShellInfo["owner"], outcome: Outcome): boolean {
-  return (
-    outcome === "failure" &&
-    route.kind === "deliver" &&
-    Boolean(owner.session) &&
-    route.session !== owner.session
-  )
+  if (outcome !== "failure" || !owner.session) return false
+  if (route.kind === "hold") return true
+  return route.kind === "deliver" && route.session !== owner.session
 }
 
 /** One shell that failed while a subagent worked, as the conversation is told of it. */
@@ -115,8 +132,9 @@ export interface Relayed {
 }
 
 /**
- * Told to the conversation when a subagent that was told of failed shells finishes: which ones, that
- * it was told, and how to hand it back if its answer did not deal with them.
+ * Told to the conversation when a subagent whose shells failed while it worked finishes: which ones,
+ * whether it was told (OpenCode 2 tells it; OpenCode 1 holds it back, `routeNotice` says why), and
+ * how to hand them to it.
  */
 export function relayText(sub: Subagent, shells: readonly Relayed[], version: 1 | 2): string {
   const who = [sub.agent ? `the ${sub.agent} subagent` : "a subagent", sub.title ? `"${sub.title}"` : ""]
@@ -132,7 +150,9 @@ export function relayText(sub: Subagent, shells: readonly Relayed[], version: 1 
     `${many ? `${shells.length} shells` : "A shell"} started by ${who} (session ${sub.session}) failed while it worked:`,
     ...shells.map((shell) => `- ${shell.id} "${shell.title}": ${shell.status}`),
     "</subagent_shells_failed>",
-    `It was told at the time, and has now finished. Check its answer dealt with ${many ? "them" : "it"}; if not and it matters, continue that subagent with the error rather than redoing its work: ${how}. shell_read id=${shells[0]?.id ?? "<id>"} shows the output.`,
+    version === 1
+      ? `It was not told — on this OpenCode a message to a running subagent would have replaced its answer — and has now finished. If ${many ? "they matter" : "it matters"} and its answer does not account for ${many ? "them" : "it"}, continue that subagent with the error rather than redoing its work: ${how}. shell_read id=${shells[0]?.id ?? "<id>"} shows the output.`
+      : `It was told at the time, and has now finished. Check its answer dealt with ${many ? "them" : "it"}; if not and it matters, continue that subagent with the error rather than redoing its work: ${how}. shell_read id=${shells[0]?.id ?? "<id>"} shows the output.`,
   ].join("\n")
 }
 
