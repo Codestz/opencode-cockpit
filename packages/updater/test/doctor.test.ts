@@ -21,13 +21,14 @@ interface Machine {
   exists?: string[]
   alive?: number[]
   git?: boolean
+  env?: Record<string, string>
 }
 
 async function run(machine: Machine, args: string[] = []) {
   let out = ""
   const files = machine.files ?? {}
   const io: DoctorIo & { write(text: string): void; color: boolean } = {
-    env: {},
+    env: machine.env ?? {},
     home: HOME,
     cwd: "/work/project",
     worktree: "/work/project",
@@ -333,6 +334,36 @@ describe("the rest", () => {
     })
     expect(found.Settings?.state).toBe("warn")
     expect(found.Settings?.fix?.join()).toContain("gone.ts")
+  })
+})
+
+describe("background subagents (the 0.8 load test)", () => {
+  const bundle = { [`${CONFIG}/opencode.json`]: json({ plugin: ["opencode-cockpit@0.6.0"] }) }
+
+  test("OpenCode 1 without its flag: a warning with the line that fixes it", async () => {
+    const found = await checks({ opencode: "1.18.32", files: bundle })
+    expect(found.Subagents?.state).toBe("warn")
+    expect(found.Subagents?.fix?.join()).toContain("export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true")
+  })
+
+  test("the flag, or OpenCode's umbrella experimental one, turns it on", async () => {
+    const own = await checks({
+      opencode: "1.18.32",
+      files: bundle,
+      env: { OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS: "true" },
+    })
+    expect(own.Subagents?.state).toBe("ok")
+    const umbrella = await checks({ opencode: "1.18.32", files: bundle, env: { OPENCODE_EXPERIMENTAL: "1" } })
+    expect(umbrella.Subagents?.state).toBe("ok")
+  })
+
+  test("OpenCode 2 has them built in; without Subagents installed there is nothing to say", async () => {
+    const v2 = await checks({
+      opencode: "2.0.15",
+      files: { [`${CONFIG}/opencode.json`]: json({ plugins: ["opencode-cockpit@0.6.0"] }) },
+    })
+    expect(v2.Subagents?.state).toBe("ok")
+    expect((await checks({ opencode: "1.18.32" })).Subagents).toBeUndefined()
   })
 })
 

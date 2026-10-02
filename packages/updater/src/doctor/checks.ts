@@ -52,7 +52,17 @@ export interface Facts {
   checkouts: Set<string>
   log: LogFacts
   daemon: DaemonFacts
-  env: { git: boolean; ps: boolean; homeWritable: boolean; home: string }
+  env: {
+    git: boolean
+    ps: boolean
+    homeWritable: boolean
+    home: string
+    /**
+     * Whether OpenCode 1 would offer background subagents, read off the environment doctor runs in —
+     * the one OpenCode inherits when started from the same shell. Unset when not gathered.
+     */
+    backgroundSubagents?: boolean
+  }
   settings: SettingsFacts
   /** When doctor ran, so a log line's time reads as `7h ago`. Unset prints the time as logged. */
   now?: number
@@ -389,7 +399,37 @@ export function checkSettings(facts: Facts): Check {
   }
 }
 
+/**
+ * Background subagents, where Subagents is installed. OpenCode 2 has them built in; OpenCode 1 only
+ * when started with its experimental flag, which no plugin can set. Without it the main agent waits on
+ * every subagent it launches — and, in the 0.8 load test, concluded background was broken.
+ */
+export function checkSubagents(facts: Facts): Check | undefined {
+  const installed = ours(facts).some((entry) => {
+    const bay = bayOf(entry.name)
+    return entry.half === "server" && (bay === "subagents" || bay === "bundle")
+  })
+  const { major } = facts.opencode
+  if (!installed || major === undefined || facts.env.backgroundSubagents === undefined) return undefined
+  if (major >= 2) return { title: "Subagents", state: "ok", summary: "background subagents built in" }
+  if (facts.env.backgroundSubagents)
+    return { title: "Subagents", state: "ok", summary: "background subagents on (OpenCode 1's flag is set)" }
+  return {
+    title: "Subagents",
+    state: "warn",
+    summary: "OpenCode 1 runs every subagent in the foreground: its background flag is not set",
+    detail: [
+      "The main agent waits for each subagent it launches. Cockpit tells it so, and to launch independent ones in one message so they run side by side.",
+      "Read off the environment doctor runs in; OpenCode started elsewhere (an editor, a launcher) may differ.",
+    ],
+    fix: [
+      "export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true   # in ~/.zshrc or your shell's profile, then restart OpenCode",
+    ],
+  }
+}
+
 export function allChecks(facts: Facts): Check[] {
+  const subagents = checkSubagents(facts)
   return [
     checkOpencode(facts),
     checkConfig(facts),
@@ -397,6 +437,7 @@ export function allChecks(facts: Facts): Check[] {
     checkErrors(facts),
     checkDaemon(facts),
     checkEnvironment(facts),
+    ...(subagents ? [subagents] : []),
     checkSettings(facts),
   ]
 }

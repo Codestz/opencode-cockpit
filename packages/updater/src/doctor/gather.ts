@@ -235,6 +235,20 @@ function readSettings(io: DoctorIo): Facts["settings"] {
   return { files, modules }
 }
 
+/**
+ * OpenCode 1's rule for its background-subagents flag (`RuntimeFlags`, read off 1.18.32): the flag
+ * itself, else the umbrella `OPENCODE_EXPERIMENTAL`; booleans spelled as its config reads them.
+ */
+export function backgroundSubagents(env: DoctorIo["env"]): boolean {
+  const flag = (value: string | undefined): boolean | undefined => {
+    const text = value?.trim().toLowerCase()
+    if (text && ["true", "yes", "on", "1", "y"].includes(text)) return true
+    if (text && ["false", "no", "off", "0", "n"].includes(text)) return false
+    return undefined
+  }
+  return flag(env.OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS) ?? flag(env.OPENCODE_EXPERIMENTAL) ?? false
+}
+
 export async function gatherFacts(io: DoctorIo): Promise<Facts> {
   const home = cockpitHome(io)
   const versionOut = io.run("opencode", ["--version"])
@@ -263,6 +277,7 @@ export async function gatherFacts(io: DoctorIo): Promise<Facts> {
       ps: io.run("ps", ["-o", "pid="])?.status === 0,
       homeWritable: io.writable(home),
       home,
+      backgroundSubagents: backgroundSubagents(io.env),
     },
     settings: readSettings(io),
   }
