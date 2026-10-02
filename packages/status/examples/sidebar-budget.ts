@@ -7,6 +7,11 @@
  * so the values line up, the bar is solid rather than dashed, and the groups are separated by
  * hairlines rather than headings — a heading cannot know whether the rows under it will draw.
  *
+ * And, from seeing it on a real session: the word is the label, so there is no coloured square
+ * beside it saying the same thing in a colour nobody can decode; a row whose figure is zero is not
+ * drawn (`write 0 · 0%` said nothing, at length); and colour is a level — the bar, the percentage
+ * and the budget are calm until a threshold, then the warning, then the error — never a category.
+ *
  *   {
  *     "statusline": {
  *       "modules": ["<this file>"],
@@ -32,29 +37,32 @@ import { readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import type { CustomModule, Piece, Run, SegmentConfig, StatusContext } from "@opencode-cockpit/status/segment"
-import { compact, contextRatio, contextUsed, gradient } from "@opencode-cockpit/status/segment"
+import { compact, contextRatio, contextUsed, GAUGE, gaugeTone } from "@opencode-cockpit/status/segment"
 
-/** The label column, padded so every value starts in the same place. */
-const LABEL = 6
+/**
+ * The label column, padded so every value starts in the same place. The word is the label. Seven:
+ * the longest label is `tokens`, and at six it ran into its own figure (`tokens167.8k`).
+ */
+const LABEL = 7
 function row(label: string, value: Run[]): { runs: Run[] } {
-  return { runs: [{ text: label.padEnd(LABEL), tone: "muted", dim: true }, ...value] }
-}
-
-/** A marker in a category colour, so the label and the colour say the same thing twice. */
-function mark(tone: "success" | "info" | "text" | "warning"): Run {
-  return { text: "▪ ", tone }
+  return { runs: [{ text: label.padEnd(LABEL), tone: "muted" }, ...value] }
 }
 
 const BAR = 16
 
-/** What each token row needs: its own figure, and its share of the window. */
-function share(ctx: StatusContext, value: number, tone: "success" | "info" | "text" | "warning") {
+/**
+ * A level's tone: nothing until it is worth a colour, then the gauge rule's warning or error. Calm
+ * is left to the bar, so a column of figures is not a column of greens.
+ */
+const level = (ratio: number): Run["tone"] => (ratio >= GAUGE.warnAt ? gaugeTone(ratio) : "text")
+
+/** What each token row needs: its own figure, and its share of the window. Zero is not a row. */
+function share(ctx: StatusContext, value: number) {
   const total = contextUsed(ctx.session?.tokens)
-  if (total === 0) return undefined
+  if (total === 0 || value === 0) return undefined
   return [
-    mark(tone),
-    { text: compact(value), tone: "muted" as const },
-    { text: ` · ${Math.round((value / total) * 100)}%`, tone: "muted" as const, dim: true },
+    { text: compact(value), tone: "text" as const },
+    { text: ` · ${Math.round((value / total) * 100)}%`, tone: "muted" as const },
   ]
 }
 
@@ -86,11 +94,6 @@ function spendState(config: SegmentConfig): { total: number; cap: number } | und
   const { baseline, delta, cap } = cached.spend ?? {}
   if (typeof baseline !== "number" || typeof cap !== "number" || cap <= 0) return undefined
   return { total: baseline + (typeof delta === "number" ? delta : 0), cap }
-}
-
-/** Green with room, amber as it tightens, red when it is nearly gone. */
-function budgetColour(left: number): string {
-  return left >= 0.5 ? "#39d353" : left >= 0.2 ? "#e8b923" : "#f85149"
 }
 
 /**
@@ -146,8 +149,9 @@ export default {
     },
 
     /**
-     * One solid bar: filled cells coloured by level, empty cells a solid dark track. Not `░`,
-     * which reads as floating gaps, and not `─`, which reads as a row of dashes.
+     * One solid bar: filled cells in the gauge rule's tone, empty cells a solid dark track. Not `░`,
+     * which reads as floating gaps, and not `─`, which reads as a row of dashes. One tone for the
+     * whole fill, not a gradient: green at 13% and olive at 12% was a colour nobody could read.
      *
      * No end caps. `▕` and `▏` are eighth-blocks whose ink sits against one edge of the cell, so an
      * opening cap indents the row by most of a column and the bar stops lining up with the labels
@@ -160,12 +164,12 @@ export default {
       const ratio = contextRatio(ctx.session)
       if (ratio === undefined) return undefined
       const filled = Math.round(ratio * BAR)
-      const runs: Run[] = Array.from({ length: BAR }, (_, cell) =>
-        cell < filled
-          ? { text: "█", color: gradient((cell + 1) / BAR) }
-          : { text: "█", tone: "border" as const },
-      )
-      return { runs }
+      return {
+        runs: [
+          { text: "█".repeat(filled), tone: gaugeTone(ratio) },
+          { text: "█".repeat(BAR - filled), tone: "border" },
+        ],
+      }
     },
 
     /** The whole window, and how full it is. */
@@ -175,32 +179,32 @@ export default {
       const ratio = contextRatio(ctx.session)
       return row("tokens", [
         { text: compact(total), tone: "text" },
-        ...(ratio === undefined ? [] : [{ text: ` · ${Math.round(ratio * 100)}%`, color: gradient(ratio) }]),
+        ...(ratio === undefined ? [] : [{ text: ` · ${Math.round(ratio * 100)}%`, tone: level(ratio) }]),
       ])
     },
 
     /** Fresh prompt tokens: neither cached nor generated. */
     in(ctx: StatusContext) {
-      const value = share(ctx, ctx.session?.tokens?.input ?? 0, "info")
+      const value = share(ctx, ctx.session?.tokens?.input ?? 0)
       return value && row("in", value)
     },
 
     /** What the model wrote, reasoning included. */
     out(ctx: StatusContext) {
       const tokens = ctx.session?.tokens
-      const value = share(ctx, (tokens?.output ?? 0) + (tokens?.reasoning ?? 0), "text")
+      const value = share(ctx, (tokens?.output ?? 0) + (tokens?.reasoning ?? 0))
       return value && row("out", value)
     },
 
     /** Served from the prompt cache — cheap, and usually most of the window. */
     cache(ctx: StatusContext) {
-      const value = share(ctx, ctx.session?.tokens?.cache.read ?? 0, "success")
+      const value = share(ctx, ctx.session?.tokens?.cache.read ?? 0)
       return value && row("cache", value)
     },
 
     /** Written into the cache this session — a one-time premium each. Not the same as "out". */
     write(ctx: StatusContext) {
-      const value = share(ctx, ctx.session?.tokens?.cache.write ?? 0, "warning")
+      const value = share(ctx, ctx.session?.tokens?.cache.write ?? 0)
       return value && row("write", value)
     },
 
@@ -209,28 +213,22 @@ export default {
       return { runs: [{ text: "─".repeat(14), tone: "border", dim: true }] }
     },
 
-    /** Spent so far against the cap. */
+    /** Spent so far against the cap: a figure, coloured only once the budget is a level to watch. */
     spend(_ctx: StatusContext, config: SegmentConfig) {
       const state = spendState(config)
       if (!state) return undefined
-      const colour = budgetColour(Math.max(0, state.cap - state.total) / state.cap)
-      return row("spend", [
-        { text: "▪ ", color: colour },
-        { text: `$${state.total.toFixed(2)}`, color: colour, bold: true },
-      ])
+      return row("spend", [{ text: `$${state.total.toFixed(2)}`, tone: level(state.total / state.cap) }])
     },
 
-    /** What is left, and the share of the cap that decides the colour. */
+    /** What is left, and the share of the cap that decides whether it earns a colour. */
     avail(_ctx: StatusContext, config: SegmentConfig) {
       const state = spendState(config)
       if (!state) return undefined
       const left = Math.max(0, state.cap - state.total)
-      const ratio = left / state.cap
-      const colour = budgetColour(ratio)
+      const tone = level(state.total / state.cap)
       return row("avail", [
-        { text: "▪ ", color: colour },
-        { text: `$${left.toFixed(2)}`, color: colour, bold: true },
-        { text: ` · ${Math.round(ratio * 100)}%`, color: colour },
+        { text: `$${left.toFixed(2)}`, tone },
+        { text: ` · ${Math.round((left / state.cap) * 100)}% left`, tone: tone === "text" ? "muted" : tone },
       ])
     },
 

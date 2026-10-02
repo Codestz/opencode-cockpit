@@ -9,7 +9,7 @@ import { subagentReport } from "../src/core/view/report.ts"
 import { cut, elapsed, fit, rowText, widthOf, wrap } from "../src/core/view/rows.ts"
 import { createScreenCache, rowWidth, type ScreenInput, screenRows } from "../src/core/view/screen.ts"
 import { sidebarLines } from "../src/core/view/sidebar.ts"
-import { endOf } from "../src/tui/source.ts"
+import { endOf, finishedAt } from "../src/tui/source.ts"
 import { recorded } from "./fixtures.ts"
 
 /**
@@ -49,19 +49,19 @@ for (const version of [1, 2] as const) {
       const { nodes } = await model(version)
       for (const width of WIDTHS) {
         const lines = sidebarLines({ nodes, width, now: Date.now(), frame: 3 })
-        expect(lines.length).toBe(3) // heading, and two lines for the one subagent
+        expect(lines.length).toBe(3) // the heading, its row of air, and the one finished subagent
         for (const line of lines) expect(rowWidth(line.row)).toBe(width)
       }
     })
 
-    test("both of a subagent's lines open it; the heading opens nothing", async () => {
+    /** Finished, it is one row: there is nothing it is doing, so no second row says `done`. */
+    test("a finished subagent is one row that opens it; the heading opens nothing", async () => {
       const { nodes } = await model(version)
       const lines = sidebarLines({ nodes, width: 40, now: Date.now(), frame: 0 })
       const id = nodes[0]?.session.id
-      expect(lines.map((line) => line.id)).toEqual([undefined, id, id])
+      expect(lines.map((line) => line.id)).toEqual([undefined, undefined, id])
       expect(rowText(lines[0]?.row ?? []).trimEnd()).toMatch(/^Subagents +1 done$/)
-      expect(rowText(lines[1]?.row ?? [])).toContain("explore")
-      expect(rowText(lines[2]?.row ?? []).trimEnd()).toMatch(/└ done +\d+ calls · \d+s$/)
+      expect(rowText(lines[2]?.row ?? []).trimEnd()).toMatch(/^● explore .+ \d+ calls · \d+s$/)
     })
 
     test("the pane: exactly its height, every row exactly its width, in every state", async () => {
@@ -134,7 +134,8 @@ for (const version of [1, 2] as const) {
       const call = screenRows(base).keys.find((key) => key.startsWith("tool:")) as string
       const screen = screenRows({ ...base, selected: call, open: new Set([call]), top: 0 })
       screen.rows.forEach((row, i) => {
-        expect(rowText(row).startsWith("▌")).toBe(screen.items[i] === call || i === 0)
+        /** `▌` is the cursor and nothing else: the header no longer wears it. */
+        expect(rowText(row).startsWith("▌")).toBe(screen.items[i] === call)
       })
     })
 
@@ -189,7 +190,7 @@ describe("while it works", () => {
     const m = applyAll(emptyModel(), running)
     const lines = sidebarLines({ nodes: subagentsOf(m, "p"), width: 40, now: at + 72_000, frame: 1 })
     expect(rowText(lines[0]?.row ?? []).trimEnd()).toMatch(/1 running$/)
-    const second = rowText(lines[2]?.row ?? [])
+    const second = rowText(lines[3]?.row ?? [])
     expect(second).toContain("└ bash pnpm gen:types")
     expect(second.trimEnd()).toMatch(/1 call · 1m12s$/)
   })
@@ -296,7 +297,7 @@ describe("while it works", () => {
       .join("\n")
     expect(text).toContain("▎ build continued it")
     const sidebar = sidebarLines({ nodes, width: 60, now: at + 5000, frame: 0 })
-    expect(rowText(sidebar[2]?.row ?? [])).toContain("· 2 rounds")
+    expect(rowText(sidebar[3]?.row ?? [])).toContain("· 2 rounds")
   })
 })
 
@@ -391,6 +392,20 @@ describe("stopping and ending", () => {
     expect(narrow).toContain("[x] Stop")
     expect(narrow).not.toMatch(/…\s*$/)
   })
+
+  test("the way out never gives way, and a row that lost keys says so", () => {
+    const busy = applyAll(emptyModel(), working)
+    const nodes = subagentsOf(busy, "p")
+    const session = nodes[0]?.session
+    if (!session) throw new Error("no subagent")
+    for (const width of [40, 60, 100]) {
+      const row = rowText(screenRows({ ...pane(session, nodes), width, height: 20 }).rows.at(-2) ?? [])
+      expect(row).toMatch(/… {3}\[esc\] Back/)
+    }
+    const wide = rowText(screenRows({ ...pane(session, nodes), width: 200, height: 20 }).rows.at(-2) ?? [])
+    expect(wide).not.toContain("…")
+    expect(wide).toContain("[esc] Back")
+  })
 })
 
 describe("calls, as OpenCode draws them", () => {
@@ -425,10 +440,10 @@ describe("calls, as OpenCode draws them", () => {
     const folded = draw().rows.map(rowText).join("\n")
     expect(folded).toContain("line 10")
     expect(folded).not.toContain("line 11")
-    expect(folded).toContain("Click to expand")
+    expect(folded).toContain("[enter] Expand")
     const open = draw(["tool:b"]).rows.map(rowText).join("\n")
     expect(open).toContain("line 14")
-    expect(open).toContain("Click to collapse")
+    expect(open).toContain("[enter] Collapse")
   })
 
   test("a failed command's edge and output are the error colour", () => {
@@ -538,7 +553,7 @@ describe("a big output", () => {
     expect(open).toContain("row 60")
     expect(open).not.toContain("row 61 ")
     expect(open).toContain("… 2,440 more lines")
-    expect(open).toContain("[a] show all")
+    expect(open).toContain("… 2,440 more lines · [a] Show All · [enter] Collapse")
     const whole = screenRows({ ...base, height: 2200, top: 0, whole: new Set(["tool:r"]) })
     const text = whole.rows.map(rowText).join("\n")
     expect(text).toContain("row 2000")
@@ -588,15 +603,15 @@ describe("the main agent's list, after a restart", () => {
   test("idle with nothing recorded reads as finished; an aborted one as cancelled", () => {
     const m = applyAll(emptyModel(), [
       { type: "session", id: "a", parentID: "p", agent: "general", title: "Old", at: 1 },
-      { type: "status", id: "a", status: "idle", at: 2 },
+      { type: "status", id: "a", status: "idle", settled: true, at: 2 },
       { type: "session", id: "b", parentID: "p", agent: "general", title: "Stopped", at: 1 },
       { type: "status", id: "b", status: "busy", at: 1 },
       { type: "status", id: "b", status: "failed", error: "MessageAbortedError", at: 3 },
     ])
     const text = subagentReport({ nodes: subagentsOf(m, "p"), now: 60_000, version: 1 })
-    expect(text).toMatch(/- a · general · "Old" · ended .* without a final answer/)
-    expect(text).toMatch(/- b · general · "Stopped" · cancelled/)
-    expect(text).not.toContain("working now")
+    expect(text).toMatch(/- a · general · "Old" · done in .* without a final answer/)
+    expect(text).toMatch(/- b · general · "Stopped" · stopped after .* cancelled/)
+    expect(text).not.toContain("running")
   })
 
   test("a run that ended on a call says its last words were a progress note, not an answer", () => {
@@ -643,7 +658,7 @@ describe("the main agent's list, after a restart", () => {
     ])
     expect(m.sessions.get("c")?.status).toBe("failed")
     const text = subagentReport({ nodes: subagentsOf(m, "p"), now: 60_000, version: 1 })
-    expect(text).toMatch(/"Audit" · cancelled .* no final answer/)
+    expect(text).toMatch(/"Audit" · stopped after .* no final answer/)
   })
 })
 
@@ -679,5 +694,28 @@ describe("a reopened run's times", () => {
     const latest = Math.max(...changes.map((change) => change.at))
     expect(latest).toBeLessThan(9_999_999_999_999)
     expect(endOf(changes, 0)).toBeLessThan(9_999_999_999_999)
+  })
+})
+
+describe("a reloaded run ends when its last message finished", () => {
+  /** An advisor consulted once: a prompt at 1000, an answer created at 1001 that completed at 61000. */
+  const v1 = [
+    { info: { role: "user", time: { created: 1000 } }, parts: [] },
+    { info: { role: "assistant", time: { created: 1001, completed: 61_000 } }, parts: [] },
+  ]
+  const v2 = [
+    { type: "user", time: { created: 1000 } },
+    { type: "assistant", time: { created: 1001, completed: 61_000 } },
+  ]
+
+  test("both OpenCodes' message shapes", () => {
+    expect(finishedAt(v1)).toBe(61_000)
+    expect(finishedAt(v2)).toBe(61_000)
+  })
+
+  test("nothing completed, or nothing at all, says nothing", () => {
+    expect(finishedAt([{ info: { time: { created: 5 } } }])).toBe(0)
+    expect(finishedAt([null, "x", {}])).toBe(0)
+    expect(finishedAt([])).toBe(0)
   })
 })

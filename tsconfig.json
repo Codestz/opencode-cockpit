@@ -26,6 +26,9 @@
       "path": "packages/subagents"
     },
     {
+      "path": "packages/trust"
+    },
+    {
       "path": "packages/opencode"
     }
   ]

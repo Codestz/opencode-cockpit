@@ -30,6 +30,13 @@ export interface FileChange {
   after: string
   additions: number
   deletions: number
+  /**
+   * What happened to the file itself, when git says so. An edit needs no word; these do — a deleted
+   * file is a card of red lines that otherwise reads exactly like "rewrote everything".
+   */
+  change?: "added" | "deleted" | "renamed"
+  /** Where a renamed file was. Its "before" is read from here, so the diff shows the edit and not a copy. */
+  from?: string
 }
 
 export interface ChangeSet {

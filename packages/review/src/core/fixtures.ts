@@ -70,12 +70,36 @@ export const FIXTURES: Record<string, { about: string; changes: ChangeSet }> = {
 
   /** A file that did not exist: every line is an addition and there is no left-hand side. */
   created: {
-    about: "a new file, and a deleted one",
+    about: "a new file, a deleted one, and one moved and touched",
     changes: {
       source: "worktree",
       files: [
-        { path: "src/core/notices.ts", before: "", after: TS_AFTER, additions: 18, deletions: 0 },
-        { path: "src/old/legacy.ts", before: TS_BEFORE, after: "", additions: 0, deletions: 10 },
+        {
+          path: "src/core/notices.ts",
+          before: "",
+          after: TS_AFTER,
+          additions: 18,
+          deletions: 0,
+          change: "added",
+        },
+        {
+          path: "src/old/legacy.ts",
+          before: TS_BEFORE,
+          after: "",
+          additions: 0,
+          deletions: 10,
+          change: "deleted",
+        },
+        /** Moved and touched: the diff is the touch, and the heading says where it came from. */
+        {
+          path: "src/core/settings.ts",
+          from: "src/config/load.ts",
+          change: "renamed",
+          before: TS_BEFORE,
+          after: TS_BEFORE.replace("JSON.parse(raw)", "JSON.parse(raw.trim())"),
+          additions: 1,
+          deletions: 1,
+        },
       ],
     },
   },
@@ -116,7 +140,7 @@ export const FIXTURES: Record<string, { about: string; changes: ChangeSet }> = {
 
   /** The awkward ones: no trailing newline, whitespace-only, a file that moved wholesale. */
   awkward: {
-    about: "no trailing newline, a whitespace-only change, a rewritten file",
+    about: "no trailing newline, whitespace-only changes (a space, a tab, line endings), a rewritten file",
     changes: {
       source: "worktree",
       files: [
@@ -140,6 +164,22 @@ export const FIXTURES: Record<string, { about: string; changes: ChangeSet }> = {
           after: lines(20, "now"),
           additions: 20,
           deletions: 20,
+        },
+        /** Spaces to a tab: the same line twice, unless the tab is drawn. */
+        {
+          path: "src/indent.ts",
+          before: "if (ready) {\n    start()\n}\n",
+          after: "if (ready) {\n\tstart()\n}\n",
+          additions: 1,
+          deletions: 1,
+        },
+        /** Windows line endings to Unix ones: every line changed, and none of them visibly. */
+        {
+          path: "src/endings.ts",
+          before: "export const one = 1\r\nexport const two = 2\r\n",
+          after: "export const one = 1\nexport const two = 2\n",
+          additions: 2,
+          deletions: 2,
         },
       ],
     },

@@ -242,8 +242,8 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       commands: [
         {
           name: "cockpit.review.open",
-          title: "Review: open, or close it",
-          category: "Review",
+          title: "Open or close the changes",
+          category: "Cockpit · Review",
           namespace: "palette",
           /**
            * `/changes`, because `/review` and `/diff` are the host's.
@@ -257,15 +257,20 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
         },
         {
           name: "cockpit.review.place",
-          title: "Review: right pane, or full screen",
-          category: "Review",
+          title: "Toggle the changes full screen",
+          category: "Cockpit · Review",
           namespace: "palette",
-          run: () => guard.run("place", cycle),
+          /** Closed, it opens where it moved to: a command that changes nothing on screen looks dead. */
+          run: () =>
+            guard.run("place", () => {
+              cycle()
+              if (!surface.open) show()
+            }),
         },
         {
           name: "cockpit.review.hide",
-          title: "Review: close",
-          category: "Review",
+          title: "Close the changes",
+          category: "Cockpit · Review",
           namespace: "palette",
           run: () => guard.run("hide", close),
         },

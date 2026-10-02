@@ -25,6 +25,12 @@ export interface ToolDeps {
    * leaves shells where they were, which is what happened before this existed.
    */
   rootSession?(sessionID: string | undefined): Promise<string | undefined>
+  /**
+   * A subagent (a session other than the conversation) just started a shell. It is mid-turn by
+   * definition, and its agent name is only known here, from the tool call — notices about the shell
+   * need both.
+   */
+  subagentStarted?(sessionID: string, agent: string): void
 }
 
 /** What every tool shares: the client, name resolution, permission prompts and abort handling. */
@@ -50,16 +56,32 @@ export function createToolKit(deps: ToolDeps): ToolKit {
     return formatRead(current, page)
   }
 
+  /**
+   * Whose shell it is: the conversation's, another's, or the user's — and, when a subagent asked for
+   * it, which one, by title and id. Handing a failure back to the subagent that started the shell
+   * needs that id; the load test's main agent had only "this session" to go on.
+   */
   const sessionLabel = async (s: ShellInfo, ctx: ToolContext): Promise<string> => {
     const session = s.owner.session
     if (!session) return "started by the user"
+    const origin = s.owner.origin
+    const by =
+      origin && origin !== session && origin !== ctx.sessionID
+        ? `, started by subagent ${await quoted(origin)}`
+        : origin && origin !== session && origin === ctx.sessionID
+          ? ", started by you"
+          : ""
     if (
       session === (await deps.rootSession?.(ctx.sessionID).catch(() => undefined)) ||
       session === ctx.sessionID
     )
-      return "this session"
+      return `this session${by}`
     const title = await deps.sessionTitle?.(session).catch(() => undefined)
-    return title ? `session "${title}"` : `another session (${session})`
+    return `${title ? `session "${title}"` : `another session (${session})`}${by}`
+  }
+  const quoted = async (session: string): Promise<string> => {
+    const title = await deps.sessionTitle?.(session).catch(() => undefined)
+    return title ? `"${title.replace(/\s*\(@[\w-]+ subagent\)\s*$/, "")}" (${session})` : session
   }
 
   /** Turns `{ id }` or `{ name }` into a shell id, or explains why it cannot. */

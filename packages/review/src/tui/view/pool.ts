@@ -109,6 +109,8 @@ export const toneColour = (theme: TuiThemeCurrent, tone: Tone | undefined): RGBA
       return theme.success
     case "warning":
       return theme.warning
+    case "error":
+      return theme.error
     case "keyword":
       return theme.syntaxKeyword
     case "string":

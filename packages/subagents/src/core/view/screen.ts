@@ -1,7 +1,7 @@
 /**
  * One subagent, in the pane: its run as a timeline you can move through and open.
  *
- *   ▌⠙ EXPLORE  Scan architecture opportunities                          running 3m32s
+ *    ⠙ EXPLORE  Scan architecture opportunities                          running 3m32s
  *     space-bunny-free · background · launched by build · 108 calls · 14 steps · 2.2M tok
  *     ‹ 2/3 ›  general Review diff   explore Scan arch…   general Verify
  *
@@ -23,9 +23,25 @@
  * the body scrolls. Pure, like everything in `core/`.
  */
 
-import { type Entry, type Node, type Session, toolTarget } from "../model/model.ts"
-import { markdownRows } from "./markdown.ts"
-import { compact, cut, elapsed, fit, type Row, type Run, spin, spread, widthOf, wrap } from "./rows.ts"
+import { closeHint, fitHints, type Hint, hintRuns, stateMark, toneOf } from "@opencode-cockpit/client/design"
+import { callsOf, type Entry, type Node, type Session, titleOf } from "../model/model.ts"
+import { ARG_PREVIEW, argumentRows, large } from "./args.ts"
+import { markdownRows, plain } from "./markdown.ts"
+import {
+  compact,
+  cut,
+  elapsed,
+  fit,
+  type Row,
+  type Run,
+  rowText,
+  spin,
+  spread,
+  widthOf,
+  wrap,
+} from "./rows.ts"
+import { firstStarted, runPhrase, stateOf } from "./sidebar.ts"
+import { type Renderer, rendererOf, type Todo, targetOf, todosOf } from "./tools.ts"
 
 export interface ScreenInput {
   session: Session
@@ -60,6 +76,11 @@ export interface ScreenInput {
   notice?: string
   /** What each item drew last time, kept by the caller between paints (`createScreenCache`). */
   cache?: ScreenCache
+  /**
+   * The MCP servers OpenCode has, so `context7_query-docs` can be titled `context7 · query-docs`.
+   * Without them a tool keeps its own name: the name alone cannot say where a server's ends.
+   */
+  servers?: readonly string[]
 }
 
 /**
@@ -87,6 +108,8 @@ export interface Screen {
   most: number
   /** Where the body starts on screen, for mapping a click. */
   bodyAt: number
+  /** A `task` call's item, and the subagent it launched: `enter` on it goes there. */
+  links: Map<string, string>
 }
 
 const PAD = "   "
@@ -122,62 +145,71 @@ function timeOf(call: Tool, now: number): string {
 }
 
 /**
- * Calls drawn as OpenCode draws them. A shell command or a file change is a box — its command, then
- * what it printed; everything else (reads, searches, fetches) is one quiet line, and a list of them
- * reads as one list. Opening a line turns it into a box too, with its arguments.
- */
-const BOXED = new Set(["bash", "shell", "edit", "write", "patch", "apply_patch", "multiedit"])
-
-/** The glyph and the name OpenCode puts before a call's target. */
-function labelOf(name: string): { icon: string; title: string } {
-  switch (name) {
-    case "read":
-      return { icon: "→", title: "Read" }
-    case "list":
-    case "ls":
-      return { icon: "→", title: "List" }
-    case "glob":
-      return { icon: "✱", title: "Glob" }
-    case "grep":
-      return { icon: "✱", title: "Grep" }
-    case "webfetch":
-      return { icon: "%", title: "WebFetch" }
-    case "websearch":
-      return { icon: "◈", title: "WebSearch" }
-    case "edit":
-    case "multiedit":
-      return { icon: "←", title: "Edit" }
-    case "write":
-      return { icon: "←", title: "Write" }
-    case "patch":
-    case "apply_patch":
-      return { icon: "←", title: "Patch" }
-    case "task":
-    case "subagent":
-      return { icon: "◉", title: "Task" }
-    case "todowrite":
-    case "todoread":
-      return { icon: "☐", title: "Todos" }
-    default:
-      return { icon: "⚙", title: name }
-  }
-}
-
-/** Lines of output a folded box shows, and the most an open one will. */
-/**
  * Lines of output a box shows: folded, open, and shown whole (`a`). An open read of a 2,000-line
  * file was 400 rows to scroll through; open now shows enough to see what came back, and all of it is
- * one more key away — capped even then, so one call cannot take over the pane.
+ * one more key away — capped even then, so one call cannot take over the pane. Arguments climb the
+ * same ladder, from `ARG_PREVIEW` rows each.
  */
 const PREVIEW = 10
 const OPEN = 60
 const MOST = 2000
 
-function inlineLines(call: Tool, width: number, now: number, frame: number): Line[] {
+/** How a call is drawn: its row in the table, and what follows its title. */
+interface Drawing {
+  renderer: Renderer
+  target: string
+  /** A todo call's list; a todo call without one is drawn generic. */
+  todos?: Todo[]
+  /** The subagent a `task` call launched, when it can be told. */
+  child?: Session
+}
+
+function drawingOf(call: Tool, servers: readonly string[] | undefined, child: Session | undefined): Drawing {
+  let renderer = rendererOf(call.name, servers)
+  const todos = renderer.kind === "todos" ? todosOf(call.input, call.output) : undefined
+  if (renderer.kind === "todos" && !todos) renderer = { ...renderer, kind: "generic" }
+  const target =
+    renderer.kind === "task" && child
+      ? [
+          child.agent,
+          /** OpenCode's "(@explore subagent)" only repeats the agent named just before it. */
+          child.title.replace(/\s*\(@[\w.-]+ subagent\)$/, "") || targetOf(call.name, "generic", call.input),
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : targetOf(call.name, renderer.kind, call.input)
+  return { renderer, target, ...(todos ? { todos } : {}), ...(child ? { child } : {}) }
+}
+
+/**
+ * The subagent a `task` call launched: the one OpenCode's answer names (`task_id: ses_…`), or else
+ * the only child of this run titled by the call's description. Nothing when it cannot be told —
+ * `enter` then opens the call like any other, rather than going to the wrong subagent.
+ */
+function childOf(call: Tool, session: Session, nodes: readonly Node[]): Session | undefined {
+  const children = nodes.map((node) => node.session).filter((s) => s.parentID === session.id)
+  if (children.length === 0) return undefined
+  const named = /\bses_[A-Za-z0-9]+/.exec(call.output.slice(0, 2000))?.[0]
+  const byId = named ? children.find((s) => s.id === named) : undefined
+  if (byId) return byId
+  const description = typeof call.input.description === "string" ? call.input.description.trim() : ""
+  if (!description) return undefined
+  /** OpenCode titles a subagent "<description> (@<agent> subagent)". */
+  const titled = children.filter((s) => s.title === description || s.title.startsWith(`${description} (@`))
+  return titled.length === 1 ? titled[0] : undefined
+}
+
+function inlineLines(call: Tool, drawing: Drawing, width: number, now: number, frame: number): Line[] {
   const key = itemKey(call)
   const live = call.state === "running" || call.state === "pending"
-  const { icon, title } = labelOf(call.name)
-  const right = [call.summary ?? "", timeOf(call, now)].filter(Boolean).join(" · ")
+  const { icon, title } = drawing.renderer
+  /** A call that leads to a subagent says so; `enter` follows it. */
+  const right = [
+    [call.summary ?? "", timeOf(call, now)].filter(Boolean).join(" · "),
+    drawing.child ? "›" : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
   const lines: Line[] = [
     {
       item: key,
@@ -188,7 +220,7 @@ function inlineLines(call: Tool, width: number, now: number, frame: number): Lin
             ? { text: spin(frame), tone: "accent" }
             : { text: icon, tone: call.state === "failed" ? "error" : "muted" },
           { text: ` ${title} `, tone: "text" },
-          { text: toolTarget(call.name, call.input), tone: "muted" },
+          { text: drawing.target, tone: "muted" },
         ],
         right ? [{ text: `${right} `, tone: live ? "accent" : "muted" }] : [],
         width,
@@ -204,12 +236,64 @@ function inlineLines(call: Tool, width: number, now: number, frame: number): Lin
   return lines
 }
 
+/** OpenCode's own marks for a todo's state. */
+const TODO: Record<string, { mark: string; tone: Run["tone"]; done?: boolean }> = {
+  completed: { mark: "[✓]", tone: "muted", done: true },
+  in_progress: { mark: "[•]", tone: "accent" },
+  cancelled: { mark: "[-]", tone: "muted", done: true },
+  pending: { mark: "[ ]", tone: "muted" },
+}
+
+/** A todo call as the list it wrote: one line saying how far along, then the items. */
+function todoLines(
+  call: Tool,
+  drawing: Drawing,
+  width: number,
+  now: number,
+  frame: number,
+  limit: number,
+): Line[] {
+  const key = itemKey(call)
+  const todos = drawing.todos ?? []
+  const done = todos.filter((todo) => todo.status === "completed").length
+  const lines = inlineLines(
+    call,
+    { ...drawing, target: todos.length > 0 ? `${done}/${todos.length} done` : "empty" },
+    width,
+    now,
+    frame,
+  )
+  for (const todo of todos.slice(0, limit)) {
+    const state = TODO[todo.status] ?? (TODO.pending as (typeof TODO)[string])
+    lines.push({
+      item: key,
+      row: fit(
+        [
+          { text: `${PAD}  ` },
+          { text: `${state.mark} `, tone: state.tone },
+          { text: todo.content.replace(/\s+/g, " "), tone: state.done ? "muted" : "text", faint: state.done },
+        ],
+        width,
+      ),
+    })
+  }
+  const more = todos.length - limit
+  if (more > 0)
+    lines.push({
+      item: key,
+      row: fit([{ text: `${PAD}  … ${more} more`, tone: "muted" }], width),
+    })
+  return lines
+}
+
 /**
  * A call as a box: a coloured edge, its own background, the command or the arguments, then the
- * output — ten lines folded, the rest a click away.
+ * output — each climbing the same ladder: a few rows folded, more open, nearly all with `a`, and a
+ * line saying what is still hidden.
  */
 function boxLines(
   call: Tool,
+  drawing: Drawing,
   width: number,
   now: number,
   frame: number,
@@ -219,6 +303,7 @@ function boxLines(
   const key = itemKey(call)
   const live = call.state === "running" || call.state === "pending"
   const failed = call.state === "failed"
+  const { kind, icon, title } = drawing.renderer
   const edge: Run = {
     text: `${PAD.slice(1)}▎`,
     tone: failed ? "error" : live ? "accent" : "border",
@@ -234,18 +319,17 @@ function boxLines(
   })
   const blank = () => row([])
 
-  const shell = call.name === "bash" || call.name === "shell"
-  const { icon, title } = labelOf(call.name)
+  const shell = kind === "shell"
   const right = [call.summary ?? "", timeOf(call, now)].filter(Boolean).join(" · ")
   const heading: Run[] = shell
     ? [
         { text: "$ ", tone: "muted" },
-        { text: toolTarget(call.name, call.input), tone: "text", bold: true },
+        { text: drawing.target, tone: "text", bold: true },
       ]
     : [
         { text: `${icon} `, tone: "muted" },
         { text: `${title} `, tone: "text", bold: true },
-        { text: toolTarget(call.name, call.input), tone: "text" },
+        { text: drawing.target, tone: "text" },
       ]
   const lines: Line[] = [blank()]
   const tail: Run[] = live
@@ -262,30 +346,47 @@ function boxLines(
     ),
   })
 
-  /** A box that is not a shell command shows what it was called with, the way it was called. */
-  if (!shell && (isOpen || !BOXED.has(call.name))) {
-    const names = Object.keys(call.input)
-    const pad = Math.min(14, Math.max(0, ...names.map((name) => name.length)))
-    if (names.length > 0) lines.push(blank())
-    for (const name of names) {
-      const raw = call.input[name]
-      const value = typeof raw === "string" ? raw : JSON.stringify(raw)
-      wrap(value ?? "", Math.max(8, inner - pad - 2))
-        .slice(0, isOpen ? 20 : 3)
-        .forEach((text, i) => {
-          lines.push(
-            row([
-              { text: `${i === 0 ? name.padEnd(pad) : " ".repeat(pad)}  `, tone: "muted" },
-              { text, tone: "text" },
-            ]),
-          )
-        })
+  /**
+   * What it was called with, by type. A shell command's command is its heading; a file change's
+   * arguments are its whole contents, shown once you open it; anything else shows them always.
+   */
+  let args = 0
+  /** The last argument that was cut short, so the hint can join the row that says so. */
+  let shortened: { at: number; said: string } | undefined
+  if (!shell && (isOpen || kind === "generic") && Object.keys(call.input).length > 0) {
+    const limit = isOpen ? (whole ? MOST : OPEN) : ARG_PREVIEW
+    const drawn = argumentRows(call.input, inner, limit, kind === "file" ? "verbatim" : "markdown")
+    args = drawn.most
+    lines.push(blank())
+    for (const each of drawn.rows) {
+      const said = rowText(each).trimEnd()
+      if (/^ +… [\d,]+ more lines?$/.test(said)) shortened = { at: lines.length, said }
+      lines.push(row(each))
     }
   }
 
   const output = (call.error ?? call.output ?? "").replace(/\s+$/, "")
   const all = output ? output.split("\n") : []
   const limit = isOpen ? (whole ? MOST : OPEN) : PREVIEW
+  /**
+   * The hint counts both halves: a folded call with a long argument and no output still says it
+   * opens, and `a` is offered when either would show more. A running call's output is its tail, and
+   * the spinner already says there is more to come.
+   *
+   * Keys, not "Click to expand": the pane is driven from the keyboard, and a mouse-only instruction
+   * told a keyboard user nothing. `enter` opens and folds the selected call; a click still does too.
+   */
+  const printed = live ? 0 : all.length
+  const opens = printed > PREVIEW || args > ARG_PREVIEW
+  const grows = printed > OPEN || args > OPEN
+  const hint = !opens
+    ? ""
+    : !isOpen
+      ? "[enter] Expand"
+      : grows && !whole
+        ? "[a] Show All · [enter] Collapse"
+        : "[enter] Collapse"
+  let hinted = false
   if (all.length > 0) {
     lines.push(blank())
     const shown = live ? all.slice(-limit) : all.slice(0, limit)
@@ -293,49 +394,61 @@ function boxLines(
     for (const text of shown)
       lines.push(row([{ text: text.slice(0, width * 2), tone: call.error ? "error" : "text" }]))
     const more = all.length - limit
-    if (more > 0)
-      lines.push(
-        row([
-          {
-            text: live
-              ? `… ${more.toLocaleString("en")} lines above`
-              : `… ${more.toLocaleString("en")} more line${more === 1 ? "" : "s"}`,
-            tone: "muted",
-          },
-        ]),
-      )
+    /** What it hid and how to see it are one thought, so they are one row. */
+    if (more > 0) {
+      const said = live
+        ? `… ${more.toLocaleString("en")} lines above`
+        : `… ${more.toLocaleString("en")} more line${more === 1 ? "" : "s"}`
+      hinted = Boolean(hint) && !live
+      lines.push(row([{ text: hinted ? `${said} · ${hint}` : said, tone: "muted" }]))
+    }
   }
-  if (all.length > PREVIEW && !live) {
-    const hint = !isOpen
-      ? "Click to expand"
-      : all.length > OPEN && !whole
-        ? "Click to collapse · [a] show all"
-        : "Click to collapse"
-    lines.push(blank(), row([{ text: hint, tone: "muted" }]))
+  /** Only an argument was cut: the hint joins the row that says so. */
+  if (hint && !hinted && shortened) {
+    lines[shortened.at] = row([{ text: `${shortened.said} · ${hint}`, tone: "muted" }])
+    hinted = true
   }
+  /** Nothing is cut — the call is open and all of it shows: the hint stands on its own. */
+  if (hint && !hinted) lines.push(blank(), row([{ text: hint, tone: "muted" }]))
   lines.push(blank())
   return lines
 }
 
 /** Whether a call draws as a box, given whether it is open. */
-const boxed = (call: Tool, isOpen: boolean): boolean => BOXED.has(call.name) || isOpen
+function boxed(call: Tool, drawing: Drawing, isOpen: boolean, width: number): boolean {
+  switch (drawing.renderer.kind) {
+    case "shell":
+    case "file":
+      return true
+    case "todos":
+      return false
+    case "generic":
+      return isOpen || large(call.input, width)
+    default:
+      return isOpen
+  }
+}
 
 function toolLines(
   call: Tool,
+  drawing: Drawing,
   width: number,
   now: number,
   frame: number,
   isOpen: boolean,
   whole = false,
 ): Line[] {
-  return boxed(call, isOpen)
-    ? boxLines(call, width, now, frame, isOpen, whole)
-    : inlineLines(call, width, now, frame)
+  if (drawing.renderer.kind === "todos")
+    return todoLines(call, drawing, width, now, frame, isOpen ? (whole ? MOST : OPEN) : PREVIEW)
+  return boxed(call, drawing, isOpen, width)
+    ? boxLines(call, drawing, width, now, frame, isOpen, whole)
+    : inlineLines(call, drawing, width, now, frame)
 }
 
 /**
  * Thinking the way OpenCode shows its own: "Thought · 1.2s", then the words, muted. Folded, the
- * words follow on the same line and are cut there.
+ * words follow on the same line, markup taken out, and are cut there. Open, they are markdown like
+ * the answer — a fence, a heading, a list drawn as one — only quieter: every run muted and faint.
  */
 function thinkingLines(
   entry: Extract<Entry, { kind: "thinking" }>,
@@ -344,7 +457,6 @@ function thinkingLines(
   took: number | undefined,
 ): Line[] {
   const key = itemKey(entry)
-  const text = entry.text.replace(/\s+/g, " ").trim()
   const label = entry.done
     ? `Thought${took !== undefined && took >= 100 ? ` · ${duration(took)}` : ""}`
     : "Thinking…"
@@ -355,7 +467,7 @@ function thinkingLines(
         row: fit(
           [
             { text: `${PAD}◇ ${label}  `, tone: "warning" },
-            { text, tone: "muted", faint: true },
+            { text: plain(entry.text, width * 4), tone: "muted", faint: true },
           ],
           width,
         ),
@@ -363,10 +475,13 @@ function thinkingLines(
     ]
   }
   const lines: Line[] = [{ item: key, row: fit([{ text: `${PAD}◆ ${label}`, tone: "warning" }], width) }]
-  for (const line of wrap(entry.text.trim() || "…", width - PAD.length * 2 - 2)) {
+  for (const row of markdownRows(entry.text.trim() || "…", width - PAD.length, { indent: PAD.length + 2 })) {
     lines.push({
       item: key,
-      row: fit([{ text: `${PAD}  ` }, { text: line, tone: "muted", faint: true }], width),
+      row: fit(
+        row.map((run) => (run.text.trim() === "" ? run : { ...run, tone: "muted" as const, faint: true })),
+        width,
+      ),
     })
   }
   return lines
@@ -396,7 +511,18 @@ function cardLines(
   return lines
 }
 
-function bodyLines(input: ScreenInput, width: number, opened: string[]): Line[] {
+/**
+ * How much a call's arguments hold, for the paint cache: a call's input can arrive, or grow, after
+ * the call is first drawn. Strings by length — a long question is not hashed on every paint.
+ */
+function sizeOf(input: Record<string, unknown>): number {
+  let size = 0
+  for (const [name, value] of Object.entries(input))
+    size += name.length + (typeof value === "string" ? value.length : (JSON.stringify(value)?.length ?? 0))
+  return size
+}
+
+function bodyLines(input: ScreenInput, width: number, opened: string[], links: Map<string, string>): Line[] {
   const { session, now, frame } = input
   const lines: Line[] = []
   const blank = () => {
@@ -477,14 +603,23 @@ function bodyLines(input: ScreenInput, width: number, opened: string[]): Line[] 
       case "tool": {
         const live = entry.state === "running" || entry.state === "pending"
         const isOpen = input.open.has(key) && !input.closed.has(key)
-        const box = boxed(entry, isOpen)
+        const child =
+          entry.name === "task" || entry.name === "subagent"
+            ? childOf(entry, session, input.nodes)
+            : undefined
+        if (child) links.set(key, child.id)
+        const drawing = drawingOf(entry, input.servers, child)
+        /** A checklist is several rows, so it gets the room around it a box does. */
+        const box = boxed(entry, drawing, isOpen, width) || drawing.renderer.kind === "todos"
         if (last?.kind !== "tool" || last.open || box) blank()
         if (isOpen) opened.push(key)
         /** A running call's spinner and clock change every tick; a finished one never again. */
         const clock = live ? `|${frame}|${Math.floor((now - entry.at) / 1000)}` : ""
-        const sig = `${width}|${isOpen}|${entry.state}|${entry.output.length}|${entry.error?.length}|${entry.summary}|${entry.ended}|${Object.keys(entry.input).length}${clock}`
+        const sig = `${width}|${isOpen}|${entry.state}|${entry.output.length}|${entry.error?.length}|${entry.summary}|${entry.ended}|${sizeOf(entry.input)}|${drawing.renderer.title}|${drawing.target}${clock}`
         const whole = isOpen && Boolean(input.whole?.has(key))
-        lines.push(...drawn(key, `${sig}|${whole}`, () => toolLines(entry, width, now, frame, isOpen, whole)))
+        lines.push(
+          ...drawn(key, `${sig}|${whole}`, () => toolLines(entry, drawing, width, now, frame, isOpen, whole)),
+        )
         last = { kind: "tool", open: box }
         return
       }
@@ -565,21 +700,15 @@ function detailLines(input: ScreenInput, width: number): Line[] {
 
 function header(input: ScreenInput, width: number): Row[] {
   const { session, now, frame, nodes } = input
-  const glyph: Run =
-    session.status === "done"
-      ? { text: "●", tone: "success", fill: "band" }
-      : session.status === "failed"
-        ? { text: "●", tone: "error", fill: "band" }
-        : { text: spin(frame), tone: "accent", fill: "band" }
-  const state = running(session)
-    ? session.status === "waiting"
-      ? `waiting ${elapsed(now - session.since)}`
-      : `running ${elapsed(now - session.started)}`
-    : session.status === "failed"
-      ? `${/abort|interrupt|cancel/i.test(session.error ?? "") ? "cancelled" : "failed"} after ${elapsed((session.ended ?? now) - session.started)}`
-      : `done in ${elapsed((session.ended ?? now) - session.started)}`
-  const tools = session.entries.filter((entry) => entry.kind === "tool").length
+  /** The mark, tone and word the sidebar gives the same run (client/design). */
+  const now_ = stateOf(session)
+  const glyph: Run = { ...stateMark(now_, frame), fill: "band" }
+  /** In the words the main agent's tools use for the same run (core/view/sidebar.ts). */
+  const state = runPhrase(session, now)
+  const tools = callsOf(session)
   const meta = [
+    /** Its time above is the last round's; the tools say this beside it too. */
+    firstStarted(session, now) ?? "",
     session.model ?? "",
     session.background ? "background" : "",
     input.launcher ? `launched by ${input.launcher}` : "",
@@ -592,15 +721,16 @@ function header(input: ScreenInput, width: number): Row[] {
   const rows: Row[] = [
     spread(
       [
-        { text: "▌", tone: "accent", fill: "band" },
+        /** A space, not `▌`: that glyph is the cursor, and the header is not a selected row. */
+        { text: " ", fill: "band" },
         glyph,
         { text: ` ${session.agent.toUpperCase()} `, tone: "info", bold: true, fill: "band" },
-        { text: ` ${session.title || "subagent"}`, tone: "text", bold: true, fill: "band" },
+        { text: ` ${titleOf(session)}`, tone: "text", bold: true, fill: "band" },
       ],
       [
         {
           text: `${state} `,
-          tone: running(session) ? "accent" : session.status === "failed" ? "error" : "muted",
+          tone: toneOf(now_),
           fill: "band",
         },
       ],
@@ -640,43 +770,36 @@ function footer(input: ScreenInput, width: number): Row[] {
         ],
         width,
       ),
+      /** The keys in the shape every footer uses; the note gives way to them. */
       spread(
         [{ text: `${PAD}  to ${session.agent} · ${hint}`, tone: "muted" }],
         [
-          { text: "enter", tone: "accent" },
-          { text: " send  ", tone: "muted" },
-          { text: "esc", tone: "accent" },
-          { text: " cancel ", tone: "muted" },
+          ...hintRuns({ key: "enter", label: "Send" }),
+          { text: "   " },
+          ...hintRuns(closeHint("Cancel")),
+          { text: " " },
         ],
         width,
       ),
     ]
   }
-  /** In the order drawn, each with its rank: at half width the lowest-ranked go first. */
-  const all: [string, string, number][] = [
-    ["j/k", "Select", 5],
-    ["enter", "Open", 1],
-    ["m", "Message", 2],
-    ["x", running(session) ? "Stop" : "Remove", 3],
-    ...(running(session) && !session.background ? [["b", "Background", 4] as [string, string, number]] : []),
-    ["t", input.thinking ? "Hide thinking" : "Show thinking", 7],
-    ["i", input.details ? "Timeline" : "Details", 4],
-    ["w", "Width", 6],
-    ["esc", "Back", 8],
+  /**
+   * In the order drawn, each with its rank: at half width the lowest-ranked go first, and the way out
+   * never does — it used to be the lowest, so the first key a narrow pane lost was how to leave it.
+   * The cutting, the `…` and the shape are the ones every bay shares (client/design).
+   */
+  const all: Hint[] = [
+    { key: "j/k", label: "Select", priority: 5 },
+    { key: "enter", label: "Open", priority: 9 },
+    { key: "m", label: "Message", priority: 8 },
+    { key: "x", label: running(session) ? "Stop" : "Remove", priority: 7 },
+    ...(running(session) && !session.background ? [{ key: "b", label: "Background", priority: 6 }] : []),
+    { key: "t", label: input.thinking ? "Hide Thinking" : "Show Thinking", priority: 3 },
+    { key: "i", label: input.details ? "Timeline" : "Details", priority: 6 },
+    { key: "w", label: "Width", priority: 4 },
+    closeHint("Back"),
   ]
-  const cost = ([k, what]: [string, string, number]) => k.length + what.length + 5
-  let shown = all
-  while (shown.length > 1 && PAD.length + shown.reduce((sum, each) => sum + cost(each), 0) > width) {
-    const lowest = Math.max(...shown.map((each) => each[2]))
-    shown = shown.filter((each) => each[2] !== lowest)
-  }
-  const keys: Run[] = [
-    { text: PAD },
-    ...shown.flatMap(([k, what]): Run[] => [
-      { text: `[${k}]`, tone: "accent" },
-      { text: ` ${what}  `, tone: "text" },
-    ]),
-  ]
+  const keys: Run[] = [{ text: PAD }, ...fitHints(all, width - PAD.length).runs]
   const note =
     input.notice ??
     (session.status === "done" ? "Finished — message it; the main agent hears the answer." : "")
@@ -715,9 +838,10 @@ export function screenRows(input: ScreenInput): Screen {
   const bottom = footer(input, width)
   const room = Math.max(1, height - top.length - bottom.length - 2)
   const opened: string[] = []
+  const links = new Map<string, string>()
   const body = input.details
     ? detailLines(input, width)
-    : mark(bodyLines(input, width, opened), input.selected, width)
+    : mark(bodyLines(input, width, opened, links), input.selected, width)
   const keys = input.details
     ? []
     : [...new Set(body.map((line) => line.item).filter((item): item is string => Boolean(item)))]
@@ -749,6 +873,7 @@ export function screenRows(input: ScreenInput): Screen {
     top: first,
     most,
     bodyAt: top.length + 1,
+    links,
   }
 }
 

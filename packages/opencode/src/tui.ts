@@ -4,6 +4,7 @@ import { createReviewTui } from "@opencode-cockpit/review/tui"
 import { createShellTui } from "@opencode-cockpit/shell/tui"
 import { createStatusTui } from "@opencode-cockpit/status/tui"
 import { createSubagentsTui } from "@opencode-cockpit/subagents/tui"
+import { createTrustTui } from "@opencode-cockpit/trust/tui"
 import { createUpdaterTui } from "@opencode-cockpit/updater/tui"
 import { BUNDLE, type CockpitOptions, featureOptions, isEnabled } from "./features.ts"
 
@@ -12,6 +13,7 @@ const status = createStatusTui({ source: BUNDLE })
 const review = createReviewTui({ source: BUNDLE })
 const updater = createUpdaterTui({ source: BUNDLE })
 const subagents = createSubagentsTui({ source: BUNDLE })
+const trust = createTrustTui({ source: BUNDLE })
 
 /** One entry for both OpenCodes (docs/opencode/v2.md): each bay starts on the same Host. */
 export default dualTui(BUNDLE, async (outer, rawOptions) => {
@@ -23,5 +25,6 @@ export default dualTui(BUNDLE, async (outer, rawOptions) => {
   if (isEnabled(options, "review")) await review(host, featureOptions(options, "review"))
   if (isEnabled(options, "updater")) await updater(host, featureOptions(options, "updater"))
   if (isEnabled(options, "subagents")) await subagents(host, featureOptions(options, "subagents"))
+  if (isEnabled(options, "trust")) await trust(host, featureOptions(options, "trust"))
   flush()
 })

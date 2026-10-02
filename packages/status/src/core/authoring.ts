@@ -8,6 +8,11 @@
  * the snapshot it is handed. That is what makes a custom segment as testable as a built-in.
  */
 
+/**
+ * The gauge rule every bay draws a level with — calm, then the warning, then the error, at two
+ * documented thresholds — so a module's bar reads the way the built-in one does.
+ */
+export { GAUGE, gaugeTone } from "@opencode-cockpit/client/design"
 export type { ClaudeCodeStatusInput } from "./claude-code.ts"
 export type { SegmentConfig } from "./config.ts"
 export type {

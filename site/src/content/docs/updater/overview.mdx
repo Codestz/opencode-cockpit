@@ -18,12 +18,12 @@ what is published, and updates the ones you pick.
 
 ## Opening it
 
-`/plugins-update` inside OpenCode. `/cockpit-update` opens the same screen.
+`/plugins-update` inside OpenCode.
 
 ```
      plugin                        running   config        published
-▌[x] opencode-subagent-statusline  1.2.3     latest  ⚠     1.3.0       ↑
- [x] opencode-command-hooks        0.6.1     @0.6.1        0.7.1       ↑
+▌[✓] opencode-subagent-statusline  1.2.3     latest  !     1.3.0       ↑
+ [✓] opencode-command-hooks        0.6.1     @0.6.1        0.7.1       ↑
      opencode-cockpit              0.4.3     ~/code/cockpit              local
      12 built into OpenCode
 ```
@@ -31,8 +31,11 @@ what is published, and updates the ones you pick.
 | Column | Says |
 | --- | --- |
 | **running** | The version actually loaded, read from the installed package — not from the config |
-| **config** | What your config asks for. `latest ⚠` is a spec that will not move on its own |
+| **config** | What your config asks for. `latest !` is a spec that will not move on its own |
 | **published** | The newest release on your registry. `?` when it did not answer — never "current" |
+
+Short of room, the list gives up `config` first and then `running`; the published version and the
+state stay at every width, and a long name is cut rather than run into its version.
 
 What needs a decision comes first and is selected for you. Plugins built into OpenCode are one
 line, and a plugin loaded from a path is listed but never touched: it is updated with git.

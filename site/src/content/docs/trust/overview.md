@@ -1,0 +1,290 @@
+---
+title: Trust
+description: Permissions that learn — approve the exact same command a few times in a row and Trust answers for you, and records every answer.
+---
+
+`"bash": "ask"` means approving `git status` for the hundredth time. OpenCode's own "Always" is
+broader than it looks: it approves by prefix, and its prefixes count flags as words, so approving
+`docker compose -p cockpit up -d` also approves `docker compose -p prod down -v`. Trust sits between:
+you approve, it counts, and once you have approved the *exact same* command enough times in a row it
+answers for you — and records it, every time.
+
+```sh
+opencode plugin @opencode-cockpit/trust@0.7.1 --global --force     # OpenCode 1
+opencode plugin add @opencode-cockpit/trust@0.7.1                   # OpenCode 2
+```
+
+Or through the bundle, where it is on by default (`features.trust: false` turns it off).
+
+It only acts where OpenCode asks you — a `"bash": "ask"`, or `"permission": "ask"`, in
+`opencode.json`. Where your config says `allow` or `deny`, OpenCode never asks, and Trust never sees
+the request.
+
+## The same command, exactly
+
+| | the same as `git status`? |
+| --- | --- |
+| `git status` | yes |
+| `git  status` (spacing), `git 'status'` (quoting) | yes |
+| `git status -s` | no — another argument |
+| `cd web && git status` | no — another directory |
+| `git status` run by the `general` agent | no — another agent |
+
+A line with several commands counts for each, and is answered only when **every** one is trusted or
+allowed by your config: `git status && rm -rf build` waits for you even when `git status` is
+trusted. Anything that cannot be read for certain is always asked and never counted: `$(…)`,
+backticks, `$VAR`, `eval`, `sh -c`, a pipe into a shell, a heredoc.
+
+Other permissions have their own "same": an edit by its file, a web fetch by its host, a subagent by
+its type. `external_directory` and `doom_loop` are never answered.
+
+## Earned, and lost
+
+- **Three approvals in a row** (`threshold`) and it is trusted.
+- **A reject resets** the count to nothing.
+- **Dangerous commands cost more** — `threshold + dangerExtra`, eight by default: `rm`, `rmdir`,
+  `dd`, `kill`, `chmod -R`, `git push`, `git reset --hard`, `git clean`, `git checkout -- …`,
+  `git branch -D`, `docker rm`/`rmi`/`prune`, `docker compose down -v`, `kubectl delete`,
+  `terraform apply`/`destroy`, `DROP`/`TRUNCATE` in a SQL client, `npm publish`, `--force`, and
+  anything under `sudo`. `env`, `time`, `nohup`, `timeout` and `xargs` are looked through.
+- **Unused for 30 days** (`expireDays`), it has to be earned again.
+- **Only your approvals count.** Trust's own answers do not, and nor does any reply faster than
+  300ms — nobody reads a prompt that fast; OpenCode's `--auto` answers in about 20ms.
+
+## Your config always wins
+
+A **specific** pattern set to ask — `"git push *": "ask"` — is you asking to be asked, and Trust
+never answers a request it matches. A **catch-all** — `"bash": "ask"`, `{ "*": "ask" }`, or no rule
+at all — is a default, and that is the gap Trust fills. Rules are read from OpenCode itself (the
+merged config, the agent's own rules last), matched with OpenCode's wildcards, last match wins.
+
+Trust never writes `opencode.json`. The ledger copies a rule for you to paste.
+
+## In the sidebar
+
+The block is **hidden by default**: the sidebar already carries the statusline, subagents and
+shells, and Trust answers exactly the same without it — `/trust` shows what it did. To show it:
+
+```json title="~/.config/opencode-cockpit/config.json (or a project's .cockpit.json)"
+{ "trust": { "sidebar": true } }
+```
+
+"Show or hide Trust in the sidebar" in the command palette flips it for this session; it is not
+remembered. Hidden or not, a failure — a ledger that could not be saved — always shows there.
+
+```
+Trust                      4 auto
+● git status                   7×
+● edit src/app.ts              3×
+○ docker compose -p cockpit…  2/3
+```
+
+A filled dot is something Trust answered in this window, with how many times it has answered it in
+all; a hollow one is the request on screen now, and how far it is from being trusted. Nothing
+answered and nothing counting, no block; paused, it says so; a failure always speaks. Every answer is
+also a line in `~/.cache/opencode-cockpit/cockpit.log`. No toasts.
+
+OpenCode's prompt is drawn for one frame (about 18ms) before Trust's answer removes it: a plugin
+cannot get in before OpenCode's own handler.
+
+## What Trust did
+
+`/trust`, `ctrl+x p`, or "Trust" in the palette opens on what Trust did for you, newest first, and
+what it is about to do:
+
+![Trust's activity screen: prompts answered today with the reason for each, commands close to being trusted with their meters, and a warning about OpenCode's own broad "always" approvals](/opencode-cockpit/media/trust-activity.png)
+
+```
+
+ Trust · app                                                                           ● answering
+
+ TODAY  Trust answered 5 prompts for you                                       ▂▁▅▂█▄█  last 7 days
+▌20:31  ✓ git status --short               build     trusted since Sep 16, 3 in a row
+ 20:30  ✓ ls -la                           general   trusted since Sep 16, 3 in a row
+ 20:21  ✓ bun test                         build     trusted since Sep 16, 3 in a row
+ 20:13  ✓ git status --short && echo tr…   build     both commands trusted
+ 19:43  ✓ cat src/app.ts                   general   in a family you widened: cat
+
+ ALMOST THERE  closest first
+  ○ bun --version                          build     ▰▰▱       2 of 3
+  ○ git status --short -uno                general   ▰▰▱       2 of 3
+  ○ head -60                               general   ▰▰▱       2 of 3
+  ○ head -40                               general   ▰▰▱       2 of 3
+  ○ git push origin feat/trust             build     ▰▰▰▰▰▱▱▱  5 of 8   dangerous
+
+  ! WATCH OUT   OpenCode's own "always" approves more than it looks, until it restarts
+  ! find . *  sort -rn *                   general    [enter] what it covers
+
+ RULES  8 trusted · 5 learning · 7 seen once                                     l Open the ledger
+
+ [enter] Why   [x] Revoke   [w] Trust Family   [l] Ledger   [p] Pause   [?] Keys   [esc] Close
+```
+
+- **Today** lists every answer Trust gave in this project, from any window: when, for which agent,
+  and why in a few words — the approvals that earned it and when, both commands of a line trusted,
+  or the family you widened. One line answered again and again is one row with a count. With
+  nothing today, the latest answers from earlier days, with their day. The sparkline is answers per
+  day for the last week, each scaled to the busiest.
+- **Almost there** is what is still learning, closest first and a dangerous command last: a meter
+  of the approvals in a row that count (`▰`) and those still to go (`▱`), red and longer for a
+  dangerous command.
+- **Watch out** appears only when you gave OpenCode its own "always": it approves every command that
+  starts that way, until OpenCode restarts, and Trust cannot take it back.
+- **Rules** counts the project: trusted, learning, and seen once — the commands approved a single
+  time that mostly never come back.
+
+`enter` on any row shows why: that rule's card in the ledger. `l`, or a click on the button, opens
+the ledger; `esc` there comes back here, and `esc` here closes.
+
+## The ledger
+
+Every rule, as a tree of families, with a card for the one selected — always on screen, so there is
+no details key to find:
+
+![Trust's ledger: a tree of command families, and a card for the selected command with exactly what it answers, what still asks, its approval history and its buttons](/opencode-cockpit/media/trust-ledger.png)
+
+```
+ Trust · app                                    8 trusted · 5 learning · 7 seen once   ● answering
+────────────────────────────────────────┬───────────────────────────────────────────────────────────
+ FAMILIES                    1–15 of 18 │ git status --short
+ ▾ git status              1 ✓  1 ○     │ ✓ Trusted for  build  · answered 8×
+▌    … --short             ✓ trusted 8× │
+     … --short -uno        ▰▰▱ 2 of 3   │  Exactly     git status --short
+   ls -la                  ✓ trusted 2× │  Still asks  git status · git status --short > out.txt ·
+   bun test                ✓ trusted 2× │              any other argument
+   echo trust-test         ✓ trusted 3× │  History     ✓ 7d  ✓ 7d  ✓ 7d  → trusted  answered 8×
+ ▸ cat  any                2 ✓          │              3 approvals in a row, all yours
+ ▸ head                    1 ✓  3 ○     │  Family      git status · 2 commands, 1 trusted
+   edit src/app.ts         ✓ trusted 2× │              [w] trusts any git status … for build, not
+   bun --version           ▰▰▱ 2 of 3   │              one by one
+   git push origin fe…  !  ▰▰▰▰▰▱▱▱ 5/8 │  Expires     if unused for 30 days
+   pwd                     ▰▱▱ 1 of 3   │
+   sed -n 1,40p src/a…     ▰▱▱ 1 of 3   │  x Revoke    w Trust any git status    c Copy rule
+   wc -l src/app.ts        ▰▱▱ 1 of 3   │
+   sort -rn                ▰▱▱ 1 of 3   │
+────────────────────────────────────────┴───────────────────────────────────────────────────────────
+ [↑/↓] Move   [←/→] Fold   [tab] Card   [/] Filter   [p] Pause   [?] Keys   [esc] Back
+```
+
+The card holds the command whole, on a raised panel; where each agent stands on it; the exact text
+and what still asks; the **history** that earned it — each approval with how long ago, `→ trusted`
+where the streak reached the threshold, then how often Trust answered it; its family and what `w`
+would do; when it expires. Its buttons can be clicked, or reached with `tab`. Below 90 columns the
+card moves under the tree, with the selection kept in view above it. `/` filters the tree by text.
+
+### Families
+
+Rules are grouped by what they do. A **family** is the program — `ls`, `echo` — or, for a tool with
+subcommands, the program and its subcommand: `git status`, `docker compose up`, `kubectl get`,
+`terraform plan`. A package manager's `run` keeps its script: `npm run test` and `npm run deploy` are
+two families.
+
+| Command | Family |
+| --- | --- |
+| `ls -la`, `ls -x`, `ls -R docs` | `ls` |
+| `git -C /x status --short` | `git status` |
+| `docker compose -p prod down -v` | `docker compose down` |
+| `npm run test` | `npm run test` |
+| `sudo ls` | `sudo ls` — running as root is not `ls` |
+| `cd web && bun test` | `(in web) bun test` |
+| `NODE_ENV=prod npm run build` | `NODE_ENV=… npm run build` |
+| `ls > out.txt` | `ls` |
+| edit `src/app.ts` | `edit src/` |
+
+A family with one command is drawn as that row; the others start folded, with how many of their
+commands are trusted (`✓`) and how many are not yet (`○`). `space`, `enter` or `→` opens one, listing
+its first three commands and `+ N more`; `←` folds it, or from a command inside it goes to its heading.
+A command appears once, however many agents approved it: the card lists each agent's standing — a
+command trusted for build and two of three for general is one row, and two lines on its card.
+
+### Exactly
+
+The card shows every argument quoted where a font could merge it: a programming font draws `---` as
+one line, so `echo ---` is shown `echo "---"`; so are `->`, `==`, `!=`, `<=`, `>=`, `www` and any
+word that is only punctuation. Quotes are not enough on their own — a ligature font still merges
+`---` inside them — so an argument that is only punctuation is also said in words: "`"---"` is 3
+hyphens", "hyphen, greater-than" for `->`.
+
+### Trusting a whole family
+
+`w` trusts any command in the family, for the agent of the selected rule. It is the one way trust
+gets wider than what you approved, and only you do it — it is written to the ledger like everything
+else. From then on any `ls …` is answered for that agent, **except**:
+
+- a dangerous command — `docker compose down -v` is not covered by `docker compose down`;
+- one that writes a file through a redirection — `ls > out.txt` (`2>/dev/null` and `2>&1` write
+  nothing, and are covered);
+- one that runs another program — `find -exec`, `git -c …`;
+- a line that cannot be read, and anything a specific `ask` in your config matches.
+
+A dangerous family — `git push`, `rm`, `kubectl delete`, `sudo …` — can never be widened: `w` says
+why and does nothing. `w` again, or `x` on the family, goes back to exact rules. An answer through a
+widened family says so: `✓ widened` in the ledger, "in a family you widened" in the activity, `● ls -x · any ls` in the sidebar, the family in
+the log. Widening does not expire; undo it when you no longer want it.
+
+### Keys
+
+On the activity:
+
+| Key | |
+| --- | --- |
+| `j` `k` `↑` `↓`, wheel, click | Move over answers, what is close, and OpenCode's own approvals |
+| `enter` | Why: the rule's card in the ledger |
+| `x` | Revoke what answered (the rule, or the widening that answered it); forget a count still learning |
+| `w` | Trust any command in the family, or undo it |
+| `c` | Copy it as an `opencode.json` rule, to paste yourself |
+| `l`, click on the button | Open the ledger |
+| `/` | Open the ledger and filter it |
+| `p` | Pause Trust in this project — it keeps counting and answers nothing; again to resume |
+| `?` | Every key, one line each |
+| `esc` | Close (`q` too) |
+
+In the ledger:
+
+| Key | |
+| --- | --- |
+| `j` `k` `↑` `↓`, wheel, click | Move over families and commands |
+| `←` `h` / `→` `l` | Fold / open a family — on a command inside one, go to its heading |
+| `space` `enter` | Open or fold a family; on `+ N more`, list the rest |
+| `tab` | Into the card's buttons and back; `←` `→` choose one, `enter` presses it |
+| `x` | Revoke a command for every agent; on a family, every command in it and its widening. Still learning, it forgets the count |
+| `w` | Trust any command in the family, or undo it |
+| `c` | Copy it as an `opencode.json` rule — a family as `"ls *": "allow"`, which config cannot limit to one agent |
+| `/` | Filter by text; `enter` keeps it, `esc` clears it |
+| `p` | Pause or resume |
+| `?` | Every key, one line each |
+| `esc` | One step back: the keys, the card's buttons, the filter — then to the activity, which `esc` closes |
+
+## Settings
+
+In the bundle's entry (`"trust": { … }`), the package's own, or the `trust` section of
+`~/.config/opencode-cockpit/config.json` and a project's `.cockpit.json`:
+
+| Setting | Default | |
+| --- | --- | --- |
+| `threshold` | `3` | Approvals in a row, by you, before Trust answers |
+| `dangerExtra` | `5` | What a dangerous command costs on top |
+| `expireDays` | `30` | Days unused before trust has to be earned again; `0` never |
+| `enabled` | `true` | `false` turns Trust off |
+| `sidebar` | `false` | Show the block in the sidebar. The palette's "Show or hide Trust in the sidebar" flips it for the session |
+| `sidebarRows` | `3` | Answers listed in the sidebar |
+| `sidebarOrder` | `160` | Where the block sits in the sidebar; lower draws first |
+| `keybinds` | `{ "cockpit.trust.ledger": "<leader>p" }` | The key that opens the ledger |
+
+## Where it keeps what it learned
+
+`~/.local/share/opencode-cockpit/trust/<project>-<hash>/events.ndjson` — outside the project, so it
+never turns up in `git status` or travels to anyone who clones the repository. One line per event
+(asked, approved by you, rejected, answered by Trust, revoked, paused), only ever appended, and shared
+by every OpenCode window on the project. `$COCKPIT_HOME` or `$XDG_DATA_HOME` move it.
+
+## See it without OpenCode
+
+```sh
+bunx @opencode-cockpit/trust preview
+```
+
+Draws the sidebar block, the activity and the ledger from sample projects — a busy week, a new
+project, a paused one, dangerous commands on their way, a widened family — in your terminal.
+`--view activity` or `--view ledger` draws one screen, `--columns` and `--rows` another size, and
+`--html` a page to judge the colours in a browser.

@@ -10,6 +10,8 @@ export const nav = {
     { label: "Shell", href: "#shell" },
     { label: "Statusline", href: "#status" },
     { label: "Updater", href: "#updater" },
+    { label: "Subagents", href: "#subagents" },
+    { label: "Trust", href: "#trust" },
     { label: "Platform", href: "#platform" },
     { label: "Install", href: "#install" },
   ],
@@ -58,7 +60,7 @@ export const compare = {
 }
 
 export const platform = {
-  number: "07",
+  number: "08",
   kicker: "The platform",
   title: "What every capability inherits.",
   intro:
@@ -109,7 +111,7 @@ export const platform = {
 export const bays = {
   number: "01",
   kicker: "What is fitted",
-  title: "Five instruments today. One switch each.",
+  title: "Six instruments today. One switch each.",
   intro:
     "Every bay is its own npm package with a switch in config. They share the daemon, the config " +
     "file and the keys, so the second costs nothing and moving between them changes nothing you " +
@@ -279,12 +281,45 @@ export const bays = {
         ],
       },
     },
+    {
+      id: "trust",
+      name: "Trust",
+      tagline: "Permissions that learn — exactly what you approved, and nothing near it",
+      state: "live",
+      status: "Available",
+      gains: {
+        agent: "Fewer stops for the commands you always say yes to",
+        you: "Approve the same command three times; it is answered for you, and you can see why",
+      },
+      blurb:
+        "OpenCode's own \"always\" turns `docker compose -p cockpit up` into `docker compose -p *` — which " +
+        "also approves `-p prod down -v`. Trust counts the exact command: approve it three times in a row " +
+        "and it is answered for you from then on, in this project, for that agent. Dangerous commands cost " +
+        "more, your config's `ask` rules always win, and the ledger shows every rule — or a whole family " +
+        "you chose to trust — with one key to revoke it.",
+      points: [
+        "The exact command, never a prefix: a different flag starts again",
+        "Dangerous ones (rm, git push, --force, down -v) need eight in a row",
+        "Your config wins: a specific ask is never answered",
+        "Only your approvals count — not its own, not --auto",
+        "The ledger: families, what a rule answers exactly, revoke, trust a family on purpose",
+        "The same on OpenCode 1 and 2",
+      ],
+      foot: ["ledger · sidebar (opt-in)", "/trust · ctrl+x p", "@opencode-cockpit/trust"],
+      docs: "/trust/overview/",
+      media: {
+        kind: "image" as const,
+        src: "/media/trust-activity.png",
+        alt: "Trust's activity screen: prompts answered today with the reason for each, commands one approval away from being trusted, a dangerous one at 5 of 8, and a warning about OpenCode's own broad always approvals",
+        caption: "bunx @opencode-cockpit/trust preview · the rows the dialog draws, from a sample project",
+      },
+    },
   ],
 }
 
 /** What is coming, and the reason it is next. */
 export const next = {
-  number: "08",
+  number: "09",
   kicker: "What is next",
   title: "One bay at a time, and only what can be built.",
   intro:
@@ -304,7 +339,7 @@ export const next = {
 }
 
 export const install = {
-  number: "09",
+  number: "10",
   kicker: "Install",
   title: "Two minutes, then ask it to start something.",
   modes: [

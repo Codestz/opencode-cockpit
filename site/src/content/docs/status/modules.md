@@ -85,7 +85,7 @@ empty box with no explanation.
 - **Returning `undefined` hides the segment.** Use it whenever the input is missing; a segment
   showing a confident wrong number is worse than one that is not there.
 - **A segment that throws loses only its own place.** The rest of the line draws.
-- **A module that will not load says so on the line itself**, as a `⚠` row naming the file, along
+- **A module that will not load says so on the line itself**, as a `!` row naming the file, along
   with a toast and an entry in OpenCode's log. Its segments never disappear silently.
 - **A column says how many rows did not fit**, as a dim `↳ N more — raise maxRows`. A row that
   simply never appears reads as a broken segment, and is the more expensive thing to debug.

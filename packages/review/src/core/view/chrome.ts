@@ -6,6 +6,7 @@
  * trouble, the performance numbers, a selection — *replaces* what is there rather than adding to it.
  */
 
+import { closeHint, fitHints, GLYPH, HINT_GAP, type Hint } from "@opencode-cockpit/client/design"
 import { type ChangeSet, progress, type Review } from "../model/review.ts"
 import type { Columns } from "./geometry.ts"
 import { clipRuns, type Fill, type Row, type Run, rowWidth } from "./rows.ts"
@@ -21,29 +22,40 @@ export function headerRows(changes: ChangeSet, review: Review, width: number, la
    * branch beside it be the brightest *text* on the row — which is the thing you actually came to
    * check.
    */
+  /**
+   * With nothing changed, every count is a zero, and a row of zeros says nothing the body's sentence
+   * does not say better. The badge and the source are all there is.
+   */
+  const empty = changes.files.length === 0
   const left: Run[] = [
     { text: " review ", tone: "inverse", fill: "you", bold: true },
     { text: "  ", fill: "panel" },
     { text: `${label ?? changes.source}`, tone: "text", bold: true, fill: "panel" },
-    { text: "  ", fill: "panel" },
-    { text: `+${seen.additions}`, tone: "added", fill: "selected" },
-    { text: " ", fill: "selected" },
-    { text: `−${seen.deletions}`, tone: "removed", fill: "selected" },
+    ...(empty
+      ? []
+      : [
+          { text: "  ", fill: "panel" as Fill },
+          { text: `+${seen.additions}`, tone: "added" as const, fill: "selected" as Fill },
+          { text: " ", fill: "selected" as Fill },
+          { text: `−${seen.deletions}`, tone: "removed" as const, fill: "selected" as Fill },
+        ]),
   ]
-  /** What is left to do, in the order you run out of it: read it, answer it, finish it. */
+  /** What is left to do, in the order you run out of it: view it, answer it, finish it. */
   const bar = (): Run => ({ text: "  │  ", tone: "border", fill: "panel" })
-  const right: Run[] = [
-    { text: `${seen.read}/${seen.files} read`, tone: "muted", fill: "panel" },
-    bar(),
-    { text: `${seen.open} open`, tone: seen.open > 0 ? "accent" : "muted", fill: "panel" },
-    ...(seen.threads > seen.open
-      ? [
-          bar(),
-          { text: `${seen.threads - seen.open} resolved`, tone: "muted" as const, fill: "panel" as Fill },
-        ]
-      : []),
-    { text: " ", fill: "panel" },
-  ]
+  const right: Run[] = empty
+    ? [{ text: " ", fill: "panel" }]
+    : [
+        { text: `${seen.read}/${seen.files} viewed`, tone: "muted", fill: "panel" },
+        bar(),
+        { text: `${seen.open} open`, tone: seen.open > 0 ? "accent" : "muted", fill: "panel" },
+        ...(seen.threads > seen.open
+          ? [
+              bar(),
+              { text: `${seen.threads - seen.open} resolved`, tone: "muted" as const, fill: "panel" as Fill },
+            ]
+          : []),
+        { text: " ", fill: "panel" },
+      ]
   const used = rowWidth({ runs: left })
   const tail = rowWidth({ runs: right })
   return [
@@ -59,7 +71,7 @@ export function headerRows(changes: ChangeSet, review: Review, width: number, la
 }
 
 /** The keys, on screen, because a surface whose keys are undiscoverable has none. */
-export function footerRows(width: number, _columns: Columns, state: ViewState = {}): Row[] {
+export function footerRows(width: number, _columns: Columns, state: ViewState = {}, empty = false): Row[] {
   const inDiff = state.pane === "diff"
   const selecting = inDiff && state.anchor !== undefined
   const lines =
@@ -68,45 +80,37 @@ export function footerRows(width: number, _columns: Columns, state: ViewState = 
       : 0
 
   /**
-   * `[key] Label`, with the key bright and the label dim.
+   * `[key] Label`, with the key bright and the label dim — the shape every bay writes its keys in
+   * (client/design).
    *
    * A run-on string of `tab files  j/k line  v select` is a sentence you have to parse; a bracketed
    * key is a shape you recognise. The brackets do the work a colour would otherwise have to do, which
    * keeps the only saturated colours in the pane on the diff where they mean something.
-   */
-  const hint = (key: string, label: string): Run[] => [
-    { text: `[${key}]`, tone: "accent", bold: true },
-    { text: ` ${label}`, tone: "muted" },
-    { text: "   " },
-  ]
-
-  /**
-   * The keys you always have, then the ones this moment adds.
    *
-   * An earlier version replaced the whole line whenever the cursor was near a thread, so moving and
-   * selecting — the things you do constantly — disappeared behind two keys you use occasionally. A
-   * hint that hides the basics to advertise the extras has it backwards.
+   * The keys you always have come first, then the ones this moment adds. An earlier version replaced
+   * the whole line whenever the cursor was near a thread, so moving and selecting — the things you do
+   * constantly — disappeared behind two keys you use occasionally.
    */
-  const moving: Run[] = [
-    { text: " " },
-    ...hint("Tab", inDiff ? "Files" : "Diff"),
-    ...hint("j/k", "Navigate"),
-    ...(inDiff ? hint("v", "Select") : []),
+  const moving: Hint[] = [
+    { key: "tab", label: inDiff ? "Files" : "Diff" },
+    { key: "j/k", label: "Navigate" },
+    ...(inDiff ? [{ key: "v", label: "Select" }] : []),
   ]
-
-  const extra: Run[] = selecting
+  const extra: Hint[] = selecting
     ? [
-        { text: `${lines} line${lines === 1 ? "" : "s"}   `, tone: "accent", bold: true },
-        ...hint("c", "Note Them"),
-        ...hint("v", "Cancel"),
+        { key: "c", label: "Note Them" },
+        { key: "v", label: "Cancel" },
       ]
     : state.thread
-      ? [...hint("c", "Reply"), ...hint("x", "Remove")]
+      ? [
+          { key: "c", label: "Reply" },
+          { key: "x", label: "Remove" },
+        ]
       : [
-          ...hint("c", inDiff ? "Note Line" : "Note File"),
-          ...(inDiff ? hint("f", "Note File") : []),
-          ...hint("space", "Read"),
-          ...(inDiff ? hint("z", "Fold") : []),
+          { key: "c", label: inDiff ? "Note Line" : "Note File" },
+          ...(inDiff ? [{ key: "f", label: "Note File" }] : []),
+          { key: "space", label: "Viewed" },
+          ...(inDiff ? [{ key: "z", label: "Fold" }] : []),
         ]
 
   /**
@@ -116,27 +120,17 @@ export function footerRows(width: number, _columns: Columns, state: ViewState = 
    * learned, and this row exists to teach the keys. Dimmed and without a number it reads as "nothing
    * to hand over", which is both true and exactly what pressing it will say.
    */
-  const submitHint = (waiting: number | undefined): Run[] =>
-    waiting
-      ? [
-          { text: "[s]", tone: "accent", bold: true },
-          { text: ` Submit ${waiting}`, tone: "muted" },
-          { text: "   " },
-        ]
-      : [
-          { text: "[s]", tone: "muted", faint: true },
-          { text: " Submit", tone: "muted", faint: true },
-          { text: "   " },
-        ]
-
-  const tail: Run[] = [
-    ...submitHint(state.waiting),
-    ...hint("b", "Source"),
+  const submit: Hint = state.waiting
+    ? { key: "s", label: `Submit ${state.waiting}` }
+    : { key: "s", label: "Submit", off: true }
+  const sources: Hint[] = [
+    { key: "b", label: "Source" },
     /** Shift-b: what the branch is compared against. Named here, or nobody finds it. */
-    ...hint("B", "Base"),
-    ...hint("w", "Width"),
-    ...hint("q", "Close"),
+    { key: "B", label: "Base" },
   ]
+  /** `esc`, as every bay closes; `q` still does too, for the hands that learned it. */
+  const close = closeHint()
+  const rule: Row = { runs: [{ text: "─".repeat(width), tone: "border" }] }
 
   /**
    * One line, and a queue for it: trouble, then numbers, then the keys.
@@ -144,14 +138,46 @@ export function footerRows(width: number, _columns: Columns, state: ViewState = 
    * The footer stays exactly two rows however much it has to say, because the body's height is measured
    * from it — a footer that grew would push the diff about every time something went wrong.
    */
-  const said: Run[] = state.notice
-    ? [
-        { text: " ! ", tone: "removed", bold: true },
-        { text: state.notice, tone: "removed" },
-      ]
-    : state.stats
-      ? [...state.stats]
-      : [...moving, ...extra, ...tail]
+  if (state.notice) {
+    const trouble: Run[] = [
+      { text: ` ${GLYPH.warn} `, tone: "error", bold: true },
+      { text: state.notice, tone: "error" },
+    ]
+    return [rule, { runs: clipRuns(trouble, width, "none") }]
+  }
+  if (state.stats) return [rule, { runs: clipRuns([...state.stats], width, "none") }]
 
-  return [{ runs: [{ text: "─".repeat(width), tone: "border" }] }, { runs: clipRuns(said, width, "none") }]
+  /**
+   * Nothing to review: only the keys that act. Moving, noting and marking have nothing to land on,
+   * and a row that offers them anyway teaches that its keys do not always mean anything.
+   */
+  if (empty) return [rule, { runs: keyRow([], [...sources, close], width) }]
+  /** A selection says how many lines it holds before the keys that act on them. */
+  const lead: Run[] = selecting
+    ? [{ text: `${lines} line${lines === 1 ? "" : "s"}`, tone: "accent", bold: true }]
+    : []
+  return [
+    rule,
+    {
+      runs: keyRow(
+        lead,
+        [...moving, ...extra, submit, ...sources, { key: "w", label: "Width" }, close],
+        width,
+      ),
+    },
+  ]
+}
+
+/**
+ * The keys, cut to the width with the way out kept.
+ *
+ * Clipping the row from the right made `[q] Close` the first key to go — at a hundred columns it was
+ * already gone — and "how do I leave" is the first question anyone asks of a surface that has taken
+ * over the screen. The shared fitter keeps the way out, cuts at a key's edge and says `…` when it
+ * did; this only places it a column in from the edge, after anything the moment leads with.
+ */
+function keyRow(lead: readonly Run[], hints: readonly Hint[], width: number): Run[] {
+  const before: Run[] = [{ text: " " }, ...lead, ...(lead.length > 0 ? [{ text: " ".repeat(HINT_GAP) }] : [])]
+  const room = Math.max(0, width - rowWidth({ runs: before }))
+  return clipRuns([...before, ...fitHints(hints, room).runs], width, "none")
 }

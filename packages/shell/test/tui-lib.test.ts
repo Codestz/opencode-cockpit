@@ -35,6 +35,7 @@ const shell = (over: Partial<ShellInfo>): ShellInfo => ({
 })
 
 const theme = {
+  accent: "#00f",
   success: "#0f0",
   error: "#f00",
   warning: "#ff0",
@@ -43,35 +44,36 @@ const theme = {
 
 describe("badges", () => {
   // The panel lines badges up in a fixed column; a badge that is one cell wider shears the list.
-  test("every badge occupies the same seven cells", () => {
+  test("every badge occupies the same six cells", () => {
     for (const kind of ["run", "fail", "stop", "done"] as const) {
-      expect(badgeText(kind).length).toBe(7)
+      expect(badgeText(kind).length).toBe(6)
     }
   })
 
   test("the spinner advances and wraps", () => {
-    expect(badgeText("run", 0)).toBe(`▌ ${SPINNER[0]} RUN`)
-    expect(badgeText("run", 1)).toBe(`▌ ${SPINNER[1]} RUN`)
+    expect(badgeText("run", 0)).toBe(`${SPINNER[0]} RUN `)
+    expect(badgeText("run", 1)).toBe(`${SPINNER[1]} RUN `)
     expect(badgeText("run", SPINNER.length)).toBe(badgeText("run", 0))
     expect(badgeText("run", SPINNER.length * 3 + 4)).toBe(badgeText("run", 4))
   })
 
   test("finished badges do not spin", () => {
     expect(badgeText("done", 7)).toBe(badgeText("done", 0))
-    expect(badgeText("fail", 0).replace("▌", "").trim()).toBe(BADGE_LABEL.fail)
+    expect(badgeText("fail", 0)).toBe(`● ${BADGE_LABEL.fail}`)
   })
 
-  // The rule is its own leading column so it can be coloured apart from the label.
-  test("every badge starts with the rule", () => {
+  /** `▌` is the cursor everywhere else; a badge that wore it read as a selected row. */
+  test("a badge is the state's mark and word, never the cursor's rule", () => {
     for (const kind of ["run", "fail", "stop", "done"] as const) {
-      expect(badgeText(kind).startsWith("▌")).toBe(true)
+      expect(badgeText(kind)).not.toContain("▌")
     }
   })
 
+  /** The tones every bay shares: colour for what is moving or broken, quiet for what has ended. */
   test("colour follows meaning, not status", () => {
-    expect(kindColor(theme, "run")).toBe(theme.success)
+    expect(kindColor(theme, "run")).toBe(theme.accent)
     expect(kindColor(theme, "fail")).toBe(theme.error)
-    expect(kindColor(theme, "stop")).toBe(theme.warning)
+    expect(kindColor(theme, "stop")).toBe(theme.textMuted)
     expect(kindColor(theme, "done")).toBe(theme.textMuted)
   })
 })
@@ -113,12 +115,16 @@ describe("compact detail", () => {
     expect(shortDetail(shell({ startedAt: 0 }), 5000)).toBe("5s")
     expect(shortDetail(shell({ status: "failed" }), 0)).toBe("no start")
     expect(shortDetail(shell({ status: "exited", exitCode: 2 }), 0)).toBe("exit 2")
-    expect(shortDetail(shell({ status: "killed" }), 0)).toBe("stopped")
-    expect(shortDetail(shell({ status: "exited", exitCode: 0, endedAt: 1000 }), 61_000)).toBe("1m ago")
+    /** How long it ran, as the subagents beside it say it — not how long ago it ended. */
+    expect(shortDetail(shell({ status: "killed", startedAt: 0, endedAt: 3000 }), 90_000)).toBe("3s")
+    expect(
+      shortDetail(shell({ status: "exited", exitCode: 0, startedAt: 0, endedAt: 124_000 }), 900_000),
+    ).toBe("2m04s")
   })
 
   test("a finished shell with no end time still reads", () => {
     expect(shortDetail(shell({ status: "exited", exitCode: 0 }), 1000)).toBe("done")
+    expect(shortDetail(shell({ status: "killed" }), 0)).toBe("stopped")
   })
 })
 

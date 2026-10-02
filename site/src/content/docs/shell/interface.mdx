@@ -42,8 +42,8 @@ The row along the bottom carries the keys that act on the shell in front of you 
 its state, because a key with nothing to act on is noise:
 
 ```
-running:   [i] Type   [c] ^C   [r] Restart   [x] Stop   [?] Details
-finished:  [r] Run Again   [d] Remove   [?] Details
+running:   [i] Type   [c] ^C   [r] Restart   [x] Stop   [?] Details   [esc] Close
+finished:  [r] Run Again   [d] Remove   [?] Details   [esc] Close
 ```
 
 Everything else is behind <kbd>?</kbd>, listed under the shell's own facts. Those keys work from
@@ -81,6 +81,18 @@ anywhere in the console, whether or not you can see them.
 <Cast name="search" caption="240 lines down to the four that matter." />
 
 Filtering happens in the daemon, so a 40,000-line dev server costs nothing to search.
+
+## See it without OpenCode
+
+```sh
+bunx @opencode-cockpit/shell preview
+bunx @opencode-cockpit/shell preview --part console --state failed --columns 60
+```
+
+Draws the sidebar block, the dock and the console — empty, running, failed, details, a filtered log,
+finished — from sample shells, in your terminal, with no OpenCode and no daemon running. `--part`
+picks `sidebar`, `dock` or `console`; `--width` sets the sidebar's width, `--columns` the dock's and
+the console's; `--help` lists the states. Plain text under `NO_COLOR` or into a pipe.
 
 ## Commands
 

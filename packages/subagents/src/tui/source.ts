@@ -7,9 +7,12 @@
 
 import type { Host } from "@opencode-cockpit/client/host"
 import type { Log } from "@opencode-cockpit/client/log"
+import { endOf, finishedAt } from "../core/adapt/ends.ts"
 import { createV1Translator } from "../core/adapt/v1.ts"
 import { createV2Translator } from "../core/adapt/v2.ts"
 import type { Change } from "../core/model/changes.ts"
+
+export { endOf, finishedAt }
 
 export interface Source {
   /** Loads what exists under a conversation: its subagents, theirs, and their runs so far. */
@@ -70,16 +73,6 @@ const V1_EVENTS = [
  */
 // biome-ignore lint/suspicious/noExplicitAny: see above — every access is to a measured field
 type Loose = Record<string, any>
-
-/** The last moment a stored run did anything: its latest change, or `fallback` when it has none. */
-export function endOf(changes: readonly Change[], fallback: number): number {
-  let last = 0
-  for (const change of changes) {
-    last = Math.max(last, change.at)
-    if (change.type === "tool" && change.ended !== undefined) last = Math.max(last, change.ended)
-  }
-  return last || fallback
-}
 
 export function createSource(api: Host, log: Log, emit: (changes: Change[]) => void): Source {
   /**
@@ -160,7 +153,7 @@ export function createSource(api: Host, log: Log, emit: (changes: Change[]) => v
                     id,
                     status: "idle",
                     settled: true,
-                    at: endOf(past, Number(child.time?.updated) || Date.now()),
+                    at: Math.max(endOf(past, Number(child.time?.updated) || Date.now()), finishedAt(history)),
                   },
             ])
             await visit(id, depth + 1)
@@ -199,7 +192,8 @@ export function createSource(api: Host, log: Log, emit: (changes: Change[]) => v
          * reopened conversation). Read as "unknown", a subagent stuck at running was never corrected.
          */
         const status = v1.state.session.status(id) as Loose | undefined
-        if (status?.type === "busy" || status?.type === "retry") return []
+        if (status?.type === "busy" || status?.type === "retry")
+          return [{ type: "status", id, status: "busy", at: Date.now() }]
         return [{ type: "status", id, status: "idle", settled: true, at: Date.now() }]
       },
       dispose: () => {
@@ -229,7 +223,7 @@ export function createSource(api: Host, log: Log, emit: (changes: Change[]) => v
         }
         const past = translate.history(id, messages)
         /** When its work ended, not when the store was last touched — reopening touches it. */
-        const ended = endOf(past, Number(info.time?.updated) || Date.now())
+        const ended = Math.max(endOf(past, Number(info.time?.updated) || Date.now()), finishedAt(messages))
         const status = translate.status(id, v2.data.session.status(id), ended)
         emit([
           ...translate.session(info),

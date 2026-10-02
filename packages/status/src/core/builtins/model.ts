@@ -1,5 +1,6 @@
 /** The model in play, how full its context window is, and what the session is spending. */
 
+import { gaugeTone } from "@opencode-cockpit/client/design"
 import { contextRatio, contextUsed } from "../context.ts"
 import { bar, compact, gradient, money, percent, shortModel } from "../format.ts"
 import type { Run, SegmentDef, Tone } from "../types.ts"
@@ -76,19 +77,24 @@ export const SEGMENTS: SegmentDef[] = [
       if (style === "bar") {
         const filled = bar(ratio, width)
         /**
-         * The fill carries its own meaning: green while there is room, amber as it tightens, red
-         * when it is nearly gone. It used to take the same tone as the text, which is muted below
-         * the warning threshold -- so the bar sat grey and dead for most of a session, saying
-         * nothing while occupying the widest part of the line.
+         * The fill carries its own meaning: calm while there is room, amber as it tightens, red
+         * when it is nearly gone — the one gauge rule every bay uses, at `warnAt` and `dangerAt`
+         * (client/design). It used to take the same tone as the text, which is muted below the
+         * warning threshold -- so the bar sat grey and dead for most of a session, saying nothing
+         * while occupying the widest part of the line.
+         *
+         * The figure beside it is text until the level is worth a colour: the bar already says
+         * "room", and a green number beside a green bar beside a green cache figure was three
+         * greens meaning three things.
          */
-        const fill: Tone = ratio >= dangerAt ? "error" : ratio >= warnAt ? "warning" : "success"
+        const fill: Tone = gaugeTone(ratio, warnAt, dangerAt)
         return {
           runs: [
             { text: "▐", tone: "border" },
             { text: filled.trimEnd(), tone: fill },
             { text: "·".repeat(filled.length - filled.trimEnd().length), tone: "border" },
             { text: "▌", tone: "border" },
-            { text: ` ${percent(ratio)}`, tone: fill, bold: ratio >= dangerAt },
+            { text: ` ${percent(ratio)}`, tone: ratio >= warnAt ? fill : "text", bold: ratio >= dangerAt },
           ],
         }
       }

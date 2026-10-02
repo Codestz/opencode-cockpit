@@ -12,9 +12,10 @@ import { type FileChange, type Review, threadAnchor, threadsFor, threadsOnLine }
 import { metrics } from "../perf.ts"
 import { cardRows } from "./card.ts"
 import { tallyOf } from "./counts.ts"
-import { cell, clipRuns, elidePath, type Fill, type Row, skipColumns, type Tone } from "./rows.ts"
+import { cell, clipRuns, elidePath, type Fill, type Row, type Run, skipColumns, type Tone } from "./rows.ts"
 import type { ViewState } from "./state.ts"
 import { languageOf, type SyntaxState, tokenize } from "./syntax/index.ts"
+import { displayText, displayWidth, hunkWhitespace } from "./whitespace.ts"
 
 /** The mark in a line's first column that says a thread is attached to it. */
 const MARK = "▐"
@@ -42,7 +43,10 @@ export function mostShift(file: FileChange | undefined, width: number): number {
   if (!file) return 0
   let longest = 0
   for (const text of [file.before, file.after])
-    for (const line of text.split("\n")) if (line.length > longest) longest = line.length
+    for (const line of text.split("\n")) {
+      const width = displayWidth(line)
+      if (width > longest) longest = width
+    }
   return Math.max(0, longest - codeWidth(width) + 1)
 }
 
@@ -63,12 +67,46 @@ const indent = (rows: readonly Row[], id: string): Row[] =>
     runs: [{ text: " ".repeat(INDENT), fill: "comment" as Fill }, ...row.runs],
   }))
 
-/** `@@ -60,7 +60,9 @@` — the real numbers, because a note citing the wrong line is worse than none. */
-export function hunkHeader(hunk: Hunk, width: number): Row {
+/**
+ * `@@ -60,7 +60,9 @@` — the real numbers, because a note citing the wrong line is worse than none.
+ *
+ * A hunk that only moved whitespace about says so beside them: the rows below show the dots, but
+ * "is that all this is" is a question to answer before reading them, not after.
+ */
+export function hunkHeader(hunk: Hunk, width: number, whitespaceOnly = false): Row {
   const removed = hunk.lines.filter((line) => line.kind !== "add").length
   const added = hunk.lines.filter((line) => line.kind !== "remove").length
   const text = `@@ -${hunk.beforeStart},${removed} +${hunk.afterStart},${added} @@`
-  return { runs: [{ text: cell(text, width), tone: "hunk", fill: "panel" }] }
+  const note = "  whitespace only"
+  if (!whitespaceOnly || text.length + note.length > width)
+    return { runs: [{ text: cell(text, width), tone: "hunk", fill: "panel" }] }
+  return {
+    runs: [
+      { text, tone: "hunk", fill: "panel" },
+      { text: cell(note, width - text.length), tone: "muted", fill: "panel" },
+    ],
+  }
+}
+
+/** Runs with the columns in `shown` split out and drawn muted: the whitespace marks, not code. */
+function quietMarks(runs: readonly Run[], shown: readonly number[]): Run[] {
+  if (shown.length === 0) return runs as Run[]
+  const marks = new Set(shown)
+  const out: Run[] = []
+  let column = 0
+  for (const run of runs) {
+    let from = 0
+    for (let at = 0; at < run.text.length; at++) {
+      if (!marks.has(column + at)) continue
+      if (at > from) out.push({ ...run, text: run.text.slice(from, at) })
+      const { color: _color, ...plain } = run
+      out.push({ ...plain, text: run.text[at] as string, tone: "muted" })
+      from = at + 1
+    }
+    if (from < run.text.length) out.push(from === 0 ? run : { ...run, text: run.text.slice(from) })
+    column += run.text.length
+  }
+  return out
 }
 
 /** One file's diff: a header, then its hunks. */
@@ -219,14 +257,16 @@ function buildDiffRows(
      * carries meaning rather than just looking nicer.
      */
     rows.push({ runs: [{ text: " ".repeat(width) }] })
-    rows.push(hunkHeader(hunk, width))
+    /** Only worked out when drawing: what is marked changes no row's height. */
+    const whitespace = paint ? hunkWhitespace(hunk) : undefined
+    rows.push(hunkHeader(hunk, width, whitespace?.only))
     /**
      * A block comment opened in one line is still open in the next, so the tokenizer's state travels
      * down the hunk. It restarts per hunk because the lines between hunks were never read.
      */
     let syntax: SyntaxState = { inBlockComment: false }
 
-    for (const line of hunk.lines) {
+    for (const [at, line] of hunk.lines.entries()) {
       const added = line.kind === "add"
       const removed = line.kind === "remove"
       /**
@@ -253,11 +293,13 @@ function buildDiffRows(
       const sign = added ? "+" : removed ? "−" : " "
       const signTone: Tone = added ? "success" : removed ? "removed" : "muted"
 
-      const code = paint
-        ? tokenize(line.text, language, syntax)
+      /** Tabs expanded, carriage returns gone, and the whitespace that changed made visible. */
+      const shown = paint ? displayText(line.text, whitespace?.marks.get(at)) : undefined
+      const code = shown
+        ? tokenize(shown.text, language, syntax)
         : { runs: [{ text: line.text }], state: syntax }
       syntax = code.state
-      const painted = code.runs.map((run) => ({ ...run, fill }))
+      const painted = quietMarks(code.runs, shown?.shown ?? []).map((run) => ({ ...run, fill }))
 
       rows.push({
         ...(line.after === undefined ? {} : { line: line.after }),

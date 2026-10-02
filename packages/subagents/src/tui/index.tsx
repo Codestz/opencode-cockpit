@@ -29,6 +29,13 @@ export interface SubagentsTuiOptions {
    * works again.
    */
   hideFinishedAfter?: number
+  /**
+   * Seconds a finished *nested* subagent — one a subagent launched, an advisor it asks again and
+   * again — stays in the sidebar; 30 unless set, a negative number keeps them. As with
+   * `hideFinishedAfter` it is only out of the sidebar: the heading still counts it and the pane's
+   * `[` `]` still reach it. Seconds rather than minutes because these come and go in seconds.
+   */
+  hideNestedAfter?: number
   /** Where the block sits among sidebar blocks; lower draws first (Shell 150, statusline 200). */
   sidebarOrder?: number
   keybinds?: Record<string, string>
@@ -163,6 +170,19 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
 
     // --- painting ----------------------------------------------------------------------------------
 
+    /** Milliseconds a finished nested subagent stays in the sidebar; undefined keeps it. */
+    const nested = typeof options.hideNestedAfter === "number" ? options.hideNestedAfter : 30
+    const fadeAfter = nested >= 0 ? nested * 1000 : undefined
+    /** A finished nested one that has yet to leave: the clock has to keep drawing until it does. */
+    const fading = () =>
+      fadeAfter !== undefined &&
+      nodes().some(
+        ({ session, depth }) =>
+          depth >= 1 &&
+          (session.status === "done" || session.status === "failed") &&
+          Date.now() - (session.ended ?? 0) < fadeAfter + 2000,
+      )
+
     const paint = () => {
       const now = Date.now()
       const list = nodes()
@@ -182,6 +202,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
         now,
         frame,
         limit: options.sidebarRows ?? 6,
+        ...(fadeAfter !== undefined ? { fadeAfter } : {}),
       })
       /** Only when they changed: new rows rebuild every line of the block, and a scroll is many paints. */
       const said = JSON.stringify(next)
@@ -296,9 +317,27 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
      * A run that has gone quiet is asked about. An end the events never told us of — a missed event,
      * a stop from elsewhere — otherwise left a subagent "running" until OpenCode restarted.
      */
+    const checkedOrphans = new Set<string>()
     const reconcile = () => {
       const now = Date.now()
       for (const { session } of nodes()) {
+        /**
+         * Settled as stopped because the subagent that launched it ended (core/model): asked once
+         * whether it still works — OpenCode 1 has no event to correct us, and a background child can
+         * outlive its parent. Only a "busy" is taken; "not running" keeps it stopped, not done.
+         */
+        if (session.orphaned !== undefined && !checkedOrphans.has(session.id)) {
+          checkedOrphans.add(session.id)
+          const busy = feed
+            .check(session.id)
+            .find((change) => change.type === "status" && change.status === "busy")
+          if (busy) {
+            log.info("orphaned run still working", { id: session.id })
+            applyAll(model, [{ ...busy, at: now }])
+            draw()
+          }
+          continue
+        }
         if (session.status !== "running" && session.status !== "starting") continue
         if (now - session.seen < QUIET_MS) continue
         const changes = feed.check(session.id)
@@ -320,7 +359,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       if (working()) {
         frame++
         draw()
-      } else if (options.hideFinishedAfter !== undefined) draw() // finished ones age out with nothing running
+      } else if (options.hideFinishedAfter !== undefined || fading()) draw() // finished ones age out with nothing running
     }, 1000)
     let fast: ReturnType<typeof setInterval> | undefined
 
@@ -401,6 +440,13 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
     /** Opens the item, or folds it: whichever it is not now. */
     const toggle = (key: string | undefined = surface.selected) => {
       if (!key) return
+      /** A `task` call that launched a subagent is a way into it — the same pane ←/→ would reach. */
+      const child = shown?.links.get(key)
+      if (child && model.sessions.has(child) && !isHidden(child)) {
+        log.debug("follow task", { key, child })
+        open(child)
+        return
+      }
       const isOpen = shown?.opened.includes(key) ?? false
       if (isOpen) {
         surface.opened.delete(key)
@@ -830,8 +876,8 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       commands: [
         {
           name: "cockpit.subagents.open",
-          title: "Open subagents",
-          category: "Subagents",
+          title: "Open the subagents",
+          category: "Cockpit · Subagents",
           namespace: "palette",
           slashName: "subagents",
           run: () => openLatest(),
@@ -839,14 +885,15 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
         {
           name: "cockpit.subagents.clearFinished",
           title: "Clear finished subagents",
-          category: "Subagents",
+          desc: "from the sidebar",
+          category: "Cockpit · Subagents",
           namespace: "palette",
           run: () => clearFinished(),
         },
         {
           name: "cockpit.subagents.restore",
           title: "Show removed subagents again",
-          category: "Subagents",
+          category: "Cockpit · Subagents",
           namespace: "palette",
           run: () => restore(),
         },

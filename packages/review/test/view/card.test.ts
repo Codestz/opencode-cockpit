@@ -58,12 +58,27 @@ describe("what a thread says", () => {
     )
   })
 
+  /**
+   * Brackets are keys and checkboxes. `[WAITING]` sat in the same tone and weight as `[c] Reply`, so
+   * a status read as one more key to press.
+   */
+  test("how it stands is a bare word; the only brackets on the band are keys", () => {
+    const rows = cardRows(thread(), { width: 70, height: 20 }, false, { focused: true })
+    const brackets =
+      text(rows)
+        .join("")
+        .match(/\[[^\]]*\]/g) ?? []
+    expect(brackets).toEqual(["[c]", "[x]"])
+    const status = rows.flatMap((row) => row.runs).find((run) => run.text === "WAITING")
+    expect(status?.tone).toBe("accent")
+  })
+
   test("what it is about, then how it stands, as one phrase", () => {
     const first = heading(cardRows(thread({ line: 41 }), { width: 70, height: 20 }, false, { inline: true }))
     expect(first).toContain("LINE 41")
-    expect(first).toContain("[WAITING]")
+    expect(first).toContain("WAITING")
     /** Together, not one at each end: no void across the middle of the band. */
-    expect(first.indexOf("[WAITING]") - first.indexOf("LINE 41")).toBeLessThan(20)
+    expect(first.indexOf("WAITING") - first.indexOf("LINE 41")).toBeLessThan(20)
   })
 
   test("inline it does not repeat the file it is already inside", () => {
@@ -73,9 +88,9 @@ describe("what a thread says", () => {
 
   test("a thread the agent answered is your turn; a resolved one says so", () => {
     expect(heading(cardRows(thread({ status: "answered" }), { width: 70, height: 20 }))).toContain(
-      "[YOUR TURN]",
+      "YOUR TURN",
     )
-    expect(heading(cardRows(answered, { width: 70, height: 20 }))).toContain("[RESOLVED]")
+    expect(heading(cardRows(answered, { width: 70, height: 20 }))).toContain("RESOLVED")
   })
 
   test("a thread whose code has moved says so, beside where it stands", () => {
@@ -88,7 +103,7 @@ describe("what a thread says", () => {
    */
   test("a thread whose code is gone says only that", () => {
     const said = heading(cardRows(thread(), { width: 70, height: 20 }, "outdated"))
-    expect(said).toContain("[OUTDATED]")
+    expect(said).toContain("OUTDATED")
     expect(said).not.toContain("WAITING")
   })
 
@@ -175,11 +190,11 @@ describe("in the room it has", () => {
 describe("when a resolved thread's code has changed", () => {
   test("it is resolved, which is the whole point", () => {
     const done = thread({ status: "resolved" })
-    expect(heading(cardRows(done, { width: 70, height: 20 }, "outdated"))).toContain("[RESOLVED]")
+    expect(heading(cardRows(done, { width: 70, height: 20 }, "outdated"))).toContain("RESOLVED")
     expect(heading(cardRows(done, { width: 70, height: 20 }, "outdated"))).not.toContain("OUTDATED")
   })
 
   test("while one still waiting says so", () => {
-    expect(heading(cardRows(thread(), { width: 70, height: 20 }, "outdated"))).toContain("[OUTDATED]")
+    expect(heading(cardRows(thread(), { width: 70, height: 20 }, "outdated"))).toContain("OUTDATED")
   })
 })

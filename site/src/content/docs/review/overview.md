@@ -4,7 +4,7 @@ description: A pull request in the terminal — comments the agent can read, ans
 ---
 
 Review turns what your agent wrote into something you can read the way you read a pull request: the
-diff, comments on the lines they are about, and answers under them. Bay 02.
+diff, comments on the lines they are about, and answers under them. Bay 03.
 
 The difference from every other way of reviewing an agent's work is that **the comments are data, not
 prose**. The agent fetches them with a tool, answers each one, and marks it resolved — and a resolve

@@ -137,14 +137,11 @@ export function wrap(text: string, width: number): string[] {
   return lines
 }
 
-/** A duration in the fewest characters that still reads: `4s`, `51s`, `2m04s`, `1h12m`. */
-export function elapsed(ms: number): string {
-  const s = Math.max(0, Math.floor(ms / 1000))
-  if (s < 60) return `${s}s`
-  const m = Math.floor(s / 60)
-  if (m < 60) return `${m}m${String(s % 60).padStart(2, "0")}s`
-  return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}m`
-}
+/**
+ * A duration in the fewest characters that still reads: `4s`, `51s`, `2m04s`, `1h12m`. The sidebar's
+ * one kind of time, shared with Shells beside it (client/design).
+ */
+export { duration as elapsed } from "@opencode-cockpit/client/design"
 
 /** `1.2k`, `24k`, `1.1M` — tokens in a narrow column. */
 export function compact(n: number): string {
@@ -154,6 +151,5 @@ export function compact(n: number): string {
   return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`
 }
 
-/** A spinner frame, from a clock that ticks on every paint. */
-export const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
-export const spin = (frame: number): string => SPINNER[Math.abs(frame) % SPINNER.length] as string
+/** A spinner frame, from a clock that ticks on every paint: the one every bay spins (client/design). */
+export { spinner as spin } from "@opencode-cockpit/client/design"

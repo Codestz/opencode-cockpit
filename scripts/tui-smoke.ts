@@ -1,6 +1,6 @@
 /**
  * Drives a real OpenCode against the packed packages installed into `node_modules`, and asserts
- * the Shell panel keeps updating.
+ * the Shell panel keeps updating — and that every bay's commands are found and run from `ctrl+p`.
  *
  *   bun scripts/tui-smoke.ts
  *
@@ -135,6 +135,7 @@ try {
         "@opencode-cockpit/review": file("opencode-cockpit-review-"),
         "@opencode-cockpit/updater": file("opencode-cockpit-updater-"),
         "@opencode-cockpit/subagents": file("opencode-cockpit-subagents-"),
+        "@opencode-cockpit/trust": file("opencode-cockpit-trust-"),
       },
       overrides: {
         "@opencode-cockpit/protocol": file("opencode-cockpit-protocol-"),
@@ -160,7 +161,7 @@ try {
 
   // The plugins must live under node_modules: that is what disables OpenCode's Solid transform.
   const bay = (name: string) => join(install, "node_modules", "@opencode-cockpit", name)
-  const tuiBays = [bay("shell"), bay("status"), bay("review"), bay("updater"), bay("subagents")]
+  const tuiBays = [bay("shell"), bay("status"), bay("review"), bay("updater"), bay("subagents"), bay("trust")]
   const serverBays = [bay("shell"), bay("review"), bay("subagents")]
   /**
    * v1 reads `plugin` from opencode.json and tui.json; v2 reads `plugins` from opencode.json and
@@ -233,7 +234,7 @@ try {
 
   await Bun.sleep(14_000) // OpenCode start-up, plugin install and load
   await type("\x10", 1000) // ctrl+p command palette
-  await type("New background shell", 1200)
+  await type("Start a background shell", 1200)
   await type("\r", 1200)
   await type("i=0; while true; do i=$((i+1)); echo tick $i; sleep 1; done", 300)
   await type("\r", 3500)
@@ -287,6 +288,63 @@ try {
   await type("\x18v", 3000)
   const review = await screen()
   await type("\x18v", 1500) // close the review again
+
+  /**
+   * The palette (`ctrl+p`), where a command can be listed and still do nothing you can see — Trust's
+   * "show or hide in the sidebar" did exactly that. Every bay's commands must be found by typing
+   * "cockpit" and the bay, and one command per bay (palette-only where the bay has one) must show
+   * its effect. The capture's selection is not to be trusted blindly (docs/building/testing.md), so
+   * the screen is read before `enter`: the entry has to be at the top, right under the query.
+   */
+  const atTop = (listed: string, query: string, title: string) => {
+    const lines = listed.split("\n")
+    const field = lines.findIndex((line) => line.trim() === query)
+    return (
+      field >= 0 &&
+      lines
+        .slice(field + 1)
+        .filter((line) => line.trim())
+        .slice(0, 2)
+        .some((line) => line.includes(title))
+    )
+  }
+  const palette = async (title: string, waitMs = 2500) => {
+    await type("\x10", 1000) // ctrl+p
+    await type(title, 1500)
+    const listed = await screen()
+    if (!atTop(listed, title, title))
+      throw new Error(`the palette did not offer "${title}" first:\n${listed}`)
+    await type("\r", waitMs)
+    return await screen()
+  }
+  const found: [string, string][] = []
+  for (const [name, title] of [
+    ["shell", "Start a background shell"],
+    ["status", "Ask the agent to customise the statusline"],
+    ["review", "Open or close the changes"],
+    ["updater", "Update plugins"],
+    ["subagents", "Open the subagents"],
+    ["trust", "Show what Trust answers for you"],
+  ] as const) {
+    await type("\x10", 1000)
+    await type(`cockpit ${name}`, 1500)
+    const listed = await screen()
+    if (!listed.includes(title)) found.push([`"cockpit ${name}" never listed "${title}"`, listed])
+    await type("\x1b", 800)
+  }
+  /** Each surface is closed before the next: an open review takes the keys, `ctrl+p` included. */
+  const ranReview = await palette("Toggle the changes full screen", 3000)
+  await type("\x1b", 1200)
+  const ran = {
+    /** Palette-only: closed, it used to change nothing on screen; now it opens, full screen. */
+    review: ranReview,
+    subagents: await palette("Clear finished subagents", 1200),
+    trust: await palette("Show or hide Trust in the sidebar", 1200),
+    ledger: await palette("Show what Trust answers for you", 2500),
+  }
+  await type("\x1b", 1200)
+  const ranUpdater = await palette("Update plugins", 4000)
+  await type("\x1b", 1200)
 
   /**
    * The updater's dialog, opened by its slash name and by the old one it replaced — two slash names
@@ -371,7 +429,6 @@ try {
     return drawn
   }
   const updater = await slash("plugins-update")
-  const legacy = await slash("cockpit-update")
   const subagents = process.env.AGENT ? await subagentsInTheInterface() : undefined
   proc.kill("SIGKILL")
   // `SMOKE_SHOW=1 bun run smoke:tui` prints the updater's frame: a marker proves it drew, not how.
@@ -397,9 +454,23 @@ try {
     if (!review.includes(marker)) throw new Error(`${what}:\n${review}`)
   }
 
+  const missing = found[0]
+  if (missing) throw new Error(`${missing[0]}:\n${missing[1]}`)
+  for (const [what, text, marker] of [
+    ["the palette's full-screen toggle never opened the changes", ran.review, "SMOKE-REVIEW"],
+    ["the palette's clear never answered", ran.subagents, "No finished subagents to clear."],
+    ["the palette's Trust sidebar toggle said nothing", ran.trust, "Shown in the sidebar."],
+    ["the palette never opened Trust's ledger", ran.ledger, "Trust in this project"],
+  ] as const) {
+    if (!text.includes(marker)) throw new Error(`${what}:\n${text}`)
+  }
+  /** Full screen puts the header on the top row; the pane leaves it to the conversation. */
+  if (!ran.review.split("\n")[0]?.includes("review"))
+    throw new Error(`the palette's toggle opened the changes, but not full screen:\n${ran.review}`)
+
   for (const [what, text] of [
     ["/plugins-update", updater],
-    ["/cockpit-update", legacy],
+    ["the palette's Update plugins", ranUpdater],
   ] as const) {
     /** OpenCode 2 updates plugins itself; there the commands point at it instead of opening the dialog. */
     for (const marker of v2 ? ["change the version"] : ["Plugins", "published", "local", "Review"]) {
@@ -436,7 +507,7 @@ try {
   }
 
   /** A plugin OpenCode could not load says so in the footer, whichever half it was. */
-  for (const text of [first, second, consoleScreen, fullScreen, review, updater]) {
+  for (const text of [first, second, consoleScreen, fullScreen, review, updater, ...Object.values(ran)]) {
     if (/plugins? failed/.test(text)) throw new Error(`OpenCode could not load a plugin:\n${text}`)
   }
 
@@ -451,7 +522,7 @@ try {
   }
   if (process.env.AGENT) agentTurn(env)
   console.log(
-    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; console and its keys drew; full screen drew; statusline drew; review drew its diff; updater answered both slash names${subagents ? "; a subagent showed in the sidebar and opened full screen, by click and by /subagents" : ""}${process.env.AGENT ? "; an agent called both bays' tools and was told about them" : ""}`,
+    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; console and its keys drew; full screen drew; statusline drew; review drew its diff; updater answered its slash name; every bay found under "cockpit" in the palette, and its commands ran from there${subagents ? "; a subagent showed in the sidebar and opened full screen, by click and by /subagents" : ""}${process.env.AGENT ? "; an agent called both bays' tools and was told about them" : ""}`,
   )
 } finally {
   /** KEEP=1 leaves the install and project behind, to inspect what a run actually loaded. */

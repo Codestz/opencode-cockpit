@@ -97,3 +97,53 @@ describe("the console, at either size", () => {
     expect(back.at(-1)).toContain("20 rows up")
   })
 })
+
+describe("the head says each thing once, and the reason in full", () => {
+  const failed: ShellInfo = {
+    ...shell,
+    status: "exited",
+    exitCode: 1,
+    signal: undefined,
+    stopReason: undefined,
+    cwd: "/p/web",
+    summary:
+      "FAIL src/auth/session.test.ts > creates a session > rejects an expired token after the grace period",
+  }
+
+  test("a title that is the command is not repeated under itself", () => {
+    const rows = text(consoleRows(input({ shell: failed })))
+    expect(rows.some((row) => row.includes("$ npm run test"))).toBe(false)
+    const described = text(consoleRows(input({ shell: { ...failed, title: "Unit tests" } })))
+    expect(described.some((row) => row.includes("$ npm run test"))).toBe(true)
+  })
+
+  test("a failure's reason wraps instead of being cut to one line", () => {
+    const rows = text(consoleRows(input({ shell: failed, width: 60 })))
+    const at = rows.findIndex((row) => row.includes("error: FAIL"))
+    expect(at).toBeGreaterThan(-1)
+    expect(rows.slice(at, at + 3).join(" ")).toContain("rejects an")
+    for (const row of rows) expect(row).toHaveLength(60)
+  })
+
+  test("details too long for the dialog keep their top and count the rest", () => {
+    const rows = text(consoleRows(input({ shell: failed, view: "details", height: 16 })))
+    expect(rows.some((row) => row.includes("command"))).toBe(true)
+    expect(rows.some((row) => /↓ \d+ more {3}\[w\] Full Screen/.test(row))).toBe(true)
+  })
+})
+
+describe("the empty console", () => {
+  const empty = (over: Partial<ConsoleInput>) => text(consoleRows(input({ shell: undefined, ...over })))
+  const none = { ...input({}).keys, shell: false }
+
+  test("names the scope it is empty for", () => {
+    expect(empty({ keys: none }).join("\n")).toContain("No shells in this session")
+    expect(empty({ keys: { ...none, scope: "project" } }).join("\n")).toContain("No shells in this project")
+  })
+
+  test("a hint too long for the row ends in an ellipsis, not half a word", () => {
+    const rows = empty({ keys: none, width: 40 })
+    expect(rows.some((row) => row.trimEnd().endsWith("…"))).toBe(true)
+    for (const row of rows) expect(row).toHaveLength(40)
+  })
+})

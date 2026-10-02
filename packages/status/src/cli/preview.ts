@@ -18,7 +18,7 @@ import { loadCustomSegments, resolveModulePath } from "../core/custom.ts"
 import { FIXTURES, type FixtureName } from "../core/fixtures.ts"
 import { fit, fitColumn } from "../core/render.ts"
 import { buildSegments, type SegmentDef, segmentWidth } from "../core/segments.ts"
-import { paintRuns } from "./ansi.ts"
+import { paintRuns as paintColour } from "./ansi.ts"
 
 const args = process.argv.slice(2).filter((arg) => arg !== "preview")
 const flag = (name: string): string | undefined => {
@@ -93,8 +93,12 @@ const roomFor = (line: ResolvedLine, terminal: number) =>
   line.surface === "sidebar" ? 34 : terminal - line.paddingLeft - line.paddingRight
 
 const width = Number(flag("width") ?? 0) || 0
+/** Colour for a terminal, plain text under NO_COLOR or into a pipe — as Subagents and the Updater do. */
+const color = process.stdout.isTTY === true && !process.env.NO_COLOR
+const paintRuns: typeof paintColour = (runs) =>
+  color ? paintColour(runs) : runs.map((run) => run.text).join("")
 const dim = (text: string) =>
-  `${String.fromCharCode(27)}[38;2;110;120;132m${text}${String.fromCharCode(27)}[0m`
+  color ? `${String.fromCharCode(27)}[38;2;110;120;132m${text}${String.fromCharCode(27)}[0m` : text
 
 async function draw(): Promise<string[]> {
   const watched: string[] = []

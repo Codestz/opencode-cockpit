@@ -201,17 +201,17 @@ describe("the sidebar example", () => {
 describe("the budget sidebar example", () => {
   const withSession = () => ctx({ session: working(0.4) })
 
-  test("every labelled row starts with the same six-column gutter", () => {
-    for (const type of ["tokens", "in", "out", "cache", "write"]) {
+  test("every labelled row starts with the same seven-column gutter, a space past the longest label", () => {
+    for (const type of ["tokens", "in", "out", "cache"]) {
       const drawn = draw("sidebar-budget", type, withSession())
-      expect(drawn?.runs[0]?.text).toHaveLength(6)
+      expect(drawn?.runs[0]?.text).toHaveLength(7)
     }
   })
 
   test("the token rows are shares of the window, and they add up to it", () => {
     const shares = ["in", "out", "cache", "write"].map((type) => {
-      const text = segmentText(draw("sidebar-budget", type, withSession()) as Segment)
-      return Number(/(\d+)%$/.exec(text)?.[1] ?? 0)
+      const drawn = draw("sidebar-budget", type, withSession())
+      return drawn ? Number(/(\d+)%$/.exec(segmentText(drawn))?.[1] ?? 0) : 0
     })
     expect(shares.reduce((a, b) => a + b, 0)).toBe(100)
   })
@@ -233,6 +233,20 @@ describe("the budget sidebar example", () => {
       custom: loaded["sidebar-budget"].segments,
       icons: false,
     })[0]
-    expect(segmentText(drawn as Segment)).toBe("avail ▪ $173.76 · 87%")
+    expect(segmentText(drawn as Segment)).toBe("avail  $173.76 · 87% left")
+  })
+
+  /** `write 0 · 0%` on a session with no cache writes said nothing, in a row of its own. */
+  test("a row whose figure is zero is not drawn", () => {
+    expect(draw("sidebar-budget", "write", withSession())).toBeUndefined()
+  })
+
+  /** The word is the label: no coloured square beside it, and the figures are not categories. */
+  test("colour is a level, never a label", () => {
+    for (const type of ["tokens", "in", "out", "cache"]) {
+      const drawn = draw("sidebar-budget", type, withSession())
+      expect(segmentText(drawn as Segment)).not.toContain("▪")
+      for (const run of drawn?.runs ?? []) expect(["text", "muted"]).toContain(run.tone)
+    }
   })
 })

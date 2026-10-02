@@ -29,6 +29,7 @@ ships.*
 | **Statusline** | — (for you: what the session is costing, under the prompt or in the sidebar) | [`@opencode-cockpit/status`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/status) |
 | **Updater** | — (for you: every plugin, what it really runs, and the update) | [`@opencode-cockpit/updater`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/updater) |
 | **Subagents** | Every subagent's run in the sidebar and a pane; follow-ups continue the subagent that did the work; message, stop or background one | [`@opencode-cockpit/subagents`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/subagents) |
+| **Trust** | — (for you: approve the exact same command three times and it is answered for you; `/trust` shows what it learned and answered) | [`@opencode-cockpit/trust`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/trust) |
 
 ## Shell, by example
 
@@ -214,7 +215,11 @@ Each shell's output feeds three views at once: a normalized **log** for the agen
 |---|---|
 | [`opencode-cockpit`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/opencode) | All features in one plugin |
 | [`@opencode-cockpit/shell`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/shell) | Shell feature |
+| [`@opencode-cockpit/status`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/status) | Statusline feature |
+| [`@opencode-cockpit/review`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/review) | Review feature |
+| [`@opencode-cockpit/updater`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/updater) | Updater feature |
 | [`@opencode-cockpit/subagents`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/subagents) | Subagents feature |
+| [`@opencode-cockpit/trust`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/trust) | Trust feature |
 | [`@opencode-cockpit/daemon`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/daemon) | `cockpitd`, the shared process host |
 | [`@opencode-cockpit/client`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/client) | Typed, auto-spawning client and plugin helpers |
 | [`@opencode-cockpit/protocol`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/protocol) | Wire contracts |

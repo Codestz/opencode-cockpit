@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { memoryDisk } from "../src/core/disk.ts"
-import type { Check } from "../src/doctor/checks.ts"
+import { ago, type Check } from "../src/doctor/checks.ts"
 import type { DoctorIo } from "../src/doctor/gather.ts"
 import { doctor } from "../src/doctor/run.ts"
 
@@ -21,13 +21,14 @@ interface Machine {
   exists?: string[]
   alive?: number[]
   git?: boolean
+  env?: Record<string, string>
 }
 
 async function run(machine: Machine, args: string[] = []) {
   let out = ""
   const files = machine.files ?? {}
   const io: DoctorIo & { write(text: string): void; color: boolean } = {
-    env: {},
+    env: machine.env ?? {},
     home: HOME,
     cwd: "/work/project",
     worktree: "/work/project",
@@ -254,6 +255,8 @@ describe("the logs", () => {
     })
     expect(found["Last run"]?.state).toBe("ok")
     expect(found["Last run"]?.summary).toContain("Cockpit 0.6.0 on OpenCode 2")
+    // Just under an hour before doctor ran, said that way: not the raw ISO stamp from the log.
+    expect(found["Last run"]?.summary).toMatch(/, 59m ago$/)
   })
 
   test("two versions loaded at once is worth saying", async () => {
@@ -334,6 +337,36 @@ describe("the rest", () => {
   })
 })
 
+describe("background subagents (the 0.8 load test)", () => {
+  const bundle = { [`${CONFIG}/opencode.json`]: json({ plugin: ["opencode-cockpit@0.6.0"] }) }
+
+  test("OpenCode 1 without its flag: a warning with the line that fixes it", async () => {
+    const found = await checks({ opencode: "1.18.32", files: bundle })
+    expect(found.Subagents?.state).toBe("warn")
+    expect(found.Subagents?.fix?.join()).toContain("export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true")
+  })
+
+  test("the flag, or OpenCode's umbrella experimental one, turns it on", async () => {
+    const own = await checks({
+      opencode: "1.18.32",
+      files: bundle,
+      env: { OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS: "true" },
+    })
+    expect(own.Subagents?.state).toBe("ok")
+    const umbrella = await checks({ opencode: "1.18.32", files: bundle, env: { OPENCODE_EXPERIMENTAL: "1" } })
+    expect(umbrella.Subagents?.state).toBe("ok")
+  })
+
+  test("OpenCode 2 has them built in; without Subagents installed there is nothing to say", async () => {
+    const v2 = await checks({
+      opencode: "2.0.15",
+      files: { [`${CONFIG}/opencode.json`]: json({ plugins: ["opencode-cockpit@0.6.0"] }) },
+    })
+    expect(v2.Subagents?.state).toBe("ok")
+    expect((await checks({ opencode: "1.18.32" })).Subagents).toBeUndefined()
+  })
+})
+
 describe("the command", () => {
   test("exits 1 when something must be fixed, 0 otherwise", async () => {
     expect((await run({})).code).toBe(1)
@@ -350,5 +383,19 @@ describe("the command", () => {
     const { code, out } = await run({}, ["--wat"])
     expect(code).toBe(2)
     expect(out).toContain("Usage:")
+  })
+})
+
+describe("a logged time reads as how long ago", () => {
+  const now = Date.parse("2026-09-30T12:00:00Z")
+  test("by the largest unit that says it", () => {
+    expect(ago("2026-09-30T11:59:30Z", now)).toBe("just now")
+    expect(ago("2026-09-30T11:48:00Z", now)).toBe("12m ago")
+    expect(ago("2026-09-30T05:00:00Z", now)).toBe("7h ago")
+    expect(ago("2026-09-26T12:00:00Z", now)).toBe("4d ago")
+  })
+  test("a time it cannot read, or no clock, is printed as logged", () => {
+    expect(ago("yesterday", now)).toBe("yesterday")
+    expect(ago("2026-09-30T11:00:00Z", undefined)).toBe("2026-09-30T11:00:00Z")
   })
 })

@@ -7,6 +7,8 @@ import {
   follow,
   partsToV1Hooks,
   type ServerParts,
+  serverFromV1,
+  serverFromV2,
   toolToV2,
 } from "../src/server.ts"
 
@@ -215,5 +217,47 @@ describe("v2's event stream", () => {
     expect(seen).toEqual(["ses_1", "ses_3"])
     expect(opened).toBe(3)
     expect(waits).toEqual([1_000, 2_000])
+  })
+})
+
+/**
+ * Shell's notices go to the session that started a shell, and a subagent still at work has to get
+ * them inside its turn: v1 answers "busy?" itself, v2 has to be told to steer.
+ */
+describe("messaging a session that may be busy", () => {
+  test("v1 reads busy from the status map, and a session left out of it is idle", async () => {
+    const client = {
+      session: {
+        status: async () => ({
+          data: { ses_busy: { type: "busy" }, ses_retry: { type: "retry", attempt: 1 } },
+        }),
+      },
+    }
+    const host = serverFromV1({ client, directory: "/work" } as never)
+    expect(await host.session.busy?.("ses_busy")).toBe(true)
+    expect(await host.session.busy?.("ses_retry")).toBe(true)
+    expect(await host.session.busy?.("ses_idle")).toBe(false)
+  })
+
+  test("v1 that cannot answer says so instead of guessing", async () => {
+    const client = { session: { status: async () => Promise.reject(new Error("offline")) } }
+    const host = serverFromV1({ client, directory: "/work" } as never)
+    expect(await host.session.busy?.("ses_1")).toBeUndefined()
+  })
+
+  test("v2 steers when asked to, and leaves delivery to OpenCode otherwise", async () => {
+    const sent: unknown[] = []
+    const ctx = {
+      location: { directory: "/work" },
+      session: { synthetic: async (input: unknown) => void sent.push(input) },
+    }
+    const host = serverFromV2(ctx as never)
+    expect(host.session.busy).toBeUndefined()
+    await host.session.notify("ses_sub", "hi", { steer: true })
+    await host.session.notify("ses_root", "hello")
+    expect(sent).toEqual([
+      { sessionID: "ses_sub", text: "hi", delivery: "steer" },
+      { sessionID: "ses_root", text: "hello" },
+    ])
   })
 })

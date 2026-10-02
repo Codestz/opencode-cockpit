@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+
 /**
  * The see-it loop: the sidebar block and the full screen, drawn in this terminal from a recorded run,
  * with no OpenCode running. The same rows OpenCode draws — only the colours come from a fixed
@@ -6,11 +7,28 @@
  *
  *   bunx @opencode-cockpit/subagents preview            a sample run, mid-flight
  *   bunx @opencode-cockpit/subagents preview --width 34 the sidebar at another width
+ *   bunx @opencode-cockpit/subagents preview --fixture advisor   another conversation (see --help)
  */
 
+import type { Change } from "../core/model/changes.ts"
 import { applyAll, emptyModel, subagentsOf } from "../core/model/model.ts"
-import { SAMPLE_NOW, SAMPLE_ROOT, sample } from "../core/sample.ts"
-import type { Row, Run, Tone } from "../core/view/rows.ts"
+import {
+  ADVISOR_ROOT,
+  advisorSample,
+  CALLS_ROOT,
+  CALLS_SERVERS,
+  CONTINUED_ROOT,
+  callsSample,
+  continuedSample,
+  FINISHED_ROOT,
+  finishedSample,
+  LATE_ROOT,
+  lateSample,
+  SAMPLE_NOW,
+  SAMPLE_ROOT,
+  sample,
+} from "../core/sample.ts"
+import { type Row, type Run, rowText, type Tone } from "../core/view/rows.ts"
 import { screenRows } from "../core/view/screen.ts"
 import { sidebarLines } from "../core/view/sidebar.ts"
 
@@ -44,19 +62,99 @@ function paint(row: Row): string {
     .join("")
 }
 
+/** Conversations to draw: the default mid-flight run, and the ones the sidebar's order is about. */
+const FIXTURES: Record<string, { changes: () => Change[]; root: string; about: string }> = {
+  sample: { changes: sample, root: SAMPLE_ROOT, about: "three subagents mid-flight (the default)" },
+  advisor: { changes: advisorSample, root: ADVISOR_ROOT, about: "a planner asking an advisor six times" },
+  late: { changes: lateSample, root: LATE_ROOT, about: "a late runner after finished ones" },
+  continued: {
+    changes: continuedSample,
+    root: CONTINUED_ROOT,
+    about: "a subagent continued the next day: two rounds, a day apart",
+  },
+  finished: {
+    changes: finishedSample,
+    root: FINISHED_ROOT,
+    about: "everything ended: six done, one stopped",
+  },
+}
+
 const args = process.argv.slice(2)
 if (args.includes("--help") || args.includes("-h")) {
-  process.stdout.write("Usage: subagents preview [--width <sidebar columns>]\n")
+  process.stdout.write(
+    [
+      "Usage: subagents preview [--width <sidebar columns>] [--fixture <name>] [--columns <pane columns>]",
+      "                         [--state closed|open|whole]",
+      "",
+      ...Object.entries(FIXTURES).map(([name, { about }]) => `  ${name.padEnd(10)}${about}`),
+      "  calls     a call of every kind: thinking as markdown, todos, an MCP tool, a task,",
+      "            and an ask_advisor with a sixty-line question — folded, open and whole",
+      "",
+      "  --state   with --fixture calls, only that state",
+      "",
+    ].join("\n"),
+  )
   process.exit(0)
 }
-const at = args.indexOf("--width")
-const sidebarWidth = at >= 0 ? Number(args[at + 1]) || 36 : 36
-const columns = Math.max(60, Math.min(process.stdout.columns || 100, 140))
+const option = (name: string): string | undefined => {
+  const at = args.indexOf(name)
+  return at >= 0 ? args[at + 1] : undefined
+}
+const sidebarWidth = Number(option("--width")) || 36
+const columns = Number(option("--columns")) || Math.max(60, Math.min(process.stdout.columns || 100, 140))
 
-const model = applyAll(emptyModel(), sample())
-const nodes = subagentsOf(model, SAMPLE_ROOT)
+if (option("--fixture") === "calls") {
+  const model = applyAll(emptyModel(), callsSample())
+  const nodes = subagentsOf(model, CALLS_ROOT)
+  const session = nodes[0]?.session
+  if (!session) throw new Error("the calls fixture has no subagent")
+  const base = {
+    session,
+    nodes,
+    launcher: "build",
+    width: columns,
+    height: 400,
+    now: SAMPLE_NOW,
+    frame: 2,
+    top: 0,
+    open: new Set<string>(),
+    closed: new Set<string>(),
+    thinking: false,
+    details: false,
+    servers: CALLS_SERVERS,
+  }
+  const keys = screenRows(base).keys
+  const calls = keys.filter((key) => key.startsWith("tool:"))
+  const states = {
+    closed: base,
+    open: { ...base, open: new Set(keys) },
+    whole: { ...base, open: new Set(keys), whole: new Set(calls) },
+  }
+  const out: string[] = []
+  for (const [name, input] of Object.entries(states)) {
+    if (option("--state") && option("--state") !== name) continue
+    out.push("", `Every kind of call — ${name}, ${columns} columns`, "")
+    const screen = screenRows(input)
+    /** The body only, without the rows of nothing the tall pane pads it with. */
+    const body = screen.rows.slice(screen.bodyAt, -3)
+    while (body.length > 0 && rowText(body.at(-1) ?? []).trim() === "") body.pop()
+    for (const row of body) out.push(paint(row))
+  }
+  process.stdout.write(`${out.join("\n")}\n\n`)
+  process.exit(0)
+}
+
+const fixture = FIXTURES[option("--fixture") ?? "sample"]
+if (!fixture) {
+  process.stderr.write(`Unknown fixture. One of: ${[...Object.keys(FIXTURES), "calls"].join(", ")}\n`)
+  process.exit(1)
+}
+
+const model = applyAll(emptyModel(), fixture.changes())
+const nodes = subagentsOf(model, fixture.root)
 const out: string[] = ["", "Sidebar", ""]
-for (const line of sidebarLines({ nodes, width: sidebarWidth, now: SAMPLE_NOW, frame: 2 }))
+/** The host's default for nested ones: thirty seconds. */
+for (const line of sidebarLines({ nodes, width: sidebarWidth, now: SAMPLE_NOW, frame: 2, fadeAfter: 30_000 }))
   out.push(paint(line.row))
 const first = nodes[0]?.session
 if (first) {

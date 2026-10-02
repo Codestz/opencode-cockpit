@@ -17,6 +17,10 @@ function ink(theme: TuiThemeCurrent, tone: Tone | undefined) {
       return theme.warning
     case "accent":
       return theme.accent
+    case "success":
+      return theme.success
+    case "error":
+      return theme.error
     default:
       return theme.text
   }

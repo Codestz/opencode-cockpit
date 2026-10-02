@@ -41,12 +41,18 @@ export function createV1Translator(unknown: (what: string, detail?: Json) => voi
   const sessionInfo = (info: Json, at: number): Change[] => {
     const id = str(info.id)
     if (!id) return []
+    /**
+     * The title's `(@general subagent)` names the agent the task tool ran it as. `info.agent` can be
+     * the launcher's instead: measured on 1.18.32, a general subagent launched from `build` was stored
+     * and announced with `agent: "build"`, and was listed to the main agent as a build subagent.
+     */
+    const agent = agentOfTitle(str(info.title)) ?? str(info.agent)
     const out: Change[] = [
       {
         type: "session",
         id,
         ...(str(info.parentID) ? { parentID: str(info.parentID) as string } : {}),
-        ...(str(info.agent) ? { agent: str(info.agent) as string } : {}),
+        ...(agent ? { agent } : {}),
         ...(str(info.title) ? { title: stripAgentSuffix(str(info.title) as string) } : {}),
         ...(denied(info.permission) ? { denied: denied(info.permission) as string[] } : {}),
         at: Number(obj(info.time).created) || at,
@@ -241,6 +247,11 @@ export function tokenTotal(tokens: Json): number {
 /** OpenCode 1 titles a subagent session "Task title (@explore subagent)"; the agent is shown apart. */
 export function stripAgentSuffix(title: string): string {
   return title.replace(/\s*\(@[\w-]+ subagent\)\s*$/, "")
+}
+
+/** The agent that suffix names: `general` in "Map the repo (@general subagent)". */
+export function agentOfTitle(title: string | undefined): string | undefined {
+  return title ? /\(@([\w-]+) subagent\)\s*$/.exec(title)?.[1] : undefined
 }
 
 /** Permissions an agent's rules deny outright: `[{ permission: "task", action: "deny" }]`. */

@@ -12,6 +12,7 @@
 
 import { FIXTURES, type FixtureName } from "../core/fixtures.ts"
 import { emptyReview, open as openThread, toggleRead } from "../core/model/review.ts"
+import { waitingOnAgent } from "../core/model/submit.ts"
 import { layout } from "../core/view/layout.ts"
 import type { Fill, Row, Tone } from "../core/view/rows.ts"
 
@@ -49,6 +50,7 @@ const FG: Record<Tone, string> = {
   lineNumber: `${ESC}[38;2;108;112;134m`,
   success: `${ESC}[38;2;166;227;161m`,
   warning: `${ESC}[38;2;249;226;175m`,
+  error: `${ESC}[38;2;243;139;168m`,
   keyword: `${ESC}[38;2;203;166;247m`,
   string: `${ESC}[38;2;166;227;161m`,
   number: `${ESC}[38;2;250;179;135m`,
@@ -112,7 +114,9 @@ if (noted) {
 }
 const file = flag("file") ?? changes.files[1]?.path ?? changes.files[0]?.path
 
-const rows = layout(changes, review, { file, cursor: file, context: 3 }, { width, height })
+/** What the pane passes too: without it the footer offered `[s] Submit` dimmed with notes waiting. */
+const waiting = waitingOnAgent(review).length
+const rows = layout(changes, review, { file, cursor: file, context: 3, waiting }, { width, height })
 
 console.log(`\n${BOLD}${name}${RESET} — ${fixture.about}  ${FG.muted}${width}×${height}${RESET}`)
 console.log(`${FG.border}┌${"─".repeat(width - 2)}┐${RESET}`)

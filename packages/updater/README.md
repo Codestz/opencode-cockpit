@@ -31,7 +31,7 @@ Each re-resolves `@latest` every time it runs, which is exactly what OpenCode's 
 
 ```
 plugin                        running   config          published
-opencode-cockpit              0.1.2     latest  ⚠       0.5.0       ↑
+opencode-cockpit              0.1.2     latest  !       0.5.0       ↑
 opencode-foo                  1.2.0     @1.2.0          1.3.0       ↑
 bar                           2.0.0     @2.0.0          2.0.0
 
@@ -48,7 +48,7 @@ Update 2 plugins? [Y/n]
 ## Inside OpenCode
 
 `/plugins-update` opens the same list as a dialog: `space` selects, `a` selects every update, `enter`
-shows exactly what will change, and `enter` again does it. `/cockpit-update` opens it too.
+shows exactly what will change, and `enter` again does it.
 
 Once a day it checks the registry and, if something is behind, says so once:
 `2 plugin updates available. Run /plugins-update.` Turn that off with `"updateCheck": false` under

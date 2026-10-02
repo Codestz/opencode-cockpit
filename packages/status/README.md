@@ -3,7 +3,7 @@
 A statusline for [OpenCode](https://opencode.ai) you can actually configure: declarative segments,
 your own TypeScript, or the statusline script you already wrote for Claude Code.
 
-![The statusline under an OpenCode conversation: a context bar at 40%, the token total with its cache, input and output parts, the session diff, elapsed time and todo progress](https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/statusline.png)
+![The statusline under an OpenCode conversation: a context bar at 40%, the token total with its cache, input and output parts, what is uncommitted, elapsed time and todo progress](https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/statusline.png)
 
 Part of [opencode-cockpit](https://github.com/Codestz/opencode-cockpit). Install it on its own, or
 get it with every other bay through the `opencode-cockpit` bundle.
@@ -20,22 +20,29 @@ get it with every other bay through the `opencode-cockpit` bundle.
 That's enough. Without any configuration you get a line under the conversation carrying what
 OpenCode does not already tell you.
 
-## What it shows by default, and why it's so little
+## What it shows by default, and why
 
 OpenCode's own furniture already carries a lot: its footer has the path, the branch and the token
 count; its sidebar has the context percentage and the spend; its prompt has the agent and the model.
 
-A statusline that repeats those buys you a second copy of something already on screen — on one
-window the context percentage can end up drawn five times. So the default line is what the host
-leaves out:
+The default line repeats one of those on purpose — the token count and the percentage — because it
+says them better: a bar you read without looking, with the total's parts beside it, is a different
+instrument from `78.5K (39%)` in a corner. What stays out are the facts a second copy adds nothing
+to: the path, the branch, the model, the spend.
 
 | Segment | Says |
 | --- | --- |
-| `session.status` | working, or `retry 2 in 5s` — OpenCode shows a spinner, not why it stalled |
-| `git.diff` | `+150 / -30` for this session |
+| `context` | `▐█████▉········▌ 43%` — how full the window is |
+| `tokens` | `tk 85.2k │ cache 84.9k │ in 265 │ out 60` — the total, then what it is made of |
+| `git.diff` | `+150 / -30` — what is uncommitted, from `git diff --shortstat HEAD` |
+| `session.time` | `took 3m42s` — how long the last answer took; quiet while one is running |
 | `todo` | `3/7 todo`, and nothing once the list is done |
-| `session.time` | `12m04s` |
+| `session.status` | working, or `retry 2 in 5s` — OpenCode shows a spinner, not why it stalled |
 | `diagnostics` | only when an LSP or MCP server is unhealthy |
+
+Words are the labels, muted, and the figures are in the text colour; colour is kept for what it
+signals — the bar's level, what was added and removed, a retry. A part that is zero, such as `cache`
+on a provider with no prompt cache, is left out rather than drawn as `cache 0`.
 
 Everything else is one line of config away — including the things the host shows, if you want them
 in both places.
@@ -114,39 +121,46 @@ it fits. How full the context is survives a 60-column window; the version string
 | --- | --- | --- |
 | `cwd` | folder, relative to the worktree | `maxWidth` |
 | `git.branch` | current branch, dimmed on the default branch | |
-| `session.diff` | `+150 / -30` — what **this session** changed, not the working tree | |
+| `git.diff` | `+150 / -30` — what is uncommitted: `git diff --shortstat HEAD` | |
 | `model` | `claude-opus-5` | `full` |
 | `context` | how full the window is | `style`: `percent` \| `bar` \| `gradient` \| `split`, `width`, `warnAt`, `dangerAt` |
 | `tokens` | `78.5k tok` | |
 | `cost` | session spend | `currency`, `showZero` |
 | `todo` | `3/7 todo` | `showComplete` |
-| `session.status` | working, or a retry and its countdown | |
-| `session.time` | elapsed | `coarse` |
+| `session.status` | `working 1m02s` since the prompt, or a retry and its countdown | |
+| `session.time` | the session's age, or with `of: "turn"` how long the last answer took | `of`: `session` \| `turn`, `coarse` |
 | `diagnostics` | unhealthy LSP and MCP servers | |
 | `version` | this bay's version | |
 | `text` | literal text | `value` |
 | `command` | the output of a shell command | `name`, `row` |
 
+`session.time` has two clocks. Bare, it is how old the conversation is — from its creation, so one
+reopened days later reads `2d 15h` — and a line you already wrote keeps that. `{ "type":
+"session.time", "of": "turn" }` is what the built-in lines use: `took 3m42s` once an answer is
+done, and nothing while one is running, because `session.status` is counting it from the same
+prompt.
+
 Every segment takes `prefix`, `suffix`, `priority`, `color` (a tone name or `#rrggbb`) and `icon`.
 
-`session.diff` reports what OpenCode's own Files list shows: the files **this session** changed. A
-file you edited by hand was never part of the session and will not appear.
+`git.diff` counts what is uncommitted — staged and unstaged together, against the last commit — so
+you can check it by running the command yourself. Untracked files are left out: git cannot count
+lines in a file it has never seen. The command runs only when a line carries the segment, at most
+once every two seconds.
 
-For the **working tree**, pair a command with the `worktree` segment in `examples/bottom.ts` — a
-built-in that shelled out would stop being a pure function of the snapshot, which is what makes
-every one of them testable without a filesystem:
+For the file count as well, pair a command with the `worktree` segment in `examples/bottom.ts`:
 
 ```jsonc
 {
   "commands": { "tree": { "run": "git diff --shortstat", "intervalMs": 5000 } },
   "segments": [
-    { "type": "session.diff", "prefix": "session " },
+    { "type": "git.diff", "prefix": "uncommitted " },
     { "type": "worktree", "prefix": "tree " }
   ]
 }
 ```
 
-`session.diff` also answers to `git.diff`, its old and more misleading name.
+`git.diff` also answers to `session.diff`, the name it had while the numbers came from OpenCode's own
+file list.
 
 **A segment with nothing to say says nothing.** `cost` hides itself where nobody declared prices
 rather than reporting `$0.00`; `context` hides itself where nobody declared a window rather than

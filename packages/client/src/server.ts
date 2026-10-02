@@ -29,15 +29,40 @@ export interface ServerHost {
   /** One object per OpenCode instance, shared by every Cockpit plugin in it — for `claimFeature`. */
   readonly scope: object
   readonly session: {
-    get(id: string): Promise<{ parentID?: string; title?: string } | undefined>
+    /** `agent` is the agent running in the session (`general`, `explore`…), when the host says. */
+    get(id: string): Promise<{ parentID?: string; title?: string; agent?: string } | undefined>
+    /**
+     * Whether a session is working on a turn right now. OpenCode 1 only: OpenCode 2's agent side has
+     * no status call, so a feature that needs it there follows the session events itself.
+     */
+    busy?(id: string): Promise<boolean | undefined>
     /** A session's child sessions — its subagents. OpenCode 1 only: OpenCode 2 gives plugins no list. */
-    children?(
-      id: string,
-    ): Promise<{ id: string; title?: string; parentID?: string; time?: { updated?: number } }[]>
+    children?(id: string): Promise<
+      {
+        id: string
+        title?: string
+        parentID?: string
+        agent?: string
+        time?: { created?: number; updated?: number }
+      }[]
+    >
     /** A session's messages with their parts, as OpenCode 1 stores them. OpenCode 1 only. */
     messages?(id: string): Promise<{ info: unknown; parts: unknown[] }[]>
-    /** A message from the plugin rather than the person, which starts a turn: v1's synthetic prompt. */
-    notify(id: string, text: string): Promise<void>
+    /**
+     * A session's messages as OpenCode 2 stores them (`{ type: "user" | "assistant", … }`), read
+     * through `session.context`: what the model is given, so a compacted session starts at its
+     * summary. OpenCode 2 only; OpenCode 1 has `messages`.
+     */
+    context?(id: string): Promise<unknown[]>
+    /**
+     * A message from the plugin rather than the person, which starts a turn: v1's synthetic prompt.
+     *
+     * `steer` is for a session that is busy: OpenCode 2 then hands the message to the running turn
+     * instead of queueing it after that turn ends — which, for a subagent, is after it has answered
+     * and nobody is listening. OpenCode 1 needs nothing: a prompt sent to a busy session is picked up
+     * mid-run (measured, docs/opencode/agents.md).
+     */
+    notify(id: string, text: string, options?: { steer?: boolean }): Promise<void>
   }
   /** A project file's text, or undefined when there is none — or the path leaves the project. */
   readFile(path: string): Promise<string | undefined>
@@ -136,7 +161,15 @@ export function serverFromV1(input: PluginInput, log: Log = silentLog): ServerHo
     session: {
       get: async (id) => {
         const result = await client.session.get({ path: { id } }).catch(() => undefined)
-        return result?.data as { parentID?: string; title?: string } | undefined
+        return result?.data as { parentID?: string; title?: string; agent?: string } | undefined
+      },
+      busy: async (id) => {
+        const result = await client.session.status().catch(() => undefined)
+        const all = result?.data as Record<string, { type?: string }> | undefined
+        if (!all || typeof all !== "object") return undefined
+        // v1 lists the sessions that are doing something; one it leaves out is idle.
+        const type = all[id]?.type
+        return type === "busy" || type === "retry"
       },
       notify: async (id, text) => {
         await client.session.promptAsync({
@@ -195,8 +228,12 @@ export interface V2ServerContext {
   location?: { directory: string }
   tool?: { transform(edit: (editor: V2ToolEditor) => void): Promise<unknown> }
   session: {
-    get(input: { sessionID: string }): Promise<{ parentID?: string; title?: string } | undefined>
-    synthetic(input: { sessionID: string; text: string }): Promise<unknown>
+    get(input: {
+      sessionID: string
+    }): Promise<{ parentID?: string; title?: string; agent?: string } | undefined>
+    synthetic(input: { sessionID: string; text: string; delivery?: "steer" | "queue" }): Promise<unknown>
+    /** A session's messages as the model is given them (2.0.15). */
+    context?(input: { sessionID: string }): Promise<unknown[]>
     hook(name: "context", run: (event: { sessionID: string; system: unknown[] }) => unknown): Promise<unknown>
   }
   event: { subscribe(options: { signal: AbortSignal }): AsyncIterable<V2Event> }
@@ -255,8 +292,16 @@ export function serverFromV2(
     scope: scopeFor(directory),
     session: {
       get: (id) => ctx.session.get({ sessionID: id }).catch(() => undefined),
-      notify: async (id, text) => {
-        await ctx.session.synthetic({ sessionID: id, text })
+      context: async (id) => {
+        const list = await ctx.session.context?.({ sessionID: id }).catch(() => undefined)
+        return Array.isArray(list) ? list : []
+      },
+      notify: async (id, text, options) => {
+        await ctx.session.synthetic({
+          sessionID: id,
+          text,
+          ...(options?.steer ? { delivery: "steer" as const } : {}),
+        })
       },
     },
     /** v2 gives plugins no file API; the file system, kept inside the project, reads the same text. */

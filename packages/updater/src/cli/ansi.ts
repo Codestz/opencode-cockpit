@@ -12,6 +12,8 @@ const TONE: Record<Tone, string> = {
   removed: "31",
   warning: "33",
   accent: "36",
+  success: "32",
+  error: "31",
 }
 const FILL: Record<Fill, string> = { none: "", band: "48;5;236", cursor: "48;5;237" }
 

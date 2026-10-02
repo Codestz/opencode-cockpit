@@ -131,18 +131,9 @@ export function createUpdaterTui({ source = UPDATER_PACKAGE }: { source?: string
         {
           name: "cockpit.updater.open",
           title: "Update plugins",
-          category: "Plugins",
+          category: "Cockpit · Updater",
           namespace: "palette",
           slashName: "plugins-update",
-          run: open,
-        },
-        {
-          // Old toasts, old docs and habit all say /cockpit-update; it now opens the same screen.
-          name: "cockpit.updater.legacy",
-          title: "Update plugins (was: update opencode-cockpit)",
-          category: "Plugins",
-          namespace: "palette",
-          slashName: "cockpit-update",
           run: open,
         },
       ],

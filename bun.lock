@@ -51,6 +51,7 @@
         "@opencode-cockpit/shell": "workspace:*",
         "@opencode-cockpit/status": "workspace:*",
         "@opencode-cockpit/subagents": "workspace:*",
+        "@opencode-cockpit/trust": "workspace:*",
         "@opencode-cockpit/updater": "workspace:*",
       },
       "devDependencies": {
@@ -122,6 +123,24 @@
       "bin": {
         "opencode-subagents": "./dist/cli/preview.js",
         "subagents": "./dist/cli/preview.js",
+      },
+      "dependencies": {
+        "@opencode-ai/plugin": "1.18.31",
+        "@opencode-cockpit/client": "workspace:*",
+      },
+      "devDependencies": {
+        "@opentui/core": "0.4.5",
+        "@opentui/keymap": "0.4.5",
+        "@opentui/solid": "0.4.5",
+        "solid-js": "1.9.12",
+      },
+    },
+    "packages/trust": {
+      "name": "@opencode-cockpit/trust",
+      "version": "0.7.1",
+      "bin": {
+        "opencode-trust": "./dist/cli/preview.js",
+        "trust": "./dist/cli/preview.js",
       },
       "dependencies": {
         "@opencode-ai/plugin": "1.18.31",
@@ -269,6 +288,8 @@
     "@opencode-cockpit/status": ["@opencode-cockpit/status@workspace:packages/status"],
 
     "@opencode-cockpit/subagents": ["@opencode-cockpit/subagents@workspace:packages/subagents"],
+
+    "@opencode-cockpit/trust": ["@opencode-cockpit/trust@workspace:packages/trust"],
 
     "@opencode-cockpit/updater": ["@opencode-cockpit/updater@workspace:packages/updater"],
 

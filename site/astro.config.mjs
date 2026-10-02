@@ -75,6 +75,10 @@ export default defineConfig({
           label: "Subagents",
           items: [{ label: "Overview", slug: "subagents/overview" }],
         },
+        {
+          label: "Trust",
+          items: [{ label: "Overview", slug: "trust/overview" }],
+        },
         { label: "Configuration", slug: "configuration" },
         {
           label: "Platform",

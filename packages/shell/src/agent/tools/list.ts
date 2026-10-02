@@ -2,6 +2,7 @@ import { type ToolDefinition, tool } from "@opencode-ai/plugin"
 import { commandOf, filterShells, type SessionFilter, type StatusFilter } from "../../core/find.ts"
 import { describeStatus } from "../../core/format.ts"
 import { kindOfShell, type ShellKind } from "../../core/kind.ts"
+import { stateWord } from "../../core/outcome.ts"
 import type { ToolKit } from "./shared.ts"
 
 const z = tool.schema
@@ -50,7 +51,7 @@ export function shellList(kit: ToolKit): ToolDefinition {
         query: args.query ?? undefined,
         status: (args.status ?? "any") as StatusFilter,
         session: (args.session ?? "any") as SessionFilter,
-        currentSession: ctx.sessionID,
+        currentSession: (await kit.deps.rootSession?.(ctx.sessionID).catch(() => undefined)) ?? ctx.sessionID,
       })
       if (everything.length === 0) return "No background shells."
       if (shells.length === 0)
@@ -65,7 +66,7 @@ export function shellList(kit: ToolKit): ToolDefinition {
             ? `\n    watch: ${s.watch.preset ?? "custom"} · ${s.watch.status}${s.watch.summary ? ` · ${s.watch.summary.slice(0, 120)}` : ""}`
             : ""
           return [
-            `${s.id}  ${s.status.padEnd(7)}  "${s.title}"${s.run > 1 ? ` (run ${s.run})` : ""} · ${kindOfShell(s, config.kinds)} · ${await sessionLabel(s, ctx)}`,
+            `${s.id}  ${stateWord(s).padEnd(7)}  "${s.title}"${s.run > 1 ? ` (run ${s.run})` : ""} · ${kindOfShell(s, config.kinds)} · ${await sessionLabel(s, ctx)}`,
             `    $ ${commandOf(s).slice(0, 200)}${failure}`,
             `    ${describeStatus(s)}${watch}${tail ? `\n    last: ${tail.slice(0, 200)}` : ""}`,
           ].join("\n")

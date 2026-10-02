@@ -48,9 +48,32 @@ spec once and `@latest` never moves again. From a shell, on any version:
 opencode plugin @opencode-cockpit/updater@0.7.1 --global --force
 ```
 
-## Doctor — next
+## Subagents — available
 
-One command that checks your setup and says how to fix it.
+Every subagent of the conversation in the sidebar with what it is doing now, its whole run a click
+away in a pane, and a message away with `m`. Follow-ups continue the subagent that did the work
+instead of starting a new one, and the main agent can list, read and wait on its subagents. See
+[Subagents](/opencode-cockpit/subagents/overview/).
+
+```sh
+opencode plugin @opencode-cockpit/subagents@0.7.1 --global --force
+```
+
+## Trust — available
+
+Permissions that learn. Approve the exact same command three times in a row and Trust answers
+OpenCode's prompt for you from then on, and records every answer; dangerous commands cost more,
+and a rule you wrote to be asked is never answered. `/trust` shows what it has learned. See
+[Trust](/opencode-cockpit/trust/overview/).
+
+```sh
+opencode plugin @opencode-cockpit/trust@0.7.1 --global --force
+```
+
+## Doctor — available
+
+`npx opencode-cockpit@latest doctor` checks your setup on OpenCode 1 and 2 and prints the fix for
+anything wrong, even when Cockpit will not load. See [Doctor](/opencode-cockpit/help/doctor/).
 
 ## The open bay
 

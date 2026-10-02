@@ -6,6 +6,186 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Trust — a new bay: permissions that learn.** `@opencode-cockpit/trust`, also in the bundle
+  (`features.trust: false` to switch it off), on OpenCode 1 and 2 alike. Approve the *exact same*
+  command three times in a row and Trust answers OpenCode's prompt for you from then on, and records
+  every answer.
+  - **Exact, not "similar":** `docker compose -p cockpit up -d` and `docker compose -p prod down -v`
+    never share an approval, nor does one command in two directories. A line is answered only when
+    every command in it is trusted or allowed by config; `$(…)`, `eval`, `sh -c`, loops
+    (`while … do … done`) and the like are always asked. A quoted `'>'` is an argument, so
+    `echo '>' x` and `echo > x`, which writes a file, never share an approval. Counts are per project
+    and per agent.
+  - **Dangerous costs more:** `rm`, `git push`, `--force`, `reset --hard`, `down -v`, `kubectl
+    delete`, `terraform apply`, `DROP`, `npm publish`, `sudo`… need `threshold + dangerExtra`
+    (3 + 5) approvals in a row. A reject resets the count; trust unused for 30 days expires.
+  - **Your config wins:** a specific `"git push *": "ask"` is never answered — only a catch-all
+    `ask` is Trust's to fill. Trust reads OpenCode's config and never writes it.
+  - **Only your approvals count:** Trust's own answers, and any reply under 300ms (OpenCode's
+    `--auto`), are not counted.
+  - **Sidebar, when you want it:** `Trust  4 auto`, what it answered and how often, and the request
+    on screen with its count (`2/3`). Hidden by default — `"trust": { "sidebar": true }` shows it,
+    and the palette's "Show or hide Trust in the sidebar" flips it for the session; a failure shows
+    either way. A log line per answer; no toasts.
+  - **Ledger:** `/trust` or `ctrl+x p` — what it answered and what it has learned, revoke (`x`),
+    copy a rule for `opencode.json` (`c`), pause in this project (`p`), and OpenCode's own broad
+    "Always" approvals under a warning. Kept append-only in
+    `~/.local/share/opencode-cockpit/trust/`, shared by every window on the project.
+  - **Families:** the ledger groups rules by what they do — `ls -la`, `ls -x` are `ls`;
+    `git -C x status` is `git status`; `docker compose -p prod down -v` is `docker compose down`;
+    `sudo ls` stays its own. A command two agents earned is one row, each agent's count on its card.
+  - **Exactly:** a panel under the list shows the selected command with every argument quoted where
+    a font could merge it (`echo "---"`, not `echo ──`) and says what it answers and what still asks.
+    An argument that is only punctuation is also said in words, there and beside its row
+    (`echo "---"  3 hyphens`), since a ligature font merges `---` even inside quotes.
+  - **`w` trusts a whole family**, for one agent, only when you press it: any `ls …` is answered
+    except dangerous commands, writes to a file through a redirection, `find -exec`/`git -c`, opaque
+    lines and your config's specific `ask`s. Dangerous families can never be widened. `w` again or
+    `x` on the family undoes it; answers through it say so (`● ls -x · any ls`).
+
+- **The agent can read and wait on its subagents.** `subagents_read` reads one subagent in full —
+  why it stopped, its task, its whole answer, every call — paged with a cursor, and works on cancelled
+  ones, which can still be continued. `subagents_wait` blocks until subagents finish, fail, are
+  cancelled or need you, never past its timeout.
+- **A subagent's calls are drawn by what they are.** A task names the subagent it launched and
+  `enter` goes there; todos are a checklist; `webfetch` and `websearch` show the URL or the query; an
+  MCP tool is titled `server · tool`; an argument is one row when short, markdown under its name when
+  long, indented JSON when an object. Thinking is drawn as markdown, muted, and the pane's markdown
+  now has emphasis, links, strikes and a fence's language on its first row.
+- **Status says which clock it is.** `session.time` takes `of`: `"turn"` is how long the last answer
+  took, `took 3m42s`, and nothing while one is running; bare, or `"session"`, it is still the
+  conversation's age. Every built-in line uses the turn, so a conversation reopened two days later no
+  longer reads `2d 15h` with no word beside it.
+- **Review shows whitespace that changed.** A line whose only change is spacing draws it — `·` a
+  space, `→` a tab, `␍` a carriage return — and a hunk of nothing else says `whitespace only`.
+- **Review says when a file is new, deleted or renamed** — `renamed from src/config/load.ts`, muted,
+  after the path. A file moved and not touched stays in the review, and a moved file's diff shows the
+  edit rather than the whole file as new.
+- **`bunx @opencode-cockpit/shell preview`** draws Shell's sidebar block, dock and console — empty,
+  running, failed, details, a filtered log, finished — from sample shells, with no OpenCode and no
+  daemon. `--part`, `--state`, `--width`, `--columns`; plain text under `NO_COLOR` or into a pipe.
+- **Doctor warns when OpenCode 1 will run every subagent in the foreground**, with the line that fixes
+  it (`OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`).
+
+### Changed
+
+- **Trust opens on what it did for you; the ledger is a tree of families with a card.** `/trust`
+  now leads with *today*: every answer Trust gave in the project, newest first, with why in a few
+  words ("trusted since yesterday, 3 in a row", "in a family you widened: ls") and a sparkline of the
+  week; then *almost there* — what is still learning, closest first, with a meter (`▰▰▱ 2 of 3`, red
+  and longer for a dangerous command); OpenCode's own "always" in a warning band of its own; and the
+  project's counts with a button into the ledger. `enter` shows why: the rule's card. The ledger
+  (`l`) is families as a tree you fold (`←`/`→`, `space`), each command once whatever its agents say,
+  and a card for the selection always on screen — the command whole, each agent's standing, what
+  still asks, the approvals that earned it (`✓ 9h ✓ 9h ✓ 9h → trusted`), its family, when it
+  expires — with `x`, `w` and `c` as buttons you can click or `tab` into. `/` filters; below 90
+  columns the card goes under the tree; `esc` steps back to the activity, and closes from there.
+  Colour is back as signal: green for what answers, the warning for what is close, red for what is
+  dangerous, agents as chips — tints of the user's theme. The preview takes `--view activity|ledger`.
+- **Every Cockpit command in `ctrl+p` sits under `Cockpit · <bay>`, titled by what it does.** Typing
+  "cockpit" lists them all on both OpenCodes ("Open or close the changes", "Show or hide Trust in the
+  sidebar"…). Slash names and keys are unchanged.
+- **Every bay speaks one visual language.** The bays had drifted: green meant *running* in Shell and
+  *done* in Subagents a few rows apart, and brackets meant a key, a status or a checkbox depending on
+  the screen. Now, everywhere:
+  - **Colour is for what asks something of you.** Running wears the accent, needing you the warning,
+    failed the error; done and stopped are quiet. A cancelled run is `stopped` — not `cancelled`, and
+    not a failure.
+  - **Keys read `[key] Label`**, lowercase keys and Title Case labels, and brackets mean a key or a
+    checkbox (`[✓]`) and nothing else: a Review thread's status is a bare word in its tone.
+  - **`esc` closes every screen**, and a key row too narrow for its keys drops the least-wanted ones,
+    says `…`, and never drops the way out.
+  - **One sidebar heading:** the name on the left, every count on the right in its state's tone
+    (`7 done · 1 stopped`), keeping what needs you when the column is narrow — and a row of air
+    under it, so the first row no longer reads as part of the heading.
+  - **One gauge:** calm, the warning from 75%, the error from 90%; `!` for a warning, never `⚠`.
+- **The Subagents sidebar puts what is working first, and lets what has ended be quiet.**
+  - Working subagents come before finished ones; a late runner no longer sits under a pile of done.
+  - A finished subagent is one muted row with its calls and time; running, waiting, failed and
+    stopped keep the row that says what.
+  - Subagents with the same parent, agent and task are one entry with a count (`×6`).
+  - A finished *nested* subagent — an advisor asked again and again — leaves the sidebar after
+    `hideNestedAfter` seconds (30; negative keeps them). The heading still counts it and the pane
+    still reaches it.
+  - One held on a permission is drawn in the warning tone and counted apart (`1 running · 1 needs
+    you`); the time on the right is always the whole run, as the pane's header says it.
+  - `general` is no longer named on every row; any other agent is, muted.
+- **The Status default line keeps colour for what it signals.** A format's words are muted labels
+  and its figures are text; colour is left to the bar's level, `+`/`-` and a retry. A part that is
+  zero (`cache 0` on a provider with no prompt cache) is left out. `working 1m02s` counts from your
+  prompt, and the sidebar preset now shows why a turn stalled (`retry 2 in 5s`).
+- **Review's file list fits more, and names what it is.** A folder holding one file is one row with
+  it (`tui/index.tsx`), and the list sizes itself to its names, 26 to 40 columns: at 180×30 it lists
+  25 files where it listed 13. "Read" is now "viewed", matching the checkbox, and with nothing to
+  review the header drops its zero counts and the footer offers only what can help.
+- **The Updater's list keeps its columns.** Every column keeps its gap, so a long name no longer runs
+  into its version; short of room the list gives up `config`, then `running`, but never the published
+  version or the state (`unreachable` is never `unreac…`). Doctor says `23h ago`, not an ISO stamp.
+- **Shell's console says a failure in full and keeps its rows.** A failure's reason wraps to three
+  lines instead of being cut to one; details keep their top rows and count the rest
+  (`↓ N more   [w] Full Screen`); the empty console names its scope and offers `[s] Whole Project`.
+  In the sidebar, the times, watches and exit codes end in one column, and a row says how long a
+  shell ran rather than how long ago it ended.
+- **`/plugins-update` is the only name for the plugins screen.** `/cockpit-update`, kept as an alias
+  since 0.5, is gone.
+- **The agent is told about `background` only where its tool has it.** On OpenCode 1 without the flag
+  it launches independent subagents side by side in one message instead of failing on the field.
+
+### Fixed
+
+- **"Show or hide Trust in the sidebar" looked dead in a fresh window.** The shown block now sums up
+  the project (`5 trusted · 1 counting`) or says `nothing learned yet`, and the toggle confirms it.
+- **"Toggle the changes full screen" did nothing while the changes were closed.** It now opens them.
+- **A subagent continued a day later read "stopped after 24h04m".** The time shown is now its last
+  round's — "done in 4m00s (round 2)" in the pane and tools, "· 2 rounds" in the sidebar — with when
+  it first started ("first started yesterday 22:17").
+- **The subagents a cancelled subagent launched kept spinning.** Those still running are shown as
+  stopped in the sidebar, the pane and the tools, unless OpenCode says they are still at work.
+- **On OpenCode 1 a message about a shell could replace a subagent's answer** when it arrived as the
+  subagent finished. A running subagent there is no longer messaged about its shells: a failure goes
+  to the conversation when it finishes, and subagents are asked to check their shells before
+  answering. OpenCode 2 is unchanged.
+- **On OpenCode 2, subagents from before a restart could not be reached.** `subagents_read` and
+  `subagents_wait` take their id, and `subagents_list` says why they are missing until they act.
+- **A subagent's long arguments could not be read.** A long `ask_advisor` question was cut at three
+  rows folded and twenty open, and `a` reached only the output. Arguments now climb the same ladder:
+  three rows folded, sixty open, up to two thousand with `a`, always saying `… N more lines`. A cut
+  call says how to see the rest on its own row (`… 2 more lines · [enter] Expand`), with keys rather
+  than a mouse-only "Click to expand". Fixes [#32](https://github.com/Codestz/opencode-cockpit/issues/32).
+- **A reopened subagent consulted once read `done · 0s`.** Its run now ends when its last message
+  finished, on both OpenCodes.
+- **`working 2d 15h` a second after a question to an old conversation.** `session.status` counted
+  from the session's creation; it now counts from the prompt.
+- **A viewed file in Review hid the notes still going on it.** A file stays open while any thread on
+  it is unresolved, and folds on its own once every thread is resolved; `z` still folds it by hand.
+- **Review drew tab-indented and CRLF files off the grid**, and read the old path of a rename in
+  uncommitted work as a file of its own. Tabs expand to their stop, carriage returns are dropped, and
+  a rename is one entry.
+- **The Updater's `⚠` shoved every column after it** in terminals that draw it two cells wide, and
+  its local and built-in rows were dimmed to about 2:1 against the background. The mark is `!`, and
+  those rows are muted without the extra dimming.
+- **A subagent's failed shell could vanish.** A failure told to a subagent that is still working now
+  also reaches the main conversation once that subagent finishes, naming the shells and how to hand
+  the failure back.
+- **`subagents_list` contradicted the screen.** A subagent continued after OpenCode restarted listed
+  the wrong task; times are now also given by the clock; the list, the pane and the sidebar state a
+  run's title, calls, state and duration from the same functions.
+- **General subagents on OpenCode 1 were labelled with their launcher's agent ("build").**
+- **`shell_list` said "exited" for a crash** the sidebar drew as failed, and now names the subagent
+  that started each shell.
+- **`review_list` spoke from the person's side.** It says which threads wait on the agent and which
+  on you, and no longer signs your comments as the agent's.
+- **A subagent's shell woke the main agent, and the subagent never heard.** Exit and health notices
+  went to the conversation a shell is shown in, not to the session that started it. They now go to
+  the agent that asked: a subagent still at work gets them inside its turn (steered on OpenCode 2).
+  Once it has finished, a failure goes to the main agent instead, naming the subagent and how to
+  continue it with the error (`task` with `task_id` on OpenCode 1, `subagent` with its `sessionID` on
+  OpenCode 2), so the agent that knows the work picks it up; a clean exit, or health coming back,
+  stays quiet. Shells keep showing in the conversation as before, and a shell started by an older
+  Cockpit is told about as it always was.
+
 ## [0.7.1] - 2026-09-26
 
 ### Added

@@ -86,25 +86,84 @@ export async function worktreeChanges(cwd: string, git: RunGit = runGit): Promis
   const files: FileChange[] = []
   const errors: string[] = []
   // NUL-separated so paths with spaces or quotes need no unescaping.
-  for (const entry of status.out.split("\0")) {
+  const entries = status.out.split("\0")
+  for (let index = 0; index < entries.length; index++) {
+    const entry = entries[index] as string
     if (entry.length < 4) continue
     const code = entry.slice(0, 2)
     const path = entry.slice(3)
+    /**
+     * A rename's "-z" form puts the old path in the next entry, with no code of its own. Read as an
+     * entry, it became a file called whatever followed its first three characters.
+     */
+    const from = /[RC]/.test(code) ? entries[++index] : undefined
     if (files.length >= MAX_FILES) {
       errors.push(`more than ${MAX_FILES} files changed; showing the first ${MAX_FILES}`)
       break
     }
-    // A rename's "-z" form puts the old path in the next entry; the new path is what we read.
-    const before = code.includes("?") ? "" : await show(git, cwd, "HEAD", path)
+    const change = statusChange(code, from)
+    const before = code.includes("?") || code.includes("C") ? "" : await show(git, cwd, "HEAD", from ?? path)
     const { text: after, error } = readWorking(cwd, path)
     if (error) {
       errors.push(error)
       continue
     }
-    if (before === after) continue
-    files.push({ path, before, after, additions: 0, deletions: 0 })
+    if (before === after && change !== "renamed") continue
+    files.push(fileOf(path, before, after, change, from))
   }
   return { files, errors }
+}
+
+/** What a two-letter `git status` code says happened to the file itself. */
+function statusChange(code: string, from: string | undefined): FileChange["change"] {
+  if (/[RC]/.test(code)) return from && code.includes("R") ? "renamed" : "added"
+  if (code.includes("?") || code.includes("A")) return "added"
+  if (code.includes("D")) return "deleted"
+  return undefined
+}
+
+/** One file, with its change and where it came from only when there is something to say. */
+const fileOf = (
+  path: string,
+  before: string,
+  after: string,
+  change: FileChange["change"],
+  from: string | undefined,
+): FileChange => ({
+  path,
+  before,
+  after,
+  additions: 0,
+  deletions: 0,
+  ...(change ? { change } : {}),
+  ...(change === "renamed" && from ? { from } : {}),
+})
+
+/**
+ * `git diff --name-status -z` as path → what happened to it.
+ *
+ * Each record is a status, then one path — or two, old then new, for a rename or a copy. A rename
+ * matters most: without it the old path read as deleted and the new one as created, and the
+ * reviewer read the whole file twice to find the line that changed.
+ */
+function nameStatus(out: string): Map<string, { change: FileChange["change"]; from?: string }> {
+  const found = new Map<string, { change: FileChange["change"]; from?: string }>()
+  const fields = out.split("\0")
+  let index = 0
+  while (index < fields.length) {
+    const code = fields[index++] ?? ""
+    if (!code) continue
+    if (code.startsWith("R") || code.startsWith("C")) {
+      const from = fields[index++] ?? ""
+      const path = fields[index++] ?? ""
+      if (path) found.set(path, code.startsWith("R") ? { change: "renamed", from } : { change: "added" })
+      continue
+    }
+    const path = fields[index++] ?? ""
+    if (!path) continue
+    found.set(path, { change: code.startsWith("A") ? "added" : code.startsWith("D") ? "deleted" : undefined })
+  }
+  return found
 }
 
 /** A branch this one could be compared against, and how far apart the two are. */
@@ -236,8 +295,9 @@ export async function branchChanges(
   if (!fork)
     return { files: [], errors: [base ? `no base branch "${base}"` : "no base branch to compare against"] }
 
-  const listed = await git(["diff", "--name-only", "-z", fork], cwd)
+  const listed = await git(["diff", "--name-status", "-z", "-M", fork], cwd)
   if (!listed.ok) return { files: [], errors: ["could not list the branch's changes"], base: against }
+  const changed = nameStatus(listed.out)
 
   /**
    * Untracked files count as part of the branch.
@@ -247,9 +307,9 @@ export async function branchChanges(
    * in exactly the case this bay exists for.
    */
   const untracked = await git(["ls-files", "--others", "--exclude-standard", "-z"], cwd)
-  const paths = [...listed.out.split("\0"), ...(untracked.ok ? untracked.out.split("\0") : [])].filter(
-    (path, index, all) => path && all.indexOf(path) === index,
-  )
+  const fresh = untracked.ok ? untracked.out.split("\0").filter(Boolean) : []
+  for (const path of fresh) if (!changed.has(path)) changed.set(path, { change: "added" })
+  const paths = [...changed.keys()]
 
   const files: FileChange[] = []
   const errors: string[] = []
@@ -259,14 +319,15 @@ export async function branchChanges(
       errors.push(`more than ${MAX_FILES} files changed; showing the first ${MAX_FILES}`)
       break
     }
-    const before = await show(git, cwd, fork, path)
+    const { change, from } = changed.get(path) ?? { change: undefined }
+    const before = change === "added" ? "" : await show(git, cwd, fork, from ?? path)
     const { text: after, error } = readWorking(cwd, path)
     if (error) {
       errors.push(error)
       continue
     }
-    if (before === after) continue
-    files.push({ path, before, after, additions: 0, deletions: 0 })
+    if (before === after && change !== "renamed") continue
+    files.push(fileOf(path, before, after, change, from))
   }
   return { files, errors, base: against }
 }

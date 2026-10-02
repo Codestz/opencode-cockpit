@@ -151,7 +151,7 @@ export function createActions(deps: ActionDeps): Actions {
   }
 
   /** The stream as the paint will draw it, for the keys to reason about. */
-  const width = () => streamWidth(deps.viewport())
+  const width = () => streamWidth(deps.viewport(), store.current().changes)
   const streamNow = () => streamOf(store.current().changes, surface.review, listState(), width())
 
   /**

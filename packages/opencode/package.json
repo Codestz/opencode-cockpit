@@ -1,7 +1,7 @@
 {
   "name": "opencode-cockpit",
   "version": "0.7.1",
-  "description": "OpenCode superpowers, all in one: installs every opencode-cockpit feature (Shell today), each can be switched off",
+  "description": "OpenCode superpowers, all in one: installs every opencode-cockpit feature (Shell, Statusline, Review, Updater, Subagents, Trust), each can be switched off",
   "type": "module",
   "license": "MIT",
   "author": "Codestz",
@@ -19,6 +19,7 @@
     "background",
     "opencode",
     "opencode-plugin",
+    "permissions",
     "pty",
     "shell",
     "statusline",
@@ -57,6 +58,7 @@
     "@opencode-cockpit/shell": "workspace:*",
     "@opencode-cockpit/status": "workspace:*",
     "@opencode-cockpit/subagents": "workspace:*",
+    "@opencode-cockpit/trust": "workspace:*",
     "@opencode-cockpit/updater": "workspace:*"
   },
   "devDependencies": {

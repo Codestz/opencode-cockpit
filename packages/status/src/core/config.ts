@@ -212,7 +212,9 @@ export function asStatusConfig(input: unknown): StatusConfig {
  *
  * It took a long walk to arrive here, and the shape is the point. A capacity bar that means
  * something at a glance, the total beside the three quantities that make it up, what changed, how
- * long it has been. Colour carries which is which; the separators carry the grouping.
+ * long the last answer took. Words say which is which, muted, with the figures beside them in the text colour;
+ * colour is left for what it signals — the bar's level, what was added and removed, a retry. It used
+ * to carry the labels too, and three greens on one line meant three different things.
  *
  * It does repeat one thing OpenCode already shows -- the token count and the percentage, which its
  * footer carries in a corner. That is deliberate. The rule is not to avoid every fact the host
@@ -224,11 +226,11 @@ export function asStatusConfig(input: unknown): StatusConfig {
 export const DEFAULT_SEGMENTS: (string | SegmentConfig)[] = [
   { type: "context", style: "bar", width: 14, icon: "" },
   { type: "tokens", format: "tk {total}", icon: "" },
-  { type: "tokens", format: "cache {cacheRead}", color: "success", icon: "" },
-  { type: "tokens", format: "in {input}", color: "info", icon: "" },
-  { type: "tokens", format: "out {output}", color: "accent", icon: "" },
+  { type: "tokens", format: "cache {cacheRead}", icon: "" },
+  { type: "tokens", format: "in {input}", icon: "" },
+  { type: "tokens", format: "out {output}", icon: "" },
   { type: "git.diff", icon: "" },
-  { type: "session.time", icon: "" },
+  { type: "session.time", of: "turn", icon: "" },
   "todo",
   "session.status",
   "diagnostics",
@@ -272,7 +274,7 @@ export const PRESETS: Record<
       "cost",
       { type: "git.diff", icon: "" },
       "todo",
-      { type: "session.time", icon: "" },
+      { type: "session.time", of: "turn", icon: "" },
       "session.status",
       "diagnostics",
     ],
@@ -282,10 +284,16 @@ export const PRESETS: Record<
     surface: "sidebar",
     segments: [
       { type: "context", style: "bar", width: 14, icon: "" },
+      /**
+       * Why it stalled — `retry 2 in 5s` — which OpenCode shows as a spinner and nothing more. It is
+       * the reason this bay exists, so it outranks everything but the bar when rows run out; under
+       * the bar rather than above it, so a row that comes and goes does not move the bar about.
+       */
+      { type: "session.status", priority: 95 },
       { type: "tokens", format: "tk {total}", icon: "" },
-      { type: "tokens", format: "cache {cacheRead}", color: "success", icon: "" },
+      { type: "tokens", format: "cache {cacheRead}", icon: "" },
       { type: "git.diff", icon: "" },
-      { type: "session.time", icon: "" },
+      { type: "session.time", of: "turn", icon: "" },
       "todo",
       "diagnostics",
     ],

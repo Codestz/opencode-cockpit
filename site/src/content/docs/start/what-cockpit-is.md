@@ -17,13 +17,15 @@ OpenCode is an excellent terminal agent flying without instruments. Cockpit is t
 | **[Statusline](/opencode-cockpit/status/overview/)** | — | The session at a glance: how full the context is, where the tokens went, what changed, how long |
 | **[Review](/opencode-cockpit/review/overview/)** | Comments it can read, answer and resolve — a resolve is checked against the file | The diff where the work happened, with notes on the lines they are about |
 | **[Updater](/opencode-cockpit/updater/overview/)** | — | Every plugin you have: what is really running, what is published, and an update checked against disk |
+| **[Subagents](/opencode-cockpit/subagents/overview/)** | Follow-ups that continue the subagent that did the work; tools to list, read and wait on its subagents | Every subagent in the sidebar with what it is doing now, its whole run in a pane, and a message away |
+| **[Trust](/opencode-cockpit/trust/overview/)** | — | Permissions that learn: the exact same command approved three times is answered for you, and every answer is recorded |
 
 Each is its own npm package with a switch in config. Take the suite or a single bay; either way it
 is the same daemon, the same config file and the same keys, so moving between them changes nothing
 you have already set up.
 
-**[Doctor](/opencode-cockpit/platform/bays/)** is next: one command that checks your setup and says
-how to fix it.
+**[Doctor](/opencode-cockpit/help/doctor/)** comes with them: `npx opencode-cockpit@latest doctor`
+checks your setup and says how to fix it.
 
 ## Why a platform and not two plugins
 

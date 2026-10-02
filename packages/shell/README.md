@@ -62,7 +62,10 @@ with), so you can ask about shells naturally, including ones started in other se
 Names match ignoring case, then partially on name or command. If a name fits several shells the
 agent gets the candidates instead of a guess.
 
-The agent is messaged when a shell it started exits on its own.
+The agent is messaged when a shell it started exits on its own. A shell a subagent started is shown
+in your conversation, but its messages go to that subagent while it works. Once it has finished, a
+failure goes to the main agent, which is told how to continue that subagent with the error; a clean
+exit is not reported.
 
 ### Watching health
 
@@ -120,8 +123,10 @@ Things to ask:
 
 Watched shells also show their health (`tsc ✓`, `vitest ✗`) in the panel, sidebar and console.
 
-Status reads the same everywhere: `RUN` (with a spinner), `FAIL`, `STOP`, `DONE`. Running shells
-and recent failures stay visible; everything else folds into `▸ N more`.
+Status reads the same everywhere, and the way the Subagents block beside it reads: `⠹ RUN` in the
+accent, `● FAIL` in red, and `● STOP` and `● DONE` quiet, because a finished shell asks nothing of
+you. The sidebar says how long each one ran. Running shells and recent failures stay visible;
+everything else folds into `+ N more`.
 
 **Console keys**, and only the ones that apply right now. Running shell: `i` type (every key goes to
 the program, `ctrl+]` to stop typing), `c` ctrl+c, `r` restart, `x` stop. Finished shell: `r` run
@@ -140,6 +145,18 @@ from the five lines you want. Filtering happens in the daemon, not the terminal.
 
 **Output keeps its colours.** The panel and console paint what the program actually printed, so
 `vitest`, `eslint` and friends read the way they do in a terminal.
+
+## Seeing it without OpenCode
+
+```sh
+bunx @opencode-cockpit/shell preview
+bunx @opencode-cockpit/shell preview --part console --state failed --columns 60
+```
+
+Draws the sidebar block, the dock and the console — empty, running, failed, details, a filtered
+log, finished — from sample shells, in your terminal, with no OpenCode and no daemon running.
+`--width` sets the sidebar's width, `--columns` the dock's and the console's; `--help` lists the
+states. Plain text under `NO_COLOR` or into a pipe.
 
 ## Configuration
 

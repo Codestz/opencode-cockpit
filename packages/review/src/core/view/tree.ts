@@ -13,7 +13,7 @@ export interface TreeFile {
   kind: "file"
   /** The full path, which is how every other part of the review identifies a file. */
   path: string
-  /** Just the basename — what the row shows. */
+  /** What the row shows: the basename, or `folder/name` when the folder holds nothing else. */
   name: string
   depth: number
 }
@@ -86,6 +86,24 @@ export function treeRows(paths: readonly string[], collapsed: ReadonlySet<string
         label = `${label}/${onlyName}`
         path = `${path}/${onlyName}`
         at = only
+      }
+
+      /**
+       * A folder that holds one file and nothing else is joined into the file's row: `module-01/index.ts`.
+       *
+       * Forty modules with an `index.ts` each drew eighty rows — a folder, a file, a folder, a file —
+       * and a thirty-row screen showed thirteen of the forty. The folder's row said nothing the
+       * file's row cannot say in its own name.
+       */
+      const [single] = at.files
+      if (single !== undefined && at.files.length === 1 && at.children.size === 0) {
+        rows.push({
+          kind: "file",
+          path: single,
+          name: `${label}/${single.slice(single.lastIndexOf("/") + 1)}`,
+          depth,
+        })
+        continue
       }
 
       rows.push({ kind: "folder", path, name: label, depth, files: countFiles(at) })

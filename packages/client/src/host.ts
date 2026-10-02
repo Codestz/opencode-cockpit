@@ -371,6 +371,8 @@ interface V2Theme {
 interface V2Command {
   id?: string
   title?: string
+  /** v1's `desc`: after the title in the palette, and the slash popup's text when there is one. */
+  description?: string
   group?: string
   bind?: false | string
   palette?: true
@@ -489,6 +491,19 @@ const SLOT_PATHS: Record<SlotName, string> = {
   session_prompt_right: "prompt.footer.status",
 }
 
+/**
+ * A palette group on v2: the bay alone, `Cockpit · Review` → `Review`.
+ *
+ * v1 draws the category as a heading over its commands and searches it, so `Cockpit · Review` there
+ * is what makes "cockpit" find them all. v2 draws the group beside every row a search shows, with
+ * the key after it, and the title gives up what they take: `Open or close the change Cockpit ·
+ * Review · ctrl+x v`. It finds a command by its id as well (`cockpit.review.open`), so "cockpit"
+ * finds them there without the prefix.
+ */
+export function v2Group(category: string): string {
+  return category.replace(/^Cockpit · /, "")
+}
+
 /** A v1 layer — commands plus `{ key, cmd }` bindings — as a v2 layer. */
 export function layerToV2(layer: Layer): V2Layer {
   const bindings = (layer.bindings ?? []) as readonly { key?: string; cmd?: unknown }[]
@@ -500,6 +515,8 @@ export function layerToV2(layer: Layer): V2Layer {
   const commands = (layer.commands ?? []) as readonly {
     name: string
     title?: string
+    /** Drawn after the title in the palette — and, on both versions, what the slash popup shows. */
+    desc?: string
     category?: string
     namespace?: string
     slashName?: string
@@ -516,7 +533,8 @@ export function layerToV2(layer: Layer): V2Layer {
       return {
         id: command.name,
         ...(command.title ? { title: command.title } : {}),
-        ...(command.category ? { group: command.category } : {}),
+        ...(command.desc ? { description: command.desc } : {}),
+        ...(command.category ? { group: v2Group(command.category) } : {}),
         ...(command.namespace === "palette" ? { palette: true as const } : {}),
         ...(command.slashName ? { slash: { name: command.slashName } } : {}),
         ...(command.enabled !== undefined ? { enabled: command.enabled } : {}),

@@ -3,9 +3,12 @@ title: Configuration
 description: One file for both halves of the plugin — every section, with examples.
 ---
 
-This page is Shell's configuration. The other bays carry their own, because they are their own
-packages: [Statusline](/opencode-cockpit/status/configuration/) and
-[Review](/opencode-cockpit/review/interface/#settings).
+This page is Shell's configuration, and the sidebar order every bay shares. The other bays carry
+their own, because they are their own packages:
+[Statusline](/opencode-cockpit/status/configuration/),
+[Review](/opencode-cockpit/review/interface/#settings),
+[Subagents](/opencode-cockpit/subagents/overview/#settings) and
+[Trust](/opencode-cockpit/trust/overview/#settings).
 
 Everything is optional. Settings are merged from three places, later winning key by key:
 
@@ -86,17 +89,17 @@ model that uses shells less well.
 Interface only: `dockHeight`, `dockOpen`, `sidebarRows`, `sidebarOrder`, `historyMinutes`, `colors`,
 `defaultView` (`screen` or `log`), `keybinds`, `updateCheck`.
 
-:::tip[Three bays share the sidebar]
-The statusline (140), Subagents (150) and Shell (170) all draw there, in that order; lower draws
-first, on both OpenCodes. One list orders them all — in `~/.config/opencode-cockpit/config.json`, or a project's `.cockpit.json`,
+:::tip[Four bays share the sidebar]
+The statusline (140), Subagents (150), Trust (160, when `trust.sidebar` shows it) and Shell (170) all
+draw there, in that order; lower draws first, on both OpenCodes. One list orders them all — in `~/.config/opencode-cockpit/config.json`, or a project's `.cockpit.json`,
 which wins:
 
 ```json
-{ "sidebar": ["status", "subagents", "shell"] }
+{ "sidebar": ["status", "subagents", "trust", "shell"] }
 ```
 
 A bay the list leaves out keeps its place. A bay's own number (`ui.sidebarOrder` here,
-`statusline.sidebarOrder`, Subagents' `sidebarOrder`) still beats the list.
+`statusline.sidebarOrder`, Subagents' and Trust's `sidebarOrder`) still beats the list.
 :::
 
 :::tip[dockOpen decides how it starts]

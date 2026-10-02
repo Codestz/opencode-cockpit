@@ -238,3 +238,398 @@ export function sample(): Change[] {
     { type: "usage", id: "ses_readme", tokens: 2200, cost: 0.001, at: t(39) },
   ]
 }
+
+// ---------------------------------------------------------------------------------------------------
+// Sidebar ordering and nesting: two more conversations, each with its own root, on the same clock.
+
+/** A run in a few changes: launched, a few calls, ended — or still in its last call. */
+function run(
+  id: string,
+  parentID: string,
+  agent: string,
+  title: string,
+  start: number,
+  end: number | undefined,
+  calls: number,
+  ending: "idle" | "failed" | "stopped" = "idle",
+): Change[] {
+  const out: Change[] = [
+    { type: "session", id, parentID, agent, title, at: start },
+    { type: "prompt", id, key: "u1", text: title, at: start },
+    { type: "status", id, status: "busy", at: start },
+  ]
+  for (let i = 0; i < calls; i++)
+    out.push({
+      type: "tool",
+      id,
+      call: `${id}:${i}`,
+      name: "read",
+      state: end === undefined && i === calls - 1 ? "running" : "completed",
+      input: { filePath: `/acme/src/auth/file${i}.ts` },
+      at: start + 500 + i * 500,
+    })
+  if (end !== undefined)
+    out.push(
+      ending === "failed"
+        ? { type: "status", id, status: "failed", error: "rate limited", at: end }
+        : ending === "stopped"
+          ? { type: "status", id, status: "failed", error: "The operation was aborted.", at: end }
+          : { type: "status", id, status: "idle", at: end },
+    )
+  return out
+}
+
+export const ADVISOR_ROOT = "ses_plan"
+
+/**
+ * A subagent that asks an `advisor` for a second opinion again and again: six advisor sessions under
+ * one planner, four finished — two long enough ago to have left the sidebar — and two still at it.
+ * Beside it, a finished explore that had a helper of its own, long gone.
+ */
+export function advisorSample(): Change[] {
+  const t = (s: number) => SAMPLE_NOW - 120_000 + s * 1000
+  const planner = "ses_planner"
+  const advise = (n: number, start: number, end?: number) =>
+    run(
+      `ses_advisor${n}`,
+      planner,
+      "advisor",
+      "Review the migration plan",
+      t(start),
+      end === undefined ? undefined : t(end),
+      1,
+    )
+  return [
+    { type: "session", id: ADVISOR_ROOT, agent: "build", title: "Plan the session migration", at: t(0) },
+    ...run("ses_scout", ADVISOR_ROOT, "explore", "Find every session read", t(2), t(30), 6),
+    ...run("ses_scout_help", "ses_scout", "explore", "List the auth routes", t(5), t(12), 2),
+    ...run(planner, ADVISOR_ROOT, "general", "Draft the migration plan", t(4), undefined, 5),
+    ...advise(1, 10, 22),
+    ...advise(2, 25, 40),
+    ...advise(3, 60, 80),
+    ...advise(4, 95, 104),
+    ...advise(5, 110),
+    ...advise(6, 114),
+  ]
+}
+
+export const FINISHED_ROOT = "ses_shadcn"
+
+/**
+ * A conversation where everything has ended, as a real one looked on a work machine: six finished,
+ * two of them with an advisor consulted under them, and one you stopped. Drawn before the shared
+ * design, it was seven `└ done` rows in the success colour, a stopped run with a red dot and an
+ * orange word, a heading saying only `1 failed`, and `+ 3 more` hiding half of it.
+ */
+export function finishedSample(): Change[] {
+  const t = (s: number) => SAMPLE_NOW - 2_400_000 + s * 1000
+  const root = FINISHED_ROOT
+  return [
+    { type: "session", id: root, agent: "build", title: "Shadcn migration for web and merchant", at: t(0) },
+    ...run("ses_f_trace", root, "explore", "Trace renewal order generation", t(10), t(10 + 1688), 117),
+    ...run("ses_f_db", root, "general", "Prod DB forensics COM-1736", t(20), t(20 + 803), 94),
+    ...run("ses_f_tiles", root, "general", "Convert merchant contract tiles", t(60), t(60 + 621), 52),
+    ...run("ses_f_tiles_adv", "ses_f_tiles", "orchestrator", "Advisor consult", t(300), t(340), 1),
+    ...run("ses_f_header", root, "general", "Convert web portal header", t(90), t(2_390), 64),
+    ...run("ses_f_header_adv", "ses_f_header", "orchestrator", "Advisor consult", t(2_350), t(2_385), 1),
+    ...run("ses_f_story", root, "general", "Author Storybook foundation stories", t(120), t(120 + 492), 46),
+    ...run(
+      "ses_f_details",
+      root,
+      "general",
+      "Convert ContractDetails to shadcn",
+      t(200),
+      t(224),
+      8,
+      "stopped",
+    ),
+  ]
+}
+
+export const LATE_ROOT = "ses_late"
+
+/**
+ * Subagents that finished — one of them failed — then a late one still running, which used to sit
+ * at the foot of the list under all of them. And one that finished while the subagent it launched in
+ * the background is still working: that pair counts as working, and moves up with it.
+ */
+export function lateSample(): Change[] {
+  const t = (s: number) => SAMPLE_NOW - 60_000 + s * 1000
+  return [
+    { type: "session", id: LATE_ROOT, agent: "build", title: "Tidy the auth module", at: t(0) },
+    ...run("ses_l_map", LATE_ROOT, "explore", "Map the auth module", t(1), t(14), 7),
+    ...run("ses_l_types", LATE_ROOT, "general", "Tighten the session types", t(3), t(25), 4),
+    ...run("ses_l_bench", LATE_ROOT, "general", "Benchmark token refresh", t(5), t(9), 1, "failed"),
+    ...run("ses_l_docs", LATE_ROOT, "general", "Document the middleware", t(6), t(20), 3),
+    ...run("ses_l_bg", "ses_l_docs", "explore", "Collect examples in the background", t(18), undefined, 2),
+    ...run("ses_l_tests", LATE_ROOT, "general", "Fix the flaky refresh test", t(42), undefined, 3),
+  ]
+}
+
+export const CONTINUED_ROOT = "ses_cont"
+
+/**
+ * A subagent continued the next day: four minutes of work last night, four more just now. Its whole
+ * span is a day, and the sidebar and the pane said `done in 24h04m` for eight minutes of work; what
+ * they say is the last round, and that there were two. Beside it, one that ran once.
+ */
+export function continuedSample(): Change[] {
+  const first = SAMPLE_NOW - 24 * 3_600_000 - 17 * 60_000
+  const second = SAMPLE_NOW - 6 * 60_000
+  const id = "ses_c_review"
+  return [
+    { type: "session", id: CONTINUED_ROOT, agent: "build", title: "Ship the billing export", at: first },
+    ...run(id, CONTINUED_ROOT, "general", "Review the export query", first, first + 240_000, 12),
+    { type: "reply", id, key: "a1", text: "The query is fine.", done: true, at: first + 239_000 },
+    { type: "prompt", id, key: "u2", text: "Check the index on invoices too.", at: second },
+    { type: "status", id, status: "busy", at: second },
+    ...Array.from(
+      { length: 5 },
+      (_, i): Change => ({
+        type: "tool",
+        id,
+        call: `${id}:r2:${i}`,
+        name: "read",
+        state: "completed",
+        input: { filePath: `/acme/db/migrations/00${i}_invoices.sql` },
+        at: second + 10_000 + i * 20_000,
+      }),
+    ),
+    { type: "reply", id, key: "a2", text: "The index covers it.", done: true, at: second + 239_000 },
+    { type: "status", id, status: "idle", at: second + 240_000 },
+    ...run("ses_c_docs", CONTINUED_ROOT, "explore", "Find the export docs", second, second + 51_000, 3),
+  ]
+}
+
+/* ─── Calls of every kind ───────────────────────────────────────────────────────────────────── */
+
+/**
+ * One finished subagent whose run holds a call of every kind the pane draws differently: thinking
+ * written as markdown, a todo list, an MCP tool with an object argument, a `task` that launched a
+ * subagent of its own, and an `ask_advisor` whose question runs to sixty lines (issue #32).
+ */
+export const CALLS_ROOT = "ses_plan"
+/** The MCP servers the preview pretends OpenCode has, so `context7_…` reads as one. */
+export const CALLS_SERVERS = ["context7"]
+
+const QUESTION = [
+  "## Context",
+  "",
+  "I'm reviewing the **session refresh** refactor in `src/auth`. The plan moves token refresh out of",
+  "the middleware and into a dedicated `refresh.ts`, called *lazily* when a request finds an expired",
+  "access token. Before I sign off I'd like a second opinion on three points.",
+  "",
+  "## What the code does today",
+  "",
+  "- `requireSession` reads the cookie, verifies the JWT and attaches `req.session`",
+  "- on expiry it calls `refreshToken(session)` *inline*, blocking the request",
+  "- concurrent requests from the same tab can each trigger a refresh",
+  "  - which means two refresh tokens are minted and one is ~~immediately~~ eventually revoked",
+  "- logout clears the cookie but does not revoke the refresh token",
+  "",
+  "```ts",
+  "export async function requireSession(req: Request): Promise<Session> {",
+  "  const session = readSession(req)",
+  "  if (!session) throw new Unauthorized()",
+  "  if (session.expiresAt < Date.now()) return refreshToken(session)",
+  "  return session",
+  "}",
+  "```",
+  "",
+  "## The proposed change",
+  "",
+  "1. A single-flight map keyed by refresh-token id, so concurrent requests share one refresh",
+  "2. Refresh moves to `refresh.ts` and is called from the middleware only on expiry",
+  "3. Logout revokes the refresh token server-side before clearing the cookie",
+  "4. A grace window of 30s during which the *previous* access token is still accepted",
+  "",
+  "```ts",
+  "const inflight = new Map<string, Promise<Session>>()",
+  "",
+  "export function refreshOnce(session: Session): Promise<Session> {",
+  "  const key = session.refreshId",
+  "  const running = inflight.get(key)",
+  "  if (running) return running",
+  "  const next = refreshToken(session).finally(() => inflight.delete(key))",
+  "  inflight.set(key, next)",
+  "  return next",
+  "}",
+  "```",
+  "",
+  "## Questions",
+  "",
+  "1. Is an in-process single-flight map enough, given we run **four** replicas behind a load",
+  "   balancer without sticky sessions? Or does this need a shared lock (Redis) to be correct?",
+  "2. Is the 30s grace window a security problem? A stolen access token stays valid 30s longer,",
+  "   but only if it was stolen within the last 30s of its life.",
+  "3. Should logout revoke *all* refresh tokens for the user, or only the one in this cookie?",
+  "",
+  "## Constraints",
+  "",
+  "- No new infrastructure this quarter; Redis exists but is owned by another team",
+  "- The mobile app holds refresh tokens for 30 days and cannot be updated quickly",
+  "- See [the RFC](https://example.com/rfc/42) for the original threat model",
+  "",
+  "> Please be blunt — if the plan is wrong I'd rather hear it now than after it ships.",
+  "",
+  "Thanks!",
+].join("\n")
+
+const THOUGHT = [
+  "# Plan",
+  "",
+  "The refresh logic is the **risky** part. I should:",
+  "",
+  "- list the callers of `refreshToken`",
+  "- check the middleware for a race",
+  "- ask the advisor about the replica question",
+  "",
+  "The component that renders the session badge looks like this:",
+  "",
+  "```tsx",
+  "export function SessionBadge({ session }: { session: Session }) {",
+  '  return <span class="badge">{session.user.name}</span>',
+  "}",
+  "```",
+  "",
+  "Then write it up.",
+].join("\n")
+
+export function callsSample(): Change[] {
+  const t = (s: number) => SAMPLE_NOW - 120_000 + s * 1000
+  return [
+    { type: "session", id: CALLS_ROOT, agent: "build", title: "Ship session refresh", at: t(0) },
+    {
+      type: "session",
+      id: "ses_advise",
+      parentID: CALLS_ROOT,
+      agent: "general",
+      title: "Review the session-refresh plan",
+      at: t(1),
+    },
+    {
+      type: "prompt",
+      id: "ses_advise",
+      key: "u1",
+      text: "Review the session-refresh plan in docs/plans/refresh.md and get a second opinion on it.",
+      at: t(1),
+    },
+    { type: "status", id: "ses_advise", status: "busy", at: t(1) },
+    { type: "thinking", id: "ses_advise", key: "r1", text: THOUGHT, done: true, at: t(2) },
+    {
+      type: "tool",
+      id: "ses_advise",
+      call: "a1",
+      name: "todowrite",
+      state: "completed",
+      input: {
+        todos: [
+          { content: "Read the refresh plan", status: "completed", priority: "high", id: "1" },
+          { content: "List every caller of refreshToken", status: "completed", priority: "high", id: "2" },
+          {
+            content: "Check the middleware for a refresh race",
+            status: "in_progress",
+            priority: "high",
+            id: "3",
+          },
+          {
+            content: "Ask the advisor about replicas and the grace window",
+            status: "pending",
+            priority: "medium",
+            id: "4",
+          },
+          { content: "Write up the review", status: "pending", priority: "low", id: "5" },
+        ],
+      },
+      output: "",
+      at: t(5),
+    },
+    {
+      type: "tool",
+      id: "ses_advise",
+      call: "a2",
+      name: "context7_query-docs",
+      state: "completed",
+      input: {
+        libraryId: "/panva/jose",
+        query: "verify a JWT and read its expiry",
+        options: { tokens: 4000, topics: ["jwtVerify", "errors"], cache: true },
+      },
+      output:
+        "jwtVerify(jwt, key, options) resolves { payload, protectedHeader }.\npayload.exp is seconds since the epoch.",
+      started: t(6),
+      ended: t(8),
+      at: t(6),
+    },
+    {
+      type: "tool",
+      id: "ses_advise",
+      call: "a3",
+      name: "task",
+      state: "completed",
+      input: {
+        description: "Scan for token refresh callers",
+        prompt: "Find every caller of refreshToken in src/ and say which run per request.",
+        subagent_type: "explore",
+      },
+      output:
+        "task_id: ses_scan (for resuming to continue this task if needed)\n\n<task_result>\nThree callers…\n</task_result>",
+      started: t(9),
+      ended: t(30),
+      at: t(9),
+    },
+    {
+      type: "tool",
+      id: "ses_advise",
+      call: "a4",
+      name: "ask_advisor",
+      state: "completed",
+      input: { question: QUESTION },
+      output:
+        "Short version: the in-process map is not enough with four replicas.\nUse the refresh token's own rotation as the lock: the second refresh fails, retry with the new token.",
+      started: t(31),
+      ended: t(62),
+      at: t(31),
+    },
+    {
+      type: "reply",
+      id: "ses_advise",
+      key: "t1",
+      text: "## Review\n\nThe plan is **mostly sound**. The single-flight map only works per replica — see the advisor's note.",
+      done: true,
+      at: t(63),
+    },
+    { type: "status", id: "ses_advise", status: "idle", at: t(64) },
+    { type: "usage", id: "ses_advise", tokens: 18_400, cost: 0.021, at: t(64) },
+
+    {
+      type: "session",
+      id: "ses_scan",
+      parentID: "ses_advise",
+      agent: "explore",
+      title: "Scan for token refresh callers (@explore subagent)",
+      at: t(9),
+    },
+    {
+      type: "prompt",
+      id: "ses_scan",
+      key: "u1",
+      text: "Find every caller of refreshToken in src/.",
+      at: t(9),
+    },
+    { type: "status", id: "ses_scan", status: "busy", at: t(9) },
+    {
+      type: "tool",
+      id: "ses_scan",
+      call: "s1",
+      name: "grep",
+      state: "completed",
+      input: { pattern: "refreshToken", include: "src/**/*.ts" },
+      output: "src/auth/middleware.ts:19\nsrc/auth/refresh.ts:4\nsrc/routes/login.ts:31",
+      summary: "3 matches",
+      at: t(10),
+    },
+    { type: "reply", id: "ses_scan", key: "t1", text: "Three callers.", done: true, at: t(29) },
+    { type: "status", id: "ses_scan", status: "idle", at: t(30) },
+  ]
+}

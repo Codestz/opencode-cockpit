@@ -14,13 +14,22 @@ export const HEADER_ROWS = 2
 /** Rows below it: the rule and the key hints. */
 export const FOOTER_ROWS = 2
 
-/** Columns the file list takes, clamped: paths are bounded, code is not. */
-/** Narrow enough that a half-width pane keeps its list; paths elide to fit. */
-export const MIN_LIST_COLUMNS = 18
+/**
+ * The narrowest the file list may be: enough for `…ex.tsx` to be `index.tsx` again.
+ *
+ * It was 18 here and 24 in a second copy nobody read, and at 18 to 23 columns a half-width pane cut
+ * `index.tsx` to `…ex.tsx` — the extension survives, the name you were looking for does not.
+ */
+export const MIN_LIST_COLUMNS = 26
+/** The widest it is worth making one: past this, extra columns are spent on trailing whitespace. */
 export const MAX_LIST_COLUMNS = 40
-export const LIST_SHARE = 0.3
-/** Below this the diff column cannot hold a line of code, so the list gives up its space. */
-export const MIN_DIFF_COLUMNS = 72
+/**
+ * Below this the diff column cannot hold a line of code, so the list gives up its space.
+ *
+ * Lowered from 72 by the eight columns the list's minimum rose, so two columns still start at exactly
+ * the pane width they always did: the half-width pane keeps its list, and the list keeps its names.
+ */
+export const MIN_DIFF_COLUMNS = 64
 /** The divider, and a space either side of it. */
 export const DIVIDER = 3
 
@@ -29,9 +38,16 @@ export interface Columns {
   diff: number
 }
 
-export function splitColumns(width: number): Columns {
+/**
+ * How the room is split between the file list and the diff.
+ *
+ * `wanted` is what the list's own rows need — its longest name, indent and counts — so a review of
+ * three short names does not spend forty columns of code on trailing space, and a deep one gets the
+ * room to say which file is which. Clamped either way: paths are bounded, code is not.
+ */
+export function splitColumns(width: number, wanted: number = MAX_LIST_COLUMNS): Columns {
   const inner = Math.max(0, width - 2)
-  const wanted = Math.min(MAX_LIST_COLUMNS, Math.max(MIN_LIST_COLUMNS, Math.floor(inner * LIST_SHARE)))
+  const asked = Math.min(MAX_LIST_COLUMNS, Math.max(MIN_LIST_COLUMNS, wanted))
   /**
    * A narrow pane squeezes the list rather than losing it.
    *
@@ -40,7 +56,7 @@ export function splitColumns(width: number): Columns {
    * people actually leave open beside the conversation, was the only view with no way to change file.
    */
   const room = inner - MIN_DIFF_COLUMNS - DIVIDER
-  const list = room >= MIN_LIST_COLUMNS ? Math.min(wanted, room) : 0
+  const list = room >= MIN_LIST_COLUMNS ? Math.min(asked, room) : 0
   return { list, diff: list === 0 ? inner : inner - list - DIVIDER }
 }
 

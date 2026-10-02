@@ -49,14 +49,14 @@ describe("what the footer says instead of the keys", () => {
   const rows = (state: Parameters<typeof footerRows>[2]) => footerRows(80, { list: 20, diff: 57 }, state)
 
   test("keys, normally — bracketed, so a key is a shape rather than a word to parse", () => {
-    expect(text(rows({ pane: "diff" })[1]?.runs ?? [])).toContain("[Tab] Files")
+    expect(text(rows({ pane: "diff" })[1]?.runs ?? [])).toContain("[tab] Files")
   })
 
   test("trouble wins the line, and still fits in two rows", () => {
     const shown = rows({ pane: "diff", notice: "paint: bad row" })
     expect(shown).toHaveLength(2)
     expect(text(shown[1]?.runs ?? [])).toContain("paint: bad row")
-    expect(text(shown[1]?.runs ?? [])).not.toContain("[Tab]")
+    expect(text(shown[1]?.runs ?? [])).not.toContain("[tab]")
   })
 
   test("the numbers take it when you asked and nothing is wrong", () => {
@@ -72,5 +72,29 @@ describe("what the footer says instead of the keys", () => {
       stats: statsRuns(createMeter(() => 0).snapshot()),
     })
     expect(text(shown[1]?.runs ?? [])).toContain("no such file")
+  })
+})
+
+describe("the keys, at any width", () => {
+  const keys = (width: number, state: Parameters<typeof footerRows>[2] = {}, empty = false) =>
+    text(footerRows(width, { list: 20, diff: width - 23 }, state, empty)[1]?.runs ?? [])
+
+  test("the way out is the last key to go, and a cut row says so", () => {
+    for (const width of [40, 60, 100]) {
+      const row = keys(width, { pane: "diff", waiting: 2 })
+      expect(row).toHaveLength(width)
+      expect(row).toContain("[esc] Close")
+      expect(row).toContain("…")
+    }
+    expect(keys(200, { pane: "diff" })).not.toContain("…")
+  })
+
+  test("with nothing to review, only the keys that act", () => {
+    const row = keys(100, {}, true)
+    expect(row.trim()).toBe("[b] Source   [B] Base   [esc] Close")
+  })
+
+  test("the action has one name: viewed", () => {
+    expect(keys(200)).toContain("[space] Viewed")
   })
 })

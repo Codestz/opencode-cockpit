@@ -127,6 +127,31 @@ describe("a v1 key layer, as v2 reads one", () => {
     expect(layer.bindings).toEqual(["cockpit.shells.dock", "cockpit.console.down"])
   })
 
+  /** v1 reads `desc`, v2 `description`: the palette draws it after the title on both. */
+  test("a command's description carries over, and one without stays without", () => {
+    const layer = layerToV2({
+      commands: [
+        {
+          name: "cockpit.trust.sidebar",
+          title: "Show or hide Trust in the sidebar",
+          desc: "for this session",
+          category: "Cockpit · Trust",
+          namespace: "palette",
+          run: () => {},
+        },
+        { name: "cockpit.trust.ledger", title: "Show what Trust answers for you", run: () => {} },
+      ],
+    } as never)
+    const [sidebar, ledger] = layer.commands ?? []
+    /** v2 draws the group beside the title and finds `cockpit.` in the id: the bay alone is enough there. */
+    expect(sidebar).toMatchObject({
+      description: "for this session",
+      group: "Trust",
+      palette: true,
+    })
+    expect(ledger && "description" in ledger).toBe(false)
+  })
+
   test("a command with no key is still reachable by slash or palette, and binds nothing", () => {
     const layer = layerToV2({
       commands: [{ name: "cockpit.shells.pick", slashName: "shells", run: () => {} }],
