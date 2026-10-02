@@ -23,16 +23,8 @@
  * the body scrolls. Pure, like everything in `core/`.
  */
 
-import {
-  closeHint,
-  fitHints,
-  type Hint,
-  hintRuns,
-  STATE_WORD,
-  stateMark,
-  toneOf,
-} from "@opencode-cockpit/client/design"
-import type { Entry, Node, Session } from "../model/model.ts"
+import { closeHint, fitHints, type Hint, hintRuns, stateMark, toneOf } from "@opencode-cockpit/client/design"
+import { callsOf, type Entry, type Node, type Session, titleOf } from "../model/model.ts"
 import { ARG_PREVIEW, argumentRows, large } from "./args.ts"
 import { markdownRows, plain } from "./markdown.ts"
 import {
@@ -48,7 +40,7 @@ import {
   widthOf,
   wrap,
 } from "./rows.ts"
-import { stateOf } from "./sidebar.ts"
+import { runPhrase, stateOf } from "./sidebar.ts"
 import { type Renderer, rendererOf, type Todo, targetOf, todosOf } from "./tools.ts"
 
 export interface ScreenInput {
@@ -711,14 +703,9 @@ function header(input: ScreenInput, width: number): Row[] {
   /** The mark, tone and word the sidebar gives the same run (client/design). */
   const now_ = stateOf(session)
   const glyph: Run = { ...stateMark(now_, frame), fill: "band" }
-  const state = running(session)
-    ? session.status === "waiting"
-      ? `waiting ${elapsed(now - session.since)}`
-      : `running ${elapsed(now - session.started)}`
-    : session.status === "failed"
-      ? `${STATE_WORD[now_]} after ${elapsed((session.ended ?? now) - session.started)}`
-      : `done in ${elapsed((session.ended ?? now) - session.started)}`
-  const tools = session.entries.filter((entry) => entry.kind === "tool").length
+  /** In the words the main agent's tools use for the same run (core/view/sidebar.ts). */
+  const state = runPhrase(session, now)
+  const tools = callsOf(session)
   const meta = [
     session.model ?? "",
     session.background ? "background" : "",
@@ -736,7 +723,7 @@ function header(input: ScreenInput, width: number): Row[] {
         { text: " ", fill: "band" },
         glyph,
         { text: ` ${session.agent.toUpperCase()} `, tone: "info", bold: true, fill: "band" },
-        { text: ` ${session.title || "subagent"}`, tone: "text", bold: true, fill: "band" },
+        { text: ` ${titleOf(session)}`, tone: "text", bold: true, fill: "band" },
       ],
       [
         {

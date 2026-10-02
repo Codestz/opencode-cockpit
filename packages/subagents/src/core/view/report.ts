@@ -9,9 +9,10 @@
  * read "finished 24h13m ago" as a bug. Pure, like everything in `core/`.
  */
 
-import { type Entry, type Node, type Session, toolTarget } from "../model/model.ts"
+import { callsOf, type Entry, type Node, type Session, titleOf, toolTarget } from "../model/model.ts"
 import { continueHow } from "./guidance.ts"
 import { elapsed } from "./rows.ts"
+import { runPhrase, stateOf as sidebarState } from "./sidebar.ts"
 
 /** How much of a subagent's last answer the list repeats. */
 const ANSWER = 400
@@ -30,11 +31,11 @@ export function subagentReport({ nodes, now, version }: ReportInput): string {
     "",
   ]
   for (const { session, depth } of nodes) {
-    const calls = session.entries.filter((entry) => entry.kind === "tool").length
+    const calls = callsOf(session)
     const rounds = session.entries.filter((entry) => entry.kind === "prompt").length
     const indent = "  ".repeat(depth)
     lines.push(
-      `${indent}- ${session.id} · ${session.agent} · "${session.title || "subagent"}" · ${stateOf(session, now).text} · ${calls} call${calls === 1 ? "" : "s"}${rounds > 1 ? ` · ${rounds} rounds` : ""}${session.background ? " · background" : ""}`,
+      `${indent}- ${session.id} · ${session.agent} · "${titleOf(session)}" · ${stateOf(session, now).text} · ${calls} call${calls === 1 ? "" : "s"}${rounds > 1 ? ` · ${rounds} rounds` : ""}${session.background ? " · background" : ""}`,
     )
     if (session.task) lines.push(`${indent}  Task: ${clip(session.task, ANSWER)}`)
     const answer = lastAnswer(session.entries)
@@ -60,50 +61,58 @@ export interface State {
   text: string
 }
 
-/** Stopped from outside: OpenCode 1 says "aborted", OpenCode 2 "interrupted". */
-export const cancelledError = (error: string | undefined): boolean =>
-  /abort|interrupt|cancel/i.test(error ?? "")
-
+/**
+ * Its state for the main agent: the pane's own words for the run (`runPhrase` — the same state, the
+ * same duration), then what only the agent needs — when it ended by the clock, whether it answered,
+ * and what a stop means.
+ */
 export function stateOf(session: Session, now: number): State {
+  const design = sidebarState(session)
+  const phrase = runPhrase(session, now)
   const at = session.ended ?? now
   const when = `${elapsed(now - at)} ago (${clock(at, now)})`
-  const worked = workedFor(session)
-  const forHow = worked > 0 ? ` after ${elapsed(worked)} of work` : ""
+  const rounds = session.entries.filter((entry) => entry.kind === "prompt").length
+  const last =
+    rounds > 1 && session.ended !== undefined
+      ? `; its last round took ${elapsed(Math.max(0, session.ended - roundStart(session)))}`
+      : ""
   const said = answered(session)
-  if (session.status === "failed" && cancelledError(session.error))
-    return {
-      kind: "cancelled",
-      over: true,
-      text: `cancelled ${when}${forHow} — stopped before it finished${said ? "" : ", no final answer"}`,
+  switch (design) {
+    case "stopped":
+      return {
+        kind: "cancelled",
+        over: true,
+        text: `${phrase}, ${when}${last} — cancelled before it finished${said ? "" : ", no final answer"}`,
+      }
+    case "failed":
+      return {
+        kind: "failed",
+        over: true,
+        text: `${phrase}, ${when}${last}${session.error ? ` (${clip(session.error, 200)})` : ""}`,
+      }
+    case "done": {
+      if (said) return { kind: "finished", over: true, text: `${phrase}, ${when}${last}` }
+      const never = sinceLastPrompt(session.entries).length === 0
+      return {
+        kind: "ended",
+        over: true,
+        text: `${phrase}, ${when}${last} — without a final answer${never ? " (it never started on its task)" : ""}`,
+      }
     }
-  if (session.status === "failed")
-    return {
-      kind: "failed",
-      over: true,
-      text: `failed ${when}${forHow}${session.error ? ` (${clip(session.error, 200)})` : ""}`,
+    case "waiting":
+      return {
+        kind: "waiting",
+        over: false,
+        text: `${phrase} on a permission or question only the user can answer`,
+      }
+    default: {
+      const quiet = now - session.seen
+      return {
+        kind: "working",
+        over: false,
+        text: `${phrase}${quiet >= 60_000 ? `, nothing heard for ${elapsed(quiet)}` : ""}`,
+      }
     }
-  /** Idle before it did anything is finished, not working: nothing is coming from it. */
-  const ended = session.status === "done" || (session.status === "starting" && session.ended !== undefined)
-  if (ended) {
-    if (said) return { kind: "finished", over: true, text: `finished ${when}${forHow}` }
-    const never = sinceLastPrompt(session.entries).length === 0
-    return {
-      kind: "ended",
-      over: true,
-      text: `ended ${when} without a final answer${never ? " (it never started on its task)" : ""}`,
-    }
-  }
-  if (session.status === "waiting")
-    return {
-      kind: "waiting",
-      over: false,
-      text: `waiting ${elapsed(now - session.since)} for a permission or question only the user can answer`,
-    }
-  const quiet = now - session.seen
-  return {
-    kind: "working",
-    over: false,
-    text: `working now, for ${elapsed(now - roundStart(session))}${quiet >= 60_000 ? `, nothing heard for ${elapsed(quiet)}` : ""}`,
   }
 }
 
@@ -124,12 +133,6 @@ export function answered(session: Session): boolean {
 function roundStart(session: Session): number {
   const prompt = session.entries[lastPrompt(session.entries)]
   return prompt?.at ?? session.started
-}
-
-/** How long its last round ran before it ended; 0 while it still runs, or when unknown. */
-function workedFor(session: Session): number {
-  if (session.ended === undefined) return 0
-  return Math.max(0, session.ended - roundStart(session))
 }
 
 export function lastPrompt(entries: readonly Entry[]): number {
@@ -187,7 +190,7 @@ export function subagentAccount({
   const failed = tools.filter((tool) => tool.state === "failed").length
   const rounds = session.entries.filter((entry) => entry.kind === "prompt").length
   const out = [
-    `<subagent id="${session.id}" agent="${session.agent}" title="${session.title || "subagent"}">`,
+    `<subagent id="${session.id}" agent="${session.agent}" title="${titleOf(session)}">`,
     `State: ${state.text} (now: ${clock(now, now, true)})`,
   ]
   if (after === 0) {
@@ -198,10 +201,7 @@ export function subagentAccount({
       out.push(
         `Its own subagents: ${children
           .filter((node) => node.session.parentID === session.id)
-          .map(
-            (node) =>
-              `${node.session.id} "${node.session.title || "subagent"}" (${stateOf(node.session, now).kind})`,
-          )
+          .map((node) => `${node.session.id} "${titleOf(node.session)}" (${stateOf(node.session, now).kind})`)
           .join(", ")}`,
       )
     if (session.task) out.push("Task:", clip(session.task, 4_000, false))
@@ -285,7 +285,7 @@ export function waitReport({ sessions, now, version, waited, timedOut, cancelled
   const lines = [head]
   for (const session of sessions) {
     const state = stateOf(session, now)
-    lines.push(`- ${session.id} · "${session.title || "subagent"}" · ${state.text}`)
+    lines.push(`- ${session.id} · "${titleOf(session)}" · ${state.text}`)
     const answer = lastAnswer(session.entries)
     if (state.over && answer)
       lines.push(

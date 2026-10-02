@@ -603,15 +603,15 @@ describe("the main agent's list, after a restart", () => {
   test("idle with nothing recorded reads as finished; an aborted one as cancelled", () => {
     const m = applyAll(emptyModel(), [
       { type: "session", id: "a", parentID: "p", agent: "general", title: "Old", at: 1 },
-      { type: "status", id: "a", status: "idle", at: 2 },
+      { type: "status", id: "a", status: "idle", settled: true, at: 2 },
       { type: "session", id: "b", parentID: "p", agent: "general", title: "Stopped", at: 1 },
       { type: "status", id: "b", status: "busy", at: 1 },
       { type: "status", id: "b", status: "failed", error: "MessageAbortedError", at: 3 },
     ])
     const text = subagentReport({ nodes: subagentsOf(m, "p"), now: 60_000, version: 1 })
-    expect(text).toMatch(/- a · general · "Old" · ended .* without a final answer/)
-    expect(text).toMatch(/- b · general · "Stopped" · cancelled/)
-    expect(text).not.toContain("working now")
+    expect(text).toMatch(/- a · general · "Old" · done in .* without a final answer/)
+    expect(text).toMatch(/- b · general · "Stopped" · stopped after .* cancelled/)
+    expect(text).not.toContain("running")
   })
 
   test("a run that ended on a call says its last words were a progress note, not an answer", () => {
@@ -658,7 +658,7 @@ describe("the main agent's list, after a restart", () => {
     ])
     expect(m.sessions.get("c")?.status).toBe("failed")
     const text = subagentReport({ nodes: subagentsOf(m, "p"), now: 60_000, version: 1 })
-    expect(text).toMatch(/"Audit" · cancelled .* no final answer/)
+    expect(text).toMatch(/"Audit" · stopped after .* no final answer/)
   })
 })
 

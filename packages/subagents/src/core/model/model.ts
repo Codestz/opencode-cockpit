@@ -230,6 +230,21 @@ export interface Node {
 export const working = (s: Session): boolean => s.status !== "done" && s.status !== "failed"
 
 /**
+ * The facts every view of a run states — the sidebar, the pane, and the main agent's tools — each
+ * from one function, so a person and the agent looking at the same subagent read the same thing
+ * (docs/building/principles.md, rule 2).
+ */
+
+/** What it is called: its title, else its task, else "subagent". */
+export const titleOf = (s: Session): string => s.title || s.task || "subagent"
+
+/** How many calls it made. */
+export const callsOf = (s: Session): number => s.entries.filter((entry) => entry.kind === "tool").length
+
+/** How long the run has taken: from its start to its end, or to now while it works. */
+export const runTime = (s: Session, now: number): number => (working(s) ? now : (s.ended ?? now)) - s.started
+
+/**
  * Siblings, working ones first, then oldest first inside each half. Nothing but a status change moves
  * a row: a new subagent joins the end of its half, and two that started together keep their order by
  * id. Ordered by start rather than by last activity on purpose — a list that reshuffles on every tool

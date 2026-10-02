@@ -33,11 +33,14 @@ import {
 import {
   type Activity,
   activityOf,
+  callsOf,
   type Group,
   groupsOf,
   groupWorking,
   type Node,
+  runTime,
   type Session,
+  titleOf,
   working,
 } from "../model/model.ts"
 import { elapsed, fit, type Row, type Run, spread } from "./rows.ts"
@@ -73,6 +76,19 @@ export function stateOf(session: Session): State {
   if (session.status === "failed") return stoppedOn(session.error) ? "stopped" : "failed"
   if (session.status === "done") return "done"
   return "running"
+}
+
+/**
+ * The run in a few words — `running 51s`, `done in 2m10s`, `stopped after 4m00s` — as the pane's
+ * header and the main agent's tools both say it.
+ */
+export function runPhrase(session: Session, now: number): string {
+  const state = stateOf(session)
+  const took = elapsed(runTime(session, now))
+  if (state === "waiting") return `waiting ${elapsed(now - session.since)}`
+  if (state === "running") return `running ${took}`
+  if (state === "done") return `done in ${took}`
+  return `${STATE_WORD[state]} after ${took}`
 }
 
 /**
@@ -190,8 +206,8 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
      * current step had taken and a finished one its total, so one column meant two things and a run
      * the pane called `running 51s` read `4s` here.
      */
-    const since = (working(session) ? now : (session.ended ?? now)) - session.started
-    const calls = session.entries.filter((entry) => entry.kind === "tool").length
+    const since = runTime(session, now)
+    const calls = callsOf(session)
     /** Said in words: a bare "157 · 34m" read as a puzzle. */
     const took = calls > 0 ? `${calls} call${calls === 1 ? "" : "s"} · ${elapsed(since)}` : elapsed(since)
     const count = group.members.length > 1 ? `×${group.members.length}` : ""
@@ -200,7 +216,7 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
       stateMark(state, frame),
       { text: " " },
       ...agentRun(session.agent),
-      { text: session.title || session.task || "subagent", tone: "text" },
+      { text: titleOf(session), tone: "text" },
     ]
 
     /** Finished, and nothing under it still working: one row, its numbers on the right. */

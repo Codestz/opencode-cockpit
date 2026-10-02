@@ -199,7 +199,7 @@ describe("a subagent continued after OpenCode restarted (load test #2)", () => {
     continuedLive(parts)
     const text = await call(parts, "subagents_list")
     const plan = text.slice(text.indexOf(`- ${PLAN}`))
-    expect(plan).toContain(`- ${PLAN} · general · "Write a long plan" · cancelled`)
+    expect(plan).toContain(`- ${PLAN} · general · "Write a long plan" · stopped after 24h04m`)
     expect(plan).toContain("Task: Write a long plan into PLAN.md.")
     expect(plan).toContain("2 rounds")
   })
@@ -207,7 +207,7 @@ describe("a subagent continued after OpenCode restarted (load test #2)", () => {
   test("one read from the store has its agent, and its title without OpenCode's suffix", async () => {
     const parts = await start()
     const text = await call(parts, "subagents_list")
-    expect(text).toContain(`- ${FLAKY} · general · "Flaky shell starter" · finished`)
+    expect(text).toContain(`- ${FLAKY} · general · "Flaky shell starter" · done in 2m00s`)
     expect(text).not.toContain("(@general subagent)")
   })
 
@@ -215,7 +215,7 @@ describe("a subagent continued after OpenCode restarted (load test #2)", () => {
     const parts = await start()
     const text = await call(parts, "subagents_list")
     expect(text).toMatch(/now: \d{4}-\d\d-\d\d \d\d:\d\d/)
-    expect(text).toMatch(/finished \S+ ago \((\d{4}-\d\d-\d\d )?\d\d:\d\d\)/)
+    expect(text).toMatch(/done in \S+, \S+ ago \((\d{4}-\d\d-\d\d )?\d\d:\d\d\)/)
   })
 })
 
@@ -225,7 +225,7 @@ describe("subagents_read (load test #3)", () => {
     continuedLive(parts)
     const text = await call(parts, "subagents_read", { id: PLAN })
     expect(text).toContain("cancelled")
-    expect(text).toContain("of work")
+    expect(text).toContain("its last round took 4m00s")
     expect(text).toContain("Task:\nWrite a long plan into PLAN.md.")
     expect(text).toContain("told: Explore the repository")
     expect(text).toContain('It can be continued — call the task tool with its id as task_id "ses_plan"')
@@ -316,7 +316,7 @@ describe("subagents_wait (load test #4)", () => {
       parts.event?.({ type: "session.idle", properties: { sessionID: "ses_bg" } })
     }, 20)
     const text = await waiting
-    expect(text).toContain('- ses_bg · "Audit" · finished')
+    expect(text).toContain('- ses_bg · "Audit" · done in')
     expect(text).toContain("Answer: All clear.")
   })
 
@@ -325,7 +325,7 @@ describe("subagents_wait (load test #4)", () => {
     running(parts, "ses_slow")
     const text = await call(parts, "subagents_wait", { ids: ["ses_slow"], timeoutSeconds: 0.05 })
     expect(text).toContain("Timed out")
-    expect(text).toContain("working now")
+    expect(text).toContain("running")
   })
 
   test("with nothing working, says so at once", async () => {
