@@ -93,6 +93,48 @@ interface Steps {
   widen: (family: string, agent: string, permission?: string) => void
 }
 
+/** The `crowded` afternoon, as steps: the oldest first, so the newest are what the ledger leads with. */
+function crowd(s: Steps): void {
+  const general = (line: string, times: number, how: "once" | "always" = "once") =>
+    s.approve(line, times, how, "bash", "general")
+  /** An agent reading a project: each of these asked once, and never again. */
+  for (let i = 1; i <= 101; i++)
+    s.approve(i % 3 === 0 ? `wc -l src/part${i}.ts` : `sed -n ${i},${i + 40}p src/part${i}.ts`, 1)
+  s.approve("git push origin feat/trust", 5)
+  s.approve("rm -rf dist", 4)
+  s.approve("docker compose -p prod down -v", 2)
+  for (const line of ["uniq -c", "wc -l", 'sed "s|^\\./||"', "sort", "sort -rn"]) general(line, 3)
+  general('find packages -type f -not -path "*/dist/*"', 3)
+  general('find site -type f -not -path "site/node_modules/*" -not -path "site/dist/*"', 2)
+  general("find . -path ./.git -prune -o -type f -print", 2)
+  general("head -30", 3)
+  for (const line of ["head -40", "head -80", "head -50", "head -20"]) general(line, 2)
+  general("find . -name '*.md'", 1, "always")
+  general("ls src", 1, "always")
+  s.at(SAMPLE_NOW - 3_600_000)
+  general("cat package.json", 2)
+  s.widen("cat", "general")
+  s.auto("cat package.json", 2, "bash", "general")
+  s.auto("cat src/app.ts", 1, "bash", "general")
+  s.approve("bun --version", 2)
+  s.approve("exit 0", 2)
+  general("exit 1", 2)
+  general("sleep 5", 2)
+  general("echo ---", 3)
+  general("echo boom", 2)
+  s.approve("echo trust-test", 3)
+  s.approve("git status --short", 3)
+  general("git status --short", 2)
+  s.approve("ls -la", 3)
+  general("ls -la", 3)
+  s.at(SAMPLE_NOW - 120_000)
+  s.auto("git status --short", 3)
+  s.auto("echo trust-test", 1)
+  s.auto("ls -la", 1)
+  s.at(SAMPLE_NOW - 2_000)
+  s.pending("git push origin feat/trust")
+}
+
 export const SAMPLES: Record<string, () => Sample> = {
   /** A new install: nothing approved, nothing to say. */
   empty: () => ({ engine: build(() => {}) }),
@@ -160,6 +202,20 @@ export const SAMPLES: Record<string, () => Sample> = {
       s.auto("ls -x", 1, "bash", "general")
     }),
   }),
+
+  /**
+   * A real afternoon, as a user's screenshots of the ledger showed it: two agents, a hundred commands
+   * approved once, families half trusted and half counting, a family widened by hand, dangerous rules
+   * on their way, a long `find`, the `---` a font merges, and OpenCode's own "always" twice.
+   */
+  crowded: () => ({ engine: build(crowd) }),
+
+  /** The same afternoon, paused: the dialog has to say it before anything else. */
+  "crowded-paused": () => {
+    const engine = build(crowd)
+    engine.load([{ v: 1, at: SAMPLE_NOW - 60_000, type: "paused" }])
+    return { engine }
+  },
 
   /** Paused: still learning, answering nothing — and the block says so. */
   paused: () => {

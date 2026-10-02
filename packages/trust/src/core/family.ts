@@ -380,17 +380,31 @@ export function spelled(word: string): string | undefined {
   return [...new Set(said)].join("; ")
 }
 
-/** The spelled runs of every argument of a subject, for the ledger to put beside it. */
-export function spelledSubject(permission: string, subject: string): string | undefined {
-  if (canonical(permission) !== "bash") return undefined
+/**
+ * Each argument of a subject a font may draw as something else, as the ledger shows it (`"---"`)
+ * beside what it is in words (`3 hyphens`). The panel says which word it means: a bare `3 hyphens`
+ * after a command read as a riddle (a user's screenshot).
+ */
+export function spelledWords(permission: string, subject: string): { word: string; said: string }[] {
+  if (canonical(permission) !== "bash") return []
   const read = readSubject(subject)
-  if (!read) return undefined
+  if (!read) return []
   /** Only words that are punctuation and nothing else: `---` is unreadable, `../src` and URLs are not. */
   const words = read.command.argv.filter(
     (word, i) =>
       !(read.command.redirects ?? []).includes(i) && !isRedirect(word) && /^[^A-Za-z0-9\s]+$/.test(word),
   )
-  const said = [...new Set(words.map(spelled).filter((each): each is string => each !== undefined))]
+  const out: { word: string; said: string }[] = []
+  for (const word of new Set(words)) {
+    const said = spelled(word)
+    if (said !== undefined) out.push({ word: shown(word), said })
+  }
+  return out
+}
+
+/** The spelled runs of every argument of a subject, for the ledger to put beside it. */
+export function spelledSubject(permission: string, subject: string): string | undefined {
+  const said = [...new Set(spelledWords(permission, subject).map((each) => each.said))]
   return said.length > 0 ? said.join("; ") : undefined
 }
 
