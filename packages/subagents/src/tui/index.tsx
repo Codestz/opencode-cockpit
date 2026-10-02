@@ -317,9 +317,27 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
      * A run that has gone quiet is asked about. An end the events never told us of — a missed event,
      * a stop from elsewhere — otherwise left a subagent "running" until OpenCode restarted.
      */
+    const checkedOrphans = new Set<string>()
     const reconcile = () => {
       const now = Date.now()
       for (const { session } of nodes()) {
+        /**
+         * Settled as stopped because the subagent that launched it ended (core/model): asked once
+         * whether it still works — OpenCode 1 has no event to correct us, and a background child can
+         * outlive its parent. Only a "busy" is taken; "not running" keeps it stopped, not done.
+         */
+        if (session.orphaned !== undefined && !checkedOrphans.has(session.id)) {
+          checkedOrphans.add(session.id)
+          const busy = feed
+            .check(session.id)
+            .find((change) => change.type === "status" && change.status === "busy")
+          if (busy) {
+            log.info("orphaned run still working", { id: session.id })
+            applyAll(model, [{ ...busy, at: now }])
+            draw()
+          }
+          continue
+        }
         if (session.status !== "running" && session.status !== "starting") continue
         if (now - session.seen < QUIET_MS) continue
         const changes = feed.check(session.id)

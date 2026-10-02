@@ -88,7 +88,7 @@ export function stateOf(session: Session, now: number): State {
       return {
         kind: "cancelled",
         over: true,
-        text: `${phrase}, ${when}${last} — cancelled before it finished${said ? "" : ", no final answer"}`,
+        text: `${phrase}, ${when}${last} — ${session.orphaned !== undefined ? "taken as stopped when the subagent that launched it ended" : "cancelled before it finished"}${said ? "" : ", no final answer"}`,
       }
     case "failed":
       return {

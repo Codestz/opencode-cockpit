@@ -192,7 +192,8 @@ export function createSource(api: Host, log: Log, emit: (changes: Change[]) => v
          * reopened conversation). Read as "unknown", a subagent stuck at running was never corrected.
          */
         const status = v1.state.session.status(id) as Loose | undefined
-        if (status?.type === "busy" || status?.type === "retry") return []
+        if (status?.type === "busy" || status?.type === "retry")
+          return [{ type: "status", id, status: "busy", at: Date.now() }]
         return [{ type: "status", id, status: "idle", settled: true, at: Date.now() }]
       },
       dispose: () => {

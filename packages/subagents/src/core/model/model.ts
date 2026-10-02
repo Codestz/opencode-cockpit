@@ -52,6 +52,11 @@ export interface Session {
   steps: number
   /** When anything was last heard about it: a run gone quiet this long is asked about. */
   seen: number
+  /**
+   * Set when it was settled as stopped because the subagent that launched it ended badly, not by an
+   * event of its own: anything it does after that brings it back (`cascade`).
+   */
+  orphaned?: number
 }
 
 export interface Model {
@@ -94,6 +99,9 @@ const findTool = (s: Session, call: string) =>
   )
 
 function applyStatus(s: Session, change: Extract<Change, { type: "status" }>): void {
+  /** Its own word on how it is replaces what was assumed from its parent. */
+  const orphaned = s.orphaned !== undefined
+  delete s.orphaned
   if (change.status === "busy") {
     s.status = "running"
     delete s.ended
@@ -105,7 +113,8 @@ function applyStatus(s: Session, change: Extract<Change, { type: "status" }>): v
     s.ended = change.at
     if (change.error) s.error = change.error
     settle(s, change.at)
-  } else if (s.status !== "failed") {
+  } else if (s.status !== "failed" || orphaned) {
+    if (orphaned) delete s.error
     /** Idle before it ever worked is a session that has not started, not one that finished — live. */
     s.status = s.status === "starting" && s.entries.length === 0 && !change.settled ? "starting" : "done"
     s.ended = change.at
@@ -128,10 +137,51 @@ function settle(s: Session, at: number): void {
   }
 }
 
+/** What a subagent left running is told when the subagent that launched it stopped or failed. */
+export const ORPHANED = "cancelled: the subagent that launched it ended"
+
+/**
+ * A subagent that stopped or failed takes down what it launched: a nested run still marked working
+ * under it is settled as stopped, so the sidebar, the pane and the tools do not show a child spinning
+ * forever under a parent that was cancelled — OpenCode tells us of the parent's end, not always of
+ * theirs. Only what it launched, at any depth; the conversation's own end is not a subagent's.
+ * Marked `orphaned`, since an assumption: any later event of its own (a call, a status) wins.
+ */
+function cascade(model: Model, parent: string, at: number): void {
+  const seen = new Set([parent])
+  const walk = (id: string) => {
+    for (const child of model.sessions.values()) {
+      if (child.parentID !== id || seen.has(child.id)) continue
+      seen.add(child.id)
+      if (working(child)) {
+        child.status = "failed"
+        child.since = at
+        child.ended = at
+        child.error = ORPHANED
+        child.orphaned = at
+        settle(child, at)
+      }
+      walk(child.id)
+    }
+  }
+  walk(parent)
+}
+
+/** An orphaned run doing something after it was settled was not stopped after all. */
+function revive(s: Session, at: number): void {
+  if (s.orphaned === undefined || at <= s.orphaned) return
+  delete s.orphaned
+  delete s.ended
+  delete s.error
+  s.status = "running"
+  s.since = at
+}
+
 /** Applies one change in place. Unknown sessions are created, so order never loses anything. */
 export function apply(model: Model, change: Change): void {
   const s = session(model, change.id, change.at)
   if (change.at > s.seen) s.seen = change.at
+  if (change.type === "thinking" || change.type === "reply" || change.type === "tool") revive(s, change.at)
   switch (change.type) {
     case "session":
       if (change.parentID) s.parentID = change.parentID
@@ -150,6 +200,7 @@ export function apply(model: Model, change: Change): void {
       const before = s.status
       applyStatus(s, change)
       if (s.status !== before) s.since = change.at
+      if (s.status === "failed" && before !== "failed" && s.parentID) cascade(model, s.id, change.at)
       return
     }
     case "prompt": {

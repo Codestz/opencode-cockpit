@@ -282,9 +282,26 @@ function createRuns(host: ServerHost) {
     }
   }
 
+  /**
+   * Settled as stopped because the subagent that launched it ended (core/model), each asked once
+   * whether it still works, as the interface asks: OpenCode 1 says, where it can (OpenCode 2's agent
+   * side has no status call, and its events correct it instead).
+   */
+  const asked = new Set<string>()
+  const checkOrphans = async () => {
+    if (!host.session.busy) return
+    for (const session of model.sessions.values()) {
+      if (session.orphaned === undefined || asked.has(session.id)) continue
+      asked.add(session.id)
+      if (await host.session.busy(session.id).catch(() => undefined))
+        applyAll(model, [{ type: "status", id: session.id, status: "busy", at: Date.now() }])
+    }
+  }
+
   const load = async (root: string) => {
     if (v1) await loadV1(root, 0)
     else await loadV2(root)
+    await checkOrphans()
   }
 
   const nodes = async (sessionID: string): Promise<Node[]> => {
