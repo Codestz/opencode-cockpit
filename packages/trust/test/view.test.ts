@@ -13,7 +13,7 @@ import {
 import { type Row, rowText, widthOf } from "../src/core/view/rows.ts"
 import { sidebarRows } from "../src/core/view/sidebar.ts"
 
-const sidebarOf = (name: string, width: number) => {
+const sidebarOf = (name: string, width: number, shown = false) => {
   const { engine, trouble } = (SAMPLES[name] as () => ReturnType<(typeof SAMPLES)["empty"]>)()
   return sidebarRows({
     width,
@@ -22,6 +22,7 @@ const sidebarOf = (name: string, width: number) => {
     pending: engine.pending(),
     state: engine.state,
     limit: 3,
+    shown,
     ...(trouble ? { trouble } : {}),
   })
 }
@@ -72,7 +73,8 @@ describe("the grid: every row exactly its width", () => {
   for (const name of Object.keys(SAMPLES)) {
     test(`sidebar · ${name}`, () => {
       for (const width of [8, 12, 20, 24, 36, 50])
-        for (const row of sidebarOf(name, width)) expect(widthOf(rowText(row))).toBe(width)
+        for (const shown of [false, true])
+          for (const row of sidebarOf(name, width, shown)) expect(widthOf(rowText(row))).toBe(width)
     })
     test(`ledger · ${name}`, () => {
       for (const width of [40, 60, 80, 100, 116, 140])
@@ -94,6 +96,13 @@ describe("the grid: every row exactly its width", () => {
 describe("the sidebar", () => {
   test("silent with nothing to say", () => {
     expect(sidebarOf("empty", 36)).toEqual([])
+  })
+
+  /** Shown from the palette with nothing yet, an empty block read as a command that did nothing. */
+  test("asked for, a quiet block still draws its heading", () => {
+    const rows = sidebarOf("empty", 36, true).map((row) => rowText(row).trimEnd())
+    expect(rows[0]).toBe(`Trust${" ".repeat(11)}nothing answered yet`)
+    expect(sidebarOf("first", 36, true)).toEqual(sidebarOf("first", 36))
   })
 
   test("a failure always speaks", () => {

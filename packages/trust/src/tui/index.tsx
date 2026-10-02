@@ -144,6 +144,7 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
               pending: engine.pending(),
               state: engine.state,
               limit: settings.sidebarRows,
+              shown: inSidebar,
               ...(trouble ? { trouble } : {}),
             })
       /** Only when they changed: new rows rebuild every line of the block. */
@@ -543,6 +544,12 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
             inSidebar = !inSidebar
             log.debug("sidebar", { shown: inSidebar })
             paint()
+            /** Said as well as drawn: on the home screen there is no sidebar to show it in. */
+            api.ui.toast({
+              variant: "info",
+              title: "Trust",
+              message: inSidebar ? "Shown in the sidebar." : "Hidden from the sidebar.",
+            })
           },
         },
         {

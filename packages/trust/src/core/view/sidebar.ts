@@ -10,6 +10,8 @@
  * one is a request on screen now and how far it is from being trusted. Answers are visible every
  * time — that is the bargain that makes answering for you acceptable — but the block says nothing
  * when there is nothing to say: no answers yet, nothing counting, not paused. A failure always speaks.
+ * Asked for (`shown`: the setting, or the palette's toggle), a quiet block still draws its heading —
+ * `Trust  nothing answered yet` — or showing it looks like a command that did nothing.
  *
  * An answer given through a family you widened says so — `● ls -R docs · any ls  1×` — because
  * that rule was never approved by itself, and the answer should not look as if it had been.
@@ -38,6 +40,8 @@ export interface SidebarInput {
   trouble?: string
   /** Answers listed; the count in the heading covers the rest. */
   limit: number
+  /** You asked for the block: with nothing to say it draws its heading rather than nothing. */
+  shown?: boolean
 }
 
 /** `edit src/app.ts`, but a command is just the command: bash is the common case. */
@@ -80,7 +84,7 @@ export function sidebarRows(input: SidebarInput): Row[] {
   }
 
   const quiet = input.count === 0 && counting.length === 0 && !state.paused && !input.trouble
-  if (quiet) return []
+  if (quiet && !input.shown) return []
 
   rows.push(
     spread(
@@ -89,7 +93,9 @@ export function sidebarRows(input: SidebarInput): Row[] {
         ? [{ text: "paused", tone: "warning" }]
         : input.count > 0
           ? [{ text: `${input.count} auto`, tone: "success" }]
-          : [],
+          : quiet
+            ? [{ text: "nothing answered yet", tone: "muted" }]
+            : [],
       width,
     ),
   )
