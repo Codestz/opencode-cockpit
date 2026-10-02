@@ -39,8 +39,33 @@ All notable changes to this project are documented here. The format follows
     lines and your config's specific `ask`s. Dangerous families can never be widened. `w` again or
     `x` on the family undoes it; answers through it say so (`● ls -x · any ls`).
 
+- **The agent can read and wait on its subagents.** `subagents_read` reads one subagent in full —
+  why it stopped, its task, its whole answer, every call — paged with a cursor, and works on cancelled
+  ones, which can still be continued. `subagents_wait` blocks until subagents finish, fail, are
+  cancelled or need you, never past its timeout.
+- **Doctor warns when OpenCode 1 will run every subagent in the foreground**, with the line that fixes
+  it (`OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`).
+
+### Changed
+
+- **`/plugins-update` is the only name for the plugins screen.** `/cockpit-update`, kept as an alias
+  since 0.5, is gone.
+- **The agent is told about `background` only where its tool has it.** On OpenCode 1 without the flag
+  it launches independent subagents side by side in one message instead of failing on the field.
+
 ### Fixed
 
+- **A subagent's failed shell could vanish.** A failure told to a subagent that is still working now
+  also reaches the main conversation once that subagent finishes, naming the shells and how to hand
+  the failure back.
+- **`subagents_list` contradicted the screen.** A subagent continued after OpenCode restarted listed
+  the wrong task; times are now also given by the clock; the list, the pane and the sidebar state a
+  run's title, calls, state and duration from the same functions.
+- **General subagents on OpenCode 1 were labelled with their launcher's agent ("build").**
+- **`shell_list` said "exited" for a crash** the sidebar drew as failed, and now names the subagent
+  that started each shell.
+- **`review_list` spoke from the person's side.** It says which threads wait on the agent and which
+  on you, and no longer signs your comments as the agent's.
 - **A subagent's shell woke the main agent, and the subagent never heard.** Exit and health notices
   went to the conversation a shell is shown in, not to the session that started it. They now go to
   the agent that asked: a subagent still at work gets them inside its turn (steered on OpenCode 2).
