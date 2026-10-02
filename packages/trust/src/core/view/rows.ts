@@ -7,10 +7,41 @@
  * each other.
  */
 
-export type Tone = "text" | "muted" | "accent" | "info" | "tool" | "success" | "error" | "warning" | "border"
+export type Tone =
+  | "text"
+  | "muted"
+  | "accent"
+  | "info"
+  | "tool"
+  | "success"
+  | "error"
+  | "warning"
+  | "border"
+  /** Text cut out of a solid fill (a focused button): the colour of what the dialog is drawn on. */
+  | "ink"
 
-/** What sits behind a run: nothing, or the row under the cursor. */
-export type Fill = "none" | "selected"
+/**
+ * What sits behind a run. Two cover a whole row — the row under the cursor and the card's raised
+ * panel — and the rest a few cells: an agent's chip, a button, a focused button, and the tinted
+ * badges that say success, warning and error. A tint is the tone's colour faded into the dialog's
+ * own, so it follows the theme (`TINTS`; `tui/render.ts` mixes it).
+ */
+export type Fill = "none" | "selected" | "panel" | "chip" | "button" | "buttonOn" | "ok" | "warn" | "err"
+
+/** The fills that belong to a row rather than a run: what a row is padded with, and what a cursor replaces. */
+const ROW_FILLS: ReadonlySet<Fill> = new Set<Fill>(["selected", "panel"])
+const isRowFill = (fill: Fill | undefined): fill is Fill => fill !== undefined && ROW_FILLS.has(fill)
+
+/**
+ * The tinted fills: which tone each is made of, and how much of it is mixed into the dialog's
+ * background. Little enough that the tone's own text on it stays legible; enough to be seen.
+ */
+export const TINTS: Readonly<Record<"chip" | "ok" | "warn" | "err", { tone: Tone; amount: number }>> = {
+  chip: { tone: "info", amount: 0.12 },
+  ok: { tone: "success", amount: 0.16 },
+  warn: { tone: "warning", amount: 0.16 },
+  err: { tone: "error", amount: 0.16 },
+}
 
 export interface Run {
   text: string
@@ -84,10 +115,19 @@ export function fit(row: Row, width: number): Row {
     }
   }
   if (used < width) {
-    const last = out.at(-1)
-    out.push({ text: " ".repeat(width - used), ...(last?.fill ? { fill: last.fill } : {}) })
+    const fill = rowFillOf(out)
+    out.push({ text: " ".repeat(width - used), ...(fill ? { fill } : {}) })
   }
   return out
+}
+
+/** The fill a row is drawn on: the last row-wide fill among its runs. A chip at its end is not one. */
+export function rowFillOf(row: Row): Fill | undefined {
+  for (let i = row.length - 1; i >= 0; i--) {
+    const fill = row[i]?.fill
+    if (isRowFill(fill)) return fill
+  }
+  return undefined
 }
 
 /** Left and right parts on one row, the right part flush against the edge; the left gives way. */
@@ -96,12 +136,32 @@ export function spread(left: Row, right: Row, width: number): Row {
   if (rightWidth >= width) return fit(right, width)
   const leftRoom = width - rightWidth - 1
   const shown = fit(left, leftRoom)
-  const fill = right[0]?.fill ?? left.at(-1)?.fill
+  const fill = rowFillOf([...left, ...right])
   return [...shown, { text: " ", ...(fill ? { fill } : {}) }, ...right]
 }
 
-/** Every run of a row on one surface: the row under the cursor. */
-export const filled = (row: Row, fill: Fill): Row => row.map((run) => ({ ...run, fill }))
+/**
+ * A row on one surface — the row under the cursor, the card's panel. A run with a fill of its own
+ * (a chip, a badge, a button) keeps it: the surface is what is behind them.
+ */
+export const filled = (row: Row, fill: Fill): Row =>
+  row.map((run) =>
+    run.fill === undefined || run.fill === "none" || isRowFill(run.fill) ? { ...run, fill } : run,
+  )
+
+/**
+ * The row under the cursor: `▌` in its first cell — the margin every row keeps for it — and the
+ * selected fill to both edges (docs/building/design-system.md: `▌` is the cursor and nothing else).
+ */
+export function cursorRow(row: Row, width: number): Row {
+  const [first, ...rest] = row
+  const trimmed = !first
+    ? []
+    : widthOf(first.text) > 1
+      ? [{ ...first, text: [...first.text].slice(1).join("") }, ...rest]
+      : rest
+  return filled(fit([{ text: "▌", tone: "accent" }, ...trimmed], width), "selected")
+}
 
 /** How long ago, in the fewest characters that still read: `now`, `5m`, `2h`, `3d`. */
 export function ago(ms: number): string {
