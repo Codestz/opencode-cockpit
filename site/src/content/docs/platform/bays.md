@@ -12,7 +12,7 @@ Background terminals with a real PTY. Nine agent tools, 35 watch presets, three 
 shell, log search, limits and log files. See [Shell](/opencode-cockpit/shell/overview/).
 
 ```sh
-opencode plugin @opencode-cockpit/shell@0.7.1 --global --force
+opencode plugin @opencode-cockpit/shell@0.8.0 --global --force
 ```
 
 ## Statusline — available
@@ -23,7 +23,7 @@ already wrote for Claude Code, colours and all. See
 [Statusline](/opencode-cockpit/status/overview/).
 
 ```sh
-opencode plugin @opencode-cockpit/status@0.7.1 --global --force
+opencode plugin @opencode-cockpit/status@0.8.0 --global --force
 ```
 
 ## Review — available
@@ -33,7 +33,7 @@ about, and an agent that can read them, answer them and mark them resolved. A re
 against the file before it counts. See [Review](/opencode-cockpit/review/overview/).
 
 ```sh
-opencode plugin @opencode-cockpit/review@0.7.1 --global --force
+opencode plugin @opencode-cockpit/review@0.8.0 --global --force
 ```
 
 ## Updater — available
@@ -45,7 +45,7 @@ spec once and `@latest` never moves again. From a shell, on any version:
 `npx opencode-cockpit@latest update`. See [Updater](/opencode-cockpit/updater/overview/).
 
 ```sh
-opencode plugin @opencode-cockpit/updater@0.7.1 --global --force
+opencode plugin @opencode-cockpit/updater@0.8.0 --global --force
 ```
 
 ## Subagents — available
@@ -56,7 +56,7 @@ instead of starting a new one, and the main agent can list, read and wait on its
 [Subagents](/opencode-cockpit/subagents/overview/).
 
 ```sh
-opencode plugin @opencode-cockpit/subagents@0.7.1 --global --force
+opencode plugin @opencode-cockpit/subagents@0.8.0 --global --force
 ```
 
 ## Trust — available
@@ -67,7 +67,7 @@ and a rule you wrote to be asked is never answered. `/trust` shows what it has l
 [Trust](/opencode-cockpit/trust/overview/).
 
 ```sh
-opencode plugin @opencode-cockpit/trust@0.7.1 --global --force
+opencode plugin @opencode-cockpit/trust@0.8.0 --global --force
 ```
 
 ## Doctor — available
