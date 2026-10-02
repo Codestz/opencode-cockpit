@@ -9,15 +9,18 @@
  *   bunx @opencode-cockpit/trust preview --width 30       the sidebar at another width
  *   bunx @opencode-cockpit/trust preview --columns 140    the ledger at another width
  *   bunx @opencode-cockpit/trust preview --rows 14        the ledger in a short window
+ *   bunx @opencode-cockpit/trust preview --details        every state with the details open (`i`)
+ *   bunx @opencode-cockpit/trust preview --keys           the key list (`?`) too
  *   bunx @opencode-cockpit/trust preview --html > a.html  the same, as a page, to judge colour in a browser
  *
  * A sample with families draws the ledger more than once: folded as it opens, every family open
- * with the cursor on a rule, then on a widened family and on a dangerous one — so the panel is seen
- * on every kind of line.
+ * with the cursor on a rule, then on a widened family, on one still counting, on a dangerous rule and
+ * on OpenCode's own "always" — so the summary, and with `--details` the details, are seen on every
+ * kind of line.
  */
 
 import { SAMPLE_NOW, SAMPLE_SETTINGS, SAMPLES } from "../core/sample.ts"
-import { type Line, ledgerModel, ledgerRows, sectionOfLine } from "../core/view/ledger.ts"
+import { type LedgerMode, type Line, ledgerModel, ledgerRows, sectionOfLine } from "../core/view/ledger.ts"
 import type { Row, Run, Tone } from "../core/view/rows.ts"
 import { sidebarRows } from "../core/view/sidebar.ts"
 
@@ -66,7 +69,7 @@ function paint(row: Row): string {
 
 if (args.includes("--help") || args.includes("-h")) {
   process.stdout.write(
-    `Usage: trust preview [--sample ${Object.keys(SAMPLES).join("|")}] [--width <sidebar columns>] [--columns <ledger columns>] [--rows <ledger rows>] [--html]\n`,
+    `Usage: trust preview [--sample ${Object.keys(SAMPLES).join("|")}] [--width <sidebar columns>] [--columns <ledger columns>] [--rows <ledger rows>] [--details] [--keys] [--html]\n`,
   )
   process.exit(0)
 }
@@ -78,6 +81,8 @@ const sidebarWidth = Number(value("--width")) || 36
 const columns = Number(value("--columns")) || Math.max(60, Math.min(process.stdout.columns || 100, 116))
 const fixedRows = Number(value("--rows")) || undefined
 const only = value("--sample")
+const mode: LedgerMode = args.includes("--details") ? "details" : "list"
+const keys = args.includes("--keys")
 const names = only ? [only] : Object.keys(SAMPLES)
 
 const frame = (rows: Row[]) => {
@@ -113,6 +118,7 @@ for (const name of names) {
     title: string,
     open: ReadonlySet<string>,
     pick: (lines: readonly Line[]) => Line | undefined,
+    as: LedgerMode = mode,
   ) => {
     const { lines, folded } = ledgerModel({ ...reading, open })
     const selected = pick(lines)?.key
@@ -128,8 +134,9 @@ for (const name of names) {
       state: engine.state,
       settings: SAMPLE_SETTINGS,
       now: SAMPLE_NOW,
+      mode: as,
     })
-    out.push("", title, "")
+    out.push("", as === "list" ? title : `${title} · ${as}`, "")
     out.push(...frame(rows))
   }
   /** As the dialog opens: families folded, commands approved once folded into one line. */
@@ -149,14 +156,21 @@ for (const name of names) {
     draw("Ledger — cursor on a widened family", every, (lines) =>
       lines.find((line) => line.kind === "family" && line.family.widened.length > 0),
     )
-    draw("Ledger — cursor on a dangerous family", every, (lines) =>
+    draw("Ledger — cursor on a family still counting", every, (lines) =>
+      lines.find((line) => line.kind === "family" && line.family.section === "learning"),
+    )
+    draw("Ledger — cursor on a dangerous rule", every, (lines) =>
       lines.find(
         (line) =>
           (line.kind === "family" && line.family.family.startsWith("git push")) ||
           (line.kind === "rule" && line.rule.subject.startsWith("git push")),
       ),
     )
+    draw("Ledger — cursor on OpenCode's own always", every, (lines) =>
+      lines.find((line) => line.kind === "always"),
+    )
   }
+  if (keys) draw("Ledger", new Set(), (lines) => lines[0], "keys")
 }
 process.stdout.write(
   html

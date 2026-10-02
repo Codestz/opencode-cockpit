@@ -4,6 +4,7 @@ import { DAY, type Event } from "../src/core/ledger.ts"
 import { SAMPLE_NOW, SAMPLE_SETTINGS, SAMPLES } from "../src/core/sample.ts"
 import {
   configSnippet,
+  type LedgerMode,
   type Line,
   ledgerItems,
   ledgerModel,
@@ -39,7 +40,12 @@ const ledgerOf = (
   name: string,
   width: number,
   height: number,
-  options: { open?: boolean; all?: boolean; pick?: (lines: readonly Line[]) => Line | undefined } = {},
+  options: {
+    open?: boolean
+    all?: boolean
+    pick?: (lines: readonly Line[]) => Line | undefined
+    mode?: LedgerMode
+  } = {},
 ) => {
   const engine = engineOf(name)
   const reading = { state: engine.state, settings: SAMPLE_SETTINGS, now: SAMPLE_NOW }
@@ -59,6 +65,7 @@ const ledgerOf = (
       lines,
       folded,
       ...(options.all ? { all: true } : {}),
+      ...(options.mode ? { mode: options.mode } : {}),
       ...(selected !== undefined ? { selected } : {}),
       ...reading,
     }),
@@ -66,8 +73,20 @@ const ledgerOf = (
 }
 
 const textOf = (rows: readonly Row[]) => rows.map(rowText).join("\n")
-/** The panel and the keys: the last four rows. */
-const panelOf = (rows: readonly Row[]) => textOf(rows.slice(-4))
+/** Everything under the rule the details open with: the facts, then the keys. */
+const below = (rows: readonly Row[]) =>
+  textOf(rows.slice(rows.findIndex((row) => rowText(row).startsWith(" ──")) + 1))
+/** The details of the line `pick` finds, and their keys. */
+const detailsOf = (
+  name: string,
+  pick: (lines: readonly Line[]) => Line | undefined,
+  width = 100,
+  height = 30,
+) => {
+  const view = ledgerOf(name, width, height, { pick, mode: "details" })
+  return { ...view, text: below(view.rows) }
+}
+const footerOf = (rows: readonly Row[]) => rowText(rows.at(-1) ?? []).trimEnd()
 type Section = "answers" | "learning"
 /** The row for `subject`, in the answers or in what is still counting; the first found otherwise. */
 const lineFor = (lines: readonly Line[], subject: string, section?: Section) =>
@@ -95,17 +114,21 @@ describe("the grid: every row exactly its width", () => {
     test(`ledger · ${name}`, () => {
       for (const width of [40, 60, 80, 100, 116, 140])
         for (const height of [8, 12, 30])
-          for (const open of [false, true]) {
-            const { rows, lines } = ledgerOf(name, width, height, { open })
-            expect(rows.length).toBe(Math.max(height, 11))
-            for (const row of rows) expect(widthOf(rowText(row))).toBe(width)
-            /** The cursor on every kind of line: the panel and the keys change with it. */
-            for (const line of lines) {
-              const each = ledgerOf(name, width, height, { open, pick: () => line })
-              for (const row of each.rows) expect(widthOf(rowText(row))).toBe(width)
+          for (const open of [false, true])
+            for (const mode of ["list", "details", "keys"] as const) {
+              const { rows, lines } = ledgerOf(name, width, height, { open, mode })
+              expect(rows.length).toBe(Math.max(height, 11))
+              for (const row of rows) expect(widthOf(rowText(row))).toBe(width)
+              /** The cursor on every kind of line: the summary, the details and the keys change with it. */
+              if (mode !== "keys")
+                for (const line of lines) {
+                  const each = ledgerOf(name, width, height, { open, mode, pick: () => line })
+                  expect(each.rows.length).toBe(Math.max(height, 11))
+                  for (const row of each.rows) expect(widthOf(rowText(row))).toBe(width)
+                }
             }
-          }
-    })
+      /** Every line of a crowded sample, three modes, eighteen sizes: slow, and the point. */
+    }, 30_000)
   }
 })
 
@@ -284,9 +307,11 @@ describe("the ledger", () => {
     expect(shut).toContain(`+ ${folded.folded} more approved once · [a] lists them`)
     expect(shut.indexOf("more approved once")).toBeGreaterThan(shut.indexOf("Learning"))
     expect(shut.indexOf("more approved once")).toBeLessThan(shut.indexOf("OpenCode's own"))
-    expect(shut).toContain("[a] Show All")
+    const details = (all: boolean) =>
+      textOf(ledgerOf("crowded", 100, 60, { all, open: false, mode: "details" }).rows)
+    expect(details(false)).toContain("[a] Show All")
+    expect(details(true)).toContain("[a] Show Fewer")
     const open = textOf(ledgerOf("crowded", 100, 60, { all: true, open: false }).rows)
-    expect(open).toContain("[a] Show Fewer")
     expect(open).not.toContain("approved once ·")
   })
 
@@ -297,14 +322,15 @@ describe("the ledger", () => {
     for (const row of rows) expect(widthOf(rowText(row))).toBe(80)
   })
 
-  test("[p] Pause outlasts copying when the keys do not all fit", () => {
+  test("in the details, [p] Pause outlasts copying when the keys do not all fit", () => {
     const { rows } = ledgerOf("crowded", 80, 16, {
-      pick: (lines) => lineFor(lines, "git push origin feat/trust"),
+      pick: (lines) => headingFor(lines, "exit"),
+      mode: "details",
     })
-    const footer = rowText(rows.at(-1) ?? []).trimEnd()
+    const footer = footerOf(rows)
     expect(footer).toContain("[p] Pause")
     expect(footer).not.toContain("[c] Copy As Config")
-    expect(footer.endsWith("[esc] Close")).toBe(true)
+    expect(footer.endsWith("[esc] Hide Details")).toBe(true)
   })
 })
 
@@ -359,9 +385,7 @@ describe("families in the ledger", () => {
         (entry) => entry.subject === "git status --short",
       ),
     ).toHaveLength(2)
-    expect(panelOf(ledgerOf("families", 100, 30, { pick: () => answers }).rows)).toContain(
-      "Still learning for general: 2 of 3.",
-    )
+    expect(detailsOf("families", () => answers).text).toContain("Still learning for general: 2 of 3.")
   })
 
   test("global flags do not split a family: git -C x status is git status", () => {
@@ -373,54 +397,47 @@ describe("families in the ledger", () => {
     ])
   })
 
-  test("the panel says exactly what a row is, one labelled fact a row", () => {
-    const { rows } = ledgerOf("families", 100, 30, { pick: (lines) => lineFor(lines, "echo ---") })
-    const text = panelOf(rows)
+  test("the details say exactly what a row is, one labelled fact a row", () => {
+    const { text } = detailsOf("families", (lines) => lineFor(lines, "echo ---"))
     expect(text).toContain('Exactly     echo "---"  — "---" is 3 hyphens, which some fonts draw as one line')
     expect(text).toContain("Answers     this exact text, for general. Forgotten after 30 days unused.")
     expect(text).toContain('Still asks  echo · echo "---" > out.txt · any other argument')
     expect(text).toContain("[w] Trust Any echo")
   })
 
-  test("the panel on a rule still counting says how far it has to go, and [x] forgets", () => {
-    const { rows } = ledgerOf("families", 100, 30, { pick: (lines) => lineFor(lines, "src/view.ts") })
-    const text = panelOf(rows)
+  test("the details on a rule still counting say how far it has to go, and [x] forgets", () => {
+    const { text } = detailsOf("families", (lines) => lineFor(lines, "src/view.ts"))
     expect(text).toContain("Approved    2 of 3 in a row, as build — 1 more approval and Trust answers it.")
     expect(text).toContain("[x] Forget")
   })
 
-  test("the panel on a heading says what the family holds and what [w] would do", () => {
-    const { rows } = ledgerOf("families", 100, 30, {
-      pick: (lines) => headingFor(lines, "git status", "answers"),
-    })
-    const text = panelOf(rows)
+  test("the details on a heading say what the family holds and what [w] would do", () => {
+    const pick = (lines: readonly Line[]) => headingFor(lines, "git status", "answers")
+    const { text } = detailsOf("families", pick)
     expect(text).toMatch(/Family {6}git status · 2 commands answered: /)
     expect(text).toContain("Widen       [w] answers any git status … for build")
-    expect(text).toContain("[enter] Fold")
+    expect(footerOf(ledgerOf("families", 100, 30, { pick }).rows)).toContain("[space] Fold")
   })
 
   test("a widened family says so, what still asks, and how to stop it", () => {
-    const { rows } = ledgerOf("families", 100, 30, { pick: (lines) => headingFor(lines, "ls") })
-    const text = panelOf(rows)
+    const pick = (lines: readonly Line[]) => headingFor(lines, "ls")
+    const { text } = detailsOf("families", pick)
     expect(text).toContain("Widened     any ls … for general — you widened it 15m ago.")
     expect(text).toContain("Still asks  dangerous ones, and any that write a file or run another program.")
     expect(text).toContain("To stop     [w] back to exact rules   [x] revokes it and its 4 rules")
-    expect(text).toContain("[w] Undo Any ls")
+    expect(footerOf(ledgerOf("families", 100, 30, { pick }).rows)).toContain("[w] Undo Any ls")
   })
 
-  test("a dangerous rule offers [w] dimmed and says it never widens", () => {
-    const { rows } = ledgerOf("families", 100, 30, {
-      pick: (lines) => lineFor(lines, "git push origin feat/trust"),
-    })
-    expect(panelOf(rows)).toContain(
-      "Dangerous   git push — 8 in a row instead of 3, and never widened as a family.",
-    )
-    expect((rows.at(-1) ?? []).find((run) => run.text === "[w]")?.faint).toBe(true)
+  test("a dangerous rule offers no [w], and its details say it never widens", () => {
+    const pick = (lines: readonly Line[]) => lineFor(lines, "git push origin feat/trust")
+    const { text, rows } = detailsOf("families", pick)
+    expect(text).toContain("Dangerous   git push — 8 in a row instead of 3, and never widened as a family.")
+    expect(footerOf(rows)).not.toContain("[w]")
+    expect(footerOf(ledgerOf("families", 100, 30, { pick }).rows)).not.toContain("[w]")
   })
 
   test("OpenCode's own always: what it means, and that only a restart ends it", () => {
-    const { rows } = ledgerOf("crowded", 100, 40, { pick: (lines) => lines.at(-1) })
-    const text = panelOf(rows)
+    const { rows, text } = detailsOf("crowded", (lines) => lines.at(-1), 100, 40)
     expect(text).toContain("Means       OpenCode answers every command that starts this way for general")
     expect(text).toContain("Until       OpenCode restarts.")
     expect((rows.at(-1) ?? []).find((run) => run.text === "[x]")?.faint).toBe(true)
@@ -431,7 +448,7 @@ describe("families in the ledger", () => {
       const { rows } = ledgerOf("families", width, 30, {
         pick: (lines) => headingFor(lines, "git status", "answers"),
       })
-      const footer = rowText(rows.at(-1) ?? []).trimEnd()
+      const footer = footerOf(rows)
       expect(footer.endsWith("[esc] Close") || footer.endsWith("[esc]")).toBe(true)
       expect(footer).not.toContain("Git Status")
     }
@@ -512,5 +529,112 @@ describe("acting on a line", () => {
     const ls = headingFor(lines, "ls") as Extract<Line, { kind: "family" }>
     const src: Line = { ...ls, family: { ...ls.family, permission: "edit", family: "src/", widened: [] } }
     expect(configSnippet(src).text).toBe('{"permission":{"edit":{"src/*":"allow"}}}')
+  })
+})
+
+describe("the summary, the details and the keys", () => {
+  const exit = (lines: readonly Line[]) => headingFor(lines, "exit")
+
+  test("by default the list takes the height, with one quiet line about the cursor's line", () => {
+    const list = ledgerOf("crowded", 100, 20, { pick: exit })
+    const details = ledgerOf("crowded", 100, 20, { pick: exit, mode: "details" })
+    const listed = (rows: readonly Row[]) => rows.filter((row) => /[●○▸▾!] /.test(rowText(row))).length
+    expect(listed(list.rows)).toBeGreaterThan(listed(details.rows))
+    const text = textOf(list.rows)
+    expect(text).not.toMatch(/^ (Family|Closest|Widen) {2,}/m)
+    const summary = rowText(list.rows.at(-2) ?? [])
+    expect(summary.trimEnd()).toBe(" exit · 2 counting, closest 2 of 3 · [i] details")
+    expect(widthOf(summary)).toBe(100)
+    /** Quiet: only the key and the command are not muted. */
+    const loud = (list.rows.at(-2) ?? []).filter((run) => run.text.trim() !== "" && run.tone !== "muted")
+    expect(loud.map((run) => run.text)).toEqual(["exit", "[i]"])
+  })
+
+  test("the summary on each kind of line", () => {
+    const summary = (pick: (lines: readonly Line[]) => Line | undefined, name = "crowded") =>
+      rowText(ledgerOf(name, 100, 30, { pick }).rows.at(-2) ?? []).trimEnd()
+    expect(summary((lines) => lineFor(lines, "ls -la"))).toBe(
+      " ls -la · answers for build and general · [i] details",
+    )
+    expect(summary((lines) => lines.find((line) => line.kind === "always"))).toBe(
+      " ! ls src * · OpenCode's own, until it restarts · [i] details",
+    )
+    expect(summary((lines) => lineFor(lines, "git push origin feat/trust"))).toBe(
+      " git push origin feat/trust  dangerous · 5 of 8 as build, 3 more to go · [i] details",
+    )
+    /** Narrow, the summary is cut before its key, never through it. */
+    const narrow = rowText(
+      ledgerOf("crowded", 40, 20, { pick: (lines) => lineFor(lines, "ls -la") }).rows.at(-2) ?? [],
+    )
+    expect(narrow.trimEnd().endsWith("… · [i] details")).toBe(true)
+    expect(widthOf(narrow)).toBe(40)
+  })
+
+  test("the details wrap whole, and the list gives up rows but keeps the cursor's line", () => {
+    for (const height of [11, 14, 20]) {
+      const { rows, text } = detailsOf("crowded", exit, 80, height)
+      expect(text).toContain("ones that run another program.")
+      expect(text).toMatch(/build keeps\s+its own count\./)
+      expect(text).not.toMatch(/\w…/)
+      expect(rows.filter((row) => row.every((run) => run.fill === "selected"))).toHaveLength(1)
+    }
+  })
+
+  test("a notice takes the summary's place, or the rule's over the details", () => {
+    const notice = { text: "Forgot 2 counts in exit: each starts again from 0.", tone: "muted" as const }
+    const engine = engineOf("crowded")
+    const reading = { state: engine.state, settings: SAMPLE_SETTINGS, now: SAMPLE_NOW }
+    const { lines, folded } = ledgerModel({ ...reading, all: false, open: new Set() })
+    for (const mode of ["list", "details"] as const) {
+      const { rows } = ledgerRows({ width: 100, height: 20, lines, folded, notice, mode, ...reading })
+      expect(textOf(rows)).toContain(notice.text)
+      expect(textOf(rows)).not.toContain("[i] details")
+      expect(textOf(rows).includes(" ───")).toBe(false)
+    }
+  })
+
+  test("the keys: what acts on the line, the details, every key, and the way out last", () => {
+    const list = footerOf(ledgerOf("crowded", 140, 20, { pick: exit, open: false }).rows)
+    expect(list).toBe(
+      " [space] Open   [x] Forget   [w] Trust Any exit   [i] Details   [?] Keys   [esc] Close",
+    )
+    const details = footerOf(ledgerOf("crowded", 140, 20, { pick: exit, mode: "details" }).rows)
+    expect(details).toContain("[c] Copy As Config")
+    expect(details).toContain("[a] Show All")
+    expect(details).toContain("[p] Pause")
+    expect(details.endsWith("[esc] Hide Details")).toBe(true)
+    /** Paused, the way back is offered without a trip to `?`. */
+    expect(footerOf(ledgerOf("crowded-paused", 140, 20, { pick: exit }).rows)).toContain("[p] Resume")
+  })
+
+  test("short of room, [w] drops its family's name before a key is dropped", () => {
+    const pick = (lines: readonly Line[]) => headingFor(lines, "git status", "answers")
+    const wide = footerOf(ledgerOf("families", 100, 30, { pick }).rows)
+    expect(wide).toContain("[w] Trust Any git status")
+    const narrow = footerOf(ledgerOf("families", 90, 30, { pick }).rows)
+    expect(narrow).toContain("[w] Trust Any   ")
+    expect(narrow).toContain("[space] Fold")
+    expect(narrow).not.toContain("…")
+  })
+
+  test("? lists every key, one line each, and how to leave it", () => {
+    const { rows } = ledgerOf("crowded", 100, 20, { mode: "keys" })
+    const text = textOf(rows)
+    for (const keys of [
+      "[j/k] [↑/↓]",
+      "[space] [enter]",
+      "[←/h] [→/l]",
+      "[i]",
+      "[x]",
+      "[w]",
+      "[c]",
+      "[a]",
+      "[p]",
+    ])
+      expect(text).toMatch(new RegExp(`^ ${keys.replace(/[[\]/?]/g, "\\$&")} +[A-Z]`, "m"))
+    expect(text).toContain("[?] [esc]")
+    expect(footerOf(rows)).toBe(" [esc] Hide Keys")
+    /** A window too short for them all says how many are below. */
+    expect(textOf(ledgerOf("crowded", 80, 11, { mode: "keys" }).rows)).toContain("↓ 3 more keys below")
   })
 })

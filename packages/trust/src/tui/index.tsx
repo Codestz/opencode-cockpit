@@ -23,6 +23,7 @@ import { trustPaths } from "../core/paths.ts"
 import { rulesFrom } from "../core/rules.ts"
 import {
   configSnippet,
+  type LedgerMode,
   type Line,
   ledgerModel,
   ledgerRows,
@@ -112,9 +113,11 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
       selected: undefined as string | undefined,
       /** Commands approved once are folded until `a` lists them (core/view/ledger.ts, ledgerShown). */
       all: false,
-      /** Families opened with `enter`; every family starts folded. */
+      /** Families opened with `space`, `enter` or `→`; every family starts folded. */
       opened: new Set<string>(),
       notice: undefined as { text: string; tone: Tone } | undefined,
+      /** `i` opens the details of the cursor's line, `?` every key; `esc` closes them before the dialog. */
+      mode: "list" as LedgerMode,
     }
     const reading = () => ({ state: engine.state, settings, now: Date.now() })
     const model = () => ledgerModel({ ...reading(), all: ledger.all, open: ledger.opened })
@@ -170,6 +173,7 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
             settings,
             now: Date.now(),
             ...(ledger.notice ? { notice: ledger.notice } : {}),
+            mode: ledger.mode,
           }).rows,
         )
       }
@@ -430,20 +434,42 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
       if (line) act("widen", widenLine(line, Date.now()))
     }
 
-    /** `enter`: a heading opens or folds; a row inside a family folds it and keeps the cursor on it. */
-    const fold = () => {
+    /**
+     * `space`/`enter`: a heading opens or folds; a row inside a family folds it and keeps the cursor on
+     * it. `→` only opens and `←` only folds — on a row inside a family, `←` goes to its heading.
+     */
+    const fold = (way: "toggle" | "open" | "close" = "toggle") => {
       const line = selectedLine()
       if (!line || line.kind === "always") return
       if (line.kind === "rule" && !line.nested) return
+      if (way === "open" && line.kind === "rule") return
       /** A family folds per section: `fold` names its heading in the one the cursor is in. */
       const key = line.fold
-      if (ledger.opened.has(key)) {
+      if (way === "close" && line.kind === "rule") ledger.selected = `f:${key}`
+      else if (ledger.opened.has(key) && way !== "open") {
         ledger.opened.delete(key)
         ledger.selected = `f:${key}`
-      } else ledger.opened.add(key)
+      } else if (!ledger.opened.has(key) && way !== "close") ledger.opened.add(key)
+      else return
       ledger.notice = undefined
       draw()
     }
+
+    /** `i` and `?`: one view at a time, and the same key again goes back to the list. */
+    const view = (mode: LedgerMode) => {
+      ledger.mode = ledger.mode === mode ? "list" : mode
+      ledger.notice = undefined
+      draw()
+    }
+
+    /** Every key but `?` acts on the list: from the key list it goes back to the list first. */
+    const listed =
+      (run: () => void): (() => void) =>
+      () => {
+        if (ledger.mode === "keys") ledger.mode = "list"
+        run()
+        draw()
+      }
 
     const copy = () => {
       const line = selectedLine()
@@ -488,20 +514,44 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
     const dialogLayer = (): Layer => ({
       priority: 100,
       commands: [
-        { name: "cockpit.trust.down", title: "Next rule", run: () => move(1) },
-        { name: "cockpit.trust.up", title: "Previous rule", run: () => move(-1) },
-        { name: "cockpit.trust.fold", title: "Open or fold a family", run: () => fold() },
-        { name: "cockpit.trust.revoke", title: "Revoke a rule, or forget its count", run: () => revoke() },
-        { name: "cockpit.trust.widen", title: "Trust the whole family, or undo it", run: () => widen() },
-        { name: "cockpit.trust.copy", title: "Copy as config", run: () => copy() },
-        { name: "cockpit.trust.togglePause", title: "Pause or resume", run: () => togglePause() },
-        { name: "cockpit.trust.all", title: "Show or fold commands approved once", run: () => toggleAll() },
+        { name: "cockpit.trust.down", title: "Next rule", run: listed(() => move(1)) },
+        { name: "cockpit.trust.up", title: "Previous rule", run: listed(() => move(-1)) },
+        { name: "cockpit.trust.fold", title: "Open or fold a family", run: listed(() => fold()) },
+        { name: "cockpit.trust.open", title: "Open a family", run: listed(() => fold("open")) },
+        {
+          name: "cockpit.trust.shut",
+          title: "Fold a family, or go to its heading",
+          run: listed(() => fold("close")),
+        },
+        { name: "cockpit.trust.details", title: "Show or hide the details", run: () => view("details") },
+        { name: "cockpit.trust.keys", title: "Show or hide every key", run: () => view("keys") },
+        {
+          name: "cockpit.trust.revoke",
+          title: "Revoke a rule, or forget its count",
+          run: listed(() => revoke()),
+        },
+        {
+          name: "cockpit.trust.widen",
+          title: "Trust the whole family, or undo it",
+          run: listed(() => widen()),
+        },
+        { name: "cockpit.trust.copy", title: "Copy as config", run: listed(() => copy()) },
+        { name: "cockpit.trust.togglePause", title: "Pause or resume", run: listed(() => togglePause()) },
+        {
+          name: "cockpit.trust.all",
+          title: "Show or fold commands approved once",
+          run: listed(() => toggleAll()),
+        },
         { name: "cockpit.trust.close", title: "Close", run: () => api.ui.dialog.clear() },
       ],
       bindings: [
         { key: "j,down", cmd: "cockpit.trust.down" },
         { key: "k,up", cmd: "cockpit.trust.up" },
-        { key: "return", cmd: "cockpit.trust.fold" },
+        { key: "space,return", cmd: "cockpit.trust.fold" },
+        { key: "l,right", cmd: "cockpit.trust.open" },
+        { key: "h,left", cmd: "cockpit.trust.shut" },
+        { key: "i", cmd: "cockpit.trust.details" },
+        { key: "?,shift+/", cmd: "cockpit.trust.keys" },
         { key: "x", cmd: "cockpit.trust.revoke" },
         { key: "w", cmd: "cockpit.trust.widen" },
         { key: "c", cmd: "cockpit.trust.copy" },
@@ -511,14 +561,40 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
       ],
     })
 
+    /**
+     * `esc` closes the details or the key list before the dialog. The host's dialog takes `esc` before
+     * any layer would hear it, so it is caught ahead of the keymap, as Shell's search does — and only
+     * while there is something of ours to close: otherwise the host closes the dialog as it always has.
+     */
+    api.lifecycle.onDispose(
+      api.keymap.intercept(
+        (ctx) => {
+          if (!ledger.open || ledger.mode === "list" || ctx.event.name !== "escape") return
+          ctx.consume({ preventDefault: true, stopPropagation: true })
+          ledger.mode = "list"
+          ledger.notice = undefined
+          draw()
+        },
+        { priority: 10_000 },
+      ),
+    )
+
     const openLedger = () => {
       /** Config may have changed since: what the dialog says about "ask" rules should be today's. */
       void loadRules()
       ledger.open = true
       ledger.notice = undefined
+      ledger.mode = "list"
       paint()
       api.ui.dialog.replace(
-        () => <Ledger api={api} rows={dialogRows} keys={dialogLayer} onScroll={(by) => move(by)} />,
+        () => (
+          <Ledger
+            api={api}
+            rows={dialogRows}
+            keys={dialogLayer}
+            onScroll={(by) => listed(() => move(by))()}
+          />
+        ),
         () => {
           ledger.open = false
         },

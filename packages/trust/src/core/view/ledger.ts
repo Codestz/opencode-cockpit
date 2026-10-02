@@ -14,11 +14,8 @@
  *   ○ git push origin feat/trust  dangerous                   build    5 of 8     2d
  *   + 4 more approved once · [a] lists them
  *
- *   ─────────────────────────────────────────────────────────────────────────────────────────
- *   Exactly    echo "---"  — "---" is 3 hyphens, which some fonts draw as one line
- *   Answers    this exact text, for general. Unused for 30 days, it is forgotten.
- *   Still asks echo · echo "---" > out.txt
- *   [x] Revoke   [w] Trust Any echo   [c] Copy As Config   [a] Show All   [p] Pause   [esc] Close
+ *   echo "---"  (3 hyphens) · answers for general · [i] details
+ *   [x] Revoke   [w] Trust Any echo   [i] Details   [?] Keys   [esc] Close
  *
  * **Two sections, by what a rule does for you now.** One list sorted trusted-then-counting, with a
  * `trusted` or `2/3` on every row, made you read each row to learn which kind it was (a user's
@@ -32,11 +29,13 @@
  * eye reads first. An agent column that would say the same thing on every row is left out.
  *
  * **Families** (family.ts) group a section's rules: `ls -la`, `ls -x` and `ls -R docs` are all `ls`.
- * A family of one rule is drawn as that one row; families start folded, and `enter` opens one.
+ * A family of one rule is drawn as that one row; families start folded, and `space` or `enter` opens one.
  *
- * **The panel** under the list says what the selected line is, one labelled row per fact — what it
- * is exactly, what it answers or how far it has to go, and what still asks or how to stop it — with
- * every argument quoted, and one a font could merge (`---`) said in words.
+ * **The list takes the height.** Under it, one quiet line says what the selected line is, and the
+ * keys are the few that act on it. Three labelled rows under every line were a wall between the list
+ * and its keys, cut mid-sentence (a user's screenshot). `i` opens the details — one labelled fact a
+ * row, every argument quoted, one a font could merge (`---`) said in words, each wrapped whole while
+ * the list gives up the rows — and `?` lists every key. `esc` closes either before the dialog.
  */
 
 import { closeHint, fitHints, GLYPH, type Hint, labelCase } from "@opencode-cockpit/client/design"
@@ -62,7 +61,7 @@ import {
   type Thresholds,
   type Widened,
 } from "../ledger.ts"
-import { ago, cut, filled, fit, type Row, type Run, spread, type Tone, widthOf } from "./rows.ts"
+import { ago, cut, filled, fit, type Row, type Run, rowText, spread, type Tone, widthOf } from "./rows.ts"
 
 export type LedgerItem = { kind: "rule"; entry: Entry } | { kind: "always"; always: Always }
 
@@ -498,15 +497,13 @@ function headingRow(
   )
 }
 
-/* ─── the panel: exactly what it is ──────────────────────────────────────────────────────────── */
+/* ─── the details: exactly what it is ────────────────────────────────────────────────────────── */
 
-/** Rows the panel always takes, so moving the cursor never moves the list. */
-export const PANEL_ROWS = 3
 /** `Still asks` and two spaces: the longest label, kept apart from a command that follows it. */
 const LABEL = 12
 
 /** `runs` wrapped at spaces into rows of `width`, at most `max`; the last says `…` when cut. */
-export function wrapRuns(runs: readonly Run[], width: number, max: number): Row[] {
+export function wrapRuns(runs: readonly Run[], width: number, max = Number.POSITIVE_INFINITY): Row[] {
   const words: Run[] = []
   for (const run of runs) {
     /** A command shown as an example is not broken across rows when it fits on one. */
@@ -544,7 +541,7 @@ export function wrapRuns(runs: readonly Run[], width: number, max: number): Row[
   return kept.map((line) => fit(line, width))
 }
 
-/** One labelled fact in the panel. */
+/** One labelled fact in the details. */
 export interface Said {
   label: string
   runs: Run[]
@@ -719,7 +716,7 @@ function widenAgent(family: FamilyGroup, line: Line): string | undefined {
   return family.rules[0]?.entries[0]?.agent ?? family.widened[0]?.agent
 }
 
-/** What `w` would do on this line, as the panel's last row. */
+/** What `w` would do on this line, as the details' last fact. */
 function widenSaid(family: FamilyGroup, line: Line): Said {
   const can = widenable(family.permission, family.family)
   if (!can.ok) return { label: "Widen", runs: [muted(`never: ${can.why}.`)] }
@@ -805,7 +802,7 @@ function familySaid(family: FamilyGroup, line: Line, reading: Reading): Said[] {
   ]
 }
 
-/** What the panel says about a line: one labelled row per fact, at most `PANEL_ROWS`. */
+/** What the details say about a line: one labelled fact each, as many rows as each needs. */
 export function explain(line: Line, reading: Reading): Said[] {
   if (line.kind === "always") {
     const bash = line.always.permission === "bash"
@@ -831,34 +828,142 @@ export function explain(line: Line, reading: Reading): Said[] {
   return line.rule.section === "answers" ? answerSaid(line.rule, reading) : learningSaid(line.rule, reading)
 }
 
-function panelRows(line: Line | undefined, reading: Reading, width: number): Row[] {
-  if (!line) return Array.from({ length: PANEL_ROWS }, () => fit([], width))
-  const said = explain(line, reading).slice(0, PANEL_ROWS)
-  const room = Math.max(1, width - 1 - LABEL - 1)
-  /** Every fact gets a row; the rows left over go to the first that needs them — the command, first. */
-  const need = said.map((each) => wrapRuns(each.runs, room, PANEL_ROWS).length)
-  const give = said.map(() => 1)
-  let spare = PANEL_ROWS - said.length
-  said.forEach((_, index) => {
+/** The details' rows, every fact wrapped whole; `room` short of that, each fact keeps a row first. */
+function detailRows(said: readonly Said[], width: number, room: number): Row[] {
+  const text = Math.max(1, width - 1 - LABEL - 1)
+  const kept = said.slice(0, Math.max(1, room))
+  const need = kept.map((each) => wrapRuns(each.runs, text).length)
+  const give = kept.map(() => 1)
+  let spare = room - kept.length
+  kept.forEach((_, index) => {
     while (spare > 0 && (give[index] as number) < (need[index] as number)) {
       give[index] = (give[index] as number) + 1
       spare--
     }
   })
-  const rows = said.flatMap((each, index) =>
-    wrapRuns(each.runs, room, give[index] as number).map((row, at) =>
+  const rows = kept.flatMap((each, index) =>
+    wrapRuns(each.runs, text, give[index] as number).map((row, at) =>
       fit([{ text: ` ${(at === 0 ? each.label : "").padEnd(LABEL)}`, tone: "muted" }, ...row], width),
     ),
   )
-  while (rows.length < PANEL_ROWS) rows.push(fit([], width))
-  return rows.slice(0, PANEL_ROWS)
+  while (rows.length < room) rows.push(fit([], width))
+  return rows.slice(0, room)
+}
+
+/** How many rows the details want for a line at this width, nothing cut. */
+function detailNeed(said: readonly Said[], width: number): number {
+  const text = Math.max(1, width - 1 - LABEL - 1)
+  return said.reduce((sum, each) => sum + wrapRuns(each.runs, text).length, 0)
+}
+
+/* ─── the summary: one quiet line about the cursor's ─────────────────────────────────────────── */
+
+/**
+ * What the selected line is, in a phrase: what it answers or how close it is. The details are a key
+ * away; three labelled rows under every line were a wall the eye had to cross to reach the keys, and
+ * their sentences were cut where they mattered most (a user's screenshot).
+ */
+function summaryOf(line: Line, reading: Reading): Run[] {
+  if (line.kind === "always")
+    return [
+      { text: `${GLYPH.warn} `, tone: "warning" },
+      ...prefix(line.always.permission),
+      plain(line.always.patterns.join("  ")),
+      muted(" · OpenCode's own, until it restarts"),
+    ]
+  if (line.kind === "family") {
+    const { family } = line
+    const name = [...prefix(family.permission), plain(showSubject(family.permission, family.family))]
+    if (family.section === "learning") {
+      const best = family.rules[0]
+      const stand = best ? standOf(best.entries[0] as Entry, reading) : undefined
+      return [
+        ...name,
+        muted(
+          ` · ${family.rules.length} counting${stand?.kind === "counting" ? `, closest ${stand.have} of ${stand.need}` : ""}`,
+        ),
+      ]
+    }
+    if (family.widened.length > 0)
+      return [
+        ...name,
+        muted(
+          ` · ${anyOf(family.permission, family.family)} answers for ${agentsText(family.widened.map((each) => each.agent))}`,
+        ),
+      ]
+    return [
+      ...name,
+      muted(` · ${plural(family.rules.length, "command")} answered for ${agentsText(agentsOf(family))}`),
+    ]
+  }
+  const { rule } = line
+  const lead = rule.entries[0] as Entry
+  const stand = standOf(lead, reading)
+  const name = [
+    ...prefix(rule.permission),
+    plain(showSubject(rule.permission, rule.subject)),
+    ...spelledRuns(rule.permission, rule.subject),
+    ...dangerRuns(rule.entries.find((entry) => entry.danger)?.danger),
+  ]
+  if (stand.kind === "widened")
+    return [...name, muted(` · answered through ${anyOf(rule.permission, stand.family)}`)]
+  if (stand.kind === "trusted")
+    return [...name, muted(` · answers for ${agentsText(rule.entries.map((entry) => entry.agent))}`)]
+  if (stand.expired) return [...name, muted(` · unused too long, so it counts again from 0 of ${stand.need}`)]
+  return [
+    ...name,
+    muted(` · ${stand.have} of ${stand.need} as ${lead.agent}, ${stand.need - stand.have} more to go`),
+  ]
+}
+
+/** The summary, cut before its key so `[i] details` is always whole at the end. */
+function summaryRow(line: Line | undefined, reading: Reading, width: number): Row {
+  if (!line) return fit([], width)
+  const tail: Run[] = [muted(" · "), key("i"), muted(" details")]
+  const room = Math.max(0, width - 2 - widthOf(rowText(tail)))
+  const head = summaryOf(line, reading)
+  return fit([{ text: " " }, ...(widthOf(rowText(head)) > room ? fit(head, room) : head), ...tail], width)
 }
 
 /* ─── the keys ───────────────────────────────────────────────────────────────────────────────── */
 
+/** Every key the dialog takes, one line each: what `?` shows. */
+const KEY_LIST: readonly { keys: string[]; does: string }[] = [
+  { keys: ["j/k", "↑/↓"], does: "Move between lines; the wheel moves too" },
+  { keys: ["space", "enter"], does: "Open or fold a family" },
+  { keys: ["←/h", "→/l"], does: "Fold or open a family; ← on a command goes to its family" },
+  { keys: ["i"], does: "Details: what the line is exactly, and how to stop it" },
+  { keys: ["x"], does: "Revoke what answers; forget a count still learning" },
+  { keys: ["w"], does: "Trust any command of the family, or go back to exact rules" },
+  { keys: ["c"], does: "Copy the line as opencode.json config" },
+  { keys: ["a"], does: "List the commands approved once, or fold them" },
+  { keys: ["p"], does: "Pause Trust in this project, or resume it" },
+  { keys: ["?", "esc"], does: "Hide these keys; esc closes details first, then the dialog" },
+]
+
+/** Each key's rows: its keys, then what it does, wrapped under that column rather than cut. */
+function keyListRows(width: number): Row[][] {
+  const column = Math.max(...KEY_LIST.map((each) => widthOf(each.keys.map((name) => `[${name}]`).join(" "))))
+  const indent = 1 + column + 3
+  return KEY_LIST.map((each) => {
+    const keys = each.keys.flatMap((name, at) => [...(at > 0 ? [{ text: " " }] : []), key(name)])
+    const pad = " ".repeat(column - widthOf(rowText(keys)) + 3)
+    return wrapRuns([plain(each.does)], Math.max(1, width - indent - 1)).map((row, at) =>
+      fit(
+        [
+          { text: " " },
+          ...(at === 0 ? [...keys, { text: pad }] : [{ text: " ".repeat(indent - 1) }]),
+          ...row,
+        ],
+        width,
+      ),
+    )
+  })
+}
+
 /** Families in a key's label: commands stay lowercase, and a long one is cut. */
 function familyLabel(family: FamilyGroup): string {
-  /** Where it runs is in the panel; the key names what it runs. */
+  /** Where it runs is in the details; the key names what it runs. */
   const text =
     family.permission === "bash"
       ? showSubject("bash", family.family).replace(/^\(in .*?\) /, "")
@@ -873,47 +978,74 @@ function isWidened(family: FamilyGroup, line: Line): boolean {
   return family.widened.some((each) => each.agent === agent)
 }
 
-function hintsFor(line: Line | undefined, input: LedgerInput): { hints: Hint[]; verbatim?: string } {
+/**
+ * The keys under the list. By default the few that act on the line — the rest are in the details'
+ * row and the `?` list, because a row of eight keys was cut at every width a dialog has. `named`:
+ * whether `w` names its family; the first thing to go when the row is short.
+ */
+function hintsFor(
+  line: Line | undefined,
+  input: LedgerInput,
+  mode: LedgerMode,
+  named: boolean,
+): { hints: Hint[]; verbatim?: string } {
+  if (mode === "keys") return { hints: [closeHint("Hide Keys")] }
   const hints: Hint[] = []
   let verbatim: string | undefined
-  if (line?.kind === "family") hints.push({ key: "enter", label: line.open ? "Fold" : "Open", priority: 6 })
-  if (line?.kind === "rule" && line.nested) hints.push({ key: "enter", label: "Fold", priority: 6 })
+  const details = mode === "details"
+  if (!details && line?.kind === "family")
+    hints.push({ key: "space", label: line.open ? "Fold" : "Open", priority: 2 })
+  if (!details && line?.kind === "rule" && line.nested)
+    hints.push({ key: "space", label: "Fold", priority: 2 })
   /** A rule still counting has no trust to revoke: `x` forgets its count, and says so. */
   if (line)
     hints.push({
       key: "x",
       label: line.kind !== "always" && line.family.section === "learning" ? "Forget" : "Revoke",
-      priority: 5,
+      priority: details ? 6 : 4,
       ...(line.kind === "always" ? { off: true } : {}),
     })
   if (line && line.kind !== "always") {
     const family = line.family
     const widened = isWidened(family, line)
-    /** A command is lowercase; `labelCase` would make `git status` read `Git Status`. */
-    verbatim = `${widened ? "Undo Any" : "Trust Any"} ${familyLabel(family)}`
-    hints.push({
-      key: "w",
-      label: verbatim,
-      priority: 4,
-      ...(!widened && !widenable(family.permission, family.family).ok ? { off: true } : {}),
-    })
+    /** Offered only where it can act: a dangerous family never widens, and the details say why. */
+    if (widened || widenable(family.permission, family.family).ok) {
+      /** A command is lowercase; `labelCase` would make `git status` read `Git Status`. */
+      verbatim = `${widened ? "Undo Any" : "Trust Any"}${named ? ` ${familyLabel(family)}` : ""}`
+      hints.push({ key: "w", label: verbatim, priority: details ? 5 : 3 })
+    }
   }
-  if (line) hints.push({ key: "c", label: "Copy As Config", priority: 1 })
-  /** Above copying: it changes what the list shows, and a key that does that must be findable. */
-  if (input.folded) hints.push({ key: "a", label: "Show All", priority: 2 })
-  else if (input.all) hints.push({ key: "a", label: "Show Fewer", priority: 2 })
-  /**
-   * Above listing and copying: "how do I stop it" is one of the questions the dialog is opened with,
-   * and the fold row already says `[a]` where the commands it lists are.
-   */
-  hints.push({ key: "p", label: input.state.paused ? "Resume" : "Pause", priority: 3 })
-  hints.push(closeHint())
+  if (details) {
+    if (line) hints.push({ key: "c", label: "Copy As Config", priority: 2 })
+    if (input.folded) hints.push({ key: "a", label: "Show All", priority: 3 })
+    else if (input.all) hints.push({ key: "a", label: "Show Fewer", priority: 3 })
+    hints.push({ key: "p", label: input.state.paused ? "Resume" : "Pause", priority: 4 })
+    hints.push({ key: "?", label: "Keys", priority: 1 })
+    hints.push(closeHint("Hide Details"))
+  } else {
+    /** Paused, the way back is not left to the `?` list: the header has just said Trust is off. */
+    if (input.state.paused) hints.push({ key: "p", label: "Resume", priority: 4.5 })
+    if (line) hints.push({ key: "i", label: "Details", priority: 5 })
+    hints.push({ key: "?", label: "Keys", priority: 6 })
+    hints.push(closeHint())
+  }
   return verbatim ? { hints, verbatim } : { hints }
 }
 
-function footerRow(line: Line | undefined, input: LedgerInput): Row {
-  const { hints, verbatim } = hintsFor(line, input)
-  const fitted = fitHints(hints, Math.max(0, input.width - 1))
+function footerRow(line: Line | undefined, input: LedgerInput, mode: LedgerMode): Row {
+  /** A cell of margin at each end, as the header has: a row that fits exactly does not touch the edge. */
+  const room = Math.max(0, input.width - 2)
+  let { hints, verbatim } = hintsFor(line, input, mode, true)
+  let fitted = fitHints(hints, room)
+  /** Short of room, `w` says `Trust Any` rather than a key being dropped for its family's name. */
+  if (fitted.dropped > 0 && verbatim) {
+    const short = hintsFor(line, input, mode, false)
+    const tried = fitHints(short.hints, room)
+    if (tried.dropped < fitted.dropped) {
+      ;({ hints, verbatim } = short)
+      fitted = tried
+    }
+  }
   const cased = verbatim ? ` ${labelCase(verbatim)}` : undefined
   const runs: Run[] = fitted.runs.map((run) => ({
     ...run,
@@ -937,7 +1069,15 @@ export interface LedgerInput {
   /** Commands approved once, left out of the lines (`ledgerShown`); `all` says they are listed. */
   folded?: number
   all?: boolean
+  /** The list with its summary (the default), the details of the cursor's line, or every key. */
+  mode?: LedgerMode
 }
+
+/**
+ * `details`: what `i` opens — every fact about the cursor's line, wrapped whole, the list shrinking to
+ * make room. `keys`: what `?` opens — every key, one line each, in the list's place.
+ */
+export type LedgerMode = "list" | "details" | "keys"
 
 export interface LedgerView {
   rows: Row[]
@@ -961,11 +1101,17 @@ function countOf(lines: readonly Line[]): number {
   )
 }
 
-/** Header and gap above the list; the edge marker, the rule, the panel and the keys below it. */
-const CHROME = 2 + 1 + 1 + PANEL_ROWS + 1
+/**
+ * Header and gap above the list; the edge marker, the summary (or the rule over the details) and the
+ * keys below it.
+ */
+const CHROME = 2 + 1 + 1 + 1
+/** The shortest dialog drawn: a window shorter than this still gets a list, a line and a way out. */
+const MIN_HEIGHT = 11
 
 export function ledgerRows(input: LedgerInput): LedgerView {
   const { width, lines, state, settings, now } = input
+  const height = Math.max(MIN_HEIGHT, input.height)
   const reading: Reading = { state, settings, now }
   const rows: Row[] = []
   /** Whether Trust is answering at all is the first thing to know; paused is the one state worth a colour. */
@@ -982,12 +1128,41 @@ export function ledgerRows(input: LedgerInput): LedgerView {
     ),
   )
   rows.push(fit([], width))
-  const room = Math.max(3, input.height - CHROME)
   const index = Math.max(
     0,
     lines.findIndex((line) => line.key === input.selected),
   )
   const line = lines[index]
+  /** With no line there is nothing to detail: the list it is. */
+  const mode: LedgerMode = input.mode === "details" && !line ? "list" : (input.mode ?? "list")
+
+  if (mode === "keys") {
+    /** Every key in the list's place; a window too short for them all says how many are below. */
+    const each = keyListRows(width)
+    const room = height - 3
+    let used = 0
+    let shown = 0
+    for (const rowsOf of each) {
+      const last = shown === each.length - 1
+      if (used + rowsOf.length > (last ? room : room - 1)) break
+      rows.push(...rowsOf)
+      used += rowsOf.length
+      shown++
+    }
+    if (shown < each.length)
+      rows.push(fit([muted(` ↓ ${plural(each.length - shown, "more key")} below`)], width))
+    while (rows.length < 2 + room) rows.push(fit([], width))
+    rows.push(footerRow(line, input, mode))
+    return line ? { rows, top: 0, line } : { rows, top: 0 }
+  }
+
+  /**
+   * The list takes the dialog's height. With the details open it gives up every row they need, down to
+   * the cursor's line alone; only past that are the details cut, never the cursor.
+   */
+  const said = mode === "details" && line ? explain(line, reading) : []
+  const spare = height - CHROME
+  const room = mode === "details" ? Math.max(1, spare - detailNeed(said, width)) : spare
 
   /** The body: each section under its heading, a row of air between them. */
   /** `section`: a heading, named again in the `↓` row when it is below the window. */
@@ -1076,17 +1251,22 @@ export function ledgerRows(input: LedgerInput): LedgerView {
       width,
     ),
   )
-  /** A notice takes the rule's place: it is the one row that changes when you act. */
+  /**
+   * A notice takes the summary's place, or the rule's over the details: it is the one row that
+   * changes when you act.
+   */
   rows.push(
     fit(
       input.notice
         ? [{ text: ` ${input.notice.text}`, tone: input.notice.tone }]
-        : [{ text: ` ${"─".repeat(Math.max(0, width - 2))}`, tone: "border" }],
+        : mode === "details"
+          ? [{ text: ` ${"─".repeat(Math.max(0, width - 2))}`, tone: "border" }]
+          : summaryRow(line, reading, width),
       width,
     ),
   )
-  rows.push(...panelRows(line, reading, width))
-  rows.push(footerRow(line, input))
+  if (mode === "details") rows.push(...detailRows(said, width, spare - room))
+  rows.push(footerRow(line, input, mode))
   return line ? { rows, top, line } : { rows, top }
 }
 
