@@ -371,7 +371,6 @@ try {
     return drawn
   }
   const updater = await slash("plugins-update")
-  const legacy = await slash("cockpit-update")
   const subagents = process.env.AGENT ? await subagentsInTheInterface() : undefined
   proc.kill("SIGKILL")
   // `SMOKE_SHOW=1 bun run smoke:tui` prints the updater's frame: a marker proves it drew, not how.
@@ -399,7 +398,6 @@ try {
 
   for (const [what, text] of [
     ["/plugins-update", updater],
-    ["/cockpit-update", legacy],
   ] as const) {
     /** OpenCode 2 updates plugins itself; there the commands point at it instead of opening the dialog. */
     for (const marker of v2 ? ["change the version"] : ["Plugins", "published", "local", "Review"]) {

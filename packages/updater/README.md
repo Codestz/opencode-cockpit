@@ -48,7 +48,7 @@ Update 2 plugins? [Y/n]
 ## Inside OpenCode
 
 `/plugins-update` opens the same list as a dialog: `space` selects, `a` selects every update, `enter`
-shows exactly what will change, and `enter` again does it. `/cockpit-update` opens it too.
+shows exactly what will change, and `enter` again does it.
 
 Once a day it checks the registry and, if something is behind, says so once:
 `2 plugin updates available. Run /plugins-update.` Turn that off with `"updateCheck": false` under
