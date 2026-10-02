@@ -109,7 +109,7 @@ export const platform = {
 export const bays = {
   number: "01",
   kicker: "What is fitted",
-  title: "Five instruments today. One switch each.",
+  title: "Six instruments today. One switch each.",
   intro:
     "Every bay is its own npm package with a switch in config. They share the daemon, the config " +
     "file and the keys, so the second costs nothing and moving between them changes nothing you " +
@@ -278,6 +278,34 @@ export const bays = {
           },
         ],
       },
+    },
+    {
+      id: "trust",
+      name: "Trust",
+      tagline: "Permissions that learn — exactly what you approved, and nothing near it",
+      state: "live",
+      status: "Available",
+      gains: {
+        agent: "Fewer stops for the commands you always say yes to",
+        you: "Approve the same command three times; it is answered for you, and you can see why",
+      },
+      blurb:
+        "OpenCode's own \"always\" turns `docker compose -p cockpit up` into `docker compose -p *` — which " +
+        "also approves `-p prod down -v`. Trust counts the exact command: approve it three times in a row " +
+        "and it is answered for you from then on, in this project, for that agent. Dangerous commands cost " +
+        "more, your config's `ask` rules always win, and the ledger shows every rule — or a whole family " +
+        "you chose to trust — with one key to revoke it.",
+      points: [
+        "The exact command, never a prefix: a different flag starts again",
+        "Dangerous ones (rm, git push, --force, down -v) need eight in a row",
+        "Your config wins: a specific ask is never answered",
+        "Only your approvals count — not its own, not --auto",
+        "The ledger: families, what a rule answers exactly, revoke, trust a family on purpose",
+        "The same on OpenCode 1 and 2",
+      ],
+      foot: ["ledger · sidebar (opt-in)", "/trust · ctrl+x p", "@opencode-cockpit/trust"],
+      docs: "/trust/overview/",
+      media: { kind: "none" as const },
     },
   ],
 }
