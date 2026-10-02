@@ -25,3 +25,6 @@ media/social/
 .mcpx/
 .serena/
 .claude
+
+# OpenCode project-local config and plugins (created by OpenCode in a session here)
+/.opencode/
