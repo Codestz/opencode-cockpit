@@ -10,6 +10,8 @@ export const nav = {
     { label: "Shell", href: "#shell" },
     { label: "Statusline", href: "#status" },
     { label: "Updater", href: "#updater" },
+    { label: "Subagents", href: "#subagents" },
+    { label: "Trust", href: "#trust" },
     { label: "Platform", href: "#platform" },
     { label: "Install", href: "#install" },
   ],
@@ -58,7 +60,7 @@ export const compare = {
 }
 
 export const platform = {
-  number: "07",
+  number: "08",
   kicker: "The platform",
   title: "What every capability inherits.",
   intro:
@@ -305,14 +307,19 @@ export const bays = {
       ],
       foot: ["ledger · sidebar (opt-in)", "/trust · ctrl+x p", "@opencode-cockpit/trust"],
       docs: "/trust/overview/",
-      media: { kind: "none" as const },
+      media: {
+        kind: "image" as const,
+        src: "/media/trust-activity.png",
+        alt: "Trust's activity screen: prompts answered today with the reason for each, commands one approval away from being trusted, a dangerous one at 5 of 8, and a warning about OpenCode's own broad always approvals",
+        caption: "bunx @opencode-cockpit/trust preview · the rows the dialog draws, from a sample project",
+      },
     },
   ],
 }
 
 /** What is coming, and the reason it is next. */
 export const next = {
-  number: "08",
+  number: "09",
   kicker: "What is next",
   title: "One bay at a time, and only what can be built.",
   intro:
@@ -332,7 +339,7 @@ export const next = {
 }
 
 export const install = {
-  number: "09",
+  number: "10",
   kicker: "Install",
   title: "Two minutes, then ask it to start something.",
   modes: [

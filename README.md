@@ -113,9 +113,16 @@ approving `docker compose -p prod down -v` because you once approved `docker com
 **Trust** sits between: approve the *exact same* command three times in a row and it answers for
 you — and records every answer, in the ledger and the log, and in the sidebar if you turn it on. A reject resets the count, `rm` and `git push` and
 `--force` cost eight approvals instead of three, and a rule you wrote to be asked (`"git push *":
-"ask"`) is never answered. `/trust` shows what it has learned, grouped into families (`git -C x status`
-is `git status`), revokes, copies a rule for `opencode.json` — and `w` trusts a whole family, but
-only when you press it.
+"ask"`) is never answered. `/trust` opens on what it did for you and what it is close to trusting;
+`l` opens the ledger, every rule as a tree of families (`git -C x status` is `git status`) with a
+card that says exactly what a rule answers, its history, and how to stop it. `w` trusts a whole
+family, but only when you press it.
+
+![Trust's activity screen: five prompts answered today with the reason for each, commands one approval away from being trusted with their meters, a dangerous one at 5 of 8, and a warning about OpenCode's own broad "always" approvals](media/trust-activity.png)
+
+![Trust's ledger: a tree of command families on the left, and a card for the selected command with exactly what it answers, what still asks, its approval history and the buttons to revoke it or trust its family](media/trust-ledger.png)
+
+*Drawn by `bunx @opencode-cockpit/trust preview` from a sample project, the same rows the dialog draws.*
 
 **Sidebar + ledger · exact commands, per agent · OpenCode 1 and 2 · [docs](https://codestz.github.io/opencode-cockpit/trust/overview/) · [`@opencode-cockpit/trust`](packages/trust)**
 

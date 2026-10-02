@@ -92,6 +92,8 @@ cannot get in before OpenCode's own handler.
 `/trust`, `ctrl+x p`, or "Trust" in the palette opens on what Trust did for you, newest first, and
 what it is about to do:
 
+![Trust's activity screen: prompts answered today with the reason for each, commands close to being trusted with their meters, and a warning about OpenCode's own broad "always" approvals](/opencode-cockpit/media/trust-activity.png)
+
 ```
 
  Trust · app                                                                           ● answering
@@ -138,6 +140,8 @@ the ledger; `esc` there comes back here, and `esc` here closes.
 
 Every rule, as a tree of families, with a card for the one selected — always on screen, so there is
 no details key to find:
+
+![Trust's ledger: a tree of command families, and a card for the selected command with exactly what it answers, what still asks, its approval history and its buttons](/opencode-cockpit/media/trust-ledger.png)
 
 ```
  Trust · app                                    8 trusted · 5 learning · 7 seen once   ● answering
