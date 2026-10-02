@@ -69,7 +69,7 @@ shells, and Trust answers exactly the same without it — `/trust` shows what it
 { "trust": { "sidebar": true } }
 ```
 
-"Trust: show or hide in the sidebar" in the command palette flips it for this session; it is not
+"Show or hide Trust in the sidebar" in the command palette flips it for this session; it is not
 remembered. Hidden or not, a failure — a ledger that could not be saved — always shows there.
 
 ```
@@ -190,7 +190,7 @@ In the bundle's entry (`"trust": { … }`), the package's own, or the `trust` se
 | `dangerExtra` | `5` | What a dangerous command costs on top |
 | `expireDays` | `30` | Days unused before trust has to be earned again; `0` never |
 | `enabled` | `true` | `false` turns Trust off |
-| `sidebar` | `false` | Show the block in the sidebar. The palette's "Trust: show or hide in the sidebar" flips it for the session |
+| `sidebar` | `false` | Show the block in the sidebar. The palette's "Show or hide Trust in the sidebar" flips it for the session |
 | `sidebarRows` | `3` | Answers listed in the sidebar |
 | `sidebarOrder` | `160` | Where the block sits in the sidebar; lower draws first |
 | `keybinds` | `{ "cockpit.trust.ledger": "<leader>p" }` | The key that opens the ledger |

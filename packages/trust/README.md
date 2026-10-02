@@ -56,7 +56,7 @@ threshold **plus** `dangerExtra` approvals in a row — eight by default. They s
 The block is **hidden by default** — the sidebar already carries the statusline, subagents and
 shells, and Trust answers the same without it. `"trust": { "sidebar": true }` in
 `~/.config/opencode-cockpit/config.json` or a project's `.cockpit.json` shows it; the palette's
-"Trust: show or hide in the sidebar" flips it for this session only. Hidden or not, a failure — a
+"Show or hide Trust in the sidebar" flips it for this session only. Hidden or not, a failure — a
 ledger that could not be saved — always shows there.
 
 ```
@@ -145,7 +145,7 @@ In the bundle's entry (`"trust": { … }`), this package's own, or the `trust` s
 | `dangerExtra` | `5` | What a dangerous command costs on top |
 | `expireDays` | `30` | Days unused before trust has to be earned again; `0` never |
 | `enabled` | `true` | `false` turns Trust off (the bundle also has `features.trust: false`) |
-| `sidebar` | `false` | Show the block in the sidebar. The palette's "Trust: show or hide in the sidebar" flips it for the session |
+| `sidebar` | `false` | Show the block in the sidebar. The palette's "Show or hide Trust in the sidebar" flips it for the session |
 | `sidebarRows` | `3` | Answers listed in the sidebar |
 | `sidebarOrder` | `160` | Where the block sits in the sidebar; lower draws first |
 | `keybinds` | `{ "cockpit.trust.ledger": "<leader>p" }` | The key that opens the ledger |

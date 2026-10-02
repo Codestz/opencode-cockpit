@@ -27,7 +27,7 @@ All notable changes to this project are documented here. The format follows
     `--auto`), are not counted.
   - **Sidebar, when you want it:** `Trust  4 auto`, what it answered and how often, and the request
     on screen with its count (`2/3`). Hidden by default — `"trust": { "sidebar": true }` shows it,
-    and the palette's "Trust: show or hide in the sidebar" flips it for the session; a failure shows
+    and the palette's "Show or hide Trust in the sidebar" flips it for the session; a failure shows
     either way. A log line per answer; no toasts.
   - **Ledger:** `/trust` or `ctrl+x p` — what it has learned, revoke (`x`), copy a rule for
     `opencode.json` (`c`), pause in this project (`p`), and OpenCode's own broad "Always" approvals
@@ -73,6 +73,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **Every Cockpit command in `ctrl+p` sits under `Cockpit · <bay>`, titled by what it does.** Typing
+  "cockpit" lists them all on both OpenCodes ("Open or close the changes", "Show or hide Trust in the
+  sidebar"…). Slash names and keys are unchanged.
 - **Every bay speaks one visual language.** The bays had drifted: green meant *running* in Shell and
   *done* in Subagents a few rows apart, and brackets meant a key, a status or a checkbox depending on
   the screen. Now, everywhere:
@@ -121,6 +124,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **"Show or hide Trust in the sidebar" looked dead in a fresh window.** The shown block now sums up
+  the project (`5 trusted · 1 counting`) or says `nothing learned yet`, and the toggle confirms it.
+- **"Toggle the changes full screen" did nothing while the changes were closed.** It now opens them.
 - **A subagent continued a day later read "stopped after 24h04m".** The time shown is now its last
   round's — "done in 4m00s (round 2)" in the pane and tools, "· 2 rounds" in the sidebar — with when
   it first started ("first started yesterday 22:17").
