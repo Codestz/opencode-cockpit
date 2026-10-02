@@ -396,9 +396,7 @@ try {
     if (!review.includes(marker)) throw new Error(`${what}:\n${review}`)
   }
 
-  for (const [what, text] of [
-    ["/plugins-update", updater],
-  ] as const) {
+  for (const [what, text] of [["/plugins-update", updater]] as const) {
     /** OpenCode 2 updates plugins itself; there the commands point at it instead of opening the dialog. */
     for (const marker of v2 ? ["change the version"] : ["Plugins", "published", "local", "Review"]) {
       if (!text.includes(marker)) throw new Error(`${what} did not draw "${marker}":\n${text}`)
