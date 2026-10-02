@@ -460,7 +460,8 @@ try {
     ["the palette's full-screen toggle never opened the changes", ran.review, "SMOKE-REVIEW"],
     ["the palette's clear never answered", ran.subagents, "No finished subagents to clear."],
     ["the palette's Trust sidebar toggle said nothing", ran.trust, "Shown in the sidebar."],
-    ["the palette never opened Trust's ledger", ran.ledger, "Trust in this project"],
+    /** /trust opens on what Trust did; the ledger is one key further, behind `l`. */
+    ["the palette never opened Trust's activity screen", ran.ledger, "Open the ledger"],
   ] as const) {
     if (!text.includes(marker)) throw new Error(`${what}:\n${text}`)
   }
