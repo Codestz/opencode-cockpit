@@ -73,6 +73,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **Trust's ledger says what it answers for you and what it is close to.** Two sections — *Answers
+  for you*, newest first, and *Learning*, closest to trusted first — with colour only on the marks,
+  counts that say of what (`2 of 3`, `5 of 8`), and a labelled panel: exactly what a rule is, what
+  still asks, why, and how to stop it. `x` revokes in Answers and forgets a count in Learning.
 - **Every Cockpit command in `ctrl+p` sits under `Cockpit · <bay>`, titled by what it does.** Typing
   "cockpit" lists them all on both OpenCodes ("Open or close the changes", "Show or hide Trust in the
   sidebar"…). Slash names and keys are unchanged.
