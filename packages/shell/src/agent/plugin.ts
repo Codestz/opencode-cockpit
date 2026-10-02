@@ -156,7 +156,8 @@ async function shellParts(host: ServerHost, options?: unknown): Promise<ServerPa
   const describeSubagent = async (session: string) => ({
     session,
     agent: subagents.get(session)?.agent ?? (await host.session.get(session).catch(() => undefined))?.agent,
-    title: await sessionTitle(session).catch(() => undefined),
+    /** OpenCode 1 titles a subagent "Task (@general subagent)"; the agent is named apart. */
+    title: (await sessionTitle(session).catch(() => undefined))?.replace(/\s*\(@[\w-]+ subagent\)\s*$/, ""),
   })
 
   /**

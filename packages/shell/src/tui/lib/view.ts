@@ -7,30 +7,19 @@ import {
   labelCase,
   duration as ran,
   STATE_WORD,
-  type State,
   type StateTone,
   stateMark,
   toneOf,
 } from "@opencode-cockpit/client/design"
 import type { ScreenRun, ShellInfo } from "@opencode-cockpit/protocol/shell"
 import { duration } from "../../core/format.ts"
+import { type Kind, kindOf, STATE } from "../../core/outcome.ts"
 
 export { SPINNER } from "@opencode-cockpit/client/design"
-
-/** What a human cares about, derived from status + exit code so every surface agrees. */
-export type Kind = "run" | "fail" | "stop" | "done"
-
-export function kindOf(s: ShellInfo): Kind {
-  if (s.status === "running") return "run"
-  if (s.status === "killed") return "stop"
-  if (s.status === "exited" && s.exitCode === 0) return "done"
-  return "fail"
-}
+/** What a human cares about, derived from status + exit code so every surface agrees — the tools too. */
+export { type Kind, kindOf, STATE }
 
 export const BADGE_LABEL: Record<Kind, string> = { run: "RUN", fail: "FAIL", stop: "STOP", done: "DONE" }
-
-/** A shell's kind in the words every bay shares, so it wears the tone and mark every bay does. */
-export const STATE: Record<Kind, State> = { run: "running", fail: "failed", stop: "stopped", done: "done" }
 
 /** The tone a kind wears: running is the accent, as a running subagent's is — green means it worked. */
 export const kindTone = (kind: Kind): StateTone => toneOf(STATE[kind])
