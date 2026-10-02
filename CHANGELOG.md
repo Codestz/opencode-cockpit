@@ -29,15 +29,13 @@ All notable changes to this project are documented here. The format follows
     on screen with its count (`2/3`). Hidden by default — `"trust": { "sidebar": true }` shows it,
     and the palette's "Show or hide Trust in the sidebar" flips it for the session; a failure shows
     either way. A log line per answer; no toasts.
-  - **Ledger:** `/trust` or `ctrl+x p` — what it has learned, revoke (`x`), copy a rule for
-    `opencode.json` (`c`), pause in this project (`p`), and OpenCode's own broad "Always" approvals
-    under a warning. Commands approved only once fold into one line (`[a]` lists them), the wheel
-    scrolls, and `↑`/`↓ N more` say what is out of view. Kept append-only in
+  - **Ledger:** `/trust` or `ctrl+x p` — what it answered and what it has learned, revoke (`x`),
+    copy a rule for `opencode.json` (`c`), pause in this project (`p`), and OpenCode's own broad
+    "Always" approvals under a warning. Kept append-only in
     `~/.local/share/opencode-cockpit/trust/`, shared by every window on the project.
   - **Families:** the ledger groups rules by what they do — `ls -la`, `ls -x` are `ls`;
     `git -C x status` is `git status`; `docker compose -p prod down -v` is `docker compose down`;
-    `sudo ls` stays its own. `enter` opens a family; a command two agents earned is one row naming
-    both, each with its own count.
+    `sudo ls` stays its own. A command two agents earned is one row, each agent's count on its card.
   - **Exactly:** a panel under the list shows the selected command with every argument quoted where
     a font could merge it (`echo "---"`, not `echo ──`) and says what it answers and what still asks.
     An argument that is only punctuation is also said in words, there and beside its row
@@ -73,14 +71,19 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
-- **Trust's ledger says what it answers for you and what it is close to.** Two sections — *Answers
-  for you*, newest first, and *Learning*, closest to trusted first — with colour only on the marks,
-  counts that say of what (`2 of 3`, `5 of 8`). The list takes the dialog's height, with one quiet
-  line about the selected rule under it; `i` opens its details — exactly what it is, what still asks,
-  why, and how to stop it, wrapped whole — and `?` lists every key. The footer keeps the keys that act
-  on the line (`[space] Open`, `[x]`, `[w] Trust Any …`, `[i] Details`, `[?] Keys`, `[esc] Close`);
-  `space`/`enter` fold a family, `→`/`←` open and fold it, and `esc` closes the details before the
-  dialog. `x` revokes in Answers and forgets a count in Learning.
+- **Trust opens on what it did for you; the ledger is a tree of families with a card.** `/trust`
+  now leads with *today*: every answer Trust gave in the project, newest first, with why in a few
+  words ("trusted since yesterday, 3 in a row", "in a family you widened: ls") and a sparkline of the
+  week; then *almost there* — what is still learning, closest first, with a meter (`▰▰▱ 2 of 3`, red
+  and longer for a dangerous command); OpenCode's own "always" in a warning band of its own; and the
+  project's counts with a button into the ledger. `enter` shows why: the rule's card. The ledger
+  (`l`) is families as a tree you fold (`←`/`→`, `space`), each command once whatever its agents say,
+  and a card for the selection always on screen — the command whole, each agent's standing, what
+  still asks, the approvals that earned it (`✓ 9h ✓ 9h ✓ 9h → trusted`), its family, when it
+  expires — with `x`, `w` and `c` as buttons you can click or `tab` into. `/` filters; below 90
+  columns the card goes under the tree; `esc` steps back to the activity, and closes from there.
+  Colour is back as signal: green for what answers, the warning for what is close, red for what is
+  dangerous, agents as chips — tints of the user's theme. The preview takes `--view activity|ledger`.
 - **Every Cockpit command in `ctrl+p` sits under `Cockpit · <bay>`, titled by what it does.** Typing
   "cockpit" lists them all on both OpenCodes ("Open or close the changes", "Show or hide Trust in the
   sidebar"…). Slash names and keys are unchanged.

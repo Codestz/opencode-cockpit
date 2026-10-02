@@ -87,41 +87,86 @@ also a line in `~/.cache/opencode-cockpit/cockpit.log`. No toasts.
 OpenCode's prompt is drawn for one frame (about 18ms) before Trust's answer removes it: a plugin
 cannot get in before OpenCode's own handler.
 
+## What Trust did
+
+`/trust`, `ctrl+x p`, or "Trust" in the palette opens on what Trust did for you, newest first, and
+what it is about to do:
+
+```
+
+ Trust · app                                                                           ● answering
+
+ TODAY  Trust answered 5 prompts for you                                       ▂▁▅▂█▄█  last 7 days
+▌20:31  ✓ git status --short               build     trusted since Sep 16, 3 in a row
+ 20:30  ✓ ls -la                           general   trusted since Sep 16, 3 in a row
+ 20:21  ✓ bun test                         build     trusted since Sep 16, 3 in a row
+ 20:13  ✓ git status --short && echo tr…   build     both commands trusted
+ 19:43  ✓ cat src/app.ts                   general   in a family you widened: cat
+
+ ALMOST THERE  closest first
+  ○ bun --version                          build     ▰▰▱       2 of 3
+  ○ git status --short -uno                general   ▰▰▱       2 of 3
+  ○ head -60                               general   ▰▰▱       2 of 3
+  ○ head -40                               general   ▰▰▱       2 of 3
+  ○ git push origin feat/trust             build     ▰▰▰▰▰▱▱▱  5 of 8   dangerous
+
+  ! WATCH OUT   OpenCode's own "always" approves more than it looks, until it restarts
+  ! find . *  sort -rn *                   general    [enter] what it covers
+
+ RULES  8 trusted · 5 learning · 7 seen once                                     l Open the ledger
+
+ [enter] Why   [x] Revoke   [w] Trust Family   [l] Ledger   [p] Pause   [?] Keys   [esc] Close
+```
+
+- **Today** lists every answer Trust gave in this project, from any window: when, for which agent,
+  and why in a few words — the approvals that earned it and when, both commands of a line trusted,
+  or the family you widened. One line answered again and again is one row with a count. With
+  nothing today, the latest answers from earlier days, with their day. The sparkline is answers per
+  day for the last week, each scaled to the busiest.
+- **Almost there** is what is still learning, closest first and a dangerous command last: a meter
+  of the approvals in a row that count (`▰`) and those still to go (`▱`), red and longer for a
+  dangerous command.
+- **Watch out** appears only when you gave OpenCode its own "always": it approves every command that
+  starts that way, until OpenCode restarts, and Trust cannot take it back.
+- **Rules** counts the project: trusted, learning, and seen once — the commands approved a single
+  time that mostly never come back.
+
+`enter` on any row shows why: that rule's card in the ledger. `l`, or a click on the button, opens
+the ledger; `esc` there comes back here, and `esc` here closes.
+
 ## The ledger
 
-`/trust`, `ctrl+x p`, or "Trust" in the palette:
+Every rule, as a tree of families, with a card for the one selected — always on screen, so there is
+no details key to find:
 
 ```
- Trust in this project                                                                   on
-
- Answers for you  9 commands                                        agent    answered  last
- ▸ ls  any ls … · 4 commands                                        general        4×   now
- ▸ git status  2 commands                                           build          2×    2m
- ● echo "---"  (3 hyphens)                                          general        1×    5m
- ● edit src/app.ts                                                  build     not yet    2d
- ● docker compose -p cockpit up -d                                  build     not yet    2d
-
- Learning  4 commands                                               agent    approved  last
- ○ edit src/view.ts                                                 build      2 of 3    2d
- ○ git status --short                                               general    2 of 3    2d
- ○ git push origin feat/trust  dangerous                            build      5 of 8    2d
- ○ docker compose -p prod down -v  dangerous                        build      2 of 8    2d
- + 4 more approved once · [a] lists them
-
- ls · any ls … answers for general · [i] details
- [space] Open   [x] Revoke   [w] Undo Any ls   [i] Details   [?] Keys   [esc] Close
+ Trust · app                                    8 trusted · 5 learning · 7 seen once   ● answering
+────────────────────────────────────────┬───────────────────────────────────────────────────────────
+ FAMILIES                    1–15 of 18 │ git status --short
+ ▾ git status              1 ✓  1 ○     │ ✓ Trusted for  build  · answered 8×
+▌    … --short             ✓ trusted 8× │
+     … --short -uno        ▰▰▱ 2 of 3   │  Exactly     git status --short
+   ls -la                  ✓ trusted 2× │  Still asks  git status · git status --short > out.txt ·
+   bun test                ✓ trusted 2× │              any other argument
+   echo trust-test         ✓ trusted 3× │  History     ✓ 7d  ✓ 7d  ✓ 7d  → trusted  answered 8×
+ ▸ cat  any                2 ✓          │              3 approvals in a row, all yours
+ ▸ head                    1 ✓  3 ○     │  Family      git status · 2 commands, 1 trusted
+   edit src/app.ts         ✓ trusted 2× │              [w] trusts any git status … for build, not
+   bun --version           ▰▰▱ 2 of 3   │              one by one
+   git push origin fe…  !  ▰▰▰▰▰▱▱▱ 5/8 │  Expires     if unused for 30 days
+   pwd                     ▰▱▱ 1 of 3   │
+   sed -n 1,40p src/a…     ▰▱▱ 1 of 3   │  x Revoke    w Trust any git status    c Copy rule
+   wc -l src/app.ts        ▰▱▱ 1 of 3   │
+   sort -rn                ▰▱▱ 1 of 3   │
+────────────────────────────────────────┴───────────────────────────────────────────────────────────
+ [↑/↓] Move   [←/→] Fold   [tab] Card   [/] Filter   [p] Pause   [?] Keys   [esc] Back
 ```
 
-`i` opens the details of the selected line in place of the quiet line — every fact, wrapped whole,
-the list giving up the rows they need:
-
-```
- ──────────────────────────────────────────────────────────────────────────────────────────
- Widened     any ls … for general — you widened it 15m ago.
- Still asks  dangerous ones, and any that write a file or run another program.
- To stop     [w] back to exact rules   [x] revokes it and its 4 rules
- [x] Revoke   [w] Undo Any ls   [a] Show All   [p] Pause   …   [esc] Hide Details
-```
+The card holds the command whole, on a raised panel; where each agent stands on it; the exact text
+and what still asks; the **history** that earned it — each approval with how long ago, `→ trusted`
+where the streak reached the threshold, then how often Trust answered it; its family and what `w`
+would do; when it expires. Its buttons can be clicked, or reached with `tab`. Below 90 columns the
+card moves under the tree, with the selection kept in view above it. `/` filters the tree by text.
 
 ### Families
 
@@ -142,22 +187,19 @@ two families.
 | `ls > out.txt` | `ls` |
 | edit `src/app.ts` | `edit src/` |
 
-A family with one rule is drawn as that row; the others start folded, with how many of their rules
-are trusted and how many counting. `space`, `enter` or `→` opens one; `←` folds it, or from a row
-inside it goes to its heading. A command two agents earned is one row naming
-both, each with its own count: `git status --short  build, general  trusted, 2/3`.
+A family with one command is drawn as that row; the others start folded, with how many of their
+commands are trusted (`✓`) and how many are not yet (`○`). `space`, `enter` or `→` opens one, listing
+its first three commands and `+ N more`; `←` folds it, or from a command inside it goes to its heading.
+A command appears once, however many agents approved it: the card lists each agent's standing — a
+command trusted for build and two of three for general is one row, and two lines on its card.
 
 ### Exactly
 
-Under the list, one quiet line says what the selected line is; `i` opens its details, wrapped whole,
-the list giving up the rows they need. Every argument is quoted where a font could merge it: a
-programming font draws `---` as one line, so `echo ---` is shown `echo "---"`; so are `->`, `==`,
-`!=`, `<=`, `>=`, `www` and any word that is only punctuation. Quotes are not enough on their own — a
-ligature font still merges `---` inside them — so an argument that is only punctuation is also said
-in words, beside its row in the list and in the details: `echo "---"  (3 hyphens)`,
-`hyphen, greater-than` for `->`. Then what it answers, as which agent, and what still asks; still
-learning, how far it has to go; on a family, what it holds and what `w` would do. `esc` closes the
-details before the ledger.
+The card shows every argument quoted where a font could merge it: a programming font draws `---` as
+one line, so `echo ---` is shown `echo "---"`; so are `->`, `==`, `!=`, `<=`, `>=`, `www` and any
+word that is only punctuation. Quotes are not enough on their own — a ligature font still merges
+`---` inside them — so an argument that is only punctuation is also said in words: "`"---"` is 3
+hyphens", "hyphen, greater-than" for `->`.
 
 ### Trusting a whole family
 
@@ -173,25 +215,41 @@ else. From then on any `ls …` is answered for that agent, **except**:
 
 A dangerous family — `git push`, `rm`, `kubectl delete`, `sudo …` — can never be widened: `w` says
 why and does nothing. `w` again, or `x` on the family, goes back to exact rules. An answer through a
-widened family says so: `widened` in the ledger, `● ls -x · any ls` in the sidebar, the family in
+widened family says so: `✓ widened` in the ledger, "in a family you widened" in the activity, `● ls -x · any ls` in the sidebar, the family in
 the log. Widening does not expire; undo it when you no longer want it.
+
+### Keys
+
+On the activity:
 
 | Key | |
 | --- | --- |
-| `j` `k` `↑` `↓`, wheel | Move over families and rows |
-| `space` `enter` | Open or fold a family |
-| `→` `l` / `←` `h` | Open a family / fold it — on a row inside one, go to its heading |
-| `i` | Show or hide the details of the selected line |
-| `x` | Revoke: a row for every agent on it; on a family, every rule in it and its widening. Still learning, it forgets the count |
+| `j` `k` `↑` `↓`, wheel, click | Move over answers, what is close, and OpenCode's own approvals |
+| `enter` | Why: the rule's card in the ledger |
+| `x` | Revoke what answered (the rule, or the widening that answered it); forget a count still learning |
 | `w` | Trust any command in the family, or undo it |
-| `c` | Copy it as an `opencode.json` rule — a family as `"ls *": "allow"`, which config cannot limit to one agent |
-| `a` | List the commands approved only once, or fold them again |
+| `c` | Copy it as an `opencode.json` rule, to paste yourself |
+| `l`, click on the button | Open the ledger |
+| `/` | Open the ledger and filter it |
 | `p` | Pause Trust in this project — it keeps counting and answers nothing; again to resume |
 | `?` | Every key, one line each |
-| `esc` | Close the details or the keys, then the ledger (`q` closes it too) |
+| `esc` | Close (`q` too) |
 
-The footer shows the keys that act on the selected line, `[i] Details` and `[?] Keys`; `c`, `a` and
-`p` are in the details' row and the `?` list.
+In the ledger:
+
+| Key | |
+| --- | --- |
+| `j` `k` `↑` `↓`, wheel, click | Move over families and commands |
+| `←` `h` / `→` `l` | Fold / open a family — on a command inside one, go to its heading |
+| `space` `enter` | Open or fold a family; on `+ N more`, list the rest |
+| `tab` | Into the card's buttons and back; `←` `→` choose one, `enter` presses it |
+| `x` | Revoke a command for every agent; on a family, every command in it and its widening. Still learning, it forgets the count |
+| `w` | Trust any command in the family, or undo it |
+| `c` | Copy it as an `opencode.json` rule — a family as `"ls *": "allow"`, which config cannot limit to one agent |
+| `/` | Filter by text; `enter` keeps it, `esc` clears it |
+| `p` | Pause or resume |
+| `?` | Every key, one line each |
+| `esc` | One step back: the keys, the card's buttons, the filter — then to the activity, which `esc` closes |
 
 ## Settings
 
@@ -221,3 +279,8 @@ by every OpenCode window on the project. `$COCKPIT_HOME` or `$XDG_DATA_HOME` mov
 ```sh
 bunx @opencode-cockpit/trust preview
 ```
+
+Draws the sidebar block, the activity and the ledger from sample projects — a busy week, a new
+project, a paused one, dangerous commands on their way, a widened family — in your terminal.
+`--view activity` or `--view ledger` draws one screen, `--columns` and `--rows` another size, and
+`--html` a page to judge the colours in a browser.
