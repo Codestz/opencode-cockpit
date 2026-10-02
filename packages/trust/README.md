@@ -76,43 +76,51 @@ counting, no block. Each answer is also a line in `~/.cache/opencode-cockpit/coc
 **families** — `ls -la`, `ls -x` and `ls -R docs` are all `ls`:
 
 ```
- Trust in this project                 3 in a row · dangerous +5 · unused 30 days expires
+ Trust in this project                                                                   on
 
- ▾ ls — any, widened                                                    4 trusted     now
-     ● ls -la                              general               trusted · 3 auto  6m ago
-     ● ls -la src                          general                        trusted  2d ago
-     ● ls -x                               general               widened · 1 auto     now
-     ● ls -R docs                          general                        widened  2d ago
- ▾ git status                              build, general               2 trusted  2m ago
-     ● git status --short                  build, general   trusted, 2/3 · 2 auto  2m ago
-     ● git -C packages/web status          build                          trusted  2d ago
- ● echo "---"  3 hyphens                   general               trusted · 1 auto  5m ago
- ▾ edit src/                                               1 trusted · 1 counting  2d ago
-     ● edit src/app.ts                     build                          trusted  2d ago
-     ○ edit src/view.ts                    build                              2/3  2d ago
- ● docker compose -p cockpit up -d         build                          trusted  2d ago
- ○ docker compose -p prod down -v  compos… build                              2/8  2d ago
- ○ git push origin feat/trust  git push    build                              5/8  2d ago
- + 4 approved once · [a] show all
+ Answers for you  9 commands                                        agent    answered  last
+ ▸ ls  any ls … · 4 commands                                        general        4×   now
+ ▸ git status  2 commands                                           build          2×    2m
+ ● echo "---"  (3 hyphens)                                          general        1×    5m
+ ● edit src/app.ts                                                  build     not yet    2d
+ ● docker compose -p cockpit up -d                                  build     not yet    2d
 
- ────────────────────────────────────────────────────────────────────────────────────────
- Exactly   echo "---"  3 hyphens
- Answers   only this exact text, as general. Still asks: echo · echo "---" > out.txt
+ Learning  4 commands                                               agent    approved  last
+ ○ edit src/view.ts                                                 build      2 of 3    2d
+ ○ git status --short                                               general    2 of 3    2d
+ ○ git push origin feat/trust  dangerous                            build      5 of 8    2d
+ ○ docker compose -p prod down -v  dangerous                        build      2 of 8    2d
+ + 4 more approved once · [a] lists them
 
- [x] Revoke   [w] Trust Any echo   [c] Copy As Config   [a] Show All   …   [esc] Close
+ ls · any ls … answers for general · [i] details
+ [space] Open   [x] Revoke   [w] Undo Any ls   [i] Details   [?] Keys   [esc] Close
+```
+
+`i` opens the details of the selected line in place of the quiet line — every fact, wrapped whole,
+the list giving up the rows they need:
+
+```
+ ──────────────────────────────────────────────────────────────────────────────────────────
+ Widened     any ls … for general — you widened it 15m ago.
+ Still asks  dangerous ones, and any that write a file or run another program.
+ To stop     [w] back to exact rules   [x] revokes it and its 4 rules
+ [x] Revoke   [w] Undo Any ls   [a] Show All   [p] Pause   …   [esc] Hide Details
 ```
 
 - **A family** is the program, or the program and its subcommand for tools that have them:
   `git status`, `docker compose up` (`-p prod` and other global flags are not part of it),
   `npm run test` (the script is). A wrapper is: `sudo ls` is not `ls`. So is where it runs and the
   environment it is given: `(in web) bun test`, `NODE_ENV=… npm run build`. An edit's family is its
-  folder. A family with one rule is drawn as that one row; others start folded — `enter` opens one.
-- **One row per command**, even when two agents earned it: `git status --short  build, general
-  trusted, 2/3`. Counting stays per agent.
-- **Exactly** says what the selected line is with every argument quoted where a font could merge it
-  (`echo "---"`, never `echo ──`), and in a sentence what it answers and what still asks. An argument
-  that is only punctuation is also said in words, beside its row and here (`echo "---"  3 hyphens`),
-  because a ligature font merges `---` even inside quotes.
+  folder. A family with one rule is drawn as that one row; others start folded — `space`, `enter` or
+  `→` opens one.
+- **Two sections**: what Trust answers for you now, newest first, and what it is still learning,
+  closest to trusted first. A command earned by one agent and still counting for another is a row
+  in each.
+- **One quiet line** under the list says what the selected line is. **`i`** opens its details:
+  exactly what it is, with every argument quoted where a font could merge it (`echo "---"`, never
+  `echo ──`), what it answers and what still asks, how far it has to go, how to stop it. An argument
+  that is only punctuation is also said in words, beside its row and there (`(3 hyphens)`), because a
+  ligature font merges `---` even inside quotes. **`?`** lists every key.
 - **`w` trusts the whole family**, for the selected rule's agent — on purpose, never by itself. Any
   `ls …` is then answered for that agent, **except** a dangerous command, one that writes a file
   through a redirection (`ls > out.txt`; `2>/dev/null` and `2>&1` write nothing and are fine), one
@@ -124,13 +132,19 @@ counting, no block. Each answer is also a line in `~/.cache/opencode-cockpit/coc
 | Key | |
 | --- | --- |
 | `j` `k` `↑` `↓`, wheel | Move over families and rows |
-| `enter` | Open or fold a family |
-| `x` | Revoke: a row for every agent on it; a family — every rule in it, and its widening |
+| `space` `enter` | Open or fold a family |
+| `→` `l` / `←` `h` | Open a family / fold it — on a row inside one, go to its heading |
+| `i` | Show or hide the details of the selected line |
+| `x` | Revoke: a row for every agent on it; a family — every rule in it, and its widening. Still learning, it forgets the count |
 | `w` | Trust any command in the family, or undo it |
 | `c` | Copy it as an `opencode.json` rule, to paste yourself — a family as `"ls *": "allow"` (config cannot say which agent) |
 | `a` | List the commands approved only once, or fold them again |
 | `p` | Pause Trust in this project (it keeps counting, and answers nothing) — again to resume |
-| `q` `esc` | Close |
+| `?` | Every key, one line each |
+| `esc` | Close the details or the keys, then the ledger (`q` closes it too) |
+
+The footer shows the keys that act on the selected line, `[i] Details` and `[?] Keys`; `c`, `a` and
+`p` are in the details' row and the `?` list.
 
 Trust unused for `expireDays` (30 by default) has to be earned again.
 

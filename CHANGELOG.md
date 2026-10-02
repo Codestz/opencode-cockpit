@@ -75,8 +75,12 @@ All notable changes to this project are documented here. The format follows
 
 - **Trust's ledger says what it answers for you and what it is close to.** Two sections — *Answers
   for you*, newest first, and *Learning*, closest to trusted first — with colour only on the marks,
-  counts that say of what (`2 of 3`, `5 of 8`), and a labelled panel: exactly what a rule is, what
-  still asks, why, and how to stop it. `x` revokes in Answers and forgets a count in Learning.
+  counts that say of what (`2 of 3`, `5 of 8`). The list takes the dialog's height, with one quiet
+  line about the selected rule under it; `i` opens its details — exactly what it is, what still asks,
+  why, and how to stop it, wrapped whole — and `?` lists every key. The footer keeps the keys that act
+  on the line (`[space] Open`, `[x]`, `[w] Trust Any …`, `[i] Details`, `[?] Keys`, `[esc] Close`);
+  `space`/`enter` fold a family, `→`/`←` open and fold it, and `esc` closes the details before the
+  dialog. `x` revokes in Answers and forgets a count in Learning.
 - **Every Cockpit command in `ctrl+p` sits under `Cockpit · <bay>`, titled by what it does.** Typing
   "cockpit" lists them all on both OpenCodes ("Open or close the changes", "Show or hide Trust in the
   sidebar"…). Slash names and keys are unchanged.

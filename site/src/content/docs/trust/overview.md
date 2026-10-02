@@ -92,30 +92,35 @@ cannot get in before OpenCode's own handler.
 `/trust`, `ctrl+x p`, or "Trust" in the palette:
 
 ```
- Trust in this project                 3 in a row · dangerous +5 · unused 30 days expires
+ Trust in this project                                                                   on
 
- ▾ ls — any, widened                                                    4 trusted     now
-     ● ls -la                              general               trusted · 3 auto  6m ago
-     ● ls -la src                          general                        trusted  2d ago
-     ● ls -x                               general               widened · 1 auto     now
-     ● ls -R docs                          general                        widened  2d ago
- ▾ git status                              build, general               2 trusted  2m ago
-     ● git status --short                  build, general   trusted, 2/3 · 2 auto  2m ago
-     ● git -C packages/web status          build                          trusted  2d ago
- ● echo "---"  3 hyphens                   general               trusted · 1 auto  5m ago
- ▾ edit src/                                               1 trusted · 1 counting  2d ago
-     ● edit src/app.ts                     build                          trusted  2d ago
-     ○ edit src/view.ts                    build                              2/3  2d ago
- ● docker compose -p cockpit up -d         build                          trusted  2d ago
- ○ docker compose -p prod down -v  compos… build                              2/8  2d ago
- ○ git push origin feat/trust  git push    build                              5/8  2d ago
- + 4 approved once · [a] show all
+ Answers for you  9 commands                                        agent    answered  last
+ ▸ ls  any ls … · 4 commands                                        general        4×   now
+ ▸ git status  2 commands                                           build          2×    2m
+ ● echo "---"  (3 hyphens)                                          general        1×    5m
+ ● edit src/app.ts                                                  build     not yet    2d
+ ● docker compose -p cockpit up -d                                  build     not yet    2d
 
- ────────────────────────────────────────────────────────────────────────────────────────
- Exactly   echo "---"  3 hyphens
- Answers   only this exact text, as general. Still asks: echo · echo "---" > out.txt
+ Learning  4 commands                                               agent    approved  last
+ ○ edit src/view.ts                                                 build      2 of 3    2d
+ ○ git status --short                                               general    2 of 3    2d
+ ○ git push origin feat/trust  dangerous                            build      5 of 8    2d
+ ○ docker compose -p prod down -v  dangerous                        build      2 of 8    2d
+ + 4 more approved once · [a] lists them
 
- [x] Revoke   [w] Trust Any echo   [c] Copy As Config   [a] Show All   …   [esc] Close
+ ls · any ls … answers for general · [i] details
+ [space] Open   [x] Revoke   [w] Undo Any ls   [i] Details   [?] Keys   [esc] Close
+```
+
+`i` opens the details of the selected line in place of the quiet line — every fact, wrapped whole,
+the list giving up the rows they need:
+
+```
+ ──────────────────────────────────────────────────────────────────────────────────────────
+ Widened     any ls … for general — you widened it 15m ago.
+ Still asks  dangerous ones, and any that write a file or run another program.
+ To stop     [w] back to exact rules   [x] revokes it and its 4 rules
+ [x] Revoke   [w] Undo Any ls   [a] Show All   [p] Pause   …   [esc] Hide Details
 ```
 
 ### Families
@@ -138,18 +143,21 @@ two families.
 | edit `src/app.ts` | `edit src/` |
 
 A family with one rule is drawn as that row; the others start folded, with how many of their rules
-are trusted and how many counting. `enter` opens one. A command two agents earned is one row naming
+are trusted and how many counting. `space`, `enter` or `→` opens one; `←` folds it, or from a row
+inside it goes to its heading. A command two agents earned is one row naming
 both, each with its own count: `git status --short  build, general  trusted, 2/3`.
 
 ### Exactly
 
-The panel under the list says what the selected line is, with every argument quoted where a font
-could merge it: a programming font draws `---` as one line, so `echo ---` is shown `echo "---"`; so
-are `->`, `==`, `!=`, `<=`, `>=`, `www` and any word that is only punctuation. Quotes are not
-enough on their own — a ligature font still merges `---` inside them — so an argument that is only
-punctuation is also said in words, beside its row in the list and here: `echo "---"  3 hyphens`,
-`hyphen, greater-than` for `->`. Then a sentence: what it answers, as which agent, and what still
-asks. On a family: what it holds, and what `w` would do.
+Under the list, one quiet line says what the selected line is; `i` opens its details, wrapped whole,
+the list giving up the rows they need. Every argument is quoted where a font could merge it: a
+programming font draws `---` as one line, so `echo ---` is shown `echo "---"`; so are `->`, `==`,
+`!=`, `<=`, `>=`, `www` and any word that is only punctuation. Quotes are not enough on their own — a
+ligature font still merges `---` inside them — so an argument that is only punctuation is also said
+in words, beside its row in the list and in the details: `echo "---"  (3 hyphens)`,
+`hyphen, greater-than` for `->`. Then what it answers, as which agent, and what still asks; still
+learning, how far it has to go; on a family, what it holds and what `w` would do. `esc` closes the
+details before the ledger.
 
 ### Trusting a whole family
 
@@ -171,13 +179,19 @@ the log. Widening does not expire; undo it when you no longer want it.
 | Key | |
 | --- | --- |
 | `j` `k` `↑` `↓`, wheel | Move over families and rows |
-| `enter` | Open or fold a family |
-| `x` | Revoke: a row for every agent on it; on a family, every rule in it and its widening |
+| `space` `enter` | Open or fold a family |
+| `→` `l` / `←` `h` | Open a family / fold it — on a row inside one, go to its heading |
+| `i` | Show or hide the details of the selected line |
+| `x` | Revoke: a row for every agent on it; on a family, every rule in it and its widening. Still learning, it forgets the count |
 | `w` | Trust any command in the family, or undo it |
 | `c` | Copy it as an `opencode.json` rule — a family as `"ls *": "allow"`, which config cannot limit to one agent |
 | `a` | List the commands approved only once, or fold them again |
 | `p` | Pause Trust in this project — it keeps counting and answers nothing; again to resume |
-| `q` `esc` | Close |
+| `?` | Every key, one line each |
+| `esc` | Close the details or the keys, then the ledger (`q` closes it too) |
+
+The footer shows the keys that act on the selected line, `[i] Details` and `[?] Keys`; `c`, `a` and
+`p` are in the details' row and the `?` list.
 
 ## Settings
 
