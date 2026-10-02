@@ -27,7 +27,7 @@ import { createTools } from "./tools/index.ts"
 const GUIDANCE = `## Background shells (opencode-cockpit)
 Long-running or interactive commands (dev servers, watchers, slow builds/tests, REPLs) go in shell_start, not bash with "&".
 Block with shell_wait (pattern, port, idle, exit) instead of sleeping; follow output with shell_read(after=cursor).
-You are messaged when a shell you started exits.
+You are messaged when a shell you started exits, and — once that subagent finishes — when a shell one of your subagents started failed; shell_list says which subagent started each shell.
 For processes that never exit (tsc --watch, vitest --watch, dev servers), shell_watch reports only when their health changes — use it instead of re-reading their logs.`
 
 export const SHELL_PACKAGE = "@opencode-cockpit/shell"
