@@ -40,7 +40,7 @@ import {
   widthOf,
   wrap,
 } from "./rows.ts"
-import { runPhrase, stateOf } from "./sidebar.ts"
+import { firstStarted, runPhrase, stateOf } from "./sidebar.ts"
 import { type Renderer, rendererOf, type Todo, targetOf, todosOf } from "./tools.ts"
 
 export interface ScreenInput {
@@ -707,6 +707,8 @@ function header(input: ScreenInput, width: number): Row[] {
   const state = runPhrase(session, now)
   const tools = callsOf(session)
   const meta = [
+    /** Its time above is the last round's; the tools say this beside it too. */
+    firstStarted(session, now) ?? "",
     session.model ?? "",
     session.background ? "background" : "",
     input.launcher ? `launched by ${input.launcher}` : "",

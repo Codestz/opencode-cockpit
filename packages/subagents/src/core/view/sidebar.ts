@@ -38,12 +38,13 @@ import {
   groupsOf,
   groupWorking,
   type Node,
+  roundsOf,
   runTime,
   type Session,
   titleOf,
   working,
 } from "../model/model.ts"
-import { elapsed, fit, type Row, type Run, spread } from "./rows.ts"
+import { elapsed, fit, type Row, type Run, rowText, spread, widthOf } from "./rows.ts"
 
 export interface SidebarLine {
   row: Row
@@ -80,15 +81,40 @@ export function stateOf(session: Session): State {
 
 /**
  * The run in a few words — `running 51s`, `done in 2m10s`, `stopped after 4m00s` — as the pane's
- * header and the main agent's tools both say it.
+ * header and the main agent's tools both say it. The time is its last round's; after more than one,
+ * which round it is (`done in 4m00s (round 2)`), and `firstStarted` says when the first began.
  */
 export function runPhrase(session: Session, now: number): string {
   const state = stateOf(session)
   const took = elapsed(runTime(session, now))
-  if (state === "waiting") return `waiting ${elapsed(now - session.since)}`
-  if (state === "running") return `running ${took}`
-  if (state === "done") return `done in ${took}`
-  return `${STATE_WORD[state]} after ${took}`
+  const rounds = roundsOf(session)
+  const round = rounds > 1 ? ` (round ${rounds})` : ""
+  if (state === "waiting") return `waiting ${elapsed(now - session.since)}${round}`
+  if (state === "running") return `running ${took}${round}`
+  if (state === "done") return `done in ${took}${round}`
+  return `${STATE_WORD[state]} after ${took}${round}`
+}
+
+/**
+ * When a run of more than one round first began — `first started yesterday 22:17` — so a duration
+ * that is only the last round's never hides that the subagent goes back further. None for one round.
+ */
+export function firstStarted(session: Session, now: number): string | undefined {
+  if (roundsOf(session) < 2) return undefined
+  return `first started ${dayClock(session.started, now)}`
+}
+
+/** A time by the clock, by its day: `22:17` today, `yesterday 22:17`, else `2026-09-28 22:17`. */
+export function dayClock(at: number, now: number): string {
+  const date = new Date(at)
+  const pad = (n: number) => String(n).padStart(2, "0")
+  const time = `${pad(date.getHours())}:${pad(date.getMinutes())}`
+  const day = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  const today = new Date(now)
+  const yesterday = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1)
+  if (day(date) === day(today)) return time
+  if (day(date) === day(yesterday)) return `yesterday ${time}`
+  return `${day(date)} ${time}`
 }
 
 /**
@@ -123,6 +149,9 @@ function doing(activity: Activity): Row {
  * other agent is named, muted — it qualifies the title rather than competing with it.
  */
 const agentRun = (agent: string): Run[] => (agent === "general" ? [] : [{ text: `${agent} `, tone: "muted" }])
+
+/** Columns a finished row keeps for its agent and title before its round count gives way. */
+const TITLE_ROOM = 16
 
 /** When the last of a group's members ended. */
 const endedAt = (group: Group): number => Math.max(...group.members.map((s) => s.ended ?? s.started))
@@ -202,12 +231,15 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
     const indent = "  ".repeat(Math.min(group.depth, 3))
     const id = session.id
     /**
-     * Always the whole run, as the pane's header says it. A live entry used to show how long its
+     * Always its last round, as the pane's header says it. A live entry used to show how long its
      * current step had taken and a finished one its total, so one column meant two things and a run
-     * the pane called `running 51s` read `4s` here.
+     * the pane called `running 51s` read `4s` here; then a run continued the next day read `24h04m`
+     * for four minutes of work.
      */
     const since = runTime(session, now)
     const calls = callsOf(session)
+    /** Continued by the main agent, or messaged by you: each is a round. */
+    const rounds = roundsOf(session)
     /** Said in words: a bare "157 · 34m" read as a puzzle. */
     const took = calls > 0 ? `${calls} call${calls === 1 ? "" : "s"} · ${elapsed(since)}` : elapsed(since)
     const count = group.members.length > 1 ? `×${group.members.length}` : ""
@@ -219,12 +251,20 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
       { text: titleOf(session), tone: "text" },
     ]
 
-    /** Finished, and nothing under it still working: one row, its numbers on the right. */
+    /**
+     * Finished, and nothing under it still working: one row, its numbers on the right. After more
+     * than one round its time is the last round's, so it says how many rounds — giving up the number
+     * of calls first, then the rounds, before the title is left too little room to be read (the
+     * pane's header says both).
+     */
     if (state === "done" && !groupWorking(group)) {
-      lines.push({
-        id,
-        row: spread(name, [{ text: count ? `${took}  ${count}` : took, tone: "muted" }], width),
-      })
+      const tail = count ? `  ${count}` : ""
+      const ladder =
+        rounds > 1 ? [`${took} · ${rounds} rounds${tail}`, `${elapsed(since)} · ${rounds} rounds${tail}`] : []
+      const lead = widthOf(rowText(name.slice(0, 3)))
+      const numbers =
+        ladder.find((text) => width - widthOf(text) - 1 - lead >= TITLE_ROOM) ?? `${took}${tail}`
+      lines.push({ id, row: spread(name, [{ text: numbers, tone: "muted" }], width) })
       continue
     }
 
@@ -233,8 +273,6 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
       /** The count stays whole at the edge; the task gives way to it. */
       row: count ? spread(name, [{ text: count, tone: "muted" }], width) : fit(name, width),
     })
-    /** Continued by the main agent, or messaged by you: each is a round. */
-    const rounds = session.entries.filter((entry) => entry.kind === "prompt").length
     /**
      * The line describes one member; when more than one is at it, it says so — first, where the
      * target cannot cut it off, or the heading's "3 running" would not add up to the spinners shown.

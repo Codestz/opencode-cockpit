@@ -17,7 +17,9 @@ import {
   advisorSample,
   CALLS_ROOT,
   CALLS_SERVERS,
+  CONTINUED_ROOT,
   callsSample,
+  continuedSample,
   FINISHED_ROOT,
   finishedSample,
   LATE_ROOT,
@@ -65,6 +67,11 @@ const FIXTURES: Record<string, { changes: () => Change[]; root: string; about: s
   sample: { changes: sample, root: SAMPLE_ROOT, about: "three subagents mid-flight (the default)" },
   advisor: { changes: advisorSample, root: ADVISOR_ROOT, about: "a planner asking an advisor six times" },
   late: { changes: lateSample, root: LATE_ROOT, about: "a late runner after finished ones" },
+  continued: {
+    changes: continuedSample,
+    root: CONTINUED_ROOT,
+    about: "a subagent continued the next day: two rounds, a day apart",
+  },
   finished: {
     changes: finishedSample,
     root: FINISHED_ROOT,

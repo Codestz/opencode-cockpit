@@ -4,6 +4,8 @@ import { applyAll, emptyModel, groupsOf, type Model, subagentsOf } from "../src/
 import {
   ADVISOR_ROOT,
   advisorSample,
+  CONTINUED_ROOT,
+  continuedSample,
   FINISHED_ROOT,
   finishedSample,
   LATE_ROOT,
@@ -262,6 +264,8 @@ describe("the grid", () => {
     { changes: sample, root: SAMPLE_ROOT },
     { changes: advisorSample, root: ADVISOR_ROOT },
     { changes: lateSample, root: LATE_ROOT },
+    { changes: finishedSample, root: FINISHED_ROOT },
+    { changes: continuedSample, root: CONTINUED_ROOT },
   ]
   test("every row of every fixture is exactly the sidebar's width", () => {
     for (const { changes, root } of fixtures) {

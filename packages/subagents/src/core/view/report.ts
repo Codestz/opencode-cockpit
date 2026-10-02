@@ -9,10 +9,18 @@
  * read "finished 24h13m ago" as a bug. Pure, like everything in `core/`.
  */
 
-import { callsOf, type Entry, type Node, type Session, titleOf, toolTarget } from "../model/model.ts"
+import {
+  callsOf,
+  type Entry,
+  type Node,
+  roundsOf,
+  type Session,
+  titleOf,
+  toolTarget,
+} from "../model/model.ts"
 import { continueHow } from "./guidance.ts"
 import { elapsed } from "./rows.ts"
-import { runPhrase, stateOf as sidebarState } from "./sidebar.ts"
+import { firstStarted, runPhrase, stateOf as sidebarState } from "./sidebar.ts"
 
 /** How much of a subagent's last answer the list repeats. */
 const ANSWER = 400
@@ -32,7 +40,7 @@ export function subagentReport({ nodes, now, version }: ReportInput): string {
   ]
   for (const { session, depth } of nodes) {
     const calls = callsOf(session)
-    const rounds = session.entries.filter((entry) => entry.kind === "prompt").length
+    const rounds = roundsOf(session)
     const indent = "  ".repeat(depth)
     lines.push(
       `${indent}- ${session.id} · ${session.agent} · "${titleOf(session)}" · ${stateOf(session, now).text} · ${calls} call${calls === 1 ? "" : "s"}${rounds > 1 ? ` · ${rounds} rounds` : ""}${session.background ? " · background" : ""}`,
@@ -63,19 +71,17 @@ export interface State {
 
 /**
  * Its state for the main agent: the pane's own words for the run (`runPhrase` — the same state, the
- * same duration), then what only the agent needs — when it ended by the clock, whether it answered,
- * and what a stop means.
+ * same duration, its last round's), then what only the agent needs — when it ended by the clock,
+ * when its first round began (`firstStarted`, as the pane's header says it), whether it answered, and
+ * what a stop means.
  */
 export function stateOf(session: Session, now: number): State {
   const design = sidebarState(session)
   const phrase = runPhrase(session, now)
   const at = session.ended ?? now
   const when = `${elapsed(now - at)} ago (${clock(at, now)})`
-  const rounds = session.entries.filter((entry) => entry.kind === "prompt").length
-  const last =
-    rounds > 1 && session.ended !== undefined
-      ? `; its last round took ${elapsed(Math.max(0, session.ended - roundStart(session)))}`
-      : ""
+  const first = firstStarted(session, now)
+  const last = first ? `; ${first}` : ""
   const said = answered(session)
   switch (design) {
     case "stopped":
@@ -103,14 +109,14 @@ export function stateOf(session: Session, now: number): State {
       return {
         kind: "waiting",
         over: false,
-        text: `${phrase} on a permission or question only the user can answer`,
+        text: `${phrase}${last} on a permission or question only the user can answer`,
       }
     default: {
       const quiet = now - session.seen
       return {
         kind: "working",
         over: false,
-        text: `${phrase}${quiet >= 60_000 ? `, nothing heard for ${elapsed(quiet)}` : ""}`,
+        text: `${phrase}${last}${quiet >= 60_000 ? `, nothing heard for ${elapsed(quiet)}` : ""}`,
       }
     }
   }
@@ -127,12 +133,6 @@ export function continueNote(session: Session, version: 1 | 2): string | undefin
 export function answered(session: Session): boolean {
   const tail = sinceLastPrompt(session.entries).at(-1)
   return tail?.kind === "reply" && tail.text.trim() !== ""
-}
-
-/** When its current round began: the last thing it was asked, or when it started. */
-function roundStart(session: Session): number {
-  const prompt = session.entries[lastPrompt(session.entries)]
-  return prompt?.at ?? session.started
 }
 
 export function lastPrompt(entries: readonly Entry[]): number {
@@ -188,7 +188,7 @@ export function subagentAccount({
     (entry): entry is Extract<Entry, { kind: "tool" }> => entry.kind === "tool",
   )
   const failed = tools.filter((tool) => tool.state === "failed").length
-  const rounds = session.entries.filter((entry) => entry.kind === "prompt").length
+  const rounds = roundsOf(session)
   const out = [
     `<subagent id="${session.id}" agent="${session.agent}" title="${titleOf(session)}">`,
     `State: ${state.text} (now: ${clock(now, now, true)})`,

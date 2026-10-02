@@ -241,8 +241,29 @@ export const titleOf = (s: Session): string => s.title || s.task || "subagent"
 /** How many calls it made. */
 export const callsOf = (s: Session): number => s.entries.filter((entry) => entry.kind === "tool").length
 
-/** How long the run has taken: from its start to its end, or to now while it works. */
-export const runTime = (s: Session, now: number): number => (working(s) ? now : (s.ended ?? now)) - s.started
+/**
+ * How many rounds it has had: a round is a prompt — its task, the main agent continuing it, or you
+ * writing to it — and the run that followed. Never fewer than one.
+ */
+export const roundsOf = (s: Session): number =>
+  Math.max(1, s.entries.filter((entry) => entry.kind === "prompt").length)
+
+/** When its current (or last) round began: the last thing it was asked, or when it started. */
+export function roundStart(s: Session): number {
+  for (let i = s.entries.length - 1; i >= 0; i--) {
+    const entry = s.entries[i]
+    if (entry?.kind === "prompt") return Math.max(entry.at, s.started)
+  }
+  return s.started
+}
+
+/**
+ * How long its last round has taken: from that round's prompt to its end, or to now while it works.
+ * Not the whole span: a subagent continued the next day read "done in 24h04m" for four minutes of
+ * work. `roundsOf` says when there was more than one.
+ */
+export const runTime = (s: Session, now: number): number =>
+  Math.max(0, (working(s) ? now : (s.ended ?? now)) - roundStart(s))
 
 /**
  * Siblings, working ones first, then oldest first inside each half. Nothing but a status change moves

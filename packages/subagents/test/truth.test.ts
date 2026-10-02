@@ -3,11 +3,21 @@ import { slim } from "../src/agent/plugin.ts"
 import { createV1Translator } from "../src/core/adapt/v1.ts"
 import { createV2Translator } from "../src/core/adapt/v2.ts"
 import type { Change } from "../src/core/model/changes.ts"
-import { applyAll, callsOf, emptyModel, type Model, subagentsOf, titleOf } from "../src/core/model/model.ts"
+import {
+  applyAll,
+  callsOf,
+  emptyModel,
+  type Model,
+  roundsOf,
+  runTime,
+  subagentsOf,
+  titleOf,
+} from "../src/core/model/model.ts"
+import { CONTINUED_ROOT, continuedSample, SAMPLE_NOW } from "../src/core/sample.ts"
 import { subagentAccount, subagentReport, waitReport } from "../src/core/view/report.ts"
 import { elapsed, rowText } from "../src/core/view/rows.ts"
 import { type ScreenInput, screenRows } from "../src/core/view/screen.ts"
-import { runPhrase, sidebarLines } from "../src/core/view/sidebar.ts"
+import { dayClock, firstStarted, runPhrase, sidebarLines } from "../src/core/view/sidebar.ts"
 import { recorded } from "./fixtures.ts"
 
 /**
@@ -141,5 +151,89 @@ describe("the tools say what the interface draws", () => {
     expect(text).toContain(titleOf(answered))
     expect(text).toContain(`1 call · ${elapsed(60_000)}`)
     expect(runPhrase(answered, NOW)).toBe(`done in ${elapsed(60_000)}`)
+  })
+})
+
+describe("a subagent continued the next day (two rounds, a day apart)", () => {
+  const ui = applyAll(emptyModel(), continuedSample())
+  const agent = applyAll(emptyModel(), slim(continuedSample()))
+  const nodes = subagentsOf(ui, CONTINUED_ROOT)
+  const seen = ui.sessions.get("ses_c_review")
+  const kept = agent.sessions.get("ses_c_review")
+  if (!seen || !kept) throw new Error("ses_c_review")
+
+  test("its time is its last round's, and every view says it was round 2", () => {
+    /** The whole span is a day; the work was four minutes, twice. */
+    expect((seen.ended ?? 0) - seen.started).toBeGreaterThan(24 * 3_600_000)
+    expect(roundsOf(seen)).toBe(2)
+    expect(runTime(seen, SAMPLE_NOW)).toBe(240_000)
+    const phrase = runPhrase(seen, SAMPLE_NOW)
+    expect(phrase).toBe("done in 4m00s (round 2)")
+    expect(runPhrase(kept, SAMPLE_NOW)).toBe(phrase)
+
+    const first = firstStarted(seen, SAMPLE_NOW) ?? ""
+    expect(first).toBe(`first started ${dayClock(seen.started, SAMPLE_NOW)}`)
+    expect(firstStarted(kept, SAMPLE_NOW)).toBe(first)
+
+    const header = screenRows({
+      session: seen,
+      nodes,
+      width: 120,
+      height: 30,
+      now: SAMPLE_NOW,
+      frame: 0,
+      open: new Set(),
+      closed: new Set(),
+      thinking: false,
+      details: false,
+    })
+      .rows.slice(0, 2)
+      .map(rowText)
+      .join("\n")
+    expect(header).toContain(phrase)
+    expect(header).toContain(first)
+
+    const list = subagentReport({ nodes: subagentsOf(agent, CONTINUED_ROOT), now: SAMPLE_NOW, version: 2 })
+    expect(list).toContain(`· ${phrase}, `)
+    expect(list).toContain(`; ${first}`)
+    expect(list).toContain("· 2 rounds")
+    const read = subagentAccount({ session: kept, children: [], now: SAMPLE_NOW, version: 2 })
+    expect(read).toContain(`State: ${phrase}, `)
+    expect(read).toContain(first)
+    const waited = waitReport({ sessions: [kept], now: SAMPLE_NOW, version: 2, waited: 0, timedOut: false })
+    expect(waited).toContain(`· ${phrase}, `)
+
+    for (const text of [header, list, read, waited]) expect(text).not.toContain("24h")
+  })
+
+  test("the sidebar says the same time, and how many rounds while there is room", () => {
+    const row = (width: number) =>
+      sidebarLines({ nodes, width, now: SAMPLE_NOW, frame: 0 })
+        .map((line) => rowText(line.row))
+        .find((text) => text.includes("Review"))
+        ?.trimEnd()
+    expect(row(60)).toEndWith("17 calls · 4m00s · 2 rounds")
+    /** Narrower, the calls give way to the rounds, then the rounds to the title. */
+    expect(row(40)).toEndWith("● Review the export qu… 4m00s · 2 rounds")
+    expect(row(30)).toEndWith("17 calls · 4m00s")
+    for (const width of [30, 40, 60]) expect(row(width)).not.toContain("24h")
+  })
+
+  test("one round says nothing of rounds", () => {
+    const docs = ui.sessions.get("ses_c_docs")
+    if (!docs) throw new Error("ses_c_docs")
+    expect(runPhrase(docs, SAMPLE_NOW)).toBe("done in 51s")
+    expect(firstStarted(docs, SAMPLE_NOW)).toBeUndefined()
+  })
+
+  test("a day's clock: today's time, yesterday, else the date", () => {
+    const now = new Date(2026, 9, 2, 9, 5).getTime()
+    expect(dayClock(new Date(2026, 9, 2, 0, 1).getTime(), now)).toBe("00:01")
+    expect(dayClock(new Date(2026, 9, 1, 22, 17).getTime(), now)).toBe("yesterday 22:17")
+    expect(dayClock(new Date(2026, 8, 30, 22, 17).getTime(), now)).toBe("2026-09-30 22:17")
+    /** Across a month's end. */
+    expect(dayClock(new Date(2026, 8, 30, 8, 0).getTime(), new Date(2026, 9, 1, 1, 0).getTime())).toBe(
+      "yesterday 08:00",
+    )
   })
 })

@@ -366,6 +366,41 @@ export function lateSample(): Change[] {
   ]
 }
 
+export const CONTINUED_ROOT = "ses_cont"
+
+/**
+ * A subagent continued the next day: four minutes of work last night, four more just now. Its whole
+ * span is a day, and the sidebar and the pane said `done in 24h04m` for eight minutes of work; what
+ * they say is the last round, and that there were two. Beside it, one that ran once.
+ */
+export function continuedSample(): Change[] {
+  const first = SAMPLE_NOW - 24 * 3_600_000 - 17 * 60_000
+  const second = SAMPLE_NOW - 6 * 60_000
+  const id = "ses_c_review"
+  return [
+    { type: "session", id: CONTINUED_ROOT, agent: "build", title: "Ship the billing export", at: first },
+    ...run(id, CONTINUED_ROOT, "general", "Review the export query", first, first + 240_000, 12),
+    { type: "reply", id, key: "a1", text: "The query is fine.", done: true, at: first + 239_000 },
+    { type: "prompt", id, key: "u2", text: "Check the index on invoices too.", at: second },
+    { type: "status", id, status: "busy", at: second },
+    ...Array.from(
+      { length: 5 },
+      (_, i): Change => ({
+        type: "tool",
+        id,
+        call: `${id}:r2:${i}`,
+        name: "read",
+        state: "completed",
+        input: { filePath: `/acme/db/migrations/00${i}_invoices.sql` },
+        at: second + 10_000 + i * 20_000,
+      }),
+    ),
+    { type: "reply", id, key: "a2", text: "The index covers it.", done: true, at: second + 239_000 },
+    { type: "status", id, status: "idle", at: second + 240_000 },
+    ...run("ses_c_docs", CONTINUED_ROOT, "explore", "Find the export docs", second, second + 51_000, 3),
+  ]
+}
+
 /* ─── Calls of every kind ───────────────────────────────────────────────────────────────────── */
 
 /**
