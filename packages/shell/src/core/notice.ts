@@ -20,11 +20,12 @@ import { describeStatus, formatLines } from "./format.ts"
  * started cannot pass the main agent by. `relayed` and `relayText` below.
  *
  * On OpenCode 1 nothing is told to a running subagent at all: a failure is only held for that relay,
- * a clean result dropped (the subagent can wait on its shell with shell_wait). A message cannot join
- * the turn the subagent is in there: it waits for the turn to end and starts another, and the `task`
- * tool hands the main agent the subagent's *last* message — measured, the reply to a notice became
- * the task's answer and the real one was lost. OpenCode 2 steers it into the running turn, and the
- * answer stays the subagent's own.
+ * a clean result dropped (the subagent can wait on its shell with shell_wait). A message there is
+ * picked up at the run's next step; when there is none — the subagent is writing its answer — it
+ * starts another turn after that answer, and the `task` tool hands the main agent the subagent's
+ * *last* message: measured, the reply to a notice became the task's answer and the real one was
+ * lost. When it lands cannot be told from outside, so it is never sent. OpenCode 2 steers it into
+ * the running turn, and the answer stays the subagent's own.
  *
  * Pure, so the decision is tested without a daemon or an OpenCode.
  */
@@ -38,7 +39,7 @@ export type Route =
   /** The subagent that asked has finished: tell the conversation, naming the subagent. */
   | { kind: "parent"; session: string; subagent: string }
   /**
-   * The subagent that asked is running, on OpenCode 1: tell it nothing — the message would become
+   * The subagent that asked is running, on OpenCode 1: tell it nothing — the message could become
    * its answer — and tell the conversation (`session`) when it finishes.
    */
   | { kind: "hold"; session: string; subagent: string }
@@ -67,7 +68,7 @@ export function routeNotice({ owner, outcome, originBusy, version }: RouteInput)
   if (originBusy === true && version === 1)
     return outcome === "failure"
       ? { kind: "hold", session: root, subagent: origin }
-      : { kind: "drop", reason: "OpenCode 1: a message to a running subagent would replace its answer" }
+      : { kind: "drop", reason: "OpenCode 1: a message to a running subagent can replace its answer" }
   if (originBusy === true) return { kind: "deliver", session: origin, steer: true }
   if (outcome === "failure") return { kind: "parent", session: root, subagent: origin }
   return { kind: "drop", reason: "the subagent that started it has finished, and nothing failed" }
@@ -151,7 +152,7 @@ export function relayText(sub: Subagent, shells: readonly Relayed[], version: 1 
     ...shells.map((shell) => `- ${shell.id} "${shell.title}": ${shell.status}`),
     "</subagent_shells_failed>",
     version === 1
-      ? `It was not told — on this OpenCode a message to a running subagent would have replaced its answer — and has now finished. If ${many ? "they matter" : "it matters"} and its answer does not account for ${many ? "them" : "it"}, continue that subagent with the error rather than redoing its work: ${how}. shell_read id=${shells[0]?.id ?? "<id>"} shows the output.`
+      ? `It was not told — on this OpenCode a message to a running subagent can replace its answer — and has now finished. If ${many ? "they matter" : "it matters"} and its answer does not account for ${many ? "them" : "it"}, continue that subagent with the error rather than redoing its work: ${how}. shell_read id=${shells[0]?.id ?? "<id>"} shows the output.`
       : `It was told at the time, and has now finished. Check its answer dealt with ${many ? "them" : "it"}; if not and it matters, continue that subagent with the error rather than redoing its work: ${how}. shell_read id=${shells[0]?.id ?? "<id>"} shows the output.`,
   ].join("\n")
 }

@@ -32,10 +32,10 @@ For processes that never exit (tsc --watch, vitest --watch, dev servers), shell_
 
 /**
  * What a subagent is told on OpenCode 1, where it is never messaged while it works (core/notice.ts:
- * the message would become its answer): to look at its shells itself before it answers.
+ * the message could become its answer): to look at its shells itself before it answers.
  */
 const SUBAGENT_V1 =
-  "As a subagent on this OpenCode you are not messaged about your shells while you work — a message would replace your answer. Before you answer, check the shells you started with shell_wait or shell_list; a failure you leave is reported to your caller once you finish."
+  "As a subagent on this OpenCode you are not messaged about your shells while you work — a message could replace your answer. Before you answer, check the shells you started with shell_wait or shell_list; a failure you leave is reported to your caller once you finish."
 
 /** The guidance for one session: a subagent on OpenCode 1 is told it hears nothing while it works. */
 export function shellGuidance(version: 1 | 2, subagent: boolean): string {
