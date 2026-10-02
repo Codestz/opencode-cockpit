@@ -4,6 +4,11 @@
 [![npm](https://img.shields.io/npm/v/opencode-cockpit?color=%23cb3837&label=opencode-cockpit)](https://www.npmjs.com/package/opencode-cockpit)
 [![npm](https://img.shields.io/npm/v/@opencode-cockpit/shell?color=%23cb3837&label=%40opencode-cockpit%2Fshell)](https://www.npmjs.com/package/@opencode-cockpit/shell)
 [![npm](https://img.shields.io/npm/v/@opencode-cockpit/status?color=%23cb3837&label=%40opencode-cockpit%2Fstatus)](https://www.npmjs.com/package/@opencode-cockpit/status)
+[![npm](https://img.shields.io/npm/v/@opencode-cockpit/review?color=%23cb3837&label=%40opencode-cockpit%2Freview)](https://www.npmjs.com/package/@opencode-cockpit/review)
+[![npm](https://img.shields.io/npm/v/@opencode-cockpit/updater?color=%23cb3837&label=%40opencode-cockpit%2Fupdater)](https://www.npmjs.com/package/@opencode-cockpit/updater)
+[![npm](https://img.shields.io/npm/v/@opencode-cockpit/subagents?color=%23cb3837&label=%40opencode-cockpit%2Fsubagents)](https://www.npmjs.com/package/@opencode-cockpit/subagents)
+[![npm](https://img.shields.io/npm/v/@opencode-cockpit/trust?color=%23cb3837&label=%40opencode-cockpit%2Ftrust)](https://www.npmjs.com/package/@opencode-cockpit/trust)
+[![Docs](https://img.shields.io/badge/docs-codestz.github.io-9d7cd8)](https://codestz.github.io/opencode-cockpit/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Give [OpenCode](https://opencode.ai) the instruments it does not ship with.**
