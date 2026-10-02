@@ -35,6 +35,11 @@ export function place(cwd: string | undefined, root: string | undefined): string
 
 export function signature(command: Command, root?: string): string {
   const where = place(command.cwd, root)
-  const words = [...command.env, ...command.argv].map(quote).join(" ")
+  /** A redirection is written bare and an argument quoted, so `echo > x` and `echo '>' x` differ. */
+  const ops = new Set(command.redirects ?? [])
+  const words = [
+    ...command.env.map(quote),
+    ...command.argv.map((word, i) => (ops.has(i) ? word : quote(word))),
+  ].join(" ")
   return where === undefined ? words : `(in ${quote(where)}) ${words}`
 }

@@ -19,11 +19,17 @@ export interface Command {
   argv: string[]
   /** Where it runs when an earlier `cd` on the same line moved it; absolute or relative as written. */
   cwd?: string
+  /**
+   * Which `argv` words are redirections the shell acts on (`>`, `2>&1`), as opposed to the same
+   * characters quoted as an argument: `echo '>' x` writes nothing, `echo > x` writes a file, and by
+   * text alone the two were one command. Absent on a command built by hand: then the text decides.
+   */
+  redirects?: number[]
 }
 
 export type Parsed = { kind: "commands"; commands: Command[] } | { kind: "opaque"; reason: string }
 
-type Token = { type: "word"; text: string } | { type: "op"; text: string }
+type Token = { type: "word"; text: string; redirect?: true } | { type: "op"; text: string }
 
 class Opaque extends Error {}
 
@@ -147,7 +153,7 @@ function tokenize(line: string): Token[] {
           i++
         }
       }
-      tokens.push({ type: "word", text: redirect })
+      tokens.push({ type: "word", text: redirect, redirect: true })
       continue
     }
     if (c === "&") {
@@ -157,7 +163,7 @@ function tokenize(line: string): Token[] {
       } else if (next === ">") {
         flush()
         const redirect = line[i + 2] === ">" ? "&>>" : "&>"
-        tokens.push({ type: "word", text: redirect })
+        tokens.push({ type: "word", text: redirect, redirect: true })
         i += redirect.length - 1
       } else op("&")
       continue
@@ -199,16 +205,18 @@ export function parse(line: string): Parsed {
 
   const commands: Command[] = []
   let cwd: string | undefined
-  let words: string[] = []
+  let words: { text: string; redirect: boolean }[] = []
   let piped = false
 
   const end = (after: string | undefined): Parsed | undefined => {
     const current = words
     words = []
     if (current.length === 0) return undefined
-    const split = current.findIndex((w) => !/^[A-Za-z_][A-Za-z0-9_]*=/.test(w))
-    const env = split < 0 ? current : current.slice(0, split)
-    const argv = split < 0 ? [] : current.slice(split)
+    const split = current.findIndex((w) => w.redirect || !/^[A-Za-z_][A-Za-z0-9_]*=/.test(w.text))
+    const env = (split < 0 ? current : current.slice(0, split)).map((w) => w.text)
+    const rest = split < 0 ? [] : current.slice(split)
+    const argv = rest.map((w) => w.text)
+    const redirects = rest.flatMap((w, i) => (w.redirect ? [i] : []))
     const program = argv[0]
     if (program !== undefined && RUNS_CODE.has(posix.basename(program))) {
       return { kind: "opaque", reason: `\`${program}\` runs code that is not on the line` }
@@ -232,13 +240,18 @@ export function parse(line: string): Parsed {
             : target
       return undefined
     }
-    commands.push({ env, argv, ...(cwd !== undefined ? { cwd } : {}) })
+    commands.push({
+      env,
+      argv,
+      ...(cwd !== undefined ? { cwd } : {}),
+      ...(redirects.length > 0 ? { redirects } : {}),
+    })
     return undefined
   }
 
   for (const token of tokens) {
     if (token.type === "word") {
-      words.push(token.text)
+      words.push({ text: token.text, redirect: token.redirect === true })
       continue
     }
     const stop = end(token.text)

@@ -69,13 +69,18 @@ const TO_FD = /^\d*[<>]&[\d-]$/
 export const isRedirect = (word: string): boolean => TO_FILE.test(word) || TO_FD.test(word)
 
 /** The words without their redirections, and the files the command writes to. */
-function redirections(argv: readonly string[]): { words: string[]; writes: string[] } {
+function redirections(
+  argv: readonly string[],
+  ops?: readonly number[],
+): { words: string[]; writes: string[] } {
   const words: string[] = []
   const writes: string[] = []
+  /** The reader says which words the shell acts on; a quoted `'>'` is an argument (shell.ts). */
+  const op = (i: number, word: string) => (ops ? ops.includes(i) : isRedirect(word))
   for (let i = 0; i < argv.length; i++) {
     const word = argv[i] as string
-    if (TO_FD.test(word)) continue
-    if (TO_FILE.test(word)) {
+    if (op(i, word) && TO_FD.test(word)) continue
+    if (op(i, word) && TO_FILE.test(word)) {
       const target = argv[i + 1]
       if (target !== undefined && word.includes(">") && target !== "/dev/null") writes.push(target)
       i++
@@ -182,8 +187,8 @@ const TOOLS: Record<string, Tool> = {
 }
 
 /** The words that name a command's family, wrappers included, environment and redirections not. */
-function familyWords(argv: readonly string[]): string[] {
-  let rest: readonly string[] = redirections(argv).words
+function familyWords(argv: readonly string[], ops?: readonly number[]): string[] {
+  let rest: readonly string[] = redirections(argv, ops).words
   const head: string[] = []
   for (let depth = 0; depth < 8; depth++) {
     const once = unwrapOnce(rest)
@@ -204,7 +209,10 @@ function familyWords(argv: readonly string[]): string[] {
 const envName = (word: string) => `${word.slice(0, word.indexOf("="))}=…`
 
 function bashFamily(command: Command, place: string | undefined): string {
-  const words = [...command.env.map(envName), ...familyWords(command.argv).map(quote)].join(" ")
+  const words = [
+    ...command.env.map(envName),
+    ...familyWords(command.argv, command.redirects).map(quote),
+  ].join(" ")
   return place === undefined ? words : `(in ${quote(place)}) ${words}`
 }
 
@@ -287,7 +295,7 @@ export function outside(permission: string, subject: string): string | undefined
   if (!read) return "it cannot be read as one command"
   const danger = dangerOf(read.command)
   if (danger) return `dangerous (${danger})`
-  if (redirections(read.command.argv).writes.length > 0) return "it writes to a file"
+  if (redirections(read.command.argv, read.command.redirects).writes.length > 0) return "it writes to a file"
   if (runsAnother(read.command.argv)) return "it runs another program"
   return undefined
 }
@@ -367,8 +375,8 @@ export function anyOf(permission: string, family: string): string {
 export function narrower(subject: string): string | undefined {
   const read = readSubject(subject)
   if (!read) return undefined
-  const { words } = redirections(read.command.argv)
-  const family = familyWords(read.command.argv)
+  const { words } = redirections(read.command.argv, read.command.redirects)
+  const family = familyWords(read.command.argv, read.command.redirects)
   if (words.length <= family.length) return undefined
   return showSubject("bash", dropLast(read, words))
 }
@@ -382,6 +390,6 @@ function dropLast(read: { place?: string; command: Command }, words: readonly st
 /** The subject with its output sent to a file: the other thing that still asks. */
 export function redirected(subject: string): string | undefined {
   const read = readSubject(subject)
-  if (!read || redirections(read.command.argv).writes.length > 0) return undefined
+  if (!read || redirections(read.command.argv, read.command.redirects).writes.length > 0) return undefined
   return `${showSubject("bash", subject)} > out.txt`
 }

@@ -61,8 +61,21 @@ describe("a line is split into its commands", () => {
   })
 
   test("redirections stay with their command", () => {
-    expect(read("bun test 2>&1 > out.txt")).toEqual(["bun test '2>&1' '>' out.txt"])
-    expect(read("cat a.txt 2>/dev/null")).toEqual(["cat a.txt '2>' /dev/null"])
+    expect(read("bun test 2>&1 > out.txt")).toEqual(["bun test 2>&1 > out.txt"])
+    expect(read("cat a.txt 2>/dev/null")).toEqual(["cat a.txt 2> /dev/null"])
+  })
+
+  test("a quoted '>' is an argument, never the redirection that writes a file", () => {
+    expect(read("echo '>' x")).toEqual(["echo '>' x"])
+    expect(read("echo > x")).toEqual(["echo > x"])
+    expect(read("echo '>' x")).not.toEqual(read("echo > x"))
+  })
+
+  test("a signature reads back as the same command", () => {
+    for (const line of ["echo '>' x", "echo > x", "bun test 2>&1", "ls 2> /dev/null", "echo '2>&1'"]) {
+      const once = read(line)
+      expect(Array.isArray(once) && read((once as string[]).join(" "))).toEqual(once)
+    }
   })
 
   test("comments are dropped", () => {
