@@ -19,7 +19,8 @@ sees it.
 
 ## What counts as "the same command"
 
-Exactly the same, and nothing wider. `docker compose -p cockpit up -d` and
+Exactly the same, and nothing wider — unless you widen it yourself, in the ledger (`w`).
+`docker compose -p cockpit up -d` and
 `docker compose -p prod down -v` are two commands — OpenCode's own "Always" would treat them as one
 (`docker compose -p *`). The same command in another directory (`cd /tmp && rm -rf dist`) is
 another command too. Quoting is the only thing normalised: `echo 'a b'` is `echo "a b"`.
@@ -65,16 +66,61 @@ counting, no block. Each answer is also a line in `~/.cache/opencode-cockpit/coc
 
 ## The ledger
 
-`/trust`, `ctrl+x p` or the palette opens everything Trust has learned in this project: each command
-with its agent, where its count stands, how often Trust answered it and when it was last used — and,
-under a warning, the "Always" approvals you gave OpenCode itself, which are broader than they look
-and last until OpenCode restarts.
+`/trust`, `ctrl+x p` or the palette opens everything Trust has learned in this project, grouped into
+**families** — `ls -la`, `ls -x` and `ls -R docs` are all `ls`:
+
+```
+ Trust in this project                 3 in a row · dangerous +5 · unused 30 days expires
+
+ ▾ ls — any, widened                                                    4 trusted     now
+     ● ls -la                              general               trusted · 3 auto  6m ago
+     ● ls -la src                          general                        trusted  2d ago
+     ● ls -x                               general               widened · 1 auto     now
+     ● ls -R docs                          general                        widened  2d ago
+ ▾ git status                              build, general               2 trusted  2m ago
+     ● git status --short                  build, general   trusted, 2/3 · 2 auto  2m ago
+     ● git -C packages/web status          build                          trusted  2d ago
+ ● echo "---"                              general               trusted · 1 auto  5m ago
+ ▾ edit src/                                               1 trusted · 1 counting  2d ago
+     ● edit src/app.ts                     build                          trusted  2d ago
+     ○ edit src/view.ts                    build                              2/3  2d ago
+ ● docker compose -p cockpit up -d         build                          trusted  2d ago
+ ○ docker compose -p prod down -v  compos… build                              2/8  2d ago
+ ○ git push origin feat/trust  git push    build                              5/8  2d ago
+ + 4 approved once · [a] show all
+
+ ────────────────────────────────────────────────────────────────────────────────────────
+ Exactly   echo "---"
+ Answers   only this exact text, as general. Still asks: echo · echo "---" > out.txt
+
+ [x] Revoke   [w] Trust Any echo   [c] Copy As Config   [a] Show All   …   [esc] Close
+```
+
+- **A family** is the program, or the program and its subcommand for tools that have them:
+  `git status`, `docker compose up` (`-p prod` and other global flags are not part of it),
+  `npm run test` (the script is). A wrapper is: `sudo ls` is not `ls`. So is where it runs and the
+  environment it is given: `(in web) bun test`, `NODE_ENV=… npm run build`. An edit's family is its
+  folder. A family with one rule is drawn as that one row; others start folded — `enter` opens one.
+- **One row per command**, even when two agents earned it: `git status --short  build, general
+  trusted, 2/3`. Counting stays per agent.
+- **Exactly** says what the selected line is with every argument quoted where a font could merge it
+  (`echo "---"`, never `echo ──`), and in a sentence what it answers and what still asks.
+- **`w` trusts the whole family**, for the selected rule's agent — on purpose, never by itself. Any
+  `ls …` is then answered for that agent, **except** a dangerous command, one that writes a file
+  through a redirection (`ls > out.txt`; `2>/dev/null` and `2>&1` write nothing and are fine), one
+  that runs another program (`find -exec`, `git -c`), and any line that cannot be read. A specific
+  `ask` in your config still wins. A dangerous family (`git push`, `rm`, `sudo …`) can never be
+  widened. `w` again — or `x` on the family — goes back to exact rules. Answers through a widened
+  family say so, in the ledger, the sidebar (`● ls -x · any ls`) and the log.
 
 | Key | |
 | --- | --- |
-| `j` `k` | Move |
-| `x` | Revoke: it has to be earned again |
-| `c` | Copy it as an `opencode.json` rule, to paste yourself |
+| `j` `k` `↑` `↓`, wheel | Move over families and rows |
+| `enter` | Open or fold a family |
+| `x` | Revoke: a row for every agent on it; a family — every rule in it, and its widening |
+| `w` | Trust any command in the family, or undo it |
+| `c` | Copy it as an `opencode.json` rule, to paste yourself — a family as `"ls *": "allow"` (config cannot say which agent) |
+| `a` | List the commands approved only once, or fold them again |
 | `p` | Pause Trust in this project (it keeps counting, and answers nothing) — again to resume |
 | `q` `esc` | Close |
 

@@ -28,6 +28,16 @@ All notable changes to this project are documented here. The format follows
     `opencode.json` (`c`), pause in this project (`p`), and OpenCode's own broad "Always" approvals
     under a warning. Kept append-only in `~/.local/share/opencode-cockpit/trust/`, shared by every
     window on the project.
+  - **Families:** the ledger groups rules by what they do — `ls -la`, `ls -x` are `ls`;
+    `git -C x status` is `git status`; `docker compose -p prod down -v` is `docker compose down`;
+    `sudo ls` stays its own. `enter` opens a family; a command two agents earned is one row naming
+    both, each with its own count.
+  - **Exactly:** a panel under the list shows the selected command with every argument quoted where
+    a font could merge it (`echo "---"`, not `echo ──`) and says what it answers and what still asks.
+  - **`w` trusts a whole family**, for one agent, only when you press it: any `ls …` is answered
+    except dangerous commands, writes to a file through a redirection, `find -exec`/`git -c`, opaque
+    lines and your config's specific `ask`s. Dangerous families can never be widened. `w` again or
+    `x` on the family undoes it; answers through it say so (`● ls -x · any ls`).
 
 ### Fixed
 

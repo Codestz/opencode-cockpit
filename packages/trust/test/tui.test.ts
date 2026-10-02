@@ -5,7 +5,7 @@
  * What only a real OpenCode can show (the prompt, the sidebar on screen) is not claimed here.
  */
 import { afterEach, describe, expect, test } from "bun:test"
-import { mkdtempSync, readFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { Host } from "@opencode-cockpit/client/host"
@@ -110,9 +110,14 @@ afterEach(() => {
   }
 })
 
-async function start(permission?: unknown): Promise<Fake> {
+async function start(permission?: unknown, ledger: readonly object[] = []): Promise<Fake> {
   process.env.COCKPIT_HOME = mkdtempSync(join(tmpdir(), "trust-tui-"))
   process.env.XDG_CONFIG_HOME = mkdtempSync(join(tmpdir(), "trust-tui-config-"))
+  if (ledger.length > 0) {
+    const paths = trustPaths(DIRECTORY)
+    mkdirSync(paths.dir, { recursive: true })
+    writeFileSync(paths.events, ledger.map((event) => `${JSON.stringify(event)}\n`).join(""))
+  }
   const fake = fakeV1(permission)
   current = fake
   await createTrustTui({ source: `test-${Math.random()}` })(fake.host, {})
@@ -222,5 +227,21 @@ describe("Trust in a host", () => {
     await wait(30)
     const id = await run(again, "bun test")
     expect(again.replies).toEqual([{ requestID: id, reply: "once" }])
+  })
+
+  test("a family you widened in the ledger answers a variant never approved, for that agent only", async () => {
+    const fake = await start(undefined, [
+      { v: 1, at: Date.now(), type: "widened", permission: "bash", agent: "build", family: "ls" },
+    ])
+    fake.emit({ type: "message.updated", properties: { info: { sessionID: "ses_1", agent: "build" } } })
+    const id = await run(fake, "ls -R docs")
+    expect(fake.replies).toEqual([{ requestID: id, reply: "once" }])
+    const auto = fake.ledger().find((event) => event.type === "auto") as unknown as {
+      items: { subject: string; via?: string }[]
+    }
+    expect(auto.items).toEqual([{ subject: "ls -R docs", via: "ls" }])
+    /** Writing a file is not what "any ls" meant: left to you. */
+    await run(fake, "ls > out.txt")
+    expect(fake.replies).toHaveLength(1)
   })
 })

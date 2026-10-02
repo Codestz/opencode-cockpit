@@ -21,7 +21,15 @@ import type { Request } from "../core/keys.ts"
 import type { Event } from "../core/ledger.ts"
 import { trustPaths } from "../core/paths.ts"
 import { rulesFrom } from "../core/rules.ts"
-import { configSnippet, ledgerItems, ledgerRows, ledgerShown } from "../core/view/ledger.ts"
+import {
+  configSnippet,
+  type Line,
+  ledgerModel,
+  ledgerRows,
+  type Outcome,
+  revokeLine,
+  widenLine,
+} from "../core/view/ledger.ts"
 import type { Row, Tone } from "../core/view/rows.ts"
 import { sidebarRows } from "../core/view/sidebar.ts"
 import { createJournal } from "./journal.ts"
@@ -85,7 +93,7 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
 
     // --- painting ----------------------------------------------------------------------------------
 
-    const [lines, setLines] = createSignal<readonly Row[]>([])
+    const [sidebarLines, setLines] = createSignal<readonly Row[]>([])
     const [dialogRows, setDialogRows] = createSignal<readonly Row[]>([])
     let block: BoxRenderable | undefined
     let drawnAt = 0
@@ -100,14 +108,22 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
 
     const ledger = {
       open: false,
-      selected: 0,
+      /** The line under the cursor, by key: folding a family moves lines about, not the cursor. */
+      selected: undefined as string | undefined,
       /** Commands approved once are folded until `a` lists them (core/view/ledger.ts, ledgerShown). */
       all: false,
+      /** Families opened with `enter`; every family starts folded. */
+      opened: new Set<string>(),
       notice: undefined as { text: string; tone: Tone } | undefined,
     }
-    const listed = () =>
-      ledgerShown(ledgerItems(engine.state, settings, Date.now()), settings, Date.now(), ledger.all)
-    const items = () => listed().items
+    const reading = () => ({ state: engine.state, settings, now: Date.now() })
+    const model = () => ledgerModel({ ...reading(), all: ledger.all, open: ledger.opened })
+    const lines = () => model().lines
+    /** The cursor's index, put back on a line that exists when its own went (revoked, folded). */
+    const cursor = (list: readonly Line[]) => {
+      const at = list.findIndex((line) => line.key === ledger.selected)
+      return at >= 0 ? at : 0
+    }
 
     const paint = () => {
       drawnAt = sidebarWidth()
@@ -127,15 +143,15 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
         setLines(next)
       }
       if (ledger.open) {
-        const { items: list, folded } = listed()
-        ledger.selected = Math.max(0, Math.min(ledger.selected, list.length - 1))
+        const { lines: list, folded } = model()
+        ledger.selected = list[cursor(list)]?.key
         const height = api.renderer.height
         setDialogRows(
           ledgerRows({
             width: Math.max(40, Math.min(DIALOG_COLUMNS, api.renderer.width - 2)),
-            height: Math.max(10, height - Math.floor(height / 4) * 2),
-            items: list,
-            selected: ledger.selected,
+            height: Math.max(11, height - Math.floor(height / 4) * 2),
+            lines: list,
+            ...(ledger.selected !== undefined ? { selected: ledger.selected } : {}),
             folded,
             all: ledger.all,
             state: engine.state,
@@ -371,35 +387,55 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
       ledger.notice = { text, tone }
       draw()
     }
-    const selectedItem = () => items()[ledger.selected]
+    const selectedLine = () => {
+      const list = lines()
+      return list[cursor(list)]
+    }
+
+    /** What `w` and `x` decided, appended and said. Nothing is ever rewritten in the ledger. */
+    const act = (name: string, outcome: Outcome) => {
+      write(outcome.events)
+      if (outcome.events.length > 0)
+        log.info(name, {
+          events: outcome.events.map((event) =>
+            event.type === "revoked"
+              ? { type: event.type, agent: event.agent, subject: event.subject }
+              : event.type === "widened" || event.type === "unwidened"
+                ? { type: event.type, agent: event.agent, family: event.family }
+                : { type: event.type },
+          ),
+        })
+      notice(outcome.notice.text, outcome.notice.tone)
+    }
 
     const revoke = () => {
-      const item = selectedItem()
-      if (!item) return
-      if (item.kind === "always")
-        return notice(
-          'OpenCode keeps its own "always" until it restarts — Trust cannot take it back.',
-          "warning",
-        )
-      const { entry } = item
-      write([
-        {
-          v: 1,
-          at: Date.now(),
-          type: "revoked",
-          permission: entry.permission,
-          agent: entry.agent,
-          subject: entry.subject,
-        },
-      ])
-      log.info("revoked", { permission: entry.permission, agent: entry.agent, subject: entry.subject })
-      notice(`Revoked: ${entry.subject} is asked again until you approve it ${settings.threshold}× more.`)
+      const line = selectedLine()
+      if (line) act("revoked", revokeLine(line, reading(), Date.now()))
+    }
+
+    const widen = () => {
+      const line = selectedLine()
+      if (line) act("widen", widenLine(line, Date.now()))
+    }
+
+    /** `enter`: a heading opens or folds; a row inside a family folds it and keeps the cursor on it. */
+    const fold = () => {
+      const line = selectedLine()
+      if (!line || line.kind === "always") return
+      if (line.kind === "rule" && !line.nested) return
+      const key = line.family.key
+      if (ledger.opened.has(key)) {
+        ledger.opened.delete(key)
+        ledger.selected = `f:${key}`
+      } else ledger.opened.add(key)
+      ledger.notice = undefined
+      draw()
     }
 
     const copy = () => {
-      const item = selectedItem()
-      if (!item) return
-      const snippet = configSnippet(item)
+      const line = selectedLine()
+      if (!line) return
+      const snippet = configSnippet(line)
       const ok = api.renderer.copyToClipboardOSC52?.(snippet.text) ?? false
       notice(
         ok
@@ -424,7 +460,8 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
     }
 
     const move = (by: number) => {
-      ledger.selected = Math.max(0, Math.min(items().length - 1, ledger.selected + by))
+      const list = lines()
+      ledger.selected = list[Math.max(0, Math.min(list.length - 1, cursor(list) + by))]?.key
       ledger.notice = undefined
       draw()
     }
@@ -440,7 +477,9 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
       commands: [
         { name: "cockpit.trust.down", title: "Next rule", run: () => move(1) },
         { name: "cockpit.trust.up", title: "Previous rule", run: () => move(-1) },
-        { name: "cockpit.trust.revoke", title: "Revoke this rule", run: () => revoke() },
+        { name: "cockpit.trust.fold", title: "Open or fold a family", run: () => fold() },
+        { name: "cockpit.trust.revoke", title: "Revoke this rule or family", run: () => revoke() },
+        { name: "cockpit.trust.widen", title: "Trust the whole family, or undo it", run: () => widen() },
         { name: "cockpit.trust.copy", title: "Copy as config", run: () => copy() },
         { name: "cockpit.trust.togglePause", title: "Pause or resume", run: () => togglePause() },
         { name: "cockpit.trust.all", title: "Show or fold commands approved once", run: () => toggleAll() },
@@ -449,7 +488,9 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
       bindings: [
         { key: "j,down", cmd: "cockpit.trust.down" },
         { key: "k,up", cmd: "cockpit.trust.up" },
+        { key: "return", cmd: "cockpit.trust.fold" },
         { key: "x", cmd: "cockpit.trust.revoke" },
+        { key: "w", cmd: "cockpit.trust.widen" },
         { key: "c", cmd: "cockpit.trust.copy" },
         { key: "p", cmd: "cockpit.trust.togglePause" },
         { key: "a", cmd: "cockpit.trust.all" },
@@ -470,7 +511,7 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
         },
       )
       api.ui.dialog.setSize("xlarge")
-      log.debug("ledger: open", { rules: items().length })
+      log.debug("ledger: open", { lines: lines().length })
     }
 
     api.keymap.registerLayer({
@@ -501,7 +542,7 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
         sidebar_content: () => (
           <Rows
             api={api}
-            rows={lines}
+            rows={sidebarLines}
             onReady={(box) => {
               block = box
               draw()

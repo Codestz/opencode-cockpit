@@ -11,12 +11,18 @@
  * time — that is the bargain that makes answering for you acceptable — but the block says nothing
  * when there is nothing to say: no answers yet, nothing counting, not paused. A failure always speaks.
  *
+ * An answer given through a family you widened says so — `● ls -R docs · any ls  1×` — because
+ * that rule was never approved by itself, and the answer should not look as if it had been.
+ * Commands are shown the way the ledger shows them (`family.showSubject`): `echo "---"`, never a
+ * bare `---` a font can merge into a line.
+ *
  * Plain geometric marks, not ⚡: the emoji draws two columns wide in most terminals and one in some,
  * which breaks a grid that has to be exact; Subagents' sidebar uses the same dots.
  */
 
 import { HEADING_GAP } from "@opencode-cockpit/client/design"
 import type { Answered, Pending } from "../engine.ts"
+import { anyOf, showSubject } from "../family.ts"
 import { keyOf, type State } from "../ledger.ts"
 import { fit, type Row, spread } from "./rows.ts"
 
@@ -92,7 +98,21 @@ export function sidebarRows(input: SidebarInput): Row[] {
   for (const answered of listed)
     rows.push(
       spread(
-        [{ text: "● ", tone: "success" }, ...labelOf(answered.permission, answered.label)],
+        [
+          { text: "● ", tone: "success" },
+          ...labelOf(
+            answered.permission,
+            answered.subjects.map((subject) => showSubject(answered.permission, subject)).join(" && "),
+          ),
+          ...(answered.via !== undefined
+            ? [
+                {
+                  text: ` · ${anyOf(answered.permission, answered.via).replace(/ …$/, "")}`,
+                  tone: "muted" as const,
+                },
+              ]
+            : []),
+        ],
         [{ text: `${times(state, answered)}×`, tone: "muted" }],
         width,
       ),
@@ -100,7 +120,7 @@ export function sidebarRows(input: SidebarInput): Row[] {
   for (const { permission, worst } of counting)
     rows.push(
       spread(
-        [{ text: "○ ", tone: "warning" }, ...labelOf(permission, worst.subject)],
+        [{ text: "○ ", tone: "warning" }, ...labelOf(permission, showSubject(permission, worst.subject))],
         [{ text: `${worst.have}/${worst.need}`, tone: worst.danger ? "error" : "warning" }],
         width,
       ),

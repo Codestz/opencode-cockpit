@@ -7,10 +7,15 @@
  *   bunx @opencode-cockpit/trust preview                  every sample
  *   bunx @opencode-cockpit/trust preview --sample busy    one of them
  *   bunx @opencode-cockpit/trust preview --width 30       the sidebar at another width
+ *   bunx @opencode-cockpit/trust preview --columns 140    the ledger at another width
+ *
+ * A sample with families draws the ledger more than once: folded as it opens, every family open
+ * with the cursor on a rule, then on a widened family and on a dangerous one — so the panel is seen
+ * on every kind of line.
  */
 
 import { SAMPLE_NOW, SAMPLE_SETTINGS, SAMPLES } from "../core/sample.ts"
-import { ledgerItems, ledgerRows, ledgerShown } from "../core/view/ledger.ts"
+import { type Line, ledgerModel, ledgerRows } from "../core/view/ledger.ts"
 import type { Row, Run, Tone } from "../core/view/rows.ts"
 import { sidebarRows } from "../core/view/sidebar.ts"
 
@@ -47,7 +52,7 @@ function paint(row: Row): string {
 const args = process.argv.slice(2)
 if (args.includes("--help") || args.includes("-h")) {
   process.stdout.write(
-    `Usage: trust preview [--sample ${Object.keys(SAMPLES).join("|")}] [--width <sidebar columns>]\n`,
+    `Usage: trust preview [--sample ${Object.keys(SAMPLES).join("|")}] [--width <sidebar columns>] [--columns <ledger columns>]\n`,
   )
   process.exit(0)
 }
@@ -56,7 +61,7 @@ const value = (flag: string) => {
   return at >= 0 ? args[at + 1] : undefined
 }
 const sidebarWidth = Number(value("--width")) || 36
-const columns = Math.max(60, Math.min(process.stdout.columns || 100, 116))
+const columns = Number(value("--columns")) || Math.max(60, Math.min(process.stdout.columns || 100, 116))
 const only = value("--sample")
 const names = only ? [only] : Object.keys(SAMPLES)
 
@@ -84,24 +89,55 @@ for (const name of names) {
     ...(trouble ? { trouble } : {}),
   })
   out.push(...(sidebar.length > 0 ? frame(sidebar) : ["(nothing: the block is silent)"]))
-  out.push("", "Ledger", "")
-  /** As the dialog lists them: commands approved once folded into one line. */
-  const { items, folded } = ledgerShown(
-    ledgerItems(engine.state, SAMPLE_SETTINGS, SAMPLE_NOW),
-    SAMPLE_SETTINGS,
-    SAMPLE_NOW,
-    false,
+  const reading = { state: engine.state, settings: SAMPLE_SETTINGS, now: SAMPLE_NOW, all: false }
+  const draw = (
+    title: string,
+    open: ReadonlySet<string>,
+    pick: (lines: readonly Line[]) => Line | undefined,
+  ) => {
+    const { lines, folded } = ledgerModel({ ...reading, open })
+    const selected = pick(lines)?.key
+    const { rows } = ledgerRows({
+      width: columns,
+      /** Tall enough for the list, its fold line and OpenCode's own approvals under their heading. */
+      height: Math.max(
+        11,
+        8 + lines.length + (folded ? 1 : 0) + (lines.some((line) => line.kind === "always") ? 2 : 0),
+      ),
+      lines,
+      folded,
+      ...(selected !== undefined ? { selected } : {}),
+      state: engine.state,
+      settings: SAMPLE_SETTINGS,
+      now: SAMPLE_NOW,
+    })
+    out.push("", title, "")
+    out.push(...frame(rows))
+  }
+  /** As the dialog opens: families folded, commands approved once folded into one line. */
+  draw("Ledger", new Set(), (lines) => lines[0])
+  const heads = ledgerModel({ ...reading, open: new Set() }).lines.flatMap((line) =>
+    line.kind === "family" ? [line.family.key] : [],
   )
-  const { rows } = ledgerRows({
-    width: columns,
-    height: Math.min(18, 7 + items.length),
-    items,
-    folded,
-    selected: 0,
-    state: engine.state,
-    settings: SAMPLE_SETTINGS,
-    now: SAMPLE_NOW,
-  })
-  out.push(...frame(rows))
+  if (heads.length > 0) {
+    const every = new Set(heads)
+    draw(
+      "Ledger — every family open, cursor on a rule",
+      every,
+      (lines) =>
+        lines.find((line) => line.kind === "rule" && line.rule.subject.startsWith("echo")) ??
+        lines.find((line) => line.kind === "rule"),
+    )
+    draw("Ledger — cursor on a widened family", every, (lines) =>
+      lines.find((line) => line.kind === "family" && line.family.widened.length > 0),
+    )
+    draw("Ledger — cursor on a dangerous family", every, (lines) =>
+      lines.find(
+        (line) =>
+          (line.kind === "family" && line.family.family.startsWith("git push")) ||
+          (line.kind === "rule" && line.rule.subject.startsWith("git push")),
+      ),
+    )
+  }
 }
 process.stdout.write(`${out.join("\n")}\n`)

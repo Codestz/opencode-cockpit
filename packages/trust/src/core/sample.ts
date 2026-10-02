@@ -1,7 +1,7 @@
 /**
  * Sample worlds for the preview and the grid test: the states a design gets wrong
- * (docs/building/testing.md) — nothing at all, a first week, a busy project, a paused one, and one
- * where something broke.
+ * (docs/building/testing.md) — nothing at all, a first week, a busy project, a paused one, one
+ * where something broke, and one grouped into families with one of them widened by hand.
  *
  * Each is built by running the real engine over real requests, so the preview shows what the
  * engine actually produces rather than what a hand-written state hoped it would.
@@ -61,9 +61,9 @@ function build(script: (step: Steps) => void): Engine {
         clock += 60_000
       }
     },
-    auto(line, times, permission = "bash") {
+    auto(line, times, permission = "bash", agent = "build") {
       for (let i = 0; i < times; i++) {
-        const { id, judgement } = ask(line, permission, [line])
+        const { id, judgement } = ask(line, permission, [line], agent)
         if (!judgement.answer) throw new Error(`sample: ${line} is not trusted (${judgement.why})`)
         clock += 25
         const event = engine.answered(id, clock)
@@ -75,6 +75,10 @@ function build(script: (step: Steps) => void): Engine {
     pending(line) {
       ask(line)
     },
+    widen(family, agent, permission = "bash") {
+      engine.load([{ v: 1, at: clock, type: "widened", permission, agent, family }])
+      clock += 1_000
+    },
   }
   script(steps)
   return engine
@@ -83,8 +87,10 @@ function build(script: (step: Steps) => void): Engine {
 interface Steps {
   at: (ms: number) => void
   approve: (line: string, times: number, how?: "once" | "always", permission?: string, agent?: string) => void
-  auto: (line: string, times: number, permission?: string) => void
+  auto: (line: string, times: number, permission?: string, agent?: string) => void
   pending: (line: string) => void
+  /** You pressed `w` on a family: the only way a `widened` event is ever made. */
+  widen: (family: string, agent: string, permission?: string) => void
 }
 
 export const SAMPLES: Record<string, () => Sample> = {
@@ -121,6 +127,37 @@ export const SAMPLES: Record<string, () => Sample> = {
       s.auto("cd packages/web && bun run build", 1)
       s.at(SAMPLE_NOW - 2_000)
       s.pending("git push origin feat/trust")
+    }),
+  }),
+
+  /**
+   * Families: three `ls` rules and one answered only because you widened `ls` for general; `echo ---`
+   * (the line a font drew as `echo ──`); one `git status --short` earned by two agents; a dangerous
+   * family that can never be widened; and a tail of commands approved once, folded.
+   */
+  families: () => ({
+    engine: build((s) => {
+      s.approve("ls -la", 3, "once", "bash", "general")
+      s.approve("ls -la src", 3, "once", "bash", "general")
+      s.approve("ls -R docs", 2, "once", "bash", "general")
+      s.approve("echo ---", 3, "once", "bash", "general")
+      s.approve("git status --short", 3)
+      s.approve("git status --short", 2, "once", "bash", "general")
+      s.approve("git -C packages/web status", 3)
+      s.approve("git push origin feat/trust", 5)
+      s.approve("docker compose -p cockpit up -d", 3)
+      s.approve("docker compose -p prod down -v", 2)
+      s.approve("src/app.ts", 3, "once", "edit")
+      s.approve("src/view.ts", 2, "once", "edit")
+      for (const once of ["head -60 README.md", "wc -l src/app.ts", "cat package.json", "pwd"])
+        s.approve(once, 1)
+      s.at(SAMPLE_NOW - 900_000)
+      s.widen("ls", "general")
+      s.at(SAMPLE_NOW - 600_000)
+      s.auto("ls -la", 3, "bash", "general")
+      s.auto("echo ---", 1, "bash", "general")
+      s.auto("git status --short", 2)
+      s.auto("ls -x", 1, "bash", "general")
     }),
   }),
 
