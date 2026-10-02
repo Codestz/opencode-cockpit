@@ -131,7 +131,7 @@ export function createUpdaterTui({ source = UPDATER_PACKAGE }: { source?: string
         {
           name: "cockpit.updater.open",
           title: "Update plugins",
-          category: "Plugins",
+          category: "Cockpit · Updater",
           namespace: "palette",
           slashName: "plugins-update",
           run: open,

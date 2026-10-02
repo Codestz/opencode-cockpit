@@ -27,7 +27,7 @@ export interface TrustConfig {
   /**
    * Whether Trust draws a block in the sidebar. Default false: the sidebar already carries the
    * statusline, subagents and shells, and Trust works the same without it — `/trust` opens the
-   * ledger, and the palette's "Trust: show in sidebar" brings the block back for the session.
+   * ledger, and the palette's "Show or hide Trust in the sidebar" brings the block back for the session.
    */
   sidebar?: boolean
   /** Answers by Trust listed in the sidebar. Default 3. */

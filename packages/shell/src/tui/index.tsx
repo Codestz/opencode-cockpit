@@ -303,24 +303,24 @@ const shellTui = async (api: Host, rawOptions?: unknown) => {
     commands: [
       {
         name: "cockpit.shells.dock",
-        title: "Toggle shells panel",
-        category: "Shells",
+        title: "Show or hide the shells panel",
+        category: "Cockpit · Shell",
         namespace: "palette",
         slashName: "shells-dock",
         run: () => toggleDock(),
       },
       {
         name: "cockpit.shells.console",
-        title: "Open shell console",
-        category: "Shells",
+        title: "Open the shell console",
+        category: "Cockpit · Shell",
         namespace: "palette",
         slashName: "shell",
         run: () => openConsole(),
       },
       {
         name: "cockpit.shells.new",
-        title: "New background shell",
-        category: "Shells",
+        title: "Start a background shell",
+        category: "Cockpit · Shell",
         namespace: "palette",
         slashName: "shell-new",
         run: () => newShell(api, store, openConsole),
@@ -328,7 +328,7 @@ const shellTui = async (api: Host, rawOptions?: unknown) => {
       {
         name: "cockpit.shells.stop",
         title: "Stop the shells in view",
-        category: "Shells",
+        category: "Cockpit · Shell",
         namespace: "palette",
         slashName: "shells-stop",
         run: () => stopShells(api, store, "view"),
@@ -336,7 +336,7 @@ const shellTui = async (api: Host, rawOptions?: unknown) => {
       {
         name: "cockpit.shells.stopAll",
         title: "Stop every shell in this project",
-        category: "Shells",
+        category: "Cockpit · Shell",
         namespace: "palette",
         slashName: "shells-stop-all",
         run: () => stopShells(api, store, "project"),
@@ -344,7 +344,7 @@ const shellTui = async (api: Host, rawOptions?: unknown) => {
       {
         name: "cockpit.shells.clear",
         title: "Clear finished shells",
-        category: "Shells",
+        category: "Cockpit · Shell",
         namespace: "palette",
         slashName: "shells-clear",
         run: () => {
@@ -365,16 +365,16 @@ const shellTui = async (api: Host, rawOptions?: unknown) => {
       },
       {
         name: "cockpit.shells.restartDaemon",
-        title: "Restart shell daemon",
-        category: "Shells",
+        title: "Restart the shell daemon",
+        category: "Cockpit · Shell",
         namespace: "palette",
         slashName: "shells-restart-daemon",
         run: () => restartDaemon(api, store),
       },
       {
         name: "cockpit.shells.pick",
-        title: "Shells: pick one, or start a new one",
-        category: "Shells",
+        title: "Pick a shell, or start one",
+        category: "Cockpit · Shell",
         namespace: "palette",
         slashName: "shells",
         run: () => pickShell(api, store, openConsole),

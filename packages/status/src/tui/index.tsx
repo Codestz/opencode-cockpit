@@ -125,8 +125,8 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
       commands: [
         {
           name: "cockpit.status.customise",
-          title: "Statusline: ask the agent to customise it",
-          category: "Statusline",
+          title: "Ask the agent to customise the statusline",
+          category: "Cockpit · Status",
           namespace: "palette",
           slashName: "statusline",
           run: () => {

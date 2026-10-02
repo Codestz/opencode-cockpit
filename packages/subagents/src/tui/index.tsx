@@ -876,8 +876,8 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       commands: [
         {
           name: "cockpit.subagents.open",
-          title: "Open subagents",
-          category: "Subagents",
+          title: "Open the subagents",
+          category: "Cockpit · Subagents",
           namespace: "palette",
           slashName: "subagents",
           run: () => openLatest(),
@@ -885,14 +885,15 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
         {
           name: "cockpit.subagents.clearFinished",
           title: "Clear finished subagents",
-          category: "Subagents",
+          desc: "from the sidebar",
+          category: "Cockpit · Subagents",
           namespace: "palette",
           run: () => clearFinished(),
         },
         {
           name: "cockpit.subagents.restore",
           title: "Show removed subagents again",
-          category: "Subagents",
+          category: "Cockpit · Subagents",
           namespace: "palette",
           run: () => restore(),
         },

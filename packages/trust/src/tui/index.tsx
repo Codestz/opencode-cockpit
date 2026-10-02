@@ -530,16 +530,17 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
       commands: [
         {
           name: "cockpit.trust.ledger",
-          title: "Trust: what it answers for you",
-          category: "Trust",
+          title: "Show what Trust answers for you",
+          category: "Cockpit · Trust",
           namespace: "palette",
           slashName: "trust",
           run: () => openLedger(),
         },
         {
           name: "cockpit.trust.sidebar",
-          title: "Trust: show or hide in the sidebar",
-          category: "Trust",
+          title: "Show or hide Trust in the sidebar",
+          desc: "for this session",
+          category: "Cockpit · Trust",
           namespace: "palette",
           run: () => {
             inSidebar = !inSidebar
@@ -555,8 +556,8 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
         },
         {
           name: "cockpit.trust.pause",
-          title: "Trust: pause or resume in this project",
-          category: "Trust",
+          title: "Pause or resume Trust in this project",
+          category: "Cockpit · Trust",
           namespace: "palette",
           run: () => togglePause(),
         },
