@@ -70,6 +70,8 @@ export interface Answered {
   label: string
   subjects: string[]
   why: string
+  /** The widened family that answered it, when one did: the sidebar says "any ls". */
+  via?: string
 }
 
 export interface EngineOptions extends Thresholds {
@@ -164,6 +166,7 @@ export function createEngine(initial: EngineOptions): Engine {
       pending.delete(requestID)
       total++
       const subjects = entry.judgement.items.map((item) => item.subject)
+      const via = entry.judgement.items.find((item) => item.via !== undefined)?.via
       answered.unshift({
         at,
         request: requestID,
@@ -172,6 +175,7 @@ export function createEngine(initial: EngineOptions): Engine {
         label: subjects.join(" && "),
         subjects,
         why: entry.judgement.why,
+        ...(via !== undefined ? { via } : {}),
       })
       answered.splice(Math.max(1, options.keep ?? 20))
       return { v: 1, at, type: "auto", rule: entry.judgement.why, ...about(entry) }

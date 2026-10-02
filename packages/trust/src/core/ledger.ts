@@ -17,6 +17,8 @@ import { canonical } from "./rules.ts"
 export interface Item {
   subject: string
   danger?: string
+  /** On an answer by Trust: the widened family that answered it, rather than the rule's own count. */
+  via?: string
 }
 
 /** What every event about one request carries. */
@@ -39,6 +41,13 @@ export type Event = { v: 1; at: number } & (
   | ({ type: "auto"; rule: string } & About)
   /** You took a rule's trust away; it has to be earned again. */
   | { type: "revoked"; permission: string; agent: string; subject: string }
+  /**
+   * You trusted a whole family (family.ts) for one agent: any command in it is answered, except the
+   * ones a widening never covers. Only a person writes this; Trust never widens by itself.
+   */
+  | { type: "widened"; permission: string; agent: string; family: string }
+  /** The family is back to its exact rules, each standing on its own count. */
+  | { type: "unwidened"; permission: string; agent: string; family: string }
   /** Trust stops answering in this project until resumed — every window, not just this one. */
   | { type: "paused" }
   | { type: "resumed" }
@@ -74,8 +83,19 @@ export interface Always {
   patterns: string[]
 }
 
+/** A family you trusted as a whole, for one agent under one permission. */
+export interface Widened {
+  key: string
+  permission: string
+  agent: string
+  family: string
+  at: number
+}
+
 export interface State {
   entries: Map<string, Entry>
+  /** By `keyOf(permission, agent, family)`: the same key shape as a rule, a different namespace. */
+  widened: Map<string, Widened>
   always: Always[]
   paused: boolean
   /** Requests already settled: two windows writing one outcome count it once. */
@@ -89,7 +109,13 @@ export interface FoldOptions {
 
 export const DAY = 86_400_000
 
-export const emptyState = (): State => ({ entries: new Map(), always: [], paused: false, settled: new Set() })
+export const emptyState = (): State => ({
+  entries: new Map(),
+  widened: new Map(),
+  always: [],
+  paused: false,
+  settled: new Set(),
+})
 
 export const keyOf = (permission: string, agent: string, subject: string): string =>
   JSON.stringify([canonical(permission), agent, subject])
@@ -160,6 +186,20 @@ export function apply(state: State, event: Event, options: FoldOptions): State {
       }
       return state
     }
+    case "widened": {
+      const key = keyOf(event.permission, event.agent, event.family)
+      state.widened.set(key, {
+        key,
+        permission: canonical(event.permission),
+        agent: event.agent,
+        family: event.family,
+        at: event.at,
+      })
+      return state
+    }
+    case "unwidened":
+      state.widened.delete(keyOf(event.permission, event.agent, event.family))
+      return state
     case "paused":
       state.paused = true
       return state
@@ -210,7 +250,17 @@ export function standing(
 
 /* ─── the file ───────────────────────────────────────────────────────────────────────────────── */
 
-const TYPES = new Set(["asked", "approved", "rejected", "auto", "revoked", "paused", "resumed"])
+const TYPES = new Set([
+  "asked",
+  "approved",
+  "rejected",
+  "auto",
+  "revoked",
+  "widened",
+  "unwidened",
+  "paused",
+  "resumed",
+])
 
 function asEvent(value: unknown): Event | undefined {
   if (!value || typeof value !== "object") return undefined
@@ -221,6 +271,12 @@ function asEvent(value: unknown): Event | undefined {
     return typeof raw.permission === "string" &&
       typeof raw.agent === "string" &&
       typeof raw.subject === "string"
+      ? (raw as Event)
+      : undefined
+  if (raw.type === "widened" || raw.type === "unwidened")
+    return typeof raw.permission === "string" &&
+      typeof raw.agent === "string" &&
+      typeof raw.family === "string"
       ? (raw as Event)
       : undefined
   if (raw.type === "paused" || raw.type === "resumed") return raw as Event

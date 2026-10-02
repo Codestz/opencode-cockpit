@@ -61,7 +61,7 @@ const FLAGS = new Set(["--force", "--force-with-lease", "--force-if-includes", "
  * flags that take a separate value, so `timeout -s KILL 5 rm x` finds `rm` rather than `KILL`.
  * `sudo` and `doas` are dangerous in themselves: whatever runs, runs as root.
  */
-interface Wrapper {
+export interface Wrapper {
   /** Flags whose value is the next word. */
   values?: readonly string[]
   /** Positional words the wrapper takes before the command: `timeout 5`, `nice` has none. */
@@ -70,7 +70,7 @@ interface Wrapper {
   dangerous?: string
 }
 
-const WRAPPERS: Record<string, Wrapper> = {
+export const WRAPPERS: Readonly<Record<string, Wrapper>> = {
   sudo: { values: ["-u", "-g", "-h", "-p", "-C", "-D", "-r", "-t", "-U", "-T"], dangerous: "sudo" },
   doas: { values: ["-u", "-C"], dangerous: "doas" },
   env: { values: ["-u", "-C", "-S", "--unset", "--chdir", "--split-string"] },
@@ -110,7 +110,7 @@ const recursive = (args: readonly string[]) => has(args, "--recursive") || short
 
 const GIT_GLOBALS = ["-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env"]
 const DOCKER_GLOBALS = ["-H", "--host", "-c", "--context", "--config", "-l", "--log-level"]
-const COMPOSE_GLOBALS = [
+export const COMPOSE_GLOBALS = [
   "-f",
   "--file",
   "-p",
@@ -291,10 +291,18 @@ const TOOLS: Record<string, Tool> = {
   },
 }
 
+/**
+ * The flags before a tool's subcommand that take a separate value, by program: what family.ts needs
+ * to find `status` in `git -C /x status`. Read from the table above so the two cannot disagree.
+ */
+export const TOOL_GLOBALS: Readonly<Record<string, readonly string[]>> = Object.fromEntries(
+  Object.entries(TOOLS).map(([name, tool]) => [name, tool.globals ?? []]),
+)
+
 /* ─── reading a command ──────────────────────────────────────────────────────────────────────── */
 
 /** The words after the global flags: `[-C, /tmp, push, origin]` → `[push, origin]`. */
-function subcommand(args: readonly string[], globals: readonly string[] = []): string[] {
+export function subcommand(args: readonly string[], globals: readonly string[] = []): string[] {
   let i = 0
   while (i < args.length) {
     const arg = args[i] as string
@@ -305,32 +313,46 @@ function subcommand(args: readonly string[], globals: readonly string[] = []): s
   return args.slice(i)
 }
 
+/**
+ * One wrapper taken off the front: its name, and the words it runs. Undefined when `argv` does not
+ * start with a wrapper. Families (family.ts) keep the wrapper's name — `sudo ls` is not `ls` — and
+ * drop its flags, so this is shared rather than copied.
+ */
+export function unwrapOnce(
+  argv: readonly string[],
+): { wrapper: string; rest: readonly string[] } | undefined {
+  const program = argv[0]
+  if (program === undefined) return undefined
+  const name = posix.basename(program)
+  const wrapper = WRAPPERS[name]
+  if (!wrapper) return undefined
+  let i = 1
+  while (i < argv.length) {
+    const word = argv[i] as string
+    if (word === "--") {
+      i++
+      break
+    }
+    // `env NAME=value cmd`: assignments are the wrapper's, not the command.
+    if (name === "env" && /^[A-Za-z_][A-Za-z0-9_]*=/.test(word)) {
+      i++
+      continue
+    }
+    if (!word.startsWith("-")) break
+    i += wrapper.values?.includes(word) ? 2 : 1
+  }
+  return { wrapper: name, rest: argv.slice(i + (wrapper.positionals ?? 0)) }
+}
+
 /** The command a wrapper runs, and whether the wrapper itself already made it dangerous. */
 function unwrap(argv: readonly string[]): { argv: readonly string[]; reason?: string } {
   let words = argv
   let reason: string | undefined
   for (let depth = 0; depth < 8; depth++) {
-    const program = words[0]
-    if (program === undefined) break
-    const wrapper = WRAPPERS[posix.basename(program)]
-    if (!wrapper) break
-    reason ??= wrapper.dangerous
-    let i = 1
-    while (i < words.length) {
-      const word = words[i] as string
-      if (word === "--") {
-        i++
-        break
-      }
-      // `env NAME=value cmd`: assignments are the wrapper's, not the command.
-      if (program === "env" && /^[A-Za-z_][A-Za-z0-9_]*=/.test(word)) {
-        i++
-        continue
-      }
-      if (!word.startsWith("-")) break
-      i += wrapper.values?.includes(word) ? 2 : 1
-    }
-    words = words.slice(i + (wrapper.positionals ?? 0))
+    const once = unwrapOnce(words)
+    if (!once) break
+    reason ??= WRAPPERS[once.wrapper]?.dangerous
+    words = once.rest
   }
   return reason ? { argv: words, reason } : { argv: words }
 }
