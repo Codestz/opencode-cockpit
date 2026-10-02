@@ -15,8 +15,9 @@
  * safe direction.
  */
 
+import { emptyHistory, type History, note } from "./history.ts"
 import type { Context, Request } from "./keys.ts"
-import { applyAll, type Event, emptyState, type FoldOptions, type State, type Thresholds } from "./ledger.ts"
+import { apply, type Event, emptyState, type FoldOptions, type State, type Thresholds } from "./ledger.ts"
 import { decide, type Judgement } from "./policy.ts"
 import type { ConfigRule } from "./rules.ts"
 
@@ -81,6 +82,11 @@ export interface EngineOptions extends Thresholds {
 
 export interface Engine {
   readonly state: State
+  /**
+   * When things happened, for the screens that say why (history.ts): folded from the same events as
+   * the state, bounded, and never read by a decision.
+   */
+  readonly history: History
   /** Events read from the ledger file, in file order. */
   load(events: readonly Event[], options?: { reset?: boolean }): void
   /**
@@ -113,9 +119,18 @@ export interface Engine {
 
 export function createEngine(initial: EngineOptions): Engine {
   let options = initial
-  const fold = (): FoldOptions => ({ expireMs: options.expireDays * 86_400_000 })
+  const foldOptions = (): FoldOptions => ({ expireMs: options.expireDays * 86_400_000 })
   let events: Event[] = []
   let state = emptyState()
+  let history = emptyHistory()
+  /** One pass: each event noted in the history before the state settles it, so both count it once. */
+  const fold = (into: State, more: readonly Event[]) => {
+    for (const event of more) {
+      note(history, event, into.settled)
+      apply(into, event, foldOptions())
+    }
+    return into
+  }
   const pending = new Map<string, Pending>()
   /** Requests this window decided to answer, until the answer is recorded or fails. */
   const ours = new Map<string, Pending>()
@@ -140,13 +155,17 @@ export function createEngine(initial: EngineOptions): Engine {
     get state() {
       return state
     },
+    get history() {
+      return history
+    },
     load(more, { reset = false } = {}) {
       if (reset) {
         events = []
         state = emptyState()
+        history = emptyHistory()
       }
       events = events.concat(more)
-      applyAll(state, more, fold())
+      fold(state, more)
     },
     ask({ request, context, agent, rules, at }) {
       const judgement = decide({ request, context, agent, rules, state, settings: options, now: at })
@@ -219,7 +238,8 @@ export function createEngine(initial: EngineOptions): Engine {
     count: () => total,
     reset(next) {
       options = next
-      state = applyAll(emptyState(), events, fold())
+      history = emptyHistory()
+      state = fold(emptyState(), events)
     },
   }
 }
