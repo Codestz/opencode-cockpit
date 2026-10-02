@@ -37,11 +37,23 @@ export interface ServerHost {
      */
     busy?(id: string): Promise<boolean | undefined>
     /** A session's child sessions — its subagents. OpenCode 1 only: OpenCode 2 gives plugins no list. */
-    children?(
-      id: string,
-    ): Promise<{ id: string; title?: string; parentID?: string; time?: { updated?: number } }[]>
+    children?(id: string): Promise<
+      {
+        id: string
+        title?: string
+        parentID?: string
+        agent?: string
+        time?: { created?: number; updated?: number }
+      }[]
+    >
     /** A session's messages with their parts, as OpenCode 1 stores them. OpenCode 1 only. */
     messages?(id: string): Promise<{ info: unknown; parts: unknown[] }[]>
+    /**
+     * A session's messages as OpenCode 2 stores them (`{ type: "user" | "assistant", … }`), read
+     * through `session.context`: what the model is given, so a compacted session starts at its
+     * summary. OpenCode 2 only; OpenCode 1 has `messages`.
+     */
+    context?(id: string): Promise<unknown[]>
     /**
      * A message from the plugin rather than the person, which starts a turn: v1's synthetic prompt.
      *
@@ -220,6 +232,8 @@ export interface V2ServerContext {
       sessionID: string
     }): Promise<{ parentID?: string; title?: string; agent?: string } | undefined>
     synthetic(input: { sessionID: string; text: string; delivery?: "steer" | "queue" }): Promise<unknown>
+    /** A session's messages as the model is given them (2.0.15). */
+    context?(input: { sessionID: string }): Promise<unknown[]>
     hook(name: "context", run: (event: { sessionID: string; system: unknown[] }) => unknown): Promise<unknown>
   }
   event: { subscribe(options: { signal: AbortSignal }): AsyncIterable<V2Event> }
@@ -278,6 +292,10 @@ export function serverFromV2(
     scope: scopeFor(directory),
     session: {
       get: (id) => ctx.session.get({ sessionID: id }).catch(() => undefined),
+      context: async (id) => {
+        const list = await ctx.session.context?.({ sessionID: id }).catch(() => undefined)
+        return Array.isArray(list) ? list : []
+      },
       notify: async (id, text, options) => {
         await ctx.session.synthetic({
           sessionID: id,

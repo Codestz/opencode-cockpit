@@ -44,9 +44,14 @@ line each; thinking folds; the answer is drawn as markdown.
 | `esc` `q` | Back to the conversation |
 
 **Follow-ups keep their context.** The main agent is asked to continue the subagent that did the work
-(`task_id` on OpenCode 1, `sessionID` on 2) rather than launch a new one, and has a `subagents_list`
-tool: each subagent's id, task, state and last answer — saying when one was cancelled, or ended on a
-progress note rather than an answer. Each round shows in the pane under a "Round N" rule.
+(`task_id` on OpenCode 1, `sessionID` on 2) rather than launch a new one. Each round shows in the
+pane under a "Round N" rule. The main agent has three tools of its own:
+
+| Tool | What it answers |
+| --- | --- |
+| `subagents_list` | Each subagent's id, task, state — with when it ended, by the clock — and last answer; says when one was cancelled, or ended on a progress note rather than an answer |
+| `subagents_read id [after]` | One subagent in full: why it stopped, its task, its whole final answer, and every call it made with what it was about and how it ended — paged with a cursor. Works on cancelled ones, which can be continued |
+| `subagents_wait [ids] [any] [timeoutSeconds]` | Blocks until background subagents finish, fail, are cancelled or stop on a permission — never longer than its timeout — and returns each one's state and answer |
 
 **Message it.** A subagent that is still working picks your message up in its current run and answers
 it in its report, so the main agent sees it too. A finished one wakes up and answers you, and Cockpit
@@ -57,10 +62,12 @@ next time. A message it finished without reading comes back to the field.
 it on purpose, so it reports the stop instead of launching the subagent again. `x` on a finished one
 removes it from the list, `X` removes every finished one; the sessions stay in OpenCode.
 
-**Background subagents.** The main agent is asked to launch independent subagents with
-`background: true` when its tool offers it, so the conversation keeps going. OpenCode 2 offers it
-always; **OpenCode 1 only when started with `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`** — a
-plugin cannot set that for you. `b` moves one already running in the foreground, the same way.
+**Background subagents.** Where the tool offers it, the main agent is asked to launch independent
+subagents with `background: true`, so the conversation keeps going. OpenCode 2 offers it always;
+**OpenCode 1 only when started with `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`** — a plugin
+cannot set that for you, and `opencode-cockpit doctor` says when it is missing. Without it the agent
+is told not to try, and to launch independent subagents in one message so they run side by side.
+`b` moves one already running in the foreground, the same way.
 
 ```sh
 export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true   # in ~/.zshrc, then start OpenCode
