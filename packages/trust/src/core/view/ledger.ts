@@ -1,36 +1,45 @@
 /**
- * The ledger dialog: everything Trust has learned in this project, grouped by what it does, and what
- * you can do about it.
+ * The ledger dialog: what Trust answers for you, what it is close to answering, why, and how to stop
+ * it — the four questions a person opens it with, in that order.
  *
- *   Trust in this project                       3 in a row · dangerous +5 · unused 30 days expires
+ *   Trust in this project                                                                   on
  *
- *   ▾ ls                                                    2 trusted · 1 counting    2m ago
- *        ● ls -la                       general               trusted · 3 auto       now
- *        ● ls -la src                   general                        trusted    2m ago
- *        ○ ls -R docs                   general                            2/3    5m ago
- *   ▸ git status                        build, general       1 trusted · 1 counting   1h ago
- *   ● echo "---"                        general                        trusted    3m ago
- *   + 64 approved once · [a] show all
+ *   Answers for you  5 commands                               agent  answered   last
+ *   ▸ ls  any ls … · 4 commands                             general        4×    now
+ *   ● git status --short                                      build        2×     2m
+ *   ● echo "---"  (3 hyphens)                               general        1×     5m
  *
- *   ───────────────────────────────────────────────────────────────────────────────────────────
- *   Exactly   echo "---"
- *   Answers   only this exact text, as general. Still asks: echo · echo "---" > out.txt
- *   [enter] Fold   [x] Revoke   [w] Trust Any echo   [c] Copy As Config   [esc] Close
+ *   Learning  3 commands                                      agent  approved   last
+ *   ○ git status --short                                    general    2 of 3     2m
+ *   ○ git push origin feat/trust  dangerous                   build    5 of 8     2d
+ *   + 4 more approved once · [a] lists them
  *
- * **Families** (family.ts) are what the rows are grouped by: `ls -la`, `ls -x` and `ls -R docs` are
- * all `ls`. A family with one rule and no widening is drawn as that one row — a heading over a single
- * line is a fold with nothing to fold. Families start folded; `enter` opens one.
+ *   ─────────────────────────────────────────────────────────────────────────────────────────
+ *   Exactly    echo "---"  — "---" is 3 hyphens, which some fonts draw as one line
+ *   Answers    this exact text, for general. Unused for 30 days, it is forgotten.
+ *   Still asks echo · echo "---" > out.txt
+ *   [x] Revoke   [w] Trust Any echo   [c] Copy As Config   [a] Show All   [p] Pause   [esc] Close
  *
- * **One row per command**, however many agents earned it: `git status --short` trusted for `build`
- * and at 2/3 for `general` was two rows that read as a duplicate. Counting is still per agent — the
- * row lists each agent and its own standing.
+ * **Two sections, by what a rule does for you now.** One list sorted trusted-then-counting, with a
+ * `trusted` or `2/3` on every row, made you read each row to learn which kind it was (a user's
+ * screenshots). So the answers are one section, newest first — what Trust is doing for you right now —
+ * and the rules still counting another, closest to trusted first. A command earned by one agent and
+ * still counting for another is a row in each: both rows are true, and `x` acts on the row you are on.
  *
- * **The panel** under the list says exactly what the selected line is — every argument quoted so no
- * font can merge `---` into a line — and in a sentence what it answers and what still asks. The
- * rows are the same vocabulary as the sidebar's: a filled dot is trusted, a hollow one counting.
+ * **Colour is the mark, not the row.** A filled dot in the success tone is a rule that answers; a
+ * hollow muted ring one still counting; `dangerous` in the error tone. Agents, counts and times are
+ * muted words in columns headed by what they mean (`approved 2 of 3`), so the commands are what the
+ * eye reads first. An agent column that would say the same thing on every row is left out.
+ *
+ * **Families** (family.ts) group a section's rules: `ls -la`, `ls -x` and `ls -R docs` are all `ls`.
+ * A family of one rule is drawn as that one row; families start folded, and `enter` opens one.
+ *
+ * **The panel** under the list says what the selected line is, one labelled row per fact — what it
+ * is exactly, what it answers or how far it has to go, and what still asks or how to stop it — with
+ * every argument quoted, and one a font could merge (`---`) said in words.
  */
 
-import { closeHint, fitHints, type Hint, labelCase } from "@opencode-cockpit/client/design"
+import { closeHint, fitHints, GLYPH, type Hint, labelCase } from "@opencode-cockpit/client/design"
 import {
   anyOf,
   familyOf,
@@ -40,6 +49,7 @@ import {
   redirected,
   showSubject,
   spelledSubject,
+  spelledWords,
   widenable,
 } from "../family.ts"
 import {
@@ -52,7 +62,7 @@ import {
   type Thresholds,
   type Widened,
 } from "../ledger.ts"
-import { ago, filled, fit, type Row, type Run, spread, type Tone, widthOf } from "./rows.ts"
+import { ago, cut, filled, fit, type Row, type Run, spread, type Tone, widthOf } from "./rows.ts"
 
 export type LedgerItem = { kind: "rule"; entry: Entry } | { kind: "always"; always: Always }
 
@@ -96,7 +106,7 @@ export function ledgerShown(
   return { items: shown, folded: items.length - shown.length }
 }
 
-/* ─── the model: families, rules, lines ──────────────────────────────────────────────────────── */
+/* ─── the model: sections, families, rules, lines ────────────────────────────────────────────── */
 
 export interface Reading {
   state: State
@@ -123,12 +133,22 @@ export function standOf(entry: Entry, { state, settings, now }: Reading): Stand 
   return { kind: "counting", have: where.have, need: where.need, expired: where.expired }
 }
 
-const rankOf = (stand: Stand) =>
-  stand.kind === "trusted" ? 0 : stand.kind === "widened" ? 1 : stand.have > 0 ? 2 : 3
+/**
+ * The two halves of the list. `answers`: what Trust answers for you now, by its own count or through
+ * a family you widened. `learning`: what it is still counting.
+ */
+export type Section = "answers" | "learning"
 
-/** One command, with every agent that has a standing for it — the best first. */
+const sectionOf = (stand: Stand): Section => (stand.kind === "counting" ? "learning" : "answers")
+
+/** How many approvals a rule still needs; an expired count is last, whatever its streak was. */
+const distance = (stand: Stand) =>
+  stand.kind !== "counting" ? 0 : stand.expired ? Number.MAX_SAFE_INTEGER : stand.need - stand.have
+
+/** One command in one section, with every agent that stands there for it — the closest first. */
 export interface RuleGroup {
   key: string
+  section: Section
   permission: string
   subject: string
   family: string
@@ -138,9 +158,10 @@ export interface RuleGroup {
 
 export interface FamilyGroup {
   key: string
+  section: Section
   permission: string
   family: string
-  /** Best first: trusted, answered through the widening, counting, the rest; newest first within. */
+  /** Answers newest first; counting rules closest to trusted first. */
   rules: RuleGroup[]
   /** The agents you trusted the whole family for. */
   widened: Widened[]
@@ -148,24 +169,39 @@ export interface FamilyGroup {
 }
 
 export type Line =
-  | { kind: "family"; key: string; family: FamilyGroup; open: boolean }
-  | { kind: "rule"; key: string; family: FamilyGroup; rule: RuleGroup; nested: boolean }
+  /** `fold` is what the dialog's open set holds: a family folds per section. */
+  | { kind: "family"; key: string; fold: string; family: FamilyGroup; open: boolean }
+  | { kind: "rule"; key: string; fold: string; family: FamilyGroup; rule: RuleGroup; nested: boolean }
   | { kind: "always"; key: string; always: Always }
 
-/** The rules' items grouped into families, with every widened family — even one with no rule left. */
+const foldOf = (family: FamilyGroup) => `${family.section}:${family.key}`
+
+/** The section a line is drawn in; OpenCode's own approvals are a third, under their own heading. */
+export const sectionOfLine = (line: Line): Section | "always" =>
+  line.kind === "always" ? "always" : line.family.section
+
+/**
+ * The rules' items grouped into families per section, answers first — with every widened family in
+ * the answers, even one with no rule left.
+ */
 export function ledgerFamilies(items: readonly LedgerItem[], reading: Reading): FamilyGroup[] {
   const rules = new Map<string, RuleGroup>()
+  const stands = new Map<Entry, Stand>()
   for (const item of items) {
     if (item.kind !== "rule") continue
     const { entry } = item
+    const stand = standOf(entry, reading)
+    stands.set(entry, stand)
+    const section = sectionOf(stand)
     const key = JSON.stringify([entry.permission, entry.subject])
-    const found = rules.get(key)
+    const found = rules.get(`${section}:${key}`)
     if (found) {
       found.entries.push(entry)
       found.lastAt = Math.max(found.lastAt, entry.lastAt)
     } else
-      rules.set(key, {
+      rules.set(`${section}:${key}`, {
         key,
+        section,
         permission: entry.permission,
         subject: entry.subject,
         family: familyOf(entry.permission, entry.subject),
@@ -173,39 +209,53 @@ export function ledgerFamilies(items: readonly LedgerItem[], reading: Reading): 
         lastAt: entry.lastAt,
       })
   }
-  const best = (a: Entry, b: Entry) =>
-    rankOf(standOf(a, reading)) - rankOf(standOf(b, reading)) || b.lastAt - a.lastAt
+  const far = (entry: Entry) => distance(stands.get(entry) ?? standOf(entry, reading))
   const families = new Map<string, FamilyGroup>()
-  const familyFor = (permission: string, family: string) => {
+  const familyFor = (section: Section, permission: string, family: string) => {
     const key = JSON.stringify([permission, family])
-    let found = families.get(key)
+    let found = families.get(`${section}:${key}`)
     if (!found) {
-      found = { key, permission, family, rules: [], widened: [], lastAt: 0 }
-      families.set(key, found)
+      found = { key, section, permission, family, rules: [], widened: [], lastAt: 0 }
+      families.set(`${section}:${key}`, found)
     }
     return found
   }
   for (const rule of rules.values()) {
-    rule.entries.sort(best)
-    const family = familyFor(rule.permission, rule.family)
+    rule.entries.sort((a, b) => far(a) - far(b) || b.lastAt - a.lastAt)
+    const family = familyFor(rule.section, rule.permission, rule.family)
     family.rules.push(rule)
     family.lastAt = Math.max(family.lastAt, rule.lastAt)
   }
   for (const widened of reading.state.widened.values()) {
-    const family = familyFor(widened.permission, widened.family)
+    const family = familyFor("answers", widened.permission, widened.family)
     family.widened.push(widened)
     family.lastAt = Math.max(family.lastAt, widened.at)
   }
-  const ruleRank = (rule: RuleGroup) => rankOf(standOf(rule.entries[0] as Entry, reading))
-  const familyRank = (family: FamilyGroup) =>
-    family.widened.length > 0 ? 0 : Math.min(...family.rules.map(ruleRank))
+  /** A family still counting knows it is widened too, so `w` on it offers to undo rather than redo. */
   for (const family of families.values())
-    family.rules.sort((a, b) => ruleRank(a) - ruleRank(b) || b.lastAt - a.lastAt)
-  return [...families.values()].sort((a, b) => familyRank(a) - familyRank(b) || b.lastAt - a.lastAt)
+    if (family.section === "learning")
+      family.widened = [...reading.state.widened.values()].filter(
+        (each) => each.permission === family.permission && each.family === family.family,
+      )
+  const closest = (rule: RuleGroup) => far(rule.entries[0] as Entry)
+  for (const family of families.values())
+    family.rules.sort((a, b) =>
+      family.section === "answers" ? b.lastAt - a.lastAt : closest(a) - closest(b) || b.lastAt - a.lastAt,
+    )
+  const answers = [...families.values()]
+    .filter((family) => family.section === "answers")
+    .sort((a, b) => b.lastAt - a.lastAt)
+  const learning = [...families.values()]
+    .filter((family) => family.section === "learning")
+    .sort(
+      (a, b) => Math.min(...a.rules.map(closest)) - Math.min(...b.rules.map(closest)) || b.lastAt - a.lastAt,
+    )
+  return [...answers, ...learning]
 }
 
-/** A family drawn as its one row: one rule, nothing widened, so a heading would fold nothing. */
-const single = (family: FamilyGroup) => family.rules.length === 1 && family.widened.length === 0
+/** A family drawn as its one row: one rule, and nothing widened that a heading would have to say. */
+const single = (family: FamilyGroup) =>
+  family.rules.length === 1 && (family.section === "learning" || family.widened.length === 0)
 
 export interface LedgerModel {
   lines: Line[]
@@ -213,7 +263,10 @@ export interface LedgerModel {
   folded: number
 }
 
-/** What the dialog lists, in order: each family (open or not), then OpenCode's own approvals. */
+/**
+ * What the dialog lists, in order: the answers, then what is still counting — each family open or
+ * not — then OpenCode's own approvals. `open` holds the `fold` of each family opened.
+ */
 export function ledgerModel(reading: Reading & { all: boolean; open: ReadonlySet<string> }): LedgerModel {
   const { items, folded } = ledgerShown(
     ledgerItems(reading.state, reading.settings, reading.now),
@@ -223,16 +276,17 @@ export function ledgerModel(reading: Reading & { all: boolean; open: ReadonlySet
   )
   const lines: Line[] = []
   for (const family of ledgerFamilies(items, reading)) {
+    const fold = foldOf(family)
     if (single(family)) {
       const rule = family.rules[0] as RuleGroup
-      lines.push({ kind: "rule", key: `r:${rule.key}`, family, rule, nested: false })
+      lines.push({ kind: "rule", key: `r:${rule.section}:${rule.key}`, fold, family, rule, nested: false })
       continue
     }
-    const open = reading.open.has(family.key)
-    lines.push({ kind: "family", key: `f:${family.key}`, family, open })
+    const open = reading.open.has(fold)
+    lines.push({ kind: "family", key: `f:${fold}`, fold, family, open })
     if (open)
       for (const rule of family.rules)
-        lines.push({ kind: "rule", key: `r:${rule.key}`, family, rule, nested: true })
+        lines.push({ kind: "rule", key: `r:${rule.section}:${rule.key}`, fold, family, rule, nested: true })
   }
   for (const item of items)
     if (item.kind === "always")
@@ -246,113 +300,114 @@ export function ledgerModel(reading: Reading & { all: boolean; open: ReadonlySet
 
 /* ─── drawing the list ───────────────────────────────────────────────────────────────────────── */
 
-/** One line's parts: the left grows and gives way, the three on the right are columns. */
+/** One line's parts: the left grows and gives way, the three on the right are columns of words. */
 interface Cells {
   left: Run[]
   agent: string
-  status: Run[]
+  status: string
   when: string
 }
 
+/** `bash` is every command; any other permission names itself, quietly, before its subject. */
 const prefix = (permission: string): Run[] =>
-  permission === "bash" ? [] : [{ text: `${permission} `, tone: "tool" }]
+  permission === "bash" ? [] : [{ text: `${permission} `, tone: "muted" }]
 
 const distinct = (values: readonly string[]) => [...new Set(values)]
 
-function standRun(stand: Stand, danger: boolean): Run {
-  if (stand.kind === "trusted") return { text: "trusted", tone: "success" }
-  if (stand.kind === "widened") return { text: "widened", tone: "success" }
-  return {
-    text: `${stand.have}/${stand.need}`,
-    tone: stand.expired ? "muted" : danger ? "error" : "warning",
-  }
+/** `5m`, `2h`, `now`: under a column headed `last`, the `ago` on every row said nothing. */
+const since = (ms: number) => ago(ms).replace(/ ago$/, "")
+
+const plural = (count: number, one: string, many = `${one}s`) => `${count} ${count === 1 ? one : many}`
+
+/** `  (3 hyphens)`, muted, after a command a font could misdraw; nothing otherwise. */
+function spelledRuns(permission: string, subject: string): Run[] {
+  const said = spelledSubject(permission, subject)
+  return said ? [{ text: `  (${said})`, tone: "muted" }] : []
 }
 
-/** Separators between agents' standings: `trusted, 2/3`, in the order the agent column names them. */
-function joined(runs: readonly Run[]): Run[] {
-  return runs.flatMap((run, index) => (index === 0 ? [run] : [{ text: ", ", tone: "muted" as const }, run]))
+const dangerRuns = (danger: string | undefined): Run[] =>
+  danger ? [{ text: "  dangerous", tone: "error" }] : []
+
+const autosOf = (entries: readonly Entry[]) => entries.reduce((sum, entry) => sum + entry.autos, 0)
+
+/** Under `answered`: `12×`, or `not yet` for a rule earned and not needed since — `0×` read as broken. */
+const answered = (count: number) => (count > 0 ? `${count}×` : "not yet")
+
+/** Under `approved`: `2 of 3` for the rule's closest agent. */
+function progress(rule: RuleGroup | undefined, reading: Reading): string {
+  const stand = rule?.entries[0] ? standOf(rule.entries[0], reading) : undefined
+  return stand?.kind === "counting" ? `${stand.have} of ${stand.need}` : ""
 }
 
 function ruleCells(rule: RuleGroup, nested: boolean, reading: Reading): Cells {
-  const stands = rule.entries.map((entry) => standOf(entry, reading))
-  const answered = stands.some((stand) => stand.kind !== "counting")
-  const danger = rule.entries.find((entry) => entry.danger)?.danger
-  const autos = rule.entries.reduce((sum, entry) => sum + entry.autos, 0)
-  const expired = stands.every((stand) => stand.kind === "counting" && stand.expired)
+  const lead = rule.entries[0] as Entry
+  const stand = standOf(lead, reading)
+  const answers = rule.section === "answers"
   return {
     left: [
-      { text: nested ? "     " : " " },
-      answered ? { text: "● ", tone: "success" } : { text: "○ ", tone: "warning" },
+      { text: nested ? "   " : " " },
+      answers ? { text: `${GLYPH.dot} `, tone: "success" } : { text: `${GLYPH.ring} `, tone: "muted" },
       ...prefix(rule.permission),
       { text: showSubject(rule.permission, rule.subject), tone: "text" },
       ...spelledRuns(rule.permission, rule.subject),
-      ...(danger ? [{ text: `  ${danger}`, tone: "error" as const }] : []),
+      /** Answered without ever being approved itself: the sidebar says it the same way. */
+      ...(stand.kind === "widened" && !nested
+        ? [{ text: ` · ${anyOf(rule.permission, stand.family)}`, tone: "muted" as const }]
+        : []),
+      ...dangerRuns(rule.entries.find((entry) => entry.danger)?.danger),
     ],
     agent: rule.entries.map((entry) => entry.agent).join(", "),
-    status: [
-      ...joined(stands.map((stand, index) => standRun(stand, rule.entries[index]?.danger !== undefined))),
-      ...(answered && autos > 0 ? [{ text: ` · ${autos} auto`, tone: "muted" as const }] : []),
-    ],
-    when: expired ? "expired" : ago(reading.now - rule.lastAt),
+    status: answers ? answered(autosOf(rule.entries)) : progress(rule, reading),
+    when: since(reading.now - rule.lastAt),
   }
 }
 
-/** Every agent named anywhere in a family: its rules' and its widenings'. */
+/** Every agent named anywhere in a family: its rules' and, in the answers, its widenings'. */
 const agentsOf = (family: FamilyGroup) =>
   distinct([
     ...family.rules.flatMap((rule) => rule.entries.map((entry) => entry.agent)),
-    ...family.widened.map((each) => each.agent),
+    ...(family.section === "answers" ? family.widened.map((each) => each.agent) : []),
   ])
 
 function familyCells(family: FamilyGroup, open: boolean, reading: Reading): Cells {
-  const agents = agentsOf(family)
-  const widenedFor = family.widened.map((each) => each.agent)
-  const trusted = family.rules.filter((rule) =>
-    rule.entries.some((entry) => standOf(entry, reading).kind !== "counting"),
-  ).length
-  const counting = family.rules.length - trusted
-  const counts: Run[] = [
-    ...(trusted > 0 ? [{ text: `${trusted} trusted`, tone: "success" as const }] : []),
-    ...(trusted > 0 && counting > 0 ? [{ text: " · ", tone: "muted" as const }] : []),
-    ...(counting > 0 ? [{ text: `${counting} counting`, tone: "warning" as const }] : []),
-  ]
+  const count = family.rules.length
+  const widened = family.section === "answers" && family.widened.length > 0
   return {
     left: [
-      { text: ` ${open ? "▾" : "▸"} `, tone: "muted" },
+      { text: ` ${open ? GLYPH.unfolded : GLYPH.folded} `, tone: "muted" },
       ...prefix(family.permission),
       { text: showSubject(family.permission, family.family), tone: "text", bold: true },
-      ...(widenedFor.length > 0
-        ? [
-            {
-              text: ` — any, widened${agents.length > widenedFor.length ? ` for ${widenedFor.join(", ")}` : ""}`,
-              tone: "success" as const,
-            },
-          ]
+      ...(widened
+        ? [{ text: `  ${anyOf(family.permission, family.family)}`, tone: "success" as const }]
+        : []),
+      ...(count > 0
+        ? [{ text: `${widened ? " · " : "  "}${plural(count, "command")}`, tone: "muted" as const }]
         : []),
     ],
-    agent: agents.length > 1 ? agents.join(", ") : "",
-    status: counts.length > 0 ? counts : [{ text: "no rules yet", tone: "muted" }],
-    when: ago(reading.now - family.lastAt),
+    agent: agentsOf(family).join(", "),
+    /**
+     * Still counting, a heading says how close its closest rule is — what it is sorted by. Blank, the
+     * family's place in the list had no reason you could see.
+     */
+    status:
+      family.section === "answers"
+        ? answered(autosOf(family.rules.flatMap((rule) => rule.entries)))
+        : progress(family.rules[0], reading),
+    when: since(reading.now - family.lastAt),
   }
 }
 
 function alwaysCells(always: Always, now: number): Cells {
   return {
     left: [
-      { text: " ! ", tone: "warning" },
+      { text: ` ${GLYPH.warn} `, tone: "warning" },
       ...prefix(always.permission),
-      { text: always.patterns.join("  "), tone: "warning" },
+      { text: always.patterns.join("  "), tone: "text" },
     ],
     agent: always.agent,
-    status: [{ text: "until restart", tone: "muted" }],
-    when: ago(now - always.at),
+    status: "",
+    when: since(now - always.at),
   }
-}
-
-/** `  3 hyphens`, muted, after a command a font could misdraw; nothing otherwise. */
-function spelledRuns(permission: string, subject: string): Run[] {
-  const said = spelledSubject(permission, subject)
-  return said ? [{ text: `  ${said}`, tone: "muted" }] : []
 }
 
 function cellsOf(line: Line, reading: Reading): Cells {
@@ -361,19 +416,84 @@ function cellsOf(line: Line, reading: Reading): Cells {
   return ruleCells(line.rule, line.nested, reading)
 }
 
-const textOf = (runs: readonly Run[]) => runs.map((run) => run.text).join("")
+/** The right-hand columns, sized once for the whole list so they read straight down every section. */
+interface Columns {
+  /** 0: one agent everywhere, so the column would say the same word on every row. */
+  agent: number
+  status: number
+  /** 0: too narrow to say when. */
+  when: number
+}
 
-/** The right-hand columns sized to the widest in the list, so they read straight down. */
-function rowOf(cells: Cells, columns: { agent: number; status: number; when: number }, width: number): Row {
-  const status = textOf(cells.status)
+const HEADS: Record<Section | "always", { title: string; status: string }> = {
+  answers: { title: "Answers for you", status: "answered" },
+  learning: { title: "Learning", status: "approved" },
+  always: { title: `OpenCode's own "always"`, status: "" },
+}
+const PAUSED_ANSWERS = "Would answer, once resumed"
+const AGENT_HEAD = "agent"
+const WHEN_HEAD = "last"
+/** An agent column wider than this is cut: two agents' names, not the command's room. */
+const AGENT_MAX = 16
+
+function columnsOf(
+  cells: readonly Cells[],
+  sections: ReadonlySet<Section | "always">,
+  width: number,
+): Columns {
+  const many = distinct(cells.flatMap((each) => each.agent.split(", ")).filter(Boolean)).length > 1
+  const heads = [...sections].map((section) => HEADS[section].status)
+  const columns: Columns = {
+    agent: many
+      ? Math.min(AGENT_MAX, Math.max(AGENT_HEAD.length, ...cells.map((each) => each.agent.length)))
+      : 0,
+    status: Math.max(0, ...heads.map((head) => head.length), ...cells.map((each) => each.status.length)),
+    when: Math.max(WHEN_HEAD.length, ...cells.map((each) => each.when.length)),
+  }
+  /** The command is what the list is for: the columns give way to it, the agents first. */
+  const right = (c: Columns) => (c.agent ? c.agent + 2 : 0) + c.status + 2 + (c.when ? c.when + 2 : 0) + 1
+  if (width - right(columns) < 28) columns.agent = 0
+  if (width - right(columns) < 20) columns.when = 0
+  return columns
+}
+
+function rightRuns(agent: string, status: string, when: string, columns: Columns, tone: Tone): Run[] {
+  return [
+    ...(columns.agent ? [{ text: `  ${cut(agent, columns.agent).padEnd(columns.agent)}`, tone }] : []),
+    { text: `  ${status.padStart(columns.status)}`, tone },
+    ...(columns.when ? [{ text: `  ${when.padStart(columns.when)}`, tone }] : []),
+    { text: " " },
+  ]
+}
+
+function rowOf(cells: Cells, columns: Columns, width: number): Row {
+  return spread(cells.left, rightRuns(cells.agent, cells.status, cells.when, columns, "muted"), width)
+}
+
+/** A section's heading: its name and size, and the columns' names over the columns they name. */
+function headingRow(
+  section: Section | "always",
+  count: number,
+  columns: Columns,
+  width: number,
+  paused: boolean,
+): Row {
+  const head = HEADS[section]
+  /** Paused, Trust answers nothing: "Answers for you" would be the one untrue line on the screen. */
+  const title = paused && section === "answers" ? PAUSED_ANSWERS : head.title
   return spread(
-    cells.left,
     [
-      { text: cells.agent.padEnd(columns.agent + 2), tone: "info" },
-      { text: " ".repeat(Math.max(0, columns.status - status.length)) },
-      ...cells.status,
-      { text: `  ${cells.when.padStart(columns.when)} `, tone: "muted" },
+      { text: ` ${title}`, tone: "text", bold: true },
+      ...(count > 0
+        ? [
+            {
+              text: `  ${plural(count, section === "always" ? "approval" : "command")}`,
+              tone: "muted" as const,
+            },
+          ]
+        : []),
     ],
+    rightRuns(AGENT_HEAD, head.status, WHEN_HEAD, columns, "muted"),
     width,
   )
 }
@@ -382,7 +502,8 @@ function rowOf(cells: Cells, columns: { agent: number; status: number; when: num
 
 /** Rows the panel always takes, so moving the cursor never moves the list. */
 export const PANEL_ROWS = 3
-const LABEL = 10
+/** `Still asks` and two spaces: the longest label, kept apart from a command that follows it. */
+const LABEL = 12
 
 /** `runs` wrapped at spaces into rows of `width`, at most `max`; the last says `…` when cut. */
 export function wrapRuns(runs: readonly Run[], width: number, max: number): Row[] {
@@ -416,107 +537,180 @@ export function wrapRuns(runs: readonly Run[], width: number, max: number): Row[
   const rest = lines.slice(max).flat()
   /**
    * The overflow joins the last row, which `fit` then cuts with `…`: it always overflows, because its
-   * first word is the one that did not fit there.
+   * first word is the one that did not fit there. The space the row's end lost goes back between them,
+   * or the cut read `anotherprog…`.
    */
-  kept[max - 1] = [...(kept[max - 1] as Row), ...rest]
+  kept[max - 1] = [...(kept[max - 1] as Row), { text: " " }, ...rest]
   return kept.map((line) => fit(line, width))
 }
 
-interface Said {
+/** One labelled fact in the panel. */
+export interface Said {
   label: string
   runs: Run[]
 }
 
 const muted = (text: string): Run => ({ text, tone: "muted" })
 const plain = (text: string): Run => ({ text, tone: "text" })
-const agentRun = (text: string): Run => ({ text, tone: "info" })
+const key = (name: string): Run => ({ text: `[${name}]`, tone: "accent", bold: true })
 
 /** What a widening never covers, in words — the same three `family.outside` holds back. */
 const EXCEPT = "except dangerous ones, ones that write a file and ones that run another program"
+const NOT_COVERED = "dangerous ones, and any that write a file or run another program"
 
-function standWords(stand: Stand): string {
-  if (stand.kind === "trusted") return "trusted"
-  if (stand.kind === "widened") return "answered through the family"
-  return `${stand.have}/${stand.need}`
+const agentsText = (agents: readonly string[]) =>
+  agents.length <= 1 ? (agents[0] ?? "") : `${agents.slice(0, -1).join(", ")} and ${agents.at(-1)}`
+
+/** `just now`, `15m ago`. */
+const when = (ms: number) => {
+  const said = ago(ms)
+  return said === "now" ? "just now" : said
+}
+
+/** The exact text, and — when a font could draw it as something else — what it is in words. */
+function exactly(permission: string, subject: string): Said {
+  const spelled = spelledWords(permission, subject)
+  return {
+    label: "Exactly",
+    runs: [
+      ...prefix(permission),
+      plain(showSubject(permission, subject)),
+      ...(spelled.length > 0
+        ? [
+            muted(
+              `  — ${spelled.map((each) => `${each.word} is ${each.said}`).join(", ")}, which some fonts draw as one line`,
+            ),
+          ]
+        : []),
+    ],
+  }
 }
 
 /** What still asks once a command is trusted exactly: a smaller one, and the same into a file. */
 function stillAsks(rule: RuleGroup): Run[] {
-  if (rule.permission === "edit") return [muted(" Any other file still asks.")]
-  if (rule.permission !== "bash") return [muted(` Any other ${rule.permission} still asks.`)]
-  const smaller = narrower(rule.subject)
-  const into = redirected(rule.subject)
-  const examples = [smaller, into].filter((each): each is string => each !== undefined)
-  const runs: Run[] = [muted(" Still asks: ")]
+  if (rule.permission === "edit") return [muted("any other file")]
+  if (rule.permission !== "bash") return [muted(`any other ${rule.permission}`)]
+  const examples = [narrower(rule.subject), redirected(rule.subject)].filter(
+    (each): each is string => each !== undefined,
+  )
+  const runs: Run[] = []
   examples.forEach((example, index) => {
     if (index > 0) runs.push(muted(" · "))
     runs.push(plain(example))
   })
-  if (!smaller) runs.push(muted(examples.length > 0 ? " · any added argument" : "any added argument"))
+  runs.push(muted(examples.length > 0 ? " · any other argument" : "any other argument"))
   return runs
 }
 
-function ruleSaid(rule: RuleGroup, reading: Reading): Said {
+/** The same command in the other section, for another agent: said, since it is a row elsewhere. */
+function elsewhere(rule: RuleGroup, reading: Reading): Run[] {
+  const others = [...reading.state.entries.values()].filter(
+    (entry) =>
+      entry.permission === rule.permission &&
+      entry.subject === rule.subject &&
+      (entry.approvals > 0 || entry.autos > 0) &&
+      !rule.entries.includes(entry),
+  )
+  return others.map((entry) => {
+    const stand = standOf(entry, reading)
+    return muted(
+      stand.kind === "counting"
+        ? ` Still learning for ${entry.agent}: ${stand.have} of ${stand.need}.`
+        : ` Also answered for ${entry.agent}.`,
+    )
+  })
+}
+
+function answerSaid(rule: RuleGroup, reading: Reading): Said[] {
   const lead = rule.entries[0] as Entry
   const stand = standOf(lead, reading)
-  const others: Run[] = rule.entries
-    .slice(1)
-    .flatMap((entry) => [
-      muted(" Also "),
-      agentRun(entry.agent),
-      muted(`: ${standWords(standOf(entry, reading))}.`),
-    ])
-  /** In a widened family, but one of the commands a widening leaves to its own count. */
-  const widenedHere = reading.state.widened.has(keyOf(rule.permission, lead.agent, rule.family))
-  const why = outside(rule.permission, rule.subject)
-  const notCovered: Run[] =
-    widenedHere && why !== undefined
-      ? [muted(` Not covered by ${anyOf(rule.permission, rule.family)}: ${why}.`)]
-      : []
-  /** A row that is its family alone is the only place to say `w` will never widen it. */
-  const can = widenable(rule.permission, rule.family)
-  const never: Run[] =
-    rule.permission === "bash" && !can.ok
-      ? [muted(` Never widened: ${can.why.includes("dangerous") ? "the family is dangerous" : can.why}.`)]
-      : []
+  const agents = agentsText(rule.entries.map((entry) => entry.agent))
   if (stand.kind === "widened")
-    return {
+    return [
+      exactly(rule.permission, rule.subject),
+      {
+        label: "Answers",
+        runs: [
+          muted("through "),
+          plain(anyOf(rule.permission, stand.family)),
+          muted(`, the family you widened for ${agents}.`),
+          ...elsewhere(rule, reading),
+        ],
+      },
+      { label: "Still asks", runs: [muted(`${NOT_COVERED}.`)] },
+    ]
+  const { expireDays } = reading.settings
+  return [
+    exactly(rule.permission, rule.subject),
+    {
       label: "Answers",
       runs: [
-        plain(anyOf(rule.permission, stand.family)),
-        muted(" as "),
-        agentRun(lead.agent),
-        muted(`, because you widened it — ${EXCEPT}.`),
-        ...others,
+        muted(`this exact text, for ${agents}.`),
+        ...elsewhere(rule, reading),
+        ...(expireDays > 0 ? [muted(` Forgotten after ${expireDays} days unused.`)] : []),
       ],
-    }
-  if (stand.kind === "trusted")
-    return {
-      label: "Answers",
-      runs: [
-        muted("only this exact text, as "),
-        agentRun(lead.agent),
-        muted("."),
-        ...stillAsks(rule),
-        ...others,
-      ],
-    }
-  return {
-    label: "Counting",
+    },
+    { label: "Still asks", runs: stillAsks(rule) },
+  ]
+}
+
+function learningSaid(rule: RuleGroup, reading: Reading): Said[] {
+  const lead = rule.entries[0] as Entry
+  const stand = standOf(lead, reading)
+  if (stand.kind !== "counting") return [exactly(rule.permission, rule.subject)]
+  const { threshold, expireDays } = reading.settings
+  const left = stand.need - stand.have
+  const others = rule.entries.slice(1).map((entry) => {
+    const each = standOf(entry, reading)
+    return muted(each.kind === "counting" ? ` ${entry.agent}: ${each.have} of ${each.need}.` : "")
+  })
+  const approved: Said = {
+    label: "Approved",
     runs: [
       muted(
         stand.expired
-          ? "unused too long — counting again from 0, as "
-          : `${stand.have} of ${stand.need} approvals in a row, as `,
+          ? `unused over ${expireDays} days, so it counts again from 0 of ${stand.need}, as ${lead.agent}.`
+          : `${stand.have} of ${stand.need} in a row, as ${lead.agent} — ${plural(left, "more approval")} and Trust answers it.`,
       ),
-      agentRun(lead.agent),
-      muted(`.${lead.danger ? ` Dangerous (${lead.danger}), so it needs ${stand.need}.` : ""}`),
-      ...never,
-      ...notCovered,
       ...others,
-      muted(" Once trusted it answers only this exact text."),
+      ...elsewhere(rule, reading),
     ],
   }
+  const can = widenable(rule.permission, rule.family)
+  if (lead.danger)
+    return [
+      exactly(rule.permission, rule.subject),
+      approved,
+      {
+        label: "Dangerous",
+        runs: [
+          muted(
+            `${lead.danger} — ${stand.need} in a row instead of ${threshold}${
+              rule.permission === "bash" && !can.ok ? ", and never widened as a family" : ""
+            }.`,
+          ),
+        ],
+      },
+    ]
+  /** In a widened family, but one of the commands a widening leaves to its own count. */
+  const why = outside(rule.permission, rule.subject)
+  if (reading.state.widened.has(keyOf(rule.permission, lead.agent, rule.family)) && why !== undefined)
+    return [
+      exactly(rule.permission, rule.subject),
+      approved,
+      {
+        label: "Widened",
+        runs: [muted("but "), plain(anyOf(rule.permission, rule.family)), muted(` leaves it out: ${why}.`)],
+      },
+    ]
+  return [
+    exactly(rule.permission, rule.subject),
+    approved,
+    {
+      label: "Then",
+      runs: [muted("Trust answers only this exact text. One reject starts the count over.")],
+    },
+  ]
 }
 
 /** The agent `w` widens a family for: the one on its best rule, unless it is widened already. */
@@ -525,106 +719,137 @@ function widenAgent(family: FamilyGroup, line: Line): string | undefined {
   return family.rules[0]?.entries[0]?.agent ?? family.widened[0]?.agent
 }
 
-function familySaid(family: FamilyGroup, line: Line): Said {
-  const any = anyOf(family.permission, family.family)
-  const except = family.permission === "edit" ? "not its subfolders" : EXCEPT
-  if (family.widened.length > 0)
-    return {
-      label: "Widened",
-      runs: [
-        plain(any),
-        muted(" as "),
-        agentRun(family.widened.map((each) => each.agent).join(", ")),
-        muted(` — ${except}. `),
-        { text: "[w]", tone: "accent", bold: true },
-        muted(" goes back to exact rules."),
-      ],
-    }
+/** What `w` would do on this line, as the panel's last row. */
+function widenSaid(family: FamilyGroup, line: Line): Said {
   const can = widenable(family.permission, family.family)
   if (!can.ok) return { label: "Widen", runs: [muted(`never: ${can.why}.`)] }
   const agent = widenAgent(family, line) ?? "this agent"
   const others = agentsOf(family).filter((each) => each !== agent)
+  const except = family.permission === "edit" ? "not its subfolders" : EXCEPT
   return {
     label: "Widen",
     runs: [
-      { text: "[w]", tone: "accent", bold: true },
-      muted(" would answer "),
-      plain(any),
-      muted(" as "),
-      agentRun(agent),
-      muted(`, ${except}.`),
+      key("w"),
+      muted(" answers "),
+      plain(anyOf(family.permission, family.family)),
+      muted(` for ${agent}, ${except}.`),
       ...(others.length > 0
-        ? [
-            muted(
-              ` Only ${agent}: ${agentsText(others)} ${others.length === 1 ? "keeps its" : "keep their"} own count.`,
-            ),
-          ]
+        ? [muted(` ${agentsText(others)} ${others.length === 1 ? "keeps its" : "keep their"} own count.`)]
         : []),
     ],
   }
 }
 
-/** The two things the panel says about a line: what it is, and what it does. */
-export function explain(line: Line, reading: Reading): { exact: Said; said: Said } {
-  if (line.kind === "always")
-    return {
-      exact: { label: "Always", runs: [{ text: line.always.patterns.join("  "), tone: "warning" }] },
-      said: {
-        label: "Means",
-        runs: [
-          muted("OpenCode's own approval for "),
-          agentRun(line.always.agent),
-          muted(", until it restarts — broader than it looks, and Trust cannot take it back."),
-        ],
-      },
-    }
-  if (line.kind === "family") {
-    const { family } = line
-    const count = family.rules.length
-    return {
-      exact: {
-        label: "Family",
-        runs: [
-          ...prefix(family.permission),
-          plain(showSubject(family.permission, family.family)),
-          muted(` · ${count} command${count === 1 ? "" : "s"}: `),
-          ...family.rules.flatMap((rule, index) => [
-            ...(index > 0 ? [muted(" · ")] : []),
-            plain(showSubject(rule.permission, rule.subject)),
-          ]),
-        ],
-      },
-      said: familySaid(family, line),
-    }
-  }
+function listOf(family: FamilyGroup, what: string): Said {
   return {
-    exact: {
-      label: "Exactly",
+    label: "Family",
+    runs: [
+      ...prefix(family.permission),
+      plain(showSubject(family.permission, family.family)),
+      muted(` · ${plural(family.rules.length, "command")} ${what}: `),
+      ...family.rules.flatMap((rule, index) => [
+        ...(index > 0 ? [muted(" · ")] : []),
+        plain(showSubject(rule.permission, rule.subject)),
+      ]),
+    ],
+  }
+}
+
+function familySaid(family: FamilyGroup, line: Line, reading: Reading): Said[] {
+  if (family.section === "learning") {
+    const best = family.rules[0]
+    const stand = best ? standOf(best.entries[0] as Entry, reading) : undefined
+    return [
+      listOf(family, "still counting"),
+      ...(best && stand?.kind === "counting"
+        ? [
+            {
+              label: "Closest",
+              runs: [
+                plain(showSubject(best.permission, best.subject)),
+                muted(`, ${stand.have} of ${stand.need}.`),
+              ],
+            },
+          ]
+        : []),
+      widenSaid(family, line),
+    ]
+  }
+  if (family.widened.length === 0) return [listOf(family, "answered"), widenSaid(family, line)]
+  const at = Math.max(...family.widened.map((each) => each.at))
+  return [
+    {
+      label: "Widened",
       runs: [
-        ...prefix(line.rule.permission),
-        plain(showSubject(line.rule.permission, line.rule.subject)),
-        ...spelledRuns(line.rule.permission, line.rule.subject),
+        plain(anyOf(family.permission, family.family)),
+        muted(
+          ` for ${agentsText(family.widened.map((each) => each.agent))} — you widened it ${when(reading.now - at)}.`,
+        ),
       ],
     },
-    said: ruleSaid(line.rule, reading),
+    {
+      label: "Still asks",
+      runs: [muted(family.permission === "edit" ? "files in its subfolders." : `${NOT_COVERED}.`)],
+    },
+    {
+      label: "To stop",
+      runs: [
+        key("w"),
+        muted(" back to exact rules   "),
+        key("x"),
+        muted(
+          ` revokes it${family.rules.length > 0 ? ` and its ${plural(family.rules.length, "rule")}` : ""}`,
+        ),
+      ],
+    },
+  ]
+}
+
+/** What the panel says about a line: one labelled row per fact, at most `PANEL_ROWS`. */
+export function explain(line: Line, reading: Reading): Said[] {
+  if (line.kind === "always") {
+    const bash = line.always.permission === "bash"
+    return [
+      { label: "Always", runs: [...prefix(line.always.permission), plain(line.always.patterns.join("  "))] },
+      {
+        label: "Means",
+        runs: [
+          muted(
+            `OpenCode answers ${bash ? "every command that starts this way" : "everything these match"} for ${
+              line.always.agent
+            } — not only the one you approved.`,
+          ),
+        ],
+      },
+      {
+        label: "Until",
+        runs: [muted("OpenCode restarts. Trust cannot take it back: restarting OpenCode ends it.")],
+      },
+    ]
   }
+  if (line.kind === "family") return familySaid(line.family, line, reading)
+  return line.rule.section === "answers" ? answerSaid(line.rule, reading) : learningSaid(line.rule, reading)
 }
 
 function panelRows(line: Line | undefined, reading: Reading, width: number): Row[] {
   if (!line) return Array.from({ length: PANEL_ROWS }, () => fit([], width))
-  const { exact, said } = explain(line, reading)
+  const said = explain(line, reading).slice(0, PANEL_ROWS)
   const room = Math.max(1, width - 1 - LABEL - 1)
-  const exactRows = wrapRuns(exact.runs, room, PANEL_ROWS)
-  const saidRows = wrapRuns(said.runs, room, PANEL_ROWS)
-  /** The command is what the panel is for: it gets two rows when it needs them, the sentence the rest. */
-  const exactCount = Math.min(exactRows.length, Math.max(1, PANEL_ROWS - saidRows.length), PANEL_ROWS - 1)
-  const exactShown = wrapRuns(exact.runs, room, exactCount)
-  const saidShown = wrapRuns(said.runs, room, PANEL_ROWS - exactCount)
-  const labelled = (label: string, rows: Row[]) =>
-    rows.map((row, index) =>
-      fit([{ text: ` ${(index === 0 ? label : "").padEnd(LABEL)}`, tone: "muted" }, ...row], width),
-    )
-  const rows = [...labelled(exact.label, exactShown), ...labelled(said.label, saidShown)]
+  /** Every fact gets a row; the rows left over go to the first that needs them — the command, first. */
+  const need = said.map((each) => wrapRuns(each.runs, room, PANEL_ROWS).length)
+  const give = said.map(() => 1)
+  let spare = PANEL_ROWS - said.length
+  said.forEach((_, index) => {
+    while (spare > 0 && (give[index] as number) < (need[index] as number)) {
+      give[index] = (give[index] as number) + 1
+      spare--
+    }
+  })
+  const rows = said.flatMap((each, index) =>
+    wrapRuns(each.runs, room, give[index] as number).map((row, at) =>
+      fit([{ text: ` ${(at === 0 ? each.label : "").padEnd(LABEL)}`, tone: "muted" }, ...row], width),
+    ),
+  )
   while (rows.length < PANEL_ROWS) rows.push(fit([], width))
   return rows.slice(0, PANEL_ROWS)
 }
@@ -653,8 +878,14 @@ function hintsFor(line: Line | undefined, input: LedgerInput): { hints: Hint[]; 
   let verbatim: string | undefined
   if (line?.kind === "family") hints.push({ key: "enter", label: line.open ? "Fold" : "Open", priority: 6 })
   if (line?.kind === "rule" && line.nested) hints.push({ key: "enter", label: "Fold", priority: 6 })
+  /** A rule still counting has no trust to revoke: `x` forgets its count, and says so. */
   if (line)
-    hints.push({ key: "x", label: "Revoke", priority: 5, ...(line.kind === "always" ? { off: true } : {}) })
+    hints.push({
+      key: "x",
+      label: line.kind !== "always" && line.family.section === "learning" ? "Forget" : "Revoke",
+      priority: 5,
+      ...(line.kind === "always" ? { off: true } : {}),
+    })
   if (line && line.kind !== "always") {
     const family = line.family
     const widened = isWidened(family, line)
@@ -667,11 +898,15 @@ function hintsFor(line: Line | undefined, input: LedgerInput): { hints: Hint[]; 
       ...(!widened && !widenable(family.permission, family.family).ok ? { off: true } : {}),
     })
   }
-  if (line) hints.push({ key: "c", label: "Copy As Config", priority: 2 })
+  if (line) hints.push({ key: "c", label: "Copy As Config", priority: 1 })
   /** Above copying: it changes what the list shows, and a key that does that must be findable. */
-  if (input.folded) hints.push({ key: "a", label: "Show All", priority: 3 })
-  else if (input.all) hints.push({ key: "a", label: "Fold Seen Once", priority: 3 })
-  hints.push({ key: "p", label: input.state.paused ? "Resume" : "Pause", priority: 0 })
+  if (input.folded) hints.push({ key: "a", label: "Show All", priority: 2 })
+  else if (input.all) hints.push({ key: "a", label: "Show Fewer", priority: 2 })
+  /**
+   * Above listing and copying: "how do I stop it" is one of the questions the dialog is opened with,
+   * and the fold row already says `[a]` where the commands it lists are.
+   */
+  hints.push({ key: "p", label: input.state.paused ? "Resume" : "Pause", priority: 3 })
   hints.push(closeHint())
   return verbatim ? { hints, verbatim } : { hints }
 }
@@ -706,14 +941,24 @@ export interface LedgerInput {
 
 export interface LedgerView {
   rows: Row[]
-  /** The first body line drawn, so the caller can keep the cursor in view on the next draw. */
+  /** The first body row drawn, so the caller can keep the cursor in view on the next draw. */
   top: number
   /** The line under the cursor, as drawn: the caller's actions act on it. */
   line?: Line
 }
 
-function foldLine(count: number, width: number): Row {
-  return fit([{ text: ` + ${count} approved once · [a] show all`, tone: "muted" }], width)
+/** The commands approved once, under what is still counting: one quiet row, and the key that lists them. */
+function foldRow(count: number, width: number): Row {
+  return fit([muted(` + ${count} more approved once · `), key("a"), muted(" lists them")], width)
+}
+
+/** What a section holds: a family heading counts its rules, a row in an open family is already counted. */
+function countOf(lines: readonly Line[]): number {
+  return lines.reduce(
+    (sum, line) =>
+      sum + (line.kind === "family" ? line.family.rules.length : line.kind === "rule" && line.nested ? 0 : 1),
+    0,
+  )
 }
 
 /** Header and gap above the list; the edge marker, the rule, the panel and the keys below it. */
@@ -723,17 +968,15 @@ export function ledgerRows(input: LedgerInput): LedgerView {
   const { width, lines, state, settings, now } = input
   const reading: Reading = { state, settings, now }
   const rows: Row[] = []
-  const title = state.paused ? "Trust in this project — paused" : "Trust in this project"
+  /** Whether Trust is answering at all is the first thing to know; paused is the one state worth a colour. */
   rows.push(
     spread(
-      [{ text: ` ${title}`, tone: state.paused ? "warning" : "text", bold: true }],
+      [{ text: " Trust in this project", tone: "text", bold: true }],
       [
-        {
-          text: `${settings.threshold} in a row · dangerous +${settings.dangerExtra} · ${
-            settings.expireDays > 0 ? `unused ${settings.expireDays} days expires` : "never expires"
-          } `,
-          tone: "muted",
-        },
+        state.paused
+          ? { text: "paused — counting, answering nothing", tone: "warning", bold: true }
+          : { text: "on", tone: "muted" },
+        { text: " " },
       ],
       width,
     ),
@@ -746,50 +989,62 @@ export function ledgerRows(input: LedgerInput): LedgerView {
   )
   const line = lines[index]
 
-  /** The body: the lines, the fold where the rules end, OpenCode's own approvals under their heading. */
-  const body: { row: Row; line?: number }[] = []
-  if (lines.length === 0)
-    body.push({
-      row: fit(
-        [
-          muted(
-            input.folded
-              ? ` ${input.folded} command${input.folded === 1 ? "" : "s"} approved once, none twice yet. [a] lists them.`
-              : ` Nothing learned yet. Approve the same command ${settings.threshold} times in a row and Trust answers it from then on.`,
-          ),
-        ],
-        width,
-      ),
-    })
-  else {
+  /** The body: each section under its heading, a row of air between them. */
+  /** `section`: a heading, named again in the `↓` row when it is below the window. */
+  const body: { row: Row; line?: number; section?: string }[] = []
+  const folded = input.folded ?? 0
+  if (lines.length === 0 && folded === 0) {
+    const said = wrapRuns(
+      [
+        muted(
+          `Nothing learned yet. Approve the same command ${settings.threshold} times in a row and Trust answers it for you from then on — that exact command, for that agent. A dangerous one takes ${settings.threshold + settings.dangerExtra}.`,
+        ),
+      ],
+      Math.max(1, width - 2),
+      3,
+    )
+    for (const each of said) body.push({ row: fit([{ text: " " }, ...each], width) })
+  } else {
     const cells = lines.map((each) => cellsOf(each, reading))
-    const columns = {
-      agent: Math.max(...cells.map((each) => each.agent.length)),
-      status: Math.max(...cells.map((each) => textOf(each.status).length)),
-      when: Math.max(...cells.map((each) => each.when.length)),
-    }
-    let heading = false
-    lines.forEach((each, at) => {
-      if (each.kind === "always" && !heading) {
-        heading = true
-        if (input.folded) body.push({ row: foldLine(input.folded, width) })
-        if (body.length > 0) body.push({ row: fit([], width) })
+    const sections = new Set(lines.map(sectionOfLine))
+    sections.add("answers")
+    if (folded > 0) sections.add("learning")
+    const columns = columnsOf(cells, sections, width)
+    const drawSection = (section: Section | "always") => {
+      const at = lines.flatMap((each, i) => (sectionOfLine(each) === section ? [i] : []))
+      if (at.length === 0 && section !== "answers" && !(section === "learning" && folded > 0)) return
+      if (body.length > 0) body.push({ row: fit([], width) })
+      body.push({
+        row: headingRow(section, countOf(at.map((i) => lines[i] as Line)), columns, width, state.paused),
+        section: section === "always" ? `OpenCode's "always"` : HEADS[section].title,
+      })
+      if (section === "answers" && at.length === 0)
         body.push({
           row: fit(
             [
-              {
-                text: ` OpenCode's own "always" — broader than it looks, and only until OpenCode restarts`,
-                tone: "warning",
-              },
+              muted(
+                `   Nothing yet: ${settings.threshold} approvals in a row and Trust answers a command for you.`,
+              ),
             ],
             width,
           ),
         })
+      for (const i of at) {
+        const row = rowOf(cells[i] as Cells, columns, width)
+        body.push({
+          row:
+            i === index
+              ? /** `▌` in the margin cell is the cursor in every bay; the fill reaches both edges. */
+                filled(fit([{ text: GLYPH.cursor, tone: "accent" }, ...trimLead(row)], width), "selected")
+              : row,
+          line: i,
+        })
       }
-      const row = rowOf(cells[at] as Cells, columns, width)
-      body.push({ row: at === index ? filled(row, "selected") : row, line: at })
-    })
-    if (input.folded && !heading) body.push({ row: foldLine(input.folded, width) })
+      if (section === "learning" && folded > 0) body.push({ row: foldRow(folded, width) })
+    }
+    drawSection("answers")
+    drawSection("learning")
+    drawSection("always")
   }
 
   /** The cursor's line in view, with the lines around it. */
@@ -801,13 +1056,26 @@ export function ledgerRows(input: LedgerInput): LedgerView {
   const shown = body.slice(top, top + room)
   /**
    * What is past either edge, said in the rows of air around the list — they were blank anyway, and
-   * a list cut at the window's edge otherwise looks like the whole list.
+   * a list cut at the window's edge otherwise looks like the whole list. Counted in lines you can
+   * move to, not in headings and air.
    */
-  const below = Math.max(0, body.length - top - room)
-  if (top > 0) rows[1] = fit([muted(` ↑ ${top} more above`)], width)
+  const above = body.slice(0, top).filter((each) => each.line !== undefined).length
+  const after = body.slice(top + room)
+  const below = after.filter((each) => each.line !== undefined).length
+  /**
+   * In a short window the whole of what is counting can be below the edge; a bare count did not say
+   * there was a second section at all.
+   */
+  const hidden = after.flatMap((each) => (each.section ? [each.section] : []))
+  if (top > 0) rows[1] = fit([muted(above > 0 ? ` ↑ ${above} more above` : "")], width)
   for (const each of shown) rows.push(each.row)
   while (rows.length < 2 + room) rows.push(fit([], width))
-  rows.push(fit(below > 0 ? [muted(` ↓ ${below} more below`)] : [], width))
+  rows.push(
+    fit(
+      below > 0 ? [muted(` ↓ ${below} more below${hidden.length > 0 ? ` · ${hidden.join(", ")}` : ""}`)] : [],
+      width,
+    ),
+  )
   /** A notice takes the rule's place: it is the one row that changes when you act. */
   rows.push(
     fit(
@@ -822,6 +1090,13 @@ export function ledgerRows(input: LedgerInput): LedgerView {
   return line ? { rows, top, line } : { rows, top }
 }
 
+/** A row without its first cell, so the cursor can take the margin it was drawn with. */
+function trimLead(row: Row): Row {
+  const [first, ...rest] = row
+  if (!first) return row
+  return first.text.length > 1 ? [{ ...first, text: first.text.slice(1) }, ...rest] : rest
+}
+
 /* ─── acting on a line ───────────────────────────────────────────────────────────────────────── */
 
 export interface Outcome {
@@ -829,9 +1104,6 @@ export interface Outcome {
   events: Event[]
   notice: { text: string; tone: Tone }
 }
-
-const agentsText = (agents: readonly string[]) =>
-  agents.length <= 1 ? (agents[0] ?? "") : `${agents.slice(0, -1).join(", ")} and ${agents.at(-1)}`
 
 /**
  * `w`: trust the whole family for one agent, or take that back. Never automatic — this is the only
@@ -882,8 +1154,10 @@ export function widenLine(line: Line, at: number): Outcome {
 }
 
 /**
- * `x`: a rule loses its trust for every agent on its row; a family heading loses every rule in it —
- * the ones folded away as approved once too — and its widening.
+ * `x`: a rule loses its standing for every agent on its row. A heading in the answers loses every
+ * rule that answers in its family, and its widening; one still counting loses every count in its
+ * family — the ones folded away as approved once too. A row is in one section, so `x` never reaches
+ * into the other: revoking what Trust answers does not also forget what it is counting.
  */
 export function revokeLine(line: Line, reading: Reading, at: number): Outcome {
   if (line.kind === "always")
@@ -895,8 +1169,11 @@ export function revokeLine(line: Line, reading: Reading, at: number): Outcome {
       },
     }
   const { threshold } = reading.settings
+  const learning = line.family.section === "learning"
   if (line.kind === "rule") {
     const { rule } = line
+    const name = showSubject(rule.permission, rule.subject)
+    const agents = rule.entries.map((entry) => entry.agent)
     return {
       events: rule.entries.map((entry) => ({
         v: 1,
@@ -907,9 +1184,11 @@ export function revokeLine(line: Line, reading: Reading, at: number): Outcome {
         subject: entry.subject,
       })),
       notice: {
-        text: `Revoked: ${showSubject(rule.permission, rule.subject)} is asked again until you approve it ${threshold}× more${
-          rule.entries.length > 1 ? ` — for ${agentsText(rule.entries.map((entry) => entry.agent))}` : ""
-        }.`,
+        text: learning
+          ? `Forgot the count for ${name}${agents.length > 1 ? ` (${agentsText(agents)})` : ""}: it starts again from 0.`
+          : `Revoked: ${name} is asked again until you approve it ${threshold}× more${
+              agents.length > 1 ? ` — for ${agentsText(agents)}` : ""
+            }.`,
         tone: "muted",
       },
     }
@@ -919,9 +1198,11 @@ export function revokeLine(line: Line, reading: Reading, at: number): Outcome {
     (entry) =>
       entry.permission === family.permission &&
       (entry.approvals > 0 || entry.autos > 0) &&
-      familyOf(entry.permission, entry.subject) === family.family,
+      familyOf(entry.permission, entry.subject) === family.family &&
+      (standOf(entry, reading).kind === "counting") === learning,
   )
   const subjects = distinct(entries.map((entry) => entry.subject)).length
+  const widened = learning ? [] : family.widened
   const events: Event[] = [
     ...entries.map(
       (entry): Event => ({
@@ -933,7 +1214,7 @@ export function revokeLine(line: Line, reading: Reading, at: number): Outcome {
         subject: entry.subject,
       }),
     ),
-    ...family.widened.map(
+    ...widened.map(
       (each): Event => ({
         v: 1,
         at,
@@ -948,9 +1229,11 @@ export function revokeLine(line: Line, reading: Reading, at: number): Outcome {
   return {
     events,
     notice: {
-      text: `Revoked ${subjects} rule${subjects === 1 ? "" : "s"} in ${name}${
-        family.widened.length > 0 ? ", and its widening" : ""
-      } — each is asked again until approved ${threshold}× in a row.`,
+      text: learning
+        ? `Forgot ${plural(subjects, "count")} in ${name}: each starts again from 0.`
+        : `Revoked ${plural(subjects, "rule")} in ${name}${
+            widened.length > 0 ? ", and its widening" : ""
+          } — each is asked again until approved ${threshold}× in a row.`,
       tone: "muted",
     },
   }

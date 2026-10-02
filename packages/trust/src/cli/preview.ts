@@ -8,6 +8,8 @@
  *   bunx @opencode-cockpit/trust preview --sample busy    one of them
  *   bunx @opencode-cockpit/trust preview --width 30       the sidebar at another width
  *   bunx @opencode-cockpit/trust preview --columns 140    the ledger at another width
+ *   bunx @opencode-cockpit/trust preview --rows 14        the ledger in a short window
+ *   bunx @opencode-cockpit/trust preview --html > a.html  the same, as a page, to judge colour in a browser
  *
  * A sample with families draws the ledger more than once: folded as it opens, every family open
  * with the cursor on a rule, then on a widened family and on a dangerous one — so the panel is seen
@@ -15,7 +17,7 @@
  */
 
 import { SAMPLE_NOW, SAMPLE_SETTINGS, SAMPLES } from "../core/sample.ts"
-import { type Line, ledgerModel, ledgerRows } from "../core/view/ledger.ts"
+import { type Line, ledgerModel, ledgerRows, sectionOfLine } from "../core/view/ledger.ts"
 import type { Row, Run, Tone } from "../core/view/rows.ts"
 import { sidebarRows } from "../core/view/sidebar.ts"
 
@@ -34,10 +36,23 @@ const HEX: Record<Tone, string> = {
 const SELECTED = "#1e1e1e"
 
 const rgb = (hex: string) => [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16)).join(";")
-const color = process.stdout.isTTY && !process.env.NO_COLOR
+const args = process.argv.slice(2)
+const html = args.includes("--html")
+const color = html || (process.stdout.isTTY && !process.env.NO_COLOR)
+const entities = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
 
 function paint(row: Row): string {
   if (!color) return row.map((run) => run.text).join("")
+  if (html)
+    return row
+      .map((run: Run) => {
+        const style = [`color:${HEX[run.tone ?? "text"]}`]
+        if (run.fill === "selected") style.push(`background:${SELECTED}`)
+        if (run.bold) style.push("font-weight:bold")
+        if (run.faint) style.push("opacity:.55")
+        return `<span style="${style.join(";")}">${entities(run.text)}</span>`
+      })
+      .join("")
   return row
     .map((run: Run) => {
       const codes = [`38;2;${rgb(HEX[run.tone ?? "text"])}`]
@@ -49,10 +64,9 @@ function paint(row: Row): string {
     .join("")
 }
 
-const args = process.argv.slice(2)
 if (args.includes("--help") || args.includes("-h")) {
   process.stdout.write(
-    `Usage: trust preview [--sample ${Object.keys(SAMPLES).join("|")}] [--width <sidebar columns>] [--columns <ledger columns>]\n`,
+    `Usage: trust preview [--sample ${Object.keys(SAMPLES).join("|")}] [--width <sidebar columns>] [--columns <ledger columns>] [--rows <ledger rows>] [--html]\n`,
   )
   process.exit(0)
 }
@@ -62,11 +76,16 @@ const value = (flag: string) => {
 }
 const sidebarWidth = Number(value("--width")) || 36
 const columns = Number(value("--columns")) || Math.max(60, Math.min(process.stdout.columns || 100, 116))
+const fixedRows = Number(value("--rows")) || undefined
 const only = value("--sample")
 const names = only ? [only] : Object.keys(SAMPLES)
 
 const frame = (rows: Row[]) => {
-  const edge = color ? `\x1b[38;2;${rgb(HEX.border)}m│\x1b[0m` : "│"
+  const edge = html
+    ? `<span style="color:${HEX.border}">│</span>`
+    : color
+      ? `\x1b[38;2;${rgb(HEX.border)}m│\x1b[0m`
+      : "│"
   return rows.map((row) => `${edge}${paint(row)}${edge}`)
 }
 
@@ -99,11 +118,10 @@ for (const name of names) {
     const selected = pick(lines)?.key
     const { rows } = ledgerRows({
       width: columns,
-      /** Tall enough for the list, its fold line and OpenCode's own approvals under their heading. */
-      height: Math.max(
-        11,
-        8 + lines.length + (folded ? 1 : 0) + (lines.some((line) => line.kind === "always") ? 2 : 0),
-      ),
+      /** Tall enough for the list: its lines, each section's heading and the row of air above it, the fold. */
+      height:
+        fixedRows ??
+        Math.max(11, 8 + lines.length + 2 * new Set(lines.map(sectionOfLine)).size + (folded ? 3 : 0)),
       lines,
       folded,
       ...(selected !== undefined ? { selected } : {}),
@@ -117,7 +135,7 @@ for (const name of names) {
   /** As the dialog opens: families folded, commands approved once folded into one line. */
   draw("Ledger", new Set(), (lines) => lines[0])
   const heads = ledgerModel({ ...reading, open: new Set() }).lines.flatMap((line) =>
-    line.kind === "family" ? [line.family.key] : [],
+    line.kind === "family" ? [line.fold] : [],
   )
   if (heads.length > 0) {
     const every = new Set(heads)
@@ -140,4 +158,8 @@ for (const name of names) {
     )
   }
 }
-process.stdout.write(`${out.join("\n")}\n`)
+process.stdout.write(
+  html
+    ? `<!doctype html><meta charset="utf-8"><title>Trust ledger preview</title><body style="margin:0;padding:16px;background:#141414;color:${HEX.text}"><pre style="font:14px/1.35 Menlo,monospace;margin:0">${out.map((line) => (line.includes("<span") ? line : entities(line))).join("\n")}</pre>\n`
+    : `${out.join("\n")}\n`,
+)

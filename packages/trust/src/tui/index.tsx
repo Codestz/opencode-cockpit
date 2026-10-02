@@ -435,7 +435,8 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
       const line = selectedLine()
       if (!line || line.kind === "always") return
       if (line.kind === "rule" && !line.nested) return
-      const key = line.family.key
+      /** A family folds per section: `fold` names its heading in the one the cursor is in. */
+      const key = line.fold
       if (ledger.opened.has(key)) {
         ledger.opened.delete(key)
         ledger.selected = `f:${key}`
@@ -490,7 +491,7 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
         { name: "cockpit.trust.down", title: "Next rule", run: () => move(1) },
         { name: "cockpit.trust.up", title: "Previous rule", run: () => move(-1) },
         { name: "cockpit.trust.fold", title: "Open or fold a family", run: () => fold() },
-        { name: "cockpit.trust.revoke", title: "Revoke this rule or family", run: () => revoke() },
+        { name: "cockpit.trust.revoke", title: "Revoke a rule, or forget its count", run: () => revoke() },
         { name: "cockpit.trust.widen", title: "Trust the whole family, or undo it", run: () => widen() },
         { name: "cockpit.trust.copy", title: "Copy as config", run: () => copy() },
         { name: "cockpit.trust.togglePause", title: "Pause or resume", run: () => togglePause() },
