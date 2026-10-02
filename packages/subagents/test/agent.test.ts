@@ -348,3 +348,57 @@ describe("subagents_wait (load test #4)", () => {
     expect(await waiting).toContain("Wait cancelled")
   })
 })
+
+describe("OpenCode 2 after a restart: subagents it has no list of", () => {
+  const OLD = "ses_old"
+  /** OpenCode 2's agent side: no children, no status; a session and its messages by id. */
+  const v2Host = (rootCreated: number): ServerHost => ({
+    version: 2,
+    directory: "/work",
+    scope: {},
+    log: silentLog,
+    readFile: async () => undefined,
+    session: {
+      get: async (id) =>
+        (id === ROOT
+          ? { title: "Main", time: { created: rootCreated } }
+          : id === OLD
+            ? { parentID: ROOT, title: "Audit the logs", agent: "explore" }
+            : undefined) as { parentID?: string },
+      context: async (id) =>
+        id === OLD
+          ? [
+              { id: "m1", type: "user", text: "Audit the logs.", time: { created: T0 } },
+              {
+                id: "m2",
+                type: "assistant",
+                time: { created: T0 + 1000, completed: T0 + 60_000 },
+                content: [{ type: "text", text: "Nothing alarming.", time: { created: T0 + 59_000 } }],
+              },
+            ]
+          : [],
+      notify: async () => {},
+    },
+  })
+  const startV2 = (rootCreated: number) => createSubagentsServer({ source: "test" })(v2Host(rootCreated), {})
+
+  test("the list says older ones appear only once they do something, and that their ids still work", async () => {
+    const text = await call(await startV2(T0 - DAY), "subagents_list")
+    expect(text).toContain("This conversation has no subagents yet.")
+    expect(text).toContain("appear here only once they do something")
+    expect(text).toContain("by its id")
+    const waited = await call(await startV2(T0 - DAY), "subagents_wait")
+    expect(waited).toContain("appear here only once they do something")
+  })
+
+  test("a conversation begun since OpenCode started is not told so", async () => {
+    const text = await call(await startV2(Date.now() + DAY), "subagents_list")
+    expect(text).toBe("This conversation has no subagents yet.")
+  })
+
+  test("one from before is read by its id all the same", async () => {
+    const text = await call(await startV2(T0 - DAY), "subagents_read", { id: OLD })
+    expect(text).toContain('<subagent id="ses_old" agent="explore" title="Audit the logs">')
+    expect(text).toContain("Final answer:\nNothing alarming.")
+  })
+})

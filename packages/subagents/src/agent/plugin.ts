@@ -16,7 +16,7 @@ import {
   working,
 } from "../core/model/model.ts"
 import { backgroundOffered, subagentsGuidance } from "../core/view/guidance.ts"
-import { stateOf, subagentAccount, subagentReport, waitReport } from "../core/view/report.ts"
+import { stateOf, subagentAccount, subagentReport, unseenNote, waitReport } from "../core/view/report.ts"
 
 /**
  * What the agent is told about subagents, once per request (core/view/guidance.ts): written for the
@@ -102,7 +102,13 @@ export function createSubagentsServer({
       async execute(_args, context) {
         const nodes = await runs.nodes(context.sessionID)
         log.debug("list", { sessionID: context.sessionID, count: nodes.length })
-        return subagentReport({ nodes, now: Date.now(), version: host.version })
+        const listening = await runs.blindSince(context.sessionID)
+        return subagentReport({
+          nodes,
+          now: Date.now(),
+          version: host.version,
+          ...(listening !== undefined ? { listening } : {}),
+        })
       },
     })
 
@@ -332,6 +338,34 @@ function createRuns(host: ServerHost) {
         session = model.sessions.get(id)
       }
     }
+    if (!session && v2 && host.session.context) {
+      /**
+       * One from before OpenCode started, that has not done anything since: OpenCode 2 cannot list
+       * it, but can read it by id — the id the main agent was handed when it launched it.
+       */
+      const info = await host.session.get(id).catch(() => undefined)
+      const messages = info ? await host.session.context(id).catch(() => []) : []
+      if (info && messages.length > 0) {
+        const past = slim(v2.history(id, messages))
+        rebuild(
+          id,
+          [
+            {
+              type: "session",
+              id,
+              ...(info.parentID ? { parentID: info.parentID } : {}),
+              ...(info.title ? { title: info.title } : {}),
+              ...(info.agent ? { agent: info.agent } : {}),
+              at: past[0]?.at ?? Date.now(),
+            },
+          ],
+          past,
+          Math.max(endOf(past, Date.now()), finishedAt(messages)),
+          undefined,
+        )
+        session = model.sessions.get(id)
+      }
+    }
     if (session) return session
     const known = subagentsOf(model, sessionID)
     throw new Error(
@@ -361,15 +395,17 @@ function createRuns(host: ServerHost) {
         .filter((session) => !stateOf(session, started).over)
       if (targets.length === 0) {
         const all = subagentsOf(model, context.sessionID).map((node) => node.session)
+        const blind = await blindSince(context.sessionID)
+        const unseen = blind === undefined ? "" : `\n${unseenNote(blind, started, host.version)}`
         return all.length === 0
-          ? "This conversation has no subagents, so there is nothing to wait on."
+          ? `This conversation has no subagents, so there is nothing to wait on.${unseen}`
           : `None of this conversation's subagents is working; nothing to wait on.\n${waitReport({
               sessions: all,
               now: started,
               version: host.version,
               waited: 0,
               timedOut: false,
-            })}`
+            })}${unseen}`
       }
     }
     const ids = targets.map((session) => session.id)
@@ -430,12 +466,28 @@ function createRuns(host: ServerHost) {
     })
   }
 
+  /**
+   * OpenCode 2: when this side began listening, if the conversation is older — its subagents from
+   * before then cannot be listed until they do something (`unseenNote`). A conversation created while
+   * we listened has none such.
+   */
+  const listening = Date.now()
+  const blindSince = async (root: string): Promise<number | undefined> => {
+    if (!v2 || whole.has(root)) return undefined
+    const info = (await host.session.get(root).catch(() => undefined)) as
+      | { time?: { created?: unknown } }
+      | undefined
+    const created = Number(info?.time?.created)
+    return Number.isFinite(created) && created >= listening ? undefined : listening
+  }
+
   return {
     model,
     event,
     nodes,
     find,
     wait,
+    blindSince,
     forget: (id: string) => {
       model.sessions.delete(id)
       whole.delete(id)

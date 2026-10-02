@@ -30,10 +30,24 @@ export interface ReportInput {
   now: number
   /** Which OpenCode: the id goes in `task_id` on 1 and `sessionID` on 2. */
   version: 1 | 2
+  /**
+   * OpenCode 2 only: when the agent side began listening. It has no list of a conversation's
+   * subagents, only their events, so one from before then is unknown until it does something.
+   */
+  listening?: number
 }
 
-export function subagentReport({ nodes, now, version }: ReportInput): string {
-  if (nodes.length === 0) return "This conversation has no subagents yet."
+/**
+ * What OpenCode 2's agent side cannot list, said once, so an agent missing a subagent it remembers
+ * knows why and that its id still works — rather than concluding it is gone (principles, rule 3).
+ */
+export function unseenNote(listening: number, now: number, version: 1 | 2): string {
+  return `Subagents from before OpenCode last started (${clock(listening, now)}) appear here only once they do something: on OpenCode 2 the agent side has no list of them, only their events. One you remember can still be read or waited on by its id, and continued — ${continueHow(version)}.`
+}
+
+export function subagentReport({ nodes, now, version, listening }: ReportInput): string {
+  const unseen = listening === undefined ? [] : ["", unseenNote(listening, now, version)]
+  if (nodes.length === 0) return ["This conversation has no subagents yet.", ...unseen].join("\n")
   const lines = [
     `Subagents of this conversation, oldest first (now: ${clock(now, now, true)}). To follow up on work one of them did, continue that same subagent — ${continueHow(version)} — instead of launching a new one: it keeps everything it already read and tried. subagents_read gives one's full answer and what it did.`,
     "",
@@ -54,7 +68,7 @@ export function subagentReport({ nodes, now, version }: ReportInput): string {
           : `${indent}  Last words (a progress note, not its answer): ${clip(answer, ANSWER)}`,
       )
   }
-  return lines.join("\n")
+  return [...lines, ...unseen].join("\n")
 }
 
 // ---------------------------------------------------------------------------------------------------
