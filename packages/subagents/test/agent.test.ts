@@ -42,7 +42,8 @@ const store: Record<string, { info: Record<string, unknown>; messages: unknown[]
       id: FLAKY,
       parentID: ROOT,
       title: "Flaky shell starter (@general subagent)",
-      agent: "general",
+      /** As 1.18.32 stored the load test's: the launcher's agent, not the subagent's. */
+      agent: "build",
       time: { created: T0 - 6 * 60_000, updated: T0 - 4 * 60_000 },
     },
     messages: [
