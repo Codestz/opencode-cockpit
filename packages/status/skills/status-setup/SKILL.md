@@ -82,12 +82,16 @@ learned the hard way, and they are not obvious.
 
 ## 5. Look at it before you call it done
 
-A statusline is judged in a terminal, not from a sentence. After any change to segments:
+A statusline is judged in a terminal, not from a sentence. After any change to segments, run the
+preview that came with this install — it is two folders up from this skill, at
+`<this skill's folder>/../../dist/cli/preview.js`. It reads the same files OpenCode will, comments and
+all. (`bunx @opencode-cockpit/status preview` fetches the newest release instead, which may read
+settings differently from the version installed.)
 
 ```sh
-bunx @opencode-cockpit/status preview --watch     # redraws on every save
-bunx @opencode-cockpit/status preview --debug     # marks segments that drew nothing
-bunx @opencode-cockpit/status preview --state fresh
+bun <preview.js> --watch          # redraws on every save
+bun <preview.js> --debug          # marks segments that drew nothing
+bun <preview.js> --state fresh    # one state (`--help` lists them); no flag draws every one
 ```
 
 Check `fresh` and `empty` (what a new session shows) and `full` (the widest numbers). For anything
