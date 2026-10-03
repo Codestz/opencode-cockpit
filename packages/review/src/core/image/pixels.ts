@@ -99,7 +99,7 @@ export function* shrink(source: Pixels, maxWidth = THUMB_WIDTH, maxHeight = THUM
       out[o + 3] = Math.round(weight / ((n[tx] as number) || 1))
     }
     work += (y1 - y0) * source.width
-    if (work >= SLICE) {
+    if (work >= SLICE / 2) {
       work = 0
       yield
     }
@@ -158,7 +158,7 @@ export function* comparePixels(
       }
     }
     work += width
-    if (work >= SLICE * 4) {
+    if (work >= SLICE * 2) {
       work = 0
       yield
     }
