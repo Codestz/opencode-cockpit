@@ -91,6 +91,77 @@ describe("--config reads a file as OpenCode will", () => {
   })
 })
 
+/**
+ * `--config -`: the candidate an agent is about to write, piped in rather than written to a temporary
+ * file — one outside the project is a permission prompt on OpenCode 1, one inside is a stray file in
+ * the user's repo. It stands in for the file it will become, and the other is read beside it.
+ */
+describe("a candidate on stdin, `--as` the file it will become", () => {
+  const GLOBAL = "/cfg/opencode-cockpit/config.json"
+  const PROJECT = "/w/app/.cockpit.json"
+  const candidate = (text: unknown, as: "global" | "project", disk: Record<string, unknown>) =>
+    previewSettings({
+      directory: "/w/app",
+      env: { XDG_CONFIG_HOME: "/cfg" },
+      configText: JSON.stringify(text),
+      as,
+      readFile: (path) => (path in disk ? JSON.stringify(disk[path]) : undefined),
+    })
+
+  test("as global: it replaces the global file, and the project's still applies over it", () => {
+    const { lines, target } = candidate({ status: { override: { git: { against: "branch" } } } }, "global", {
+      [GLOBAL]: { status: { override: { write: false } } },
+      [PROJECT]: { status: { override: { cache: false } } },
+    })
+    expect(target).toBe(GLOBAL)
+    const types = lines[0]?.segments.map((entry) => asSegmentConfig(entry).type)
+    expect(types).toContain("write") // the global on disk is what the candidate replaces
+    expect(types).not.toContain("cache") // the project's file still reads
+    expect(lines[0]?.segments.map(asSegmentConfig).find((entry) => entry.type === "git")?.against).toBe(
+      "branch",
+    )
+  })
+
+  test("as project: it merges over the real global file, as a .cockpit.json does", () => {
+    const { lines, target, loaded } = candidate({ status: { override: { write: false } } }, "project", {
+      [GLOBAL]: { status: { override: { git: { against: "branch" } } } },
+      [PROJECT]: { status: { override: { tokens: false } } },
+    })
+    expect(target).toBe(PROJECT)
+    const types = lines[0]?.segments.map((entry) => asSegmentConfig(entry).type)
+    expect(types).not.toContain("write")
+    expect(types).toContain("tokens") // the project file on disk is what the candidate replaces
+    expect(lines[0]?.segments.map(asSegmentConfig).find((entry) => entry.type === "git")?.against).toBe(
+      "branch",
+    )
+    expect(loaded.notices).toEqual([])
+  })
+
+  test("JSONC, notices and all, as the loader reads a file", () => {
+    const { loaded } = previewSettings({
+      directory: "/w/app",
+      env: { XDG_CONFIG_HOME: "/cfg" },
+      configText: '{ // mine\n "status": { "override": { "gti": false }, }, }',
+      as: "global",
+      readFile: () => undefined,
+    })
+    expect(loaded.notices).toEqual([
+      'settings: override "gti" matches no segment in the sidebar preset — did you mean "git"?',
+    ])
+  })
+
+  test("`--as` is global or project, and goes with --config", () => {
+    expect(parseArgs(["--config", "-", "--as", "project"])).toMatchObject({
+      values: { config: "-", as: "project" },
+      errors: [],
+    })
+    expect(parseArgs(["--config", "-", "--as=home"]).errors).toEqual([
+      '--as is global or project, not "home"',
+    ])
+    expect(parseArgs(["--as", "global"]).errors).toEqual(["--as goes with --config"])
+  })
+})
+
 describe("--surface", () => {
   test("draws there whatever the settings say, with that surface's preset and notices", () => {
     const moved = preview({ status: { sidebar: false, override: { git: false } } }, "sidebar")

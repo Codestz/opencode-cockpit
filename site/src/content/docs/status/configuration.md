@@ -71,7 +71,8 @@ A change applies to every segment of that name — `"sep": false` drops every ha
 ```
 
 Look at it before restarting: `bunx @opencode-cockpit/status preview --config <file>` reads the file
-as OpenCode will, and `--debug` names every row — `✓git` drew, `✗spend` drew nothing, `?gti` is no
+as OpenCode will — `--config -` reads it from stdin, as the file it will become (`--as global` or
+`--as project`), so a change can be seen before it is written anywhere — and `--debug` names every row — `✓git` drew, `✗spend` drew nothing, `?gti` is no
 segment at all.
 
 ## Your own line

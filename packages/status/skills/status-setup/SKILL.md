@@ -107,27 +107,32 @@ install — two folders up from this skill, at `<this skill's folder>/../../dist
 (`bunx @opencode-cockpit/status preview` fetches the newest release instead, which may read settings
 differently from the version installed.)
 
-**Before writing**, put the whole file as it will be after your change — every key already in it,
-plus the change — in a temporary file, and preview **that file**. `--config` reads it through the
-same loader and resolution OpenCode uses (`preset`, `sidebarRows`, `override`, the `!` rows), in
-place of the global config, with no project file beside it. Show the user the exact command you ran
-and what it drew:
+**Before writing**, pipe the whole file as it will be after your change — every key already in it,
+plus the change — into the preview with `--config -`. **Do not write a temporary file**: one outside
+the project asks the user for permission, and one inside it is a stray file in their repo. The
+preview reads stdin through the same loader and resolution OpenCode uses (`preset`, `sidebarRows`,
+`override`, the `!` rows), as the file it will become — `--as global` (the default) or `--as project`
+— with the other file read beside it, as OpenCode will. Run it from the project folder, and show the
+user the exact command you ran and what it drew:
 
 ```sh
-bun <preview.js> --config /tmp/status-preview.json --state busy --debug
-bun <preview.js> --config /tmp/status-preview.json --state fresh
-bun <preview.js> --config /tmp/status-preview.json --surface sidebar   # force a surface
+cat <<'EOF' | bun <preview.js> --config - --state busy --debug
+{ "status": { "preset": "sidebar", "override": { "git": { "against": "branch" } } } }
+EOF
 ```
 
-- The first line of output names the file it read; a `!` row is a notice to fix before writing.
+Then the same with `--state fresh`; `--as project` for a `.cockpit.json`; `--surface sidebar` (or
+`bottom`) to force a surface.
+
+- The first line names what it read: `config: (stdin, as ~/.config/opencode-cockpit/config.json)`.
+  A `!` row is a notice to fix before writing.
 - `--debug` names every row: `✓git` drew, `✗spend` ran and drew nothing (no data in that state),
   `?gti` is no segment at all (a typo).
 - The sidebar is drawn 34 columns wide, as in OpenCode; `--width` changes it.
 - An unknown flag or a file it cannot read stops it with an error: fix the command, do not guess.
 
-Check `fresh` and `empty` (what a new session shows) and `full` (the widest numbers). For a
-project's `.cockpit.json`, the temporary file holds the global `status` section with the project's
-on top. For anything custom, paste an ASCII mock and ask before writing it.
+Check `fresh` and `empty` (what a new session shows) and `full` (the widest numbers). For anything
+custom, paste an ASCII mock and ask before writing it.
 
 ## 6. OpenCode's own Context block
 
@@ -148,8 +153,8 @@ Never suggest turning OpenCode's Todo block off: nothing in Cockpit replaces it.
   previewed, nothing else.
 - Call `cockpit_settings` again: it must say `Notices: none` (a key Status does not read shows up
   there). A preset that does not exist, or an `override` name that matches no segment, is Status's own
-  `!` row, and a segment name that does not exist draws nothing: `preview --config <the file>` shows
-  the one and `--debug` the other (`?name`), before a restart.
+  `!` row, and a segment name that does not exist draws nothing: `preview --config -` shows the one
+  and `--debug` the other (`?name`), before a restart.
 - Tell them what changed, that **it applies after restarting OpenCode**, and how to undo (remove
   those keys and restart; `/status-setup` again any time). For which blocks show and in what order,
   `/cockpit-setup`.

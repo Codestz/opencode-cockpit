@@ -20,7 +20,14 @@ import { type ResolvedLine, resolveLines, type Surface } from "../core/config.ts
 import { loadCustomSegments, resolveModulePath } from "../core/custom.ts"
 import { FIXTURES, type FixtureName } from "../core/fixtures.ts"
 import { moduleNoticeText } from "../core/notices.ts"
-import { drawState, parseArgs, plainRuns, previewSettings, SIDEBAR_WIDTH } from "../core/preview.ts"
+import {
+  type ConfigAs,
+  drawState,
+  parseArgs,
+  plainRuns,
+  previewSettings,
+  SIDEBAR_WIDTH,
+} from "../core/preview.ts"
 import type { SegmentDef } from "../core/segments.ts"
 import { paintRuns as paintColour } from "./ansi.ts"
 
@@ -34,6 +41,11 @@ if (has("help")) {
 
     --config <path>   this file in place of your global config, with no project file beside it
                       (default: your global config, then this folder's .cockpit.json)
+    --config -        a config on stdin, as the file it is meant to become, the other read beside it:
+                        cat <<'EOF' | preview --config - --debug
+                        { "status": { "override": { "git": { "against": "branch" } } } }
+                        EOF
+    --as <file>       global | project: the file --config stands in for (stdin: global by default)
     --surface <name>  sidebar | bottom: draw there, whatever the settings say
     --proxy <path>    the budget file a proxy writes, for spend and avail (none: draw without one)
     --module <path>   draw this module's segments, on their own
@@ -54,7 +66,16 @@ if (args.errors.length > 0) {
 const directory = process.cwd()
 const expand = (path: string) => (path === "~" || path.startsWith("~/") ? homedir() + path.slice(1) : path)
 const configFlag = flag("config")
-const configPath = configFlag ? expand(configFlag) : undefined
+/**
+ * `--config -`: the candidate on stdin, as the file it is meant to become (`--as`, global by default),
+ * with the other file read beside it as OpenCode will. An agent previews what it is about to write
+ * without writing it anywhere first — a temporary file outside the project is a permission prompt on
+ * OpenCode 1, and one inside it is a stray file in the user's repo.
+ */
+const fromStdin = configFlag === "-"
+const configPath = configFlag && !fromStdin ? expand(configFlag) : undefined
+const as = (flag("as") ?? (fromStdin ? "global" : undefined)) as ConfigAs | undefined
+const stdinText = fromStdin ? await Bun.stdin.text() : undefined
 const surface = flag("surface") as Surface | undefined
 
 /**
@@ -64,6 +85,7 @@ const surface = flag("surface") as Surface | undefined
  * stops the preview: the defaults drawn in its place would look like a file that changed nothing.
  */
 function settings() {
+  if (stdinText !== undefined) return previewSettings({ directory, configText: stdinText, as, surface })
   if (!configPath) return previewSettings({ directory, surface })
   let configText: string
   try {
@@ -72,7 +94,7 @@ function settings() {
     console.error(`  cannot read --config ${configPath}: ${(error as Error).message}`)
     process.exit(2)
   }
-  return previewSettings({ directory, configText, surface })
+  return previewSettings({ directory, configText, surface, ...(as ? { as } : {}) })
 }
 
 /**
@@ -88,7 +110,7 @@ const isolate = only !== undefined && !has("with-config")
 
 /** Everything a draw needs, read again on every redraw so `--watch` follows the config too. */
 async function prepare(fresh = false) {
-  const { loaded, lines: configured } = settings()
+  const { loaded, lines: configured, target } = settings()
   const config = loaded.config
   const modules = [...(isolate ? [] : (config.modules ?? [])), ...(only ? [only] : [])]
   let custom: ReadonlyMap<string, SegmentDef> = new Map()
@@ -123,7 +145,7 @@ async function prepare(fresh = false) {
     : configured
   /** The `!` rows the bay would draw above its first line. */
   const troubles = [...loaded.notices, ...moduleErrors.map(moduleNoticeText)]
-  return { lines, modules, custom, troubles }
+  return { lines, modules, custom, troubles, target }
 }
 
 /**
@@ -145,13 +167,18 @@ const dim = (text: string) =>
   color ? `${String.fromCharCode(27)}[38;2;110;120;132m${text}${String.fromCharCode(27)}[0m` : text
 
 /** Which settings these are, so a preview of one file cannot pass for a preview of another. */
-const source = configPath ?? "your global config, then this folder's .cockpit.json"
+const sourceOf = (target: string | undefined) =>
+  fromStdin
+    ? `(stdin, as ${target})`
+    : configPath
+      ? `${configPath}${target ? `, as ${target}` : ""}`
+      : "your global config, then this folder's .cockpit.json"
 
 async function draw(fresh = false): Promise<string[]> {
-  const { lines, modules, custom, troubles } = await prepare(fresh)
+  const { lines, modules, custom, troubles, target } = await prepare(fresh)
   const budget = budgetFor(lines)
   const debug = has("debug") || lines.some((line) => line.debug)
-  console.log(`\n  ${dim(`settings: ${source}${surface ? ` · --surface ${surface}` : ""}`)}`)
+  console.log(`\n  ${dim(`config: ${sourceOf(target)}${surface ? ` · --surface ${surface}` : ""}`)}`)
   for (const state of states) {
     const fixture = FIXTURES[state]
     if (!fixture) {

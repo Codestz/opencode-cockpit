@@ -142,8 +142,19 @@ bunx @opencode-cockpit/status preview --debug --state fresh    # ✓name drew ·
 ```
 
 `--config` reads the file through the same loader as the plugin — `preset`, `sidebarRows`,
-`override`, the `!` rows and all — in place of your global config. The sidebar is drawn 34 columns
-wide unless `--width` says otherwise; `--watch` redraws on every save.
+`override`, the `!` rows and all — in place of your global config. `--config -` reads a candidate on
+stdin as the file it is meant to become (`--as global`, the default, or `--as project`), with the
+other file read beside it — how the `status-setup` skill looks at a change before writing it,
+without a temporary file:
+
+```sh
+cat <<'EOF' | bunx @opencode-cockpit/status preview --config - --debug
+{ "status": { "override": { "write": false } } }
+EOF
+```
+
+The first line says what was read: `config: (stdin, as ~/.config/opencode-cockpit/config.json)`. The
+sidebar is drawn 34 columns wide unless `--width` says otherwise; `--watch` redraws on every save.
 
 ## Configuration
 

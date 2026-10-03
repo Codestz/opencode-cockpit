@@ -68,10 +68,13 @@ All notable changes to this project are documented here. The format follows
   that matches no segment is a `!` row naming the closest (`override "gti" … did you mean "git"?`).
 - **Status's preview reads a file as OpenCode does.** `preview --config <file>` goes through the
   plugin's own loader and resolution — `preset`, `sidebarRows`, `override` and the `!` rows — and stops
-  on a file it cannot read or a flag it does not know rather than drawing other settings. `--surface
-  sidebar|bottom` draws there whatever the file says; the sidebar is 34 columns unless `--width` says
-  otherwise. `--debug` names every row: `✓git` drew, `✗spend` drew nothing, `?gti` is no segment at
-  all — where `⟨?title⟩` and `⟨todo⟩` used to differ by one character in the same brackets.
+  on a file it cannot read or a flag it does not know rather than drawing other settings. `--config -`
+  reads a candidate on stdin as the file it will become (`--as global|project`), so a change is seen
+  before it is written anywhere — the `status-setup` skill previews this way, with no temporary file.
+  `--surface sidebar|bottom` draws there whatever the file says; the sidebar is 34 columns unless
+  `--width` says otherwise. `--debug` names every row: `✓git` drew, `✗spend` drew nothing, `?gti` is
+  no segment at all — where `⟨?title⟩` and `⟨todo⟩` used to differ by one character in the same
+  brackets.
 
 ### Changed
 

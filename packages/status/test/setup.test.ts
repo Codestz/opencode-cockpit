@@ -120,9 +120,15 @@ describe("the skill", () => {
     }
   })
 
-  test("it previews the file it is about to write, and says how", () => {
-    expect(skill).toContain("--config /tmp/status-preview.json")
+  /**
+   * Piped, never written first: a temporary file outside the project is a permission prompt on
+   * OpenCode 1, and one inside it dirties the user's repo.
+   */
+  test("it previews what it is about to write on stdin, never through a temporary file", () => {
+    expect(skill).toContain("| bun <preview.js> --config - ")
+    expect(skill).toContain("--as project")
     expect(skill).toContain("`✓git`")
+    for (const text of [skill, read("design.md")]) expect(text).not.toMatch(/\/tmp\/|status-preview\.json/)
   })
 })
 

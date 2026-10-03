@@ -5,7 +5,8 @@
  * `sidebarRows: 14` capped at 8 — and could not tell whether the preview or the setting was wrong.
  */
 
-import type { SettingsWhere } from "@opencode-cockpit/client/settings"
+import { readFileSync } from "node:fs"
+import { type SettingsWhere, settingsPaths } from "@opencode-cockpit/client/settings"
 import type { Budget } from "./budget.ts"
 import {
   asSegmentConfig,
@@ -23,7 +24,7 @@ import { buildSegments, MARK, type SegmentDef, segmentWidth } from "./segments.t
 import type { Run } from "./types.ts"
 
 /** The flags `preview` takes: those with a value, and the switches. */
-const VALUED = ["config", "proxy", "module", "state", "width", "surface"] as const
+const VALUED = ["config", "as", "proxy", "module", "state", "width", "surface"] as const
 const SWITCHES = ["with-config", "debug", "watch", "help"] as const
 
 export interface PreviewArgs {
@@ -63,18 +64,34 @@ export function parseArgs(argv: readonly string[]): PreviewArgs {
   if (surface !== undefined && surface !== "sidebar" && surface !== "bottom") {
     out.errors.push(`--surface is sidebar or bottom, not "${surface}"`)
   }
+  const as = out.values.as
+  if (as !== undefined && as !== "global" && as !== "project") {
+    out.errors.push(`--as is global or project, not "${as}"`)
+  }
+  if (as !== undefined && out.values.config === undefined) out.errors.push("--as goes with --config")
   return out
 }
+
+/** Which of the two settings files a candidate stands in for. */
+export type ConfigAs = "global" | "project"
 
 export interface PreviewInput {
   directory: string
   env?: Record<string, string | undefined>
   /**
-   * A file's text, standing in for the global config with no project file beside it. Read through the
-   * same loader as the TUI's, so its `status` section — comments, old names, `sidebarRows` and all —
-   * means here exactly what it will mean in OpenCode.
+   * A config's text — a file's, or a candidate piped on stdin. Read through the same loader as the
+   * TUI's, so its `status` section — comments, old names, `sidebarRows`, `override` and all — means
+   * here exactly what it will mean in OpenCode.
    */
   configText?: string
+  /**
+   * The file `configText` is meant to become. Set, the text takes that file's place and the other file
+   * is read as OpenCode reads it, so a project's candidate merges over the real global config. Unset,
+   * the text stands alone in place of the global config, with no project file beside it.
+   */
+  as?: ConfigAs
+  /** How the other file is read; the disk by default. */
+  readFile?: (path: string) => string | undefined
   /** Draw on this surface whatever the settings say. */
   surface?: Surface
 }
@@ -82,22 +99,40 @@ export interface PreviewInput {
 export interface PreviewSettings {
   loaded: LoadedStatus
   lines: ResolvedLine[]
+  /** The file the text stood in for, with `as`. */
+  target?: string
+}
+
+const fromDisk = (path: string): string | undefined => {
+  try {
+    return readFileSync(path, "utf8")
+  } catch {
+    return undefined
+  }
 }
 
 /** The settings and the lines the TUI would draw from them: `loadStatus`, then `resolveLines`. */
 export function previewSettings(input: PreviewInput): PreviewSettings {
-  const where: SettingsWhere =
-    input.configText === undefined
-      ? { directory: input.directory, ...(input.env ? { env: input.env } : {}) }
-      : // With no `directory` the loader asks for one file, the global one: this is it.
-        { ...(input.env ? { env: input.env } : {}), read: () => input.configText }
+  const env = input.env ? { env: input.env } : {}
+  let where: SettingsWhere = { directory: input.directory, ...env }
+  let target: string | undefined
+  if (input.configText !== undefined && input.as) {
+    const paths = settingsPaths({ directory: input.directory, ...env })
+    target = input.as === "project" ? paths.project : paths.global
+    const readFile = input.readFile ?? fromDisk
+    where = { ...where, read: (path) => (path === target ? input.configText : readFile(path)) }
+  } else if (input.configText !== undefined) {
+    // With no `directory` the loader asks for one file, the global one: this is it.
+    where = { ...env, read: () => input.configText }
+  }
   const loaded = loadStatus({ where })
-  if (!input.surface) return { loaded, lines: resolveLines(loaded.config) }
+  const at = target ? { target } : {}
+  if (!input.surface) return { loaded, lines: resolveLines(loaded.config), ...at }
   /** Moved, a line starts from another preset: its notices are the moved line's, as they would be. */
   const config = forced(loaded.config, input.surface)
   const before = new Set(configNotices(loaded.config))
   const notices = [...loaded.notices.filter((notice) => !before.has(notice)), ...configNotices(config)]
-  return { loaded: { ...loaded, notices }, lines: resolveLines(config) }
+  return { loaded: { ...loaded, notices }, lines: resolveLines(config), ...at }
 }
 
 /** `--surface`: every line on that surface, the way `"surface"` in the file would put it. */
