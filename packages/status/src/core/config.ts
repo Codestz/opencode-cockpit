@@ -138,7 +138,7 @@ export interface StatusConfig {
  * The kind of value each key takes, as the loader checks it: a value of another kind is dropped
  * with a `!` row naming the key, where it used to reach the renderer and fail there — or nowhere.
  */
-const KINDS = {
+export const KINDS = {
   preset: "",
   surface: "",
   segments: [] as unknown[],

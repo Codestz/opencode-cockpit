@@ -1,11 +1,3 @@
----
-name: statusline-design
-description: The design rules for an opencode-cockpit statusline (the Status bay), kept for 0.9 for anyone who copied this folder. The shipped status-setup skill replaces it and carries the same rules; prefer status-setup when it is available. Removed in 0.10.
----
-
-> Kept for 0.9 only. `/status-setup` loads the **status-setup** skill shipped with this package,
-> which carries these rules in `status-setup/references/design.md`. This copy is removed in 0.10.
-
 # Designing a statusline
 
 A statusline is a **visual artifact judged in a terminal**. The failure mode these rules exist to

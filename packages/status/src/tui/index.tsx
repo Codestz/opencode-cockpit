@@ -8,11 +8,10 @@ import { createMemo } from "solid-js"
 import pkg from "../../package.json" with { type: "json" }
 import { asSegmentConfig, loadStatus, type ResolvedLine, resolveLines } from "../core/config.ts"
 import { loadCustomSegments } from "../core/custom.ts"
-import { OLD_SLASH, SETUP_SLASH, statusSetupBrief } from "../core/instructions.ts"
 import { moduleNoticeText, noticeRows, overflowNotice } from "../core/notices.ts"
 import { fit, fitColumn } from "../core/render.ts"
-import { buildReport } from "../core/report.ts"
 import { buildSegments, type SegmentDef } from "../core/segments.ts"
+import { SETUP_PROMPT } from "../core/setup.ts"
 import { StatusLine } from "./components/statusline.tsx"
 import { buildContext } from "./state/snapshot.ts"
 import { createStatusStore } from "./state/store.ts"
@@ -36,7 +35,7 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
     api.lifecycle.onDispose(() => claim.release())
 
     const directory = api.state.path.directory
-    const { config, order, notices, settings } = loadStatus({ options: rawOptions, where: { directory } })
+    const { config, order, notices } = loadStatus({ options: rawOptions, where: { directory } })
     for (const notice of notices) api.log.warn("status: settings", { notice })
     if (config.enabled === false) return
 
@@ -146,38 +145,11 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
     }
 
     /**
-     * `/status-setup` draws nothing. Setting up the line is an editing job in a file the TUI never
-     * names, so the useful thing is not a help panel the user then has to act on themselves — it is
-     * a brief handed to the agent already in the session, carrying what it cannot look up: which
-     * config file this project reads, what is in it now, and what would not load.
+     * The palette's way to the `status-setup` skill. `/status-setup` itself is a command the agent
+     * side ships (`../server.ts`), which OpenCode runs like its own — but neither OpenCode lists such a
+     * command in the palette, so this entry sends the same line. No slash name: that one is taken by
+     * the shipped command, and two rows doing one thing would be one too many.
      */
-    const brief = () =>
-      statusSetupBrief(
-        buildReport({
-          version: pkg.version,
-          directory,
-          files: settings.files,
-          lines,
-          modules: config.modules,
-          registered: custom.size,
-          errors: moduleErrors,
-          notices,
-        }),
-      )
-    const send = (done?: string) => {
-      const text = brief()
-      /**
-       * Sent, not left in the prompt. The brief is forty lines; parked in the input it is a wall of
-       * text the user has to scroll past to type their own sentence, and it ends by asking what they
-       * want anyway — so the agent is the right place for it to land.
-       *
-       * `briefAgent` sends it on the next tick (a slash command clears the prompt it was typed into),
-       * queues it behind a reply in progress, and from home opens a conversation for it — the same
-       * path as /cockpit-setup.
-       */
-      briefAgent(api, text, "Status", done)
-    }
-
     api.keymap.registerLayer({
       commands: [
         {
@@ -185,26 +157,7 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
           title: "Ask the agent to set up the status bay",
           category: "Cockpit · Status",
           namespace: "palette",
-          slashName: SETUP_SLASH,
-          run: () => send(),
-        },
-        /**
-         * The old name, for one release (removed in 0.10). A second command rather than an alias:
-         * neither OpenCode tells a command which of its names was typed, so only a command of its
-         * own can say it was renamed (docs/opencode/settings-and-commands.md, Part B). It says so,
-         * then does what it always did, so the habit keeps working while it learns the new name.
-         */
-        {
-          name: "cockpit.status.customise",
-          title: `Renamed: use /${SETUP_SLASH}`,
-          category: "Cockpit · Status",
-          namespace: "palette",
-          slashName: OLD_SLASH,
-          /**
-           * The rename rides on the toast that says the brief went out: a toast of its own was
-           * replaced by that one a moment later, so nobody ever read it.
-           */
-          run: () => send(`/${OLD_SLASH} is now /${SETUP_SLASH} — briefed the agent all the same.`),
+          run: () => briefAgent(api, SETUP_PROMPT, "Status"),
         },
       ],
     })
