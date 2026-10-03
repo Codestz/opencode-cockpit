@@ -19,7 +19,8 @@ prose.
 ```sh
 bunx @opencode-cockpit/status preview --watch          # redraws on every save
 bunx @opencode-cockpit/status preview --state full     # one state
-bunx @opencode-cockpit/status preview --debug          # mark segments that drew nothing
+bunx @opencode-cockpit/status preview --config my.json # that file, read as OpenCode reads it
+bunx @opencode-cockpit/status preview --debug          # name every row: ✓ drew, ✗ drew nothing, ? no such segment
 bunx @opencode-cockpit/status preview --module mine.ts # that module alone, every segment it has
 ```
 

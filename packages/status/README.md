@@ -100,6 +100,29 @@ Anything you write beside one wins, so it is a starting point and not a mode. A 
 preset draws the surface's own line, with a `!` row above it naming the presets there are. See
 [`examples/`](./examples) for the modules to reach for when a preset is not enough.
 
+### Changing a row or two
+
+`override` changes the preset's segments by name and keeps every other row, so the line goes on
+following the preset. `false` drops a segment, a name swaps it in the same place, an object merges
+into its settings:
+
+```jsonc
+{
+  "status": {
+    "override": {
+      "git": { "against": "branch" },        // the branch's whole diff, not what is uncommitted
+      "write": false,                         // no cache-write row
+      "session.status": { "working": true }   // the turn's clock as well as a retry
+    }
+  }
+}
+```
+
+A change applies to every segment of that name (`"sep": false` drops every hairline). `segments` is
+still the whole list, replacing the preset's — write it only to build a different line; with both,
+the override applies to `segments`. A line in `lines` takes its own `override`. A name that matches no
+segment is a `!` row: `override "gti" matches no segment in the sidebar preset — did you mean "git"?`
+
 ## `/status-setup`
 
 Type it, or just ask ("put the statusline at the bottom"), and the agent sets the line up with you
@@ -109,6 +132,18 @@ you want, writes only what differs from the defaults, and checks the line in the
 with your install. `/statusline`, its name until 0.9, still works for one release and says the new
 name. Both come from Status's agent side (`@opencode-cockpit/status/server`), which the bundle
 includes and the package's install line adds.
+
+## Looking at it before a restart
+
+```sh
+bunx @opencode-cockpit/status preview --config ./status.json   # this file, read as OpenCode reads it
+bunx @opencode-cockpit/status preview --surface sidebar        # draw there, whatever the file says
+bunx @opencode-cockpit/status preview --debug --state fresh    # ✓name drew · ✗name drew nothing · ?name no such segment
+```
+
+`--config` reads the file through the same loader as the plugin — `preset`, `sidebarRows`,
+`override`, the `!` rows and all — in place of your global config. The sidebar is drawn 34 columns
+wide unless `--width` says otherwise; `--watch` redraws on every save.
 
 ## Configuration
 

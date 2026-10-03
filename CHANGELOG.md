@@ -61,6 +61,17 @@ All notable changes to this project are documented here. The format follows
   showing a retry. `context` gets style `solid` and `tokens` style
   `row`, so the table needs no module. `spend` and `avail` read a proxy's budget file and draw nothing
   without one; a hairline draws only between two rows.
+- **Status's `override` changes a row or two and keeps the rest.** `{ "status": { "override": { "git":
+  { "against": "branch" } } } }` changes the table's `git` row and leaves the other thirteen following
+  the preset, where it used to take a copy of the whole list in `segments`. `false` drops a segment, a
+  name swaps it in place, an object merges into its settings; a line in `lines` takes its own. A name
+  that matches no segment is a `!` row naming the closest (`override "gti" … did you mean "git"?`).
+- **Status's preview reads a file as OpenCode does.** `preview --config <file>` goes through the
+  plugin's own loader and resolution — `preset`, `sidebarRows`, `override` and the `!` rows — and stops
+  on a file it cannot read or a flag it does not know rather than drawing other settings. `--surface
+  sidebar|bottom` draws there whatever the file says; the sidebar is 34 columns unless `--width` says
+  otherwise. `--debug` names every row: `✓git` drew, `✗spend` drew nothing, `?gti` is no segment at
+  all — where `⟨?title⟩` and `⟨todo⟩` used to differ by one character in the same brackets.
 
 ### Changed
 

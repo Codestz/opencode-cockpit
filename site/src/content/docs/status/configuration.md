@@ -44,6 +44,36 @@ line under the prompt instead. Anything you write beside a preset wins, so it is
 and not a mode; a name that is not a preset draws the surface's own line, with a `!` row naming the
 presets there are.
 
+## Changing a row or two
+
+`override` changes the preset's segments by name and keeps every other row, so the table goes on
+following the preset:
+
+```jsonc
+{
+  "status": {
+    "override": {
+      "git": { "against": "branch" },        // an object merges into that segment's settings
+      "write": false,                         // false drops it
+      "session.status": { "working": true }, // the turn's clock as well as a retry
+      "spend": "cost"                         // a name swaps it, in the same place
+    }
+  }
+}
+```
+
+A change applies to every segment of that name — `"sep": false` drops every hairline. With
+`segments` written too, the override applies to those; a line in `lines` takes its own. A project's
+`override` adds to the global one, key by key. A name that matches no segment is not silent:
+
+```
+! settings: override "gti" matches no segment in the sidebar preset — did you mean "git"?
+```
+
+Look at it before restarting: `bunx @opencode-cockpit/status preview --config <file>` reads the file
+as OpenCode will, and `--debug` names every row — `✓git` drew, `✗spend` drew nothing, `?gti` is no
+segment at all.
+
 ## Your own line
 
 ```jsonc
@@ -62,7 +92,8 @@ presets there are.
 ```
 
 A segment is a built-in's name, or that name with settings. An unknown name is skipped rather than
-fatal: a config written against a newer version costs you a segment, not the line.
+fatal: a config written against a newer version costs you a segment, not the line. `segments` is the
+whole list and replaces the preset's; to change one row of a preset, `override` keeps the rest.
 
 ## Built-in segments
 
@@ -223,6 +254,7 @@ Each line takes its own settings:
 
 | Setting | Default |
 | --- | --- |
+| `override` | the section's `override` |
 | `separator` | `" · "` across, nothing down |
 | `stack` | `vertical` in the sidebar, `horizontal` elsewhere |
 | `maxRows` | the bay's `sidebarRows` (8; the `sidebar` preset 14), vertical only |

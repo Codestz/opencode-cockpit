@@ -1,6 +1,6 @@
 ---
 name: status-setup
-description: Set up or design the Status bay of opencode-cockpit (its statusline) with the user - the table in the sidebar or a line under the prompt, which segments it shows, a preset, a shell command or Claude Code statusline script as a segment, or a TypeScript segment module. Use it whenever the user runs /status-setup or /statusline, or asks to change what the statusline or the Status table shows, e.g. "put the statusline at the bottom", "show the model and cost", "use my Claude Code statusline", "make the status table shorter", or edits the "status" section of config.json or .cockpit.json. For which Cockpit blocks show and in what order, use the cockpit-setup skill.
+description: Set up or design the Status bay of opencode-cockpit (its statusline) with the user - the table in the sidebar or a line under the prompt, which segments it shows, a preset, a shell command or Claude Code statusline script as a segment, or a TypeScript segment module. Use it whenever the user runs /status-setup or /statusline, or asks to change what the statusline or the Status table shows, e.g. "put the statusline at the bottom", "show the model and cost", "use my Claude Code statusline", "make the status table shorter", "show git against the branch", "hide the write row", or edits the "status" section of config.json or .cockpit.json. For which Cockpit blocks show and in what order, use the cockpit-setup skill.
 ---
 
 # Setting up the Status bay
@@ -75,27 +75,59 @@ multiple choice; otherwise ask in plain text with numbered options.
 - In the sidebar: how many rows before the rest fold (`sidebarRows`; 14 with the table).
 - Icons on or off (`icons`), only if their terminal shows boxes or gaps.
 
+### A row or two: `override`, never a copy of the list
+
+To change, drop or swap a few rows, write **`override`**, keyed by segment name — every other row
+keeps following the preset. **Do not copy the preset's list into `segments` to change one row**:
+`segments` replaces the whole list, and the copy stops following the preset. `false` drops a
+segment, a name swaps it in place, an object merges into its settings:
+
+| They say | Write |
+| --- | --- |
+| "show git against the branch, not uncommitted" | `{ "status": { "override": { "git": { "against": "branch" } } } }` |
+| "hide the write row" | `{ "status": { "override": { "write": false } } }` |
+| "show the working clock" | `{ "status": { "override": { "session.status": { "working": true } } } }` |
+| "cost instead of spend" | `{ "status": { "override": { "spend": "cost" } } }` |
+| "no hairlines" | `{ "status": { "override": { "sep": false } } }` |
+
+Merge it into what is written: an existing `override` keeps its other keys, and `preset` stays as
+it is. Write `segments` only to build a **different** line — a new order, rows the preset does not
+have; with both written, `override` applies to `segments`. A name that matches no segment is a `!`
+row naming the closest one.
+
 Keys, every built-in segment, the presets, commands and modules are in
 [references/settings.md](references/settings.md). Before you compose segments yourself, or write a
 module, read [references/design.md](references/design.md): it holds the rules a good line follows,
 learned the hard way, and they are not obvious.
 
-## 5. Look at it before you call it done
+## 5. Look at it before you write it
 
-A statusline is judged in a terminal, not from a sentence. After any change to segments, run the
-preview that came with this install — it is two folders up from this skill, at
-`<this skill's folder>/../../dist/cli/preview.js`. It reads the same files OpenCode will, comments and
-all. (`bunx @opencode-cockpit/status preview` fetches the newest release instead, which may read
-settings differently from the version installed.)
+A statusline is judged in a terminal, not from a sentence. Use the preview that came with this
+install — two folders up from this skill, at `<this skill's folder>/../../dist/cli/preview.js`.
+(`bunx @opencode-cockpit/status preview` fetches the newest release instead, which may read settings
+differently from the version installed.)
+
+**Before writing**, put the whole file as it will be after your change — every key already in it,
+plus the change — in a temporary file, and preview **that file**. `--config` reads it through the
+same loader and resolution OpenCode uses (`preset`, `sidebarRows`, `override`, the `!` rows), in
+place of the global config, with no project file beside it. Show the user the exact command you ran
+and what it drew:
 
 ```sh
-bun <preview.js> --watch          # redraws on every save
-bun <preview.js> --debug          # marks segments that drew nothing
-bun <preview.js> --state fresh    # one state (`--help` lists them); no flag draws every one
+bun <preview.js> --config /tmp/status-preview.json --state busy --debug
+bun <preview.js> --config /tmp/status-preview.json --state fresh
+bun <preview.js> --config /tmp/status-preview.json --surface sidebar   # force a surface
 ```
 
-Check `fresh` and `empty` (what a new session shows) and `full` (the widest numbers). For anything
-custom, paste an ASCII mock and ask before writing it.
+- The first line of output names the file it read; a `!` row is a notice to fix before writing.
+- `--debug` names every row: `✓git` drew, `✗spend` ran and drew nothing (no data in that state),
+  `?gti` is no segment at all (a typo).
+- The sidebar is drawn 34 columns wide, as in OpenCode; `--width` changes it.
+- An unknown flag or a file it cannot read stops it with an error: fix the command, do not guess.
+
+Check `fresh` and `empty` (what a new session shows) and `full` (the widest numbers). For a
+project's `.cockpit.json`, the temporary file holds the global `status` section with the project's
+on top. For anything custom, paste an ASCII mock and ask before writing it.
 
 ## 6. OpenCode's own Context block
 
@@ -112,10 +144,12 @@ Never suggest turning OpenCode's Todo block off: nothing in Cockpit replaces it.
 
 - Write JSONC into the `"status"` section of the file they chose: the global
   `~/.config/opencode-cockpit/config.json` by default, `<project>/.cockpit.json` for this project only.
-  Only keys that differ from the defaults; keep comments and every other key.
+  Only keys that differ from the defaults; keep comments and every other key. Write what you
+  previewed, nothing else.
 - Call `cockpit_settings` again: it must say `Notices: none` (a key Status does not read shows up
-  there). A preset that does not exist is Status's own `!` row, and a segment name that does not
-  exist draws nothing: `preview` shows the one and `preview --debug` the other, before a restart.
+  there). A preset that does not exist, or an `override` name that matches no segment, is Status's own
+  `!` row, and a segment name that does not exist draws nothing: `preview --config <the file>` shows
+  the one and `--debug` the other (`?name`), before a restart.
 - Tell them what changed, that **it applies after restarting OpenCode**, and how to undo (remove
   those keys and restart; `/status-setup` again any time). For which blocks show and in what order,
   `/cockpit-setup`.

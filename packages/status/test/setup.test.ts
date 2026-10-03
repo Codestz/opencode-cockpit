@@ -3,7 +3,15 @@ import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { readSkill } from "@opencode-cockpit/client/server"
 import { BUILTINS } from "../src/core/builtins/index.ts"
-import { configNotices, loadStatus, PRESETS } from "../src/core/config.ts"
+import {
+  asSegmentConfig,
+  configNotices,
+  loadStatus,
+  PRESETS,
+  resolveLines,
+  SIDEBAR_SEGMENTS,
+  type StatusConfig,
+} from "../src/core/config.ts"
 import { SEGMENT_ABOUT, statusReference } from "../src/core/reference.ts"
 import { OLD_PROMPT, SETUP_PROMPT, SETUP_SKILL, SETUP_SKILL_DIR } from "../src/core/setup.ts"
 import { createStatusServer } from "../src/server.ts"
@@ -80,6 +88,41 @@ describe("the skill", () => {
         notices: [],
       })
     }
+  })
+
+  /**
+   * Asked to change only the `git` row, an agent once copied the table's fourteen segments into
+   * `segments`. Each small change the skill teaches is an `override` that the table reads without a
+   * notice, and that leaves the table's every other row where the preset put it.
+   */
+  test("every small change it teaches is an override of the table, not a copy of it", () => {
+    const table = skill.slice(skill.indexOf("### A row or two"), skill.indexOf("## 5."))
+    const examples = [...table.matchAll(/^\| "[^"]+" \| `(\{.*\})` \|$/gm)].map(
+      (match) => JSON.parse(match[1] as string) as { status: StatusConfig },
+    )
+    expect(examples.length).toBeGreaterThanOrEqual(3)
+    expect(table).toContain('{ "git": { "against": "branch" } }')
+    for (const example of examples) {
+      expect(Object.keys(example.status)).toEqual(["override"])
+      const loaded = loadStatus({
+        where: {
+          env: {},
+          home: "/home/me",
+          read: (path) => (path.endsWith("config.json") ? JSON.stringify(example) : undefined),
+        },
+      })
+      expect({ example, notices: loaded.notices }).toEqual({ example, notices: [] })
+      const [line] = resolveLines(loaded.config)
+      const kept = SIDEBAR_SEGMENTS.filter(
+        (entry) => !(asSegmentConfig(entry).type in (example.status.override ?? {})),
+      )
+      for (const entry of kept) expect(line?.segments).toContainEqual(entry)
+    }
+  })
+
+  test("it previews the file it is about to write, and says how", () => {
+    expect(skill).toContain("--config /tmp/status-preview.json")
+    expect(skill).toContain("`✓git`")
   })
 })
 
