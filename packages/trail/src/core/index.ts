@@ -1,0 +1,12 @@
+/** Published entry point: `@opencode-cockpit/trail/core` — the pure half, no OpenCode, no terminal. */
+export * from "./add.ts"
+export * from "./journal.ts"
+export * from "./links.ts"
+export * from "./model.ts"
+export * from "./paths.ts"
+export * from "./store.ts"
+export * from "./text.ts"
+export * from "./tools.ts"
+export * from "./view/dialog.ts"
+export { type Fill, type Row, type Run, rowText, TINTS, type Tone, widthOf } from "./view/rows.ts"
+export * from "./view/sidebar.ts"
