@@ -53,7 +53,7 @@ describe("configured twice in one OpenCode instance", () => {
 
   test("features switched off load nothing; separate instances each get Shell", async () => {
     const off = await bundle.server(fakeInput(), {
-      features: { shell: false, review: false, subagents: false },
+      features: { shell: false, review: false, subagents: false, trail: false },
     })
     expect(off.tool).toBeUndefined()
     /** One bay off leaves the others alone, which is the whole point of the switches. */
@@ -61,6 +61,7 @@ describe("configured twice in one OpenCode instance", () => {
     expect(Object.keys(shellOff.tool ?? {}).filter((name) => name.startsWith("shell_"))).toEqual([])
     expect(Object.keys(shellOff.tool ?? {})).toContain("review_list")
     expect(Object.keys(shellOff.tool ?? {})).toContain("subagents_list")
+    expect(Object.keys(shellOff.tool ?? {})).toContain("trail_add")
     const a = await bundle.server(fakeInput())
     const b = await bundle.server(fakeInput())
     expect(a.tool?.shell_start).toBeDefined()
