@@ -16,6 +16,7 @@ import type { ChangeSet, Review } from "../model/review.ts"
 import { metrics } from "../perf.ts"
 import { footerRows, headerRows } from "./chrome.ts"
 import { type Columns, FOOTER_ROWS, GUTTER, HEADER_ROWS, inset, splitColumns, window } from "./geometry.ts"
+import { keyRows } from "./keys.ts"
 import { fileRows, listScroll, listWidth } from "./list.ts"
 import { cell, faint, type Row } from "./rows.ts"
 import type { Viewport, ViewState } from "./state.ts"
@@ -65,8 +66,15 @@ function compose(changes: ChangeSet, review: Review, state: ViewState, viewport:
   const blank = (width: number): Row => ({ runs: [{ text: " ".repeat(width) }] })
 
   const close = (built: Row[]): Row[] => {
-    const feet = footerRows(content, columns, state, changes.files.length === 0)
+    const binary = changes.files.find((file) => file.path === state.file)?.binary !== undefined
+    const feet = footerRows(content, columns, state, changes.files.length === 0, binary)
     return [...built, ...feet.map((row, index) => (index === 0 ? rule : inset(row, inner)))]
+  }
+
+  /** `?`: the keys take the body, and the footer is only the way back. */
+  if (state.keys) {
+    for (const row of keyRows(content, body)) rows.push(inset(row, inner))
+    return close(rows)
   }
 
   /**

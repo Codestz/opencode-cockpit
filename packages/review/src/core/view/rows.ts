@@ -84,9 +84,17 @@ export interface Run {
    *
    * A real highlighter returns colours, not categories — so it sets this and the renderers prefer it
    * over `tone`. Untyped because this file is pure: it is the terminal library's own colour object,
-   * carried through untouched.
+   * carried through untouched — or a packed `0xRRGGBB` number, which the renderers turn into one.
    */
   color?: unknown
+  /**
+   * An exact background, beside the named `fill`, and preferred over it.
+   *
+   * A picture drawn in half blocks needs two exact colours per cell — `▀` in the top pixel's colour on
+   * the bottom pixel's — and a named surface cannot be a pixel. A packed `0xRRGGBB` number here, so the
+   * view stays pure and the preview CLI can paint it too.
+   */
+  background?: unknown
 }
 
 export interface Row {

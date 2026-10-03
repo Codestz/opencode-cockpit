@@ -25,19 +25,30 @@ type Command = NonNullable<Layer["commands"]>[number]
  * Wrapped here, at the one place commands are registered, rather than at twenty call sites — a safety
  * net with a hole in it because somebody forgot a line is not a safety net.
  */
-const guarded = (guard: Guard, commands: Command[]): Command[] =>
+const guarded = (guard: Guard, actions: Actions, commands: Command[]): Command[] =>
   commands.map((command) => ({
     ...command,
     run: (...args: Parameters<Command["run"]>) => {
       metrics.count("keys")
-      guard.run(command.name.replace("cockpit.review.", ""), () => command.run(...args))
+      guard.run(command.name.replace("cockpit.review.", ""), () => {
+        /** Any key that acts on the review takes you back to it from the keys screen, then acts. */
+        if (!STAY_ON_KEYS.has(command.name)) actions.leaveKeys()
+        return command.run(...args)
+      })
     },
   }))
+
+/** The keys that mean something on the keys screen itself: leaving it, and the numbers. */
+const STAY_ON_KEYS = new Set([
+  "cockpit.review.pane.keys",
+  "cockpit.review.pane.quit",
+  "cockpit.review.pane.stats",
+])
 
 export function paneLayer(actions: Actions, guard: Guard): Layer {
   return {
     priority: 100,
-    commands: guarded(guard, [
+    commands: guarded(guard, actions, [
       { name: "cockpit.review.pane.down", title: "Down", run: () => actions.move(1) },
       { name: "cockpit.review.pane.up", title: "Up", run: () => actions.move(-1) },
       { name: "cockpit.review.pane.swap", title: "Switch pane", run: () => actions.swap() },
@@ -104,12 +115,15 @@ export function paneLayer(actions: Actions, guard: Guard): Layer {
       {
         name: "cockpit.review.pane.quit",
         title: "Close the review",
-        /**
-         * Escape closes the nearest thing first, and the close is deferred: closing disposes the layer
-         * this handler is dispatching through.
-         */
-        run: () => setTimeout(() => actions.close(), 0),
+        /** The keys screen first, then the review — see `actions.quit`. */
+        run: () => actions.quit(),
       },
+      {
+        name: "cockpit.review.pane.open",
+        title: "Open both versions in the system viewer",
+        run: () => actions.openExternal(),
+      },
+      { name: "cockpit.review.pane.keys", title: "Show every key", run: () => actions.toggleKeys() },
       {
         name: "cockpit.review.pane.stats",
         title: "Show what the review is costing",
@@ -139,6 +153,8 @@ export function paneLayer(actions: Actions, guard: Guard): Layer {
       { key: "w", cmd: "cockpit.review.pane.cycle", desc: "Width" },
       { key: "p", cmd: "cockpit.review.pane.stats", desc: "Numbers" },
       { key: "s", cmd: "cockpit.review.pane.submit", desc: "Submit" },
+      { key: "o", cmd: "cockpit.review.pane.open", desc: "Open in viewer" },
+      { key: "?,shift+/", cmd: "cockpit.review.pane.keys", desc: "Keys" },
       { key: "q,escape", cmd: "cockpit.review.pane.quit", desc: "Close" },
     ],
   }

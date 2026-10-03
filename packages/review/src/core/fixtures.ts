@@ -6,7 +6,9 @@
  * The preview draws all of these, so none of them is discovered in OpenCode.
  */
 
-import type { ChangeSet } from "./model/review.ts"
+import { type ImageLook, tooLargeText } from "./image/looks.ts"
+import { SAMPLE, sampleLook } from "./image/samples.ts"
+import type { BinarySide, ChangeSet, FileChange } from "./model/review.ts"
 
 const lines = (count: number, token: string) =>
   `${Array.from({ length: count }, (_, i) => `${token} ${i + 1}`).join("\n")}\n`
@@ -42,7 +44,36 @@ export function merge(base: Config, over: Config): Config {
 }
 `
 
-export const FIXTURES: Record<string, { about: string; changes: ChangeSet }> = {
+/** A PNG side, as git and the header reader would describe it. */
+const png = (width: number, height: number, size: number): BinarySide => ({
+  size,
+  image: { format: "png", width, height },
+})
+
+/** A binary file change: no text, no counts, what each side is. */
+const image = (
+  path: string,
+  before: BinarySide | undefined,
+  after: BinarySide | undefined,
+  change?: FileChange["change"],
+): FileChange => ({
+  path,
+  before: "",
+  after: "",
+  additions: 0,
+  deletions: 0,
+  ...(change ? { change } : {}),
+  binary: { ...(before ? { before, revision: "a1b2c3d" } : {}), ...(after ? { after } : {}) },
+})
+
+export interface Fixture {
+  about: string
+  changes: ChangeSet
+  /** What the pane would know about the images once decoded. */
+  looks?: ReadonlyMap<string, ImageLook>
+}
+
+export const FIXTURES: Record<string, Fixture> = {
   /** The ordinary case: a few files, edits you can read at a glance. */
   turn: {
     about: "one turn's work — three files, a mix of edits",
@@ -183,6 +214,45 @@ export const FIXTURES: Record<string, { about: string; changes: ChangeSet }> = {
         },
       ],
     },
+  },
+
+  /**
+   * Binaries: every state an image change can be in, and a binary that is not an image.
+   *
+   * The pictures are drawn in code (`image/samples.ts`) and go through the real shrink and pixel diff,
+   * so what the preview shows is what the pane would.
+   */
+  images: {
+    about: "binaries — changed, resized, new, deleted, a JPEG, one too large, one not an image",
+    changes: {
+      source: "branch",
+      files: [
+        /** First, so the preview marks it viewed and the pictures below stay open. */
+        image("assets/font.woff2", { size: 12_595 }, { size: 14_336 }),
+        image("media/dashboard.png", png(288, 180, 807_358), png(288, 180, 789_120)),
+        image("media/thumbnail.png", png(288, 180, 826_548), png(144, 90, 220_412)),
+        image("media/logo.png", undefined, png(96, 96, 12_904), "added"),
+        image(
+          "media/old-banner.gif",
+          { size: 574_310, image: { format: "gif", width: 288, height: 180 } },
+          undefined,
+          "deleted",
+        ),
+        image(
+          "media/photo.jpg",
+          { size: 368_596, image: { format: "jpeg", width: 4032, height: 3024 } },
+          { size: 341_022, image: { format: "jpeg", width: 4032, height: 3024 } },
+        ),
+        image("media/poster.png", png(12_000, 9_000, 182_400_000), png(12_000, 9_000, 183_100_512)),
+      ],
+    },
+    looks: new Map([
+      ["media/dashboard.png", sampleLook(SAMPLE.before, SAMPLE.after, 1)],
+      ["media/thumbnail.png", sampleLook(SAMPLE.before, SAMPLE.resized, 2)],
+      ["media/logo.png", sampleLook(undefined, SAMPLE.logo, 3)],
+      ["media/old-banner.gif", sampleLook(SAMPLE.before, undefined, 4)],
+      ["media/poster.png", { problem: tooLargeText(12_000, 9_000), stamp: 5 }],
+    ]),
   },
 
   /** Nothing to review. The first thing anyone sees, and the easiest to leave looking broken. */

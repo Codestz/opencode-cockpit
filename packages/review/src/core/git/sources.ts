@@ -10,10 +10,10 @@
  * repository, rather than mocked into agreeing with itself.
  */
 
-import { readFileSync } from "node:fs"
 import { join } from "node:path"
 import { countChanges, diffLines } from "../diff/hunks.ts"
-import type { FileChange } from "../model/review.ts"
+import { HEADER_BYTES, looksBinary, sniff } from "../image/sniff.ts"
+import type { BinarySide, FileChange } from "../model/review.ts"
 
 export interface GitResult {
   files: FileChange[]
@@ -25,8 +25,16 @@ export interface GitResult {
 
 /** More than this and the pane is not the right tool — and reading them all would stall the TUI. */
 const MAX_FILES = 200
-/** A file bigger than this is almost certainly not being read line by line. */
+/** A text file bigger than this is almost certainly not being read line by line. */
 const MAX_BYTES = 400_000
+/**
+ * A binary is read whole up to this — its own cap, far above the text one.
+ *
+ * Every real screenshot is over 400 KB, and under the text cap each one was skipped with "too large
+ * to review here": the file most worth a look silently was not in the review. Past this the header
+ * is still read, so the file is still named, sized and described.
+ */
+export const MAX_BINARY_BYTES = 32 * 1024 * 1024
 
 export type RunGit = (args: string[], cwd: string) => Promise<{ ok: boolean; out: string }>
 
@@ -55,21 +63,149 @@ export async function headOf(cwd: string, git: RunGit = runGit): Promise<string 
   return result.ok && head.length > 0 ? head : undefined
 }
 
-/** A file's contents at a revision, or "" when it did not exist there — which is what a diff wants. */
-async function show(git: RunGit, cwd: string, revision: string, path: string): Promise<string> {
-  const result = await git(["show", `${revision}:${path}`], cwd)
-  return result.ok ? result.out : ""
+/** Some or all of a file's bytes, and how many there are in all. */
+export interface Read {
+  bytes: Uint8Array
+  size: number
+  /** False when only the first bytes were read, the file being over the cap. */
+  whole: boolean
 }
 
-function readWorking(cwd: string, path: string): { text: string; error?: string } {
+const joined = (chunks: readonly Uint8Array[], total: number): Uint8Array => {
+  if (chunks.length === 1) return chunks[0] as Uint8Array
+  const out = new Uint8Array(total)
+  let at = 0
+  for (const chunk of chunks) {
+    out.set(chunk, at)
+    at += chunk.length
+  }
+  return out
+}
+
+/**
+ * A file as git has it at a revision, as **bytes** — or undefined when it did not exist there.
+ *
+ * Read as text, git's output went through UTF-8 and a 91 KB PNG came out as 166 KB of something else:
+ * the bytes were gone, not merely ugly. `cat-file blob` rather than `show`, so nothing (a textconv, a
+ * pager) stands between the blob and what is read. Past `cap` the stream is cut and only the size is
+ * asked for — a 200 MB asset is described, never held.
+ */
+export async function readBlob(
+  cwd: string,
+  revision: string,
+  path: string,
+  cap = MAX_BINARY_BYTES,
+): Promise<Read | undefined> {
+  const proc = Bun.spawn(["git", "cat-file", "blob", `${revision}:${path}`], {
+    cwd,
+    stdout: "pipe",
+    stderr: "ignore",
+  })
+  const reader = proc.stdout.getReader()
+  const chunks: Uint8Array[] = []
+  let total = 0
+  let over = false
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    chunks.push(value)
+    total += value.length
+    if (total > cap) {
+      over = true
+      break
+    }
+  }
+  if (over) {
+    await reader.cancel().catch(() => {})
+    proc.kill()
+    await proc.exited
+    const sized = await runGit(["cat-file", "-s", `${revision}:${path}`], cwd)
+    const size = Number(sized.out.trim())
+    return {
+      bytes: joined(chunks, total).subarray(0, HEADER_BYTES),
+      size: sized.ok && Number.isFinite(size) ? size : total,
+      whole: false,
+    }
+  }
+  if ((await proc.exited) !== 0) return undefined
+  return { bytes: joined(chunks, total), size: total, whole: true }
+}
+
+/**
+ * The working copy's bytes, or undefined when it is not there (deleted: an empty "after" is right).
+ *
+ * A file over the text cap is read in full only when its first bytes say it is binary and it is under
+ * the binary cap; otherwise its head is enough to say what it is.
+ */
+export async function readWorking(cwd: string, path: string): Promise<Read | undefined> {
   try {
-    const full = join(cwd, path)
-    const file = Bun.file(full)
-    if (file.size > MAX_BYTES) return { text: "", error: `${path}: too large to review here` }
-    return { text: readFileSync(full, "utf8") }
+    const file = Bun.file(join(cwd, path))
+    const size = file.size
+    if (size > MAX_BYTES) {
+      const head = new Uint8Array(await file.slice(0, HEADER_BYTES).arrayBuffer())
+      if (!looksBinary(head) || size > MAX_BINARY_BYTES) return { bytes: head, size, whole: false }
+    }
+    const bytes = new Uint8Array(await file.arrayBuffer())
+    return { bytes, size: bytes.length, whole: true }
   } catch {
-    // Deleted from the working tree: an empty "after" is exactly right.
-    return { text: "" }
+    return undefined
+  }
+}
+
+/** UTF-8, with a byte-order mark kept on both sides alike, so a BOM is never a change of its own. */
+const decoder = new TextDecoder("utf-8", { ignoreBOM: true })
+
+const sameBytes = (a: Read | undefined, b: Read | undefined): boolean => {
+  if (!a || !b) return a === b
+  if (!a.whole || !b.whole || a.size !== b.size) return false
+  return Buffer.from(a.bytes.buffer, a.bytes.byteOffset, a.bytes.length).equals(b.bytes)
+}
+
+/** One side of a binary: its size, and what its header says if it is an image. */
+const sideOf = (read: Read | undefined): BinarySide | undefined => {
+  if (!read) return undefined
+  const image = sniff(read.bytes)
+  return { size: read.size, ...(image ? { image } : {}) }
+}
+
+/**
+ * Both sides read, one file decided: text, binary, too large, or unchanged.
+ *
+ * Binary is decided once, for the pair — a file that became binary, or stopped being, is not a text
+ * diff on either side.
+ */
+export function decide(
+  path: string,
+  before: Read | undefined,
+  after: Read | undefined,
+  change: FileChange["change"],
+  from: string | undefined,
+  revision: string,
+): { file?: FileChange; error?: string } {
+  if (sameBytes(before, after) && change !== "renamed") return {}
+  if ((before && looksBinary(before.bytes)) || (after && looksBinary(after.bytes))) {
+    const sides = { before: sideOf(before), after: sideOf(after) }
+    return {
+      file: {
+        ...fileOf(path, "", "", change, from),
+        binary: {
+          ...(sides.before ? { before: sides.before } : {}),
+          ...(sides.after ? { after: sides.after } : {}),
+          ...(before ? { revision } : {}),
+        },
+      },
+    }
+  }
+  if ((after && !after.whole) || (after && after.size > MAX_BYTES) || (before && !before.whole))
+    return { error: `${path}: too large to review here` }
+  return {
+    file: fileOf(
+      path,
+      before ? decoder.decode(before.bytes) : "",
+      after ? decoder.decode(after.bytes) : "",
+      change,
+      from,
+    ),
   }
 }
 
@@ -102,14 +238,11 @@ export async function worktreeChanges(cwd: string, git: RunGit = runGit): Promis
       break
     }
     const change = statusChange(code, from)
-    const before = code.includes("?") || code.includes("C") ? "" : await show(git, cwd, "HEAD", from ?? path)
-    const { text: after, error } = readWorking(cwd, path)
-    if (error) {
-      errors.push(error)
-      continue
-    }
-    if (before === after && change !== "renamed") continue
-    files.push(fileOf(path, before, after, change, from))
+    const before =
+      code.includes("?") || code.includes("C") ? undefined : await readBlob(cwd, "HEAD", from ?? path)
+    const { file, error } = decide(path, before, await readWorking(cwd, path), change, from, "HEAD")
+    if (error) errors.push(error)
+    if (file) files.push(file)
   }
   return { files, errors }
 }
@@ -320,14 +453,10 @@ export async function branchChanges(
       break
     }
     const { change, from } = changed.get(path) ?? { change: undefined }
-    const before = change === "added" ? "" : await show(git, cwd, fork, from ?? path)
-    const { text: after, error } = readWorking(cwd, path)
-    if (error) {
-      errors.push(error)
-      continue
-    }
-    if (before === after && change !== "renamed") continue
-    files.push(fileOf(path, before, after, change, from))
+    const before = change === "added" ? undefined : await readBlob(cwd, fork, from ?? path)
+    const { file, error } = decide(path, before, await readWorking(cwd, path), change, from, fork)
+    if (error) errors.push(error)
+    if (file) files.push(file)
   }
   return { files, errors, base: against }
 }
@@ -337,5 +466,8 @@ export async function branchChanges(
  * sources for one number is how a list ends up saying +12 above a hunk showing eleven lines.
  */
 export function withCounts(files: readonly FileChange[]): FileChange[] {
-  return files.map((file) => ({ ...file, ...countChanges(diffLines(file.before, file.after)) }))
+  /** A binary has no lines to count; its card says what changed instead. */
+  return files.map((file) =>
+    file.binary ? file : { ...file, ...countChanges(diffLines(file.before, file.after)) },
+  )
 }
