@@ -50,7 +50,7 @@ const run = (cmd: string[], cwd: string) => {
  */
 function agentTurn(env: Record<string, string | undefined>) {
   const prompt = [
-    "Call the tool shell_start with command 'echo AGENT-SHELL-OK' and description 'agent probe', then call review_list, then call subagents_list.",
+    "Call the tool shell_start with command 'echo AGENT-SHELL-OK' and description 'agent probe', then call review_list, then call subagents_list, then call cockpit_settings.",
     "Your system prompt has heading lines starting with '## Background shells', '## Review comments' and '## Subagents'.",
     "Quote all three heading lines exactly in your reply.",
   ].join(" ")
@@ -100,7 +100,7 @@ function agentTurn(env: Record<string, string | undefined>) {
     .map((event) => (event.part as unknown as { text: string }).text)
     .join("\n")
   const report = `${result.stdout}\n${result.stderr}`.slice(-3000)
-  for (const name of ["shell_start", "review_list", "subagents_list"]) {
+  for (const name of ["shell_start", "review_list", "subagents_list", "cockpit_settings"]) {
     if (!called.includes(name)) throw new Error(`the agent never completed ${name}:\n${report}`)
   }
   for (const heading of ["## Background shells", "## Review comments", "## Subagents"]) {
@@ -126,6 +126,22 @@ const rightHalf = (text: string) =>
     .split("\n")
     .map((line) => line.slice(Math.floor(cols / 2)))
     .join("\n")
+/**
+ * Which of `patterns` showed on some screen within `ms` — not all on one: a turn scrolls the first
+ * out of view before the last arrives. Done as soon as every one has.
+ */
+const seen = async (ms: number, patterns: readonly RegExp[]) => {
+  const found = new Set<number>()
+  for (const end = Date.now() + ms; found.size < patterns.length && Date.now() < end; await Bun.sleep(250)) {
+    const text = await screen()
+    for (const [at, pattern] of patterns.entries()) if (pattern.test(text)) found.add(at)
+  }
+  return {
+    all: found.size === patterns.length,
+    missing: patterns.filter((_, at) => !found.has(at)),
+    last: await screen(),
+  }
+}
 /** Reads the screen until `done` says so, or `ms` runs out; the last screen either way. */
 const until = async (ms: number, done: (text: string) => boolean) => {
   let text = await screen()
@@ -157,12 +173,17 @@ const under = (text: string, heading: string): string | undefined => {
 const EXPLORE_ROW = /[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] exp(lore|l?o?…) /
 /** The Status table's token row, which only a conversation with a reply in it fills. */
 const TOKENS_ROW = / tokens [\d.]+k? · \d+%/
-/** The last line of `/cockpit-setup`'s brief: once it is on screen, the whole brief arrived. */
-const SETUP_BRIEF_END = "Ask me what I want before you edit anything."
-/** `/status-setup` sent its brief: its toast, or the brief's last line in the conversation. */
-const STATUS_BRIEFED = /Briefed the agent\.|Ask me what I want it to show/
+/** The line `/cockpit-setup` sends: once it is in the conversation, the command ran. */
+const SETUP_LINE = "Use the cockpit-setup skill to help me set up Cockpit."
+/** The skill loaded, and its first step taken — the tool it reads the live state with. Either version. */
+const SETUP_SKILL_USED = [/Skill "cockpit-setup"/, /[⚙›] cockpit_settings/]
+/** `/statusline`'s line, which says the new name first, and the skill it names, loaded. */
+const STATUS_SKILL_USED = [
+  /\/statusline is now \/status-setup\. Use the status-setup skill/,
+  /Skill "status-setup"/,
+]
 /** A prompt sent while the agent answers, waiting its turn: OpenCode 1's tag, OpenCode 2's line. */
-const QUEUED = /QUEUED|1 queued · Help me set up opencode-cockpit/
+const QUEUED = /QUEUED|1 queued · Use the cockpit-setup skill/
 
 try {
   run(["bun", "run", "build"], root)
@@ -220,7 +241,8 @@ try {
     bay("trail"),
     bay("trust"),
   ]
-  const serverBays = [bay("shell"), bay("review"), bay("subagents"), bay("trail")]
+  /** Status's agent side carries only the `status-setup` skill and its commands. */
+  const serverBays = [bay("shell"), bay("status"), bay("review"), bay("subagents"), bay("trail")]
   /**
    * v1 reads `plugin` from opencode.json and tui.json; v2 reads `plugins` from opencode.json and
    * cli.json (docs/opencode/v2.md). The same packages go in either way.
@@ -244,8 +266,8 @@ try {
         /** A model that needs no key, for the turns AGENT=1 runs inside the interface. */
         ...(process.env.AGENT && name === "opencode.json" ? { model: "opencode/space-bunny-free" } : {}),
         /**
-         * The setup briefs send the agent to read Cockpit's config, outside the project: a prompt it
-         * would wait on forever here. OpenCode 2 is started with `--auto` for the same reason.
+         * The setup skills read and write Cockpit's config, outside the project: a prompt it would
+         * wait on forever here. OpenCode 2 is started with `--auto` for the same reason.
          */
         ...(process.env.AGENT && !v2 && name === "opencode.json"
           ? { permission: { external_directory: "allow" } }
@@ -526,11 +548,22 @@ try {
     await type("\x1b", 1000)
     return drawn
   }
+  /**
+   * A command the agent side ships, which OpenCode runs as its own: on OpenCode 1 `enter` on the popup
+   * first completes the name into the prompt, and a second `enter` sends it (measured, both versions).
+   */
+  const shipped = async (name: string) => {
+    await type(`/${name}`, 300)
+    await until(4000, (text) => new RegExp(`/${name}\\s{2,}\\S`).test(text))
+    await type("\r", 1200)
+    if (new RegExp(`┃\\s+/${name}\\s*$`, "m").test(await screen())) await type("\r", 0)
+  }
   const updater = await slash("plugins-update")
   const subagents = process.env.AGENT ? await subagentsInTheInterface() : undefined
   /**
-   * The setup commands' slash names, offered in the popup as they are typed. Only listed here, not
-   * run: running one hands a model the brief, and a run without AGENT=1 stays offline.
+   * The setup commands' slash names, shipped by the agent side, offered in the popup as they are typed
+   * — once each: the interface's palette entries for them carry no slash name. Only listed here, not
+   * run: running one asks a model, and a run without AGENT=1 stays offline.
    */
   const popup = async (typed: string) => {
     await type("\x15", 300)
@@ -545,31 +578,31 @@ try {
     "/status-setup": await popup("/status-se"),
   }
   /**
-   * AGENT=1: Status's command under its new name and its old one, kept for a release as a command of
-   * its own that says the new name. In the conversation the subagent run left open, last, because
-   * both hand the agent a brief. The second goes to an agent still busy with the first, so it is
-   * known by the toast that says it was sent, or the brief's last line, whichever shows.
+   * AGENT=1: Status's command under its old name, kept for a release as a command of its own whose
+   * line says the new name first, and the skill it names loaded. In the conversation the subagent run
+   * left open, last, because it starts a turn. `/status-setup` sends the same line without the note.
    */
   const status = process.env.AGENT
     ? await (async () => {
         /** Whatever an earlier step left in the prompt goes first, or the name is typed after it. */
         await type("\x15", 300)
-        const old = await slash("statusline", (text) => text.includes("is now /status-setup"))
-        await Bun.sleep(3000)
-        const setup = await slash("status-setup", (text) => STATUS_BRIEFED.test(text))
-        return { old, setup }
+        await shipped("statusline")
+        const old = await seen(120_000, STATUS_SKILL_USED)
+        /** The skill asks a question next; `esc` dismisses it so nothing is left waiting. */
+        await type("\x1b", 1000)
+        return { old }
       })()
     : undefined
   proc.kill("SIGKILL")
 
   /**
    * AGENT=1: a second OpenCode, in a project nothing has happened in. `/cockpit-setup` from home has
-   * to open a conversation and brief the agent there (OpenCode 2 used to answer "Open a conversation
-   * first."), and run again while the agent answers, it has to queue behind the reply rather than cut
-   * it off. With the conversation open the sidebar draws: every block that lists something has to say
-   * it is there while it is empty — the heading and `none yet` — and the Status table, which nothing
-   * configures here, has to be the default surface, with the global file's old `statusline` named in
-   * a `!` row in the sidebar.
+   * to open a conversation, and the agent there has to load the `cockpit-setup` skill and call
+   * `cockpit_settings` — the skill's first step. Run again while the agent answers, it has to queue
+   * behind the reply rather than cut it off. With the conversation open the sidebar draws: every
+   * block that lists something has to say it is there while it is empty — the heading and `none yet`
+   * — and the Status table, which nothing configures here, has to be the default surface, with the
+   * global file's old `statusline` named in a `!` row in the sidebar.
    */
   const presence = async () => {
     const fresh = join(work, "fresh")
@@ -583,22 +616,21 @@ try {
     ]) {
       run(cmd, fresh)
     }
-    /** The brief has the agent read Cockpit's config, outside the project: nothing may wait on a prompt. */
+    /** The skill has the agent read Cockpit's config, outside the project: nothing may wait on a prompt. */
     proc = launch(fresh, v2 ? ["--auto"] : [])
     await Bun.sleep(14_000)
-    await type("/cockpit-setup", 1200)
-    await type("\r", 0)
-    const toast = await until(4000, (text) => /Briefed the agent\.|Open a conversation first/.test(text))
-    const briefed = await until(20_000, (text) => text.includes(SETUP_BRIEF_END))
+    await shipped("cockpit-setup")
+    const opened = await until(20_000, (text) => text.includes(SETUP_LINE))
     /** Again, while the agent is still answering the first. */
-    await type("/cockpit-setup", 1200)
-    await type("\r", 0)
-    const queued = await until(6000, (text) => QUEUED.test(text))
-    const drawn = await until(180_000, (text) => TOKENS_ROW.test(rightHalf(text)))
+    await type("\x15", 300)
+    await shipped("cockpit-setup")
+    const queued = await until(8000, (text) => QUEUED.test(text))
+    const used = await seen(180_000, SETUP_SKILL_USED)
+    const drawn = await until(60_000, (text) => TOKENS_ROW.test(rightHalf(text)))
     await Bun.sleep(3000)
     const settled = await screen()
     proc.kill("SIGKILL")
-    return { toast, briefed, queued, drawn: TOKENS_ROW.test(rightHalf(settled)) ? settled : drawn }
+    return { opened, used, queued, drawn: TOKENS_ROW.test(rightHalf(settled)) ? settled : drawn }
   }
   const fresh = process.env.AGENT ? await presence() : undefined
   // `SMOKE_SHOW=1 bun run smoke:tui` prints the updater's frame: a marker proves it drew, not how.
@@ -619,14 +651,16 @@ try {
   if (!second.includes(`! settings: "statusline" is no longer read`))
     throw new Error(`Status never named the old "statusline" section:\n${second}`)
   for (const [name, listed] of Object.entries(popups)) {
-    if (!listed.includes(name)) throw new Error(`the slash popup never offered ${name}:\n${listed}`)
+    /** Once: the shipped command's row, and no second one from the interface. */
+    /** A row: at the popup's edge, the name, a gap on the same line, its description. */
+    const rows = listed.match(new RegExp(`┃ ${name} {2,}\\S`, "g")) ?? []
+    if (rows.length !== 1)
+      throw new Error(`the slash popup offered ${name} ${rows.length} times, not once:\n${listed}`)
   }
-  if (status) {
-    if (!status.old.includes("is now /status-setup"))
-      throw new Error(`/statusline never said its new name:\n${status.old}`)
-    if (!STATUS_BRIEFED.test(status.setup))
-      throw new Error(`/status-setup never briefed the agent:\n${status.setup}`)
-  }
+  if (status && !status.old.all)
+    throw new Error(
+      `/statusline never ran the status-setup skill with its new name said (missing ${status.old.missing.join(", ")}):\n${status.old.last}`,
+    )
 
   for (const marker of ["Nothing recorded in this project yet.", "[esc] Close"]) {
     if (!ranTrail.includes(marker))
@@ -723,12 +757,14 @@ try {
     )
   }
   if (fresh) {
-    const { toast, briefed, queued, drawn } = fresh
+    const { opened, used, queued, drawn } = fresh
     if (process.env.SMOKE_SHOW) console.log(drawn)
-    if (!toast.includes("Briefed the agent.") || toast.includes("Open a conversation first"))
-      throw new Error(`/cockpit-setup from home never said it briefed the agent:\n${toast}`)
-    if (!briefed.includes(SETUP_BRIEF_END))
-      throw new Error(`/cockpit-setup's brief never reached the conversation:\n${briefed}`)
+    if (!opened.includes(SETUP_LINE))
+      throw new Error(`/cockpit-setup from home never opened a conversation with its line:\n${opened}`)
+    if (!used.all)
+      throw new Error(
+        `/cockpit-setup's agent never used the skill (missing ${used.missing.join(", ")}):\n${used.last}`,
+      )
     if (!QUEUED.test(queued))
       throw new Error(`/cockpit-setup while the agent answered never queued:\n${queued}`)
     for (const heading of ["Subagents", "Shells", "Trail"]) {
@@ -762,7 +798,7 @@ try {
       throw new Error(`Trail's measurement failed:\n${measured.stdout}\n${measured.stderr}`.slice(-3000))
   }
   console.log(
-    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; console and its keys drew; full screen drew; statusline drew and named its old section; review drew its diff and named its old setting; updater answered its slash name; trail opened empty; every bay and /cockpit-setup found under "cockpit" in the palette, and the commands ran from there; /cockpit-setup and /status-setup offered as they were typed${subagents ? "; a subagent showed in the sidebar and opened full screen, by click and by /subagents, with its keys; /statusline and /status-setup briefed the agent" : ""}${fresh ? "; /cockpit-setup from home opened a conversation and briefed it, and queued behind the reply; an empty sidebar said none yet in every block, under the Status table" : ""}${process.env.AGENT ? "; an agent called the bays' tools and was told about them; Trail's measurement recorded the PR" : ""}`,
+    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; console and its keys drew; full screen drew; statusline drew and named its old section; review drew its diff and named its old setting; updater answered its slash name; trail opened empty; every bay and /cockpit-setup found under "cockpit" in the palette, and the commands ran from there; /cockpit-setup and /status-setup offered once each as they were typed${subagents ? "; a subagent showed in the sidebar and opened full screen, by click and by /subagents, with its keys; /statusline ran the status-setup skill, saying its new name" : ""}${fresh ? "; /cockpit-setup from home opened a conversation whose agent loaded the cockpit-setup skill and called cockpit_settings, and queued behind the reply; an empty sidebar said none yet in every block, under the Status table" : ""}${process.env.AGENT ? "; an agent called the bays' tools and was told about them; Trail's measurement recorded the PR" : ""}`,
   )
 } finally {
   /** KEEP=1 leaves the install and project behind, to inspect what a run actually loaded. */
