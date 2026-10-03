@@ -99,6 +99,9 @@ keeping line numbers and highlighting matches — and output keeps the colours t
 | `/shell-new` | Start a shell yourself |
 | `/shells-clear` | Remove finished shells |
 | `/plugins-update` | Every plugin you have installed: what runs, what is published, and an update checked against disk |
+| `/cockpit-setup` | Briefs the agent to set Cockpit up with you: which bays show, where, in what order |
+| `/status-setup` | Briefs the agent to set up the Status bay with you (was `/statusline`) |
+| `ctrl+x f` · `/trail` | What this conversation made; `/link <url>` adds one yourself |
 
 Status reads the same everywhere — `RUN` (with a spinner), `FAIL`, `STOP`, `DONE` — running shells
 and recent failures stay in view, the rest folds behind `▸ N more`. In the console: `i` types
@@ -148,32 +151,28 @@ An existing v1 `opencode.json` with `plugin` is read by OpenCode 2 as well. To u
 the version in that entry — `/plugins-update` and `npx opencode-cockpit update` edit OpenCode 1's
 files only.
 
-**Turn features off** (in both `opencode.json` and `tui.json`):
+**Configure them** in one file, read by both halves of every bay and by every project — or type
+`/cockpit-setup` and the agent writes it with you:
 
-```json
+```
+~/.config/opencode-cockpit/config.json   →   <project>/.cockpit.json
+```
+
+```jsonc
 {
-  "plugin": [["opencode-cockpit", { "features": { "shell": true } }]]
+  "sidebar": ["status", "subagents", "shell", "trail", "trust"],  // the blocks' order
+  "features": { "trust": false },                                 // switch a bay off
+  "shell": { "dockHeight": 16, "hideFinishedAfterMinutes": 60 },
+  "trail": { "sidebarRows": 5 }
 }
 ```
 
-**Configure them** in one file, read by both halves of the plugin and by every project:
-
-```
-~/.config/opencode-cockpit/config.json   →   <project>/.cockpit.json   →   plugin-entry options
-```
-
-```json
-{
-  "kinds": { "e2e": "playwright|cypress" },
-  "defaults": { "logFile": true, "timeoutSeconds": 900 },
-  "ui": { "dockHeight": 16, "historyMinutes": 60 }
-}
-```
-
-Later sources win key by key, and an invalid file is ignored rather than fatal. You can categorize
-your own commands, define watch rules, cap how long shells live, choose what may interrupt the
-agent, and trade context tokens for accuracy. Each feature's README documents its own settings:
-[Shell](https://github.com/Codestz/opencode-cockpit/tree/main/packages/shell#configuration).
+One section per bay — `status`, `subagents`, `shell`, `trail`, `trust`, `review`, `updater` — with
+the same shared keys in each (`enabled`, `sidebar`, `sidebarRows`, `hideWhenEmpty`, `keybinds`). A
+project's file wins key by key; comments and trailing commas are fine. Names from before 0.9
+(`statusline`, Shell's keys at the root, `ui.*`, `sidebarOrder`) are no longer read: each is a `!`
+row in its bay's block, and `/cockpit-setup` fixes it. Every key, its default and the old names:
+[Configuration](https://github.com/Codestz/opencode-cockpit#configuration).
 
 ## Troubleshooting
 
