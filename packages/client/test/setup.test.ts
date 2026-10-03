@@ -9,6 +9,8 @@ import {
   baysOfEntry,
   briefAgent,
   HOST_BLOCKS,
+  offerPreview,
+  previewCommands,
   type ReportInput,
   readHostFile,
   readInstalls,
@@ -73,6 +75,25 @@ describe("its shape", () => {
     const { text } = report({ [PROJECT]: { statusline: { preset: "minimal" } } })
     expect(headings(text)[0]).toBe("## Fix these first (1)")
     expect(text).toContain("- Fix the 1 notice above first.")
+  })
+})
+
+describe("previews", () => {
+  /** `bunx` fetches the newest release from npm; the agent is handed this install's own copy. */
+  test("a bay's preview is listed by its exact command, and none means no section", () => {
+    const { report: read, text: plain } = report({})
+    expect(plain).not.toContain("## Previews")
+    const text = settingsText(read, { status: 'bun "/x/status/dist/cli/preview.js"' })
+    expect(text).toContain("## Previews")
+    expect(text).toContain('- status: `bun "/x/status/dist/cli/preview.js"`')
+    const order = headings(text).map((line) => line.split(" (")[0])
+    expect(order.indexOf("## Previews")).toBe(order.indexOf("## Next") - 1)
+  })
+
+  test("offered previews are shared across copies of this module, by bay", () => {
+    offerPreview("status", "bun /a/preview.js")
+    offerPreview("status", "bun /b/preview.js")
+    expect(previewCommands().status).toBe("bun /b/preview.js")
   })
 })
 

@@ -125,10 +125,18 @@ describe("the skill", () => {
    * OpenCode 1, and one inside it dirties the user's repo.
    */
   test("it previews what it is about to write on stdin, never through a temporary file", () => {
-    expect(skill).toContain("| bun <preview.js> --config - ")
+    expect(skill).toContain("| <preview> --config - ")
     expect(skill).toContain("--as project")
     expect(skill).toContain("`✓git`")
     for (const text of [skill, read("design.md")]) expect(text).not.toMatch(/\/tmp\/|status-preview\.json/)
+  })
+
+  /** `bunx` fetches the newest release from npm, not this install: 0.8 drew a 0.9 sidebar as a bottom line. */
+  test("it runs this install's preview, the one cockpit_settings names, never bunx or npx", () => {
+    expect(skill).toContain("under **Previews**")
+    for (const text of [skill, read("design.md")]) {
+      expect(text).not.toMatch(/(bunx|npx) @opencode-cockpit\/status preview/)
+    }
   })
 })
 

@@ -9,8 +9,12 @@
  * Published entry point: `@opencode-cockpit/status/server`.
  */
 
+import { existsSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
 import { claimFeature } from "@opencode-cockpit/client/feature"
 import { dualServer, type ServerStart } from "@opencode-cockpit/client/server"
+import { offerPreview } from "@opencode-cockpit/client/setup"
 import { OLD_PROMPT, OLD_SLASH, SETUP_PROMPT, SETUP_SKILL_DIR, SETUP_SLASH } from "./core/setup.ts"
 
 const STATUS_PACKAGE = "@opencode-cockpit/status"
@@ -21,6 +25,10 @@ export function createStatusServer({ source = STATUS_PACKAGE }: { source?: strin
     /** The bundle and this package side by side register the skill once, as the bays do. */
     const claim = claimFeature(host.scope, "status", source)
     if (!claim.active) return {}
+    /** This copy's preview, by path: `cockpit_settings` hands it to the skill instead of `bunx`. */
+    const here = dirname(fileURLToPath(import.meta.url))
+    const preview = ["preview.js", "preview.ts"].map((file) => join(here, "cli", file)).find(existsSync)
+    if (preview) offerPreview("status", `bun ${JSON.stringify(preview)}`)
     return {
       skills: [{ dir: SETUP_SKILL_DIR }],
       commands: [

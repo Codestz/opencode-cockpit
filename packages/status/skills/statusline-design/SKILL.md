@@ -17,12 +17,15 @@ prose.
 ## Look at it before you ship it
 
 ```sh
-bunx @opencode-cockpit/status preview --watch          # redraws on every save
-bunx @opencode-cockpit/status preview --state full     # one state
-echo '{"status":{"override":{"write":false}}}' | bunx @opencode-cockpit/status preview --config -  # a candidate on stdin, read as OpenCode will read it
-bunx @opencode-cockpit/status preview --debug          # name every row: ✓ drew, ✗ drew nothing, ? no such segment
-bunx @opencode-cockpit/status preview --module mine.ts # that module alone, every segment it has
+<preview> --watch          # redraws on every save
+<preview> --state full     # one state
+echo '{"status":{"override":{"write":false}}}' | <preview> --config -  # a candidate on stdin, read as OpenCode will read it
+<preview> --debug          # name every row: ✓ drew, ✗ drew nothing, ? no such segment
+<preview> --module mine.ts # that module alone, every segment it has
 ```
+
+`<preview>` is the command `cockpit_settings` prints under **Previews** — this install's own copy.
+Never `bunx`/`npx` it: that downloads another release.
 
 The preview draws the real segments against sample sessions, in this terminal, with no OpenCode
 involved. **Use it after every change.** If a design decision cannot be checked in the preview, it

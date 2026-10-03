@@ -103,9 +103,11 @@ learned the hard way, and they are not obvious.
 ## 5. Look at it before you write it
 
 A statusline is judged in a terminal, not from a sentence. Use the preview that came with this
-install — two folders up from this skill, at `<this skill's folder>/../../dist/cli/preview.js`.
-(`bunx @opencode-cockpit/status preview` fetches the newest release instead, which may read settings
-differently from the version installed.)
+install: `cockpit_settings` prints its exact command under **Previews** (`bun "/…/dist/cli/preview.js"`)
+— call it `<preview>` below. **Never run `bunx` or `npx @opencode-cockpit/status`**: they download the
+newest published release, which may be older or newer than this install and read settings
+differently (0.8 draws a bottom line at full width for a 0.9 sidebar config). If the tool lists no
+preview, Status's agent side is not loaded: say so rather than reaching for `bunx`.
 
 **Before writing**, pipe the whole file as it will be after your change — every key already in it,
 plus the change — into the preview with `--config -`. **Do not write a temporary file**: one outside
@@ -116,7 +118,7 @@ preview reads stdin through the same loader and resolution OpenCode uses (`prese
 user the exact command you ran and what it drew:
 
 ```sh
-cat <<'EOF' | bun <preview.js> --config - --state busy --debug
+cat <<'EOF' | <preview> --config - --state busy --debug
 { "status": { "preset": "sidebar", "override": { "git": { "against": "branch" } } } }
 EOF
 ```

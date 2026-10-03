@@ -51,6 +51,27 @@ export const SETUP_SLASH = "cockpit-setup"
 export const SETUP_PROMPT = "Use the cockpit-setup skill to help me set up Cockpit."
 export const SETTINGS_TOOL = "cockpit_settings"
 
+/**
+ * Previews the loaded bays offer, by bay: the exact command for the copy installed here. Shared on
+ * `globalThis` because the bundle and a standalone package each carry their own copy of this module.
+ *
+ * `bunx @opencode-cockpit/status preview` fetches the newest release from npm instead — 0.8 drew a
+ * bottom line at terminal width for a 0.9 sidebar config — so the agent is handed the path.
+ */
+const PREVIEWS = Symbol.for("opencode-cockpit.previews")
+const previewRegistry = (): Map<string, string> => {
+  const shared = globalThis as { [PREVIEWS]?: Map<string, string> }
+  shared[PREVIEWS] ??= new Map()
+  return shared[PREVIEWS]
+}
+
+/** A bay's preview command, e.g. `bun "/…/status/dist/cli/preview.js"`. */
+export function offerPreview(bay: string, command: string): void {
+  previewRegistry().set(bay, command)
+}
+
+export const previewCommands = (): Record<string, string> => Object.fromEntries(previewRegistry())
+
 /** Where the skill sits in this package: `src/` and `dist/` are both one level under its root. */
 export const SETUP_SKILL_DIR = fileURLToPath(new URL(`../skills/${SETUP_SKILL}`, import.meta.url))
 
@@ -455,7 +476,7 @@ function hostSection(report: SettingsReport): string[] {
 }
 
 /** What `cockpit_settings` answers. Leads with what to fix, then the state, then what to do next. */
-export function settingsText(report: SettingsReport): string {
+export function settingsText(report: SettingsReport, previews: Record<string, string> = {}): string {
   const { settings } = report
   const installed = report.bays.filter((state) => state.installs.length > 0 || state.running)
   const order = settings.sidebar.filter((bay) =>
@@ -527,6 +548,14 @@ export function settingsText(report: SettingsReport): string {
         ]
       : []),
     ...hostSection(report),
+    ...(Object.keys(previews).length > 0
+      ? [
+          "## Previews (this install's own — use exactly these; `bunx`/`npx` fetch another release)",
+          "",
+          ...Object.entries(previews).map(([bay, command]) => `- ${bay}: \`${command}\``),
+          "",
+        ]
+      : []),
     "## Next",
     "",
     ...(report.notices.length > 0
@@ -565,7 +594,7 @@ export function setupServer(host: ServerHost, source: string): ServerParts {
         claims: claimedFeatures(host.scope),
       })
       host.log.info("setup: settings read", { notices: report.notices.length })
-      return settingsText(report)
+      return settingsText(report, previewCommands())
     },
   })
   return {
