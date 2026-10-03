@@ -61,12 +61,17 @@ function agentTurn(env: Record<string, string | undefined>) {
     "-m",
     "opencode/space-bunny-free",
   ]
+  /** Bounded, and stdin closed: an open stdin or a permission prompt makes `opencode run` wait forever. */
   const result = Bun.spawnSync([...args, "--format", "json", prompt], {
     cwd: project,
     env,
+    stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",
+    timeout: 300_000,
   })
+  if (result.exitCode === null || result.signalCode)
+    throw new Error(`the agent turn never finished (5 min):\n${result.stdout.toString().slice(-3000)}`)
   const events = result.stdout
     .toString()
     .split("\n")
@@ -743,7 +748,15 @@ try {
   if (process.env.AGENT) {
     const measured = Bun.spawnSync(
       ["bun", join(root, "packages/trail/measure/agent.ts"), "--plugin", bay("trail"), "--runs", "1"],
-      { cwd: root, env: { ...process.env, OPENCODE: opencode }, stdout: "pipe", stderr: "pipe" },
+      {
+        cwd: root,
+        env: { ...process.env, OPENCODE: opencode },
+        stdin: "ignore",
+        stdout: "pipe",
+        stderr: "pipe",
+        /** Three attempts of five minutes each, inside the measurement. */
+        timeout: 1_000_000,
+      },
     )
     if (measured.exitCode !== 0)
       throw new Error(`Trail's measurement failed:\n${measured.stdout}\n${measured.stderr}`.slice(-3000))
