@@ -146,6 +146,27 @@ describe("the config", () => {
     expect(found.Config?.fix?.join()).toContain("also inside opencode-cockpit")
   })
 
+  test("Trail is a bay with both halves: inside the bundle, and missing its tools on OpenCode 1", async () => {
+    const twice = await checks({
+      opencode: "2.0.18",
+      latest: { "opencode-cockpit": "0.9.0", "@opencode-cockpit/trail": "0.9.0" },
+      files: {
+        [`${CONFIG}/opencode.json`]: json({
+          plugins: ["opencode-cockpit@0.9.0", "@opencode-cockpit/trail@0.9.0"],
+        }),
+      },
+    })
+    expect(twice.Config?.fix?.join()).toContain("@opencode-cockpit/trail@0.9.0 (")
+    const half = await checks({
+      opencode: "1.18.32",
+      latest: { "@opencode-cockpit/trail": "0.9.0" },
+      files: { [`${CONFIG}/tui.json`]: json({ plugin: ["@opencode-cockpit/trail@0.9.0"] }) },
+    })
+    expect(half.Config?.fix?.join()).toContain(
+      "@opencode-cockpit/trail is in tui.json but not opencode.json: the agent has none of its tools",
+    )
+  })
+
   /** v1 never reads cli.json: panels configured only there do not show. */
   test("on OpenCode 1, the interface configured only in cli.json is a missing half", async () => {
     const found = await checks({
@@ -334,6 +355,21 @@ describe("the rest", () => {
     })
     expect(found.Settings?.state).toBe("warn")
     expect(found.Settings?.fix?.join()).toContain("gone.ts")
+  })
+
+  /** Status reads modules from `status.modules` only; doctor agrees, and names the old places as such. */
+  test("modules under the old names are not checked: each is only the loader's notice", async () => {
+    const file = `${HOME}/.config/opencode-cockpit/config.json`
+    const found = await checks({
+      opencode: "2.0.15",
+      files: {
+        [file]: json({ statusline: { modules: ["~/old.ts"] }, modules: ["~/root.ts"] }),
+      },
+    })
+    const fix = found.Settings?.fix?.join("\n") ?? ""
+    expect(fix).not.toContain("does not exist")
+    expect(fix).toContain(`${file}: "statusline" is no longer read — run /cockpit-setup`)
+    expect(fix).toContain(`${file}: "modules" at the top level is not read: it belongs in "status"`)
   })
 })
 
