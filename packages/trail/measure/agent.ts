@@ -109,7 +109,24 @@ async function once(index: number): Promise<Outcome> {
       ["git", "checkout", "-qb", branch],
     ])
       run(cmd, project)
-    await Bun.write(join(project, "checkout.ts"), "export const retries = 3\n")
+    /** A change that matches its commit message: a model that finds a one-liner under a big message stops to ask. */
+    await Bun.write(
+      join(project, "checkout.ts"),
+      [
+        "/** Retry the checkout request after a dropped connection, up to three times, backing off. */",
+        "export async function checkout(send: () => Promise<Response>, retries = 3): Promise<Response> {",
+        "  for (let attempt = 0; ; attempt++) {",
+        "    try {",
+        "      return await send()",
+        "    } catch (error) {",
+        "      if (attempt >= retries) throw error",
+        "      await new Promise((done) => setTimeout(done, 200 * 2 ** attempt))",
+        "    }",
+        "  }",
+        "}",
+        "",
+      ].join("\n"),
+    )
     for (const cmd of [
       ["git", "add", "-A"],
       ["git", "commit", "-qm", "Retry the checkout request after a dropped connection"],
