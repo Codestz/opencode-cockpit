@@ -279,7 +279,7 @@ export function emptyBlock(title: string, width: number, hideWhenEmpty = false):
  * sidebar is 24–36 cells and the sentence is wider, so it wraps rather than losing its last words
  * (the fix it names). At most `maxRows`; the last one ends in `…` when there was more.
  */
-export function warnRows(text: string, width: number, maxRows = 3): ToneRun[][] {
+export function warnRows(text: string, width: number, maxRows = 5): ToneRun[][] {
   const room = Math.max(0, width)
   const prefix = `${GLYPH.warn} `
   const indent = " ".repeat(prefix.length)

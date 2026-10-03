@@ -114,7 +114,7 @@ interface SidebarState {
 
 function sidebar(list: readonly ShellInfo[], width: number, state: SidebarState = {}): Row[] {
   /** As `components/sidebar.tsx` draws them: the design module's rows for an empty block and a notice. */
-  const warnings = (state.notices ?? []).flatMap((text) => warnRows(text, width, 5).map((row) => row as Row))
+  const warnings = (state.notices ?? []).flatMap((text) => warnRows(text, width).map((row) => row as Row))
   if (list.length === 0)
     return [
       ...emptyBlock("Shells", width, state.hideWhenEmpty === true && warnings.length === 0).map(
