@@ -229,6 +229,54 @@ export const moreText = (count: number): string => `+ ${count} more`
 export const FEWER_TEXT = "− fewer"
 
 /**
+ * What a block with nothing to list says, muted, in the row its first item will take.
+ *
+ * Presence over silence. "Say nothing when there is nothing" was the rule, and it left a new user
+ * unable to tell whether Shells and Subagents were installed at all — so a block draws its heading
+ * and this one row from the start, and `hideWhenEmpty: true` brings the silence back for anyone who
+ * wants it. The row sits where the first item goes, so empty → one item replaces it instead of
+ * pushing every block below down a row (measured on both OpenCodes, docs/opencode/trail-interface.md).
+ */
+export const EMPTY_TEXT = "none yet"
+
+const cells = (runs: readonly ToneRun[]) => runs.reduce((sum, run) => sum + run.text.length, 0)
+
+/**
+ * A block's heading, exactly `width` wide, then its `HEADING_GAP` rows of air: the name bold on the
+ * left, the summary flush right. A summary with no room left beside the name is left out, and a name
+ * wider than the column is cut with `…`.
+ */
+export function headingRows(title: string, summary: readonly ToneRun[], width: number): ToneRun[][] {
+  const room = Math.max(0, width)
+  const name = title.length > room ? `${title.slice(0, Math.max(0, room - 1))}…`.slice(0, room) : title
+  const right = cells(summary) + 1 <= room - name.length ? summary : []
+  const gap = room - name.length - cells(right)
+  const heading: ToneRun[] = [
+    { text: name, ...HEADING },
+    ...(gap > 0 ? [{ text: " ".repeat(gap) }] : []),
+    ...right,
+  ]
+  return [heading, ...Array.from({ length: HEADING_GAP }, () => [{ text: " ".repeat(room) }])]
+}
+
+/**
+ * A block with nothing in it: its heading and one muted `none yet` row — as tall as the block with
+ * one single-row item — or no rows at all when the user asked for `hideWhenEmpty`.
+ */
+export function emptyBlock(title: string, width: number, hideWhenEmpty = false): ToneRun[][] {
+  if (hideWhenEmpty) return []
+  const room = Math.max(0, width)
+  const text = EMPTY_TEXT.slice(0, room)
+  return [
+    ...headingRows(title, [], room),
+    [{ text, tone: "muted" }, ...(room > text.length ? [{ text: " ".repeat(room - text.length) }] : [])],
+  ]
+}
+
+/** Whether a block draws at all: always, unless it is empty and asked to hide then. */
+export const blockShown = (count: number, hideWhenEmpty = false): boolean => count > 0 || !hideWhenEmpty
+
+/**
  * How long something ran, in the fewest characters that still read: `4s`, `51s`, `2m04s`, `1h12m`.
  *
  * One kind of time in a sidebar column. Shells said `4m ago` beside a subagent's `28m08s`, so the

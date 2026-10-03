@@ -1,12 +1,16 @@
 import { describe, expect, test } from "bun:test"
 import {
+  blockShown,
   checkbox,
   closeHint,
   duration,
+  EMPTY_TEXT,
+  emptyBlock,
   fitHints,
   gaugeTone,
   type Hint,
   type HintRun,
+  headingRows,
   hintRuns,
   keyName,
   labelCase,
@@ -170,5 +174,43 @@ describe("a block's heading", () => {
     expect(said(counts, 34)).toBe("1 running · 1 needs you · 1 failed")
     expect(said(counts, 22)).toBe("1 needs you · 1 failed")
     expect(said(counts, 5)).toBe("1 needs you")
+  })
+})
+
+/**
+ * Presence over silence: an empty block draws its heading and `none yet` in the slot its first item
+ * takes, so the first item replaces the line and the blocks below stay where they are.
+ */
+describe("an empty sidebar block", () => {
+  const lines = (rows: readonly (readonly HintRun[])[]) => rows.map((each) => text(each))
+
+  test("is the heading and one muted row, every row exactly the column's width", () => {
+    const rows = emptyBlock("Shells", 30)
+    expect(lines(rows)).toEqual(["Shells".padEnd(30), " ".repeat(30), EMPTY_TEXT.padEnd(30)])
+    expect(rows[0]?.[0]).toMatchObject({ text: "Shells", bold: true })
+    expect(rows.at(-1)?.[0]).toMatchObject({ text: "none yet", tone: "muted" })
+  })
+
+  test("is as tall as the same block with one single-row item", () => {
+    const withOne = [
+      ...headingRows("Shells", [{ text: "1 running", tone: "accent" }], 30),
+      [{ text: "⠹ dev" }],
+    ]
+    expect(emptyBlock("Shells", 30)).toHaveLength(withOne.length)
+  })
+
+  test("draws nothing when asked to hide, and only when empty", () => {
+    expect(emptyBlock("Shells", 30, true)).toEqual([])
+    expect(blockShown(0, true)).toBe(false)
+    expect(blockShown(0)).toBe(true)
+    expect(blockShown(1, true)).toBe(true)
+  })
+
+  test("a heading keeps its summary only while there is room, and never runs past the column", () => {
+    const summary = [{ text: "2 running", tone: "accent" as const }]
+    expect(lines(headingRows("Subagents", summary, 24))[0]).toBe("Subagents      2 running")
+    expect(lines(headingRows("Subagents", summary, 18))[0]).toBe("Subagents         ")
+    expect(lines(headingRows("Subagents", [], 6))[0]).toBe("Subag…")
+    expect(lines(emptyBlock("Trail", 4)).every((each) => each.length === 4)).toBe(true)
   })
 })
