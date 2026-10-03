@@ -56,6 +56,10 @@
       "types": "./types/settings.d.ts",
       "default": "./dist/settings.js"
     },
+    "./catalog": {
+      "types": "./types/catalog.d.ts",
+      "default": "./dist/catalog.js"
+    },
     "./setup": {
       "types": "./types/setup.d.ts",
       "default": "./dist/setup.js"
@@ -64,6 +68,7 @@
   "files": [
     "dist",
     "types",
+    "skills",
     "README.md",
     "LICENSE"
   ],

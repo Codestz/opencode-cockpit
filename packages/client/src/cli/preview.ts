@@ -7,13 +7,13 @@
  *   bun packages/client/src/cli/preview.ts
  *   bun packages/client/src/cli/preview.ts --width 28
  *   bun packages/client/src/cli/preview.ts --config ./my.json   notices for a config file of yours
- *   bun packages/client/src/cli/preview.ts --setup              the brief /cockpit-setup sends
+ *   bun packages/client/src/cli/preview.ts --settings           what the cockpit_settings tool answers
  */
 
 import { readFileSync } from "node:fs"
 import { emptyBlock, GLYPH, type ToneRun } from "../design.ts"
 import { loadSettings, noticeText, type SettingsNotice } from "../settings.ts"
-import { buildSetupReport, setupBrief } from "../setup.ts"
+import { settingsReport, settingsText } from "../setup.ts"
 
 const HEX: Record<string, string> = {
   text: "#eeeeee",
@@ -69,22 +69,30 @@ const settings = loadSettings({
       : undefined,
 })
 
-/** `--setup`: the brief, for the sample (or your) config, with the bundle's bays loaded. */
-if (process.argv.includes("--setup")) {
-  const bays = ["status", "subagents", "shell", "trail", "review", "updater"]
-  const claims = new Map(bays.map((bay) => [bay, "opencode-cockpit"]))
-  /** `--opencode 1` for OpenCode 1's wording of its own blocks; your own OpenCode files are not read. */
+/**
+ * `--settings`: what `cockpit_settings` answers, for the sample (or your) config, with the bundle
+ * installed. `--opencode 1` for OpenCode 1's own blocks; your own OpenCode files are not read.
+ */
+if (process.argv.includes("--settings")) {
   const opencode = arg("--opencode") === "1" ? 1 : 2
-  const report = buildSetupReport({
+  const claims = new Map(
+    ["shell", "status", "review", "subagents", "trail"].map((bay) => [bay, "opencode-cockpit"]),
+  )
+  const report = settingsReport({
     opencode,
     directory: "/project",
     claims,
-    settings,
     env: {},
-    home: "/nowhere",
-    read: () => undefined,
+    home: "/home/me",
+    read: (path) => {
+      if (path.endsWith(".cockpit.json"))
+        return config ? readFileSync(config, "utf8") : JSON.stringify(sample)
+      if (path === "/home/me/.config/opencode/opencode.json")
+        return JSON.stringify({ [opencode === 1 ? "plugin" : "plugins"]: ["opencode-cockpit@0.9.0"] })
+      return undefined
+    },
   })
-  console.log(setupBrief(report))
+  console.log(settingsText(report))
   process.exit(0)
 }
 

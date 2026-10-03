@@ -1,215 +1,278 @@
 import { describe, expect, test } from "bun:test"
-import { claimedFeatures, claimFeature } from "../src/feature.ts"
+import { existsSync } from "node:fs"
+import { join } from "node:path"
+import { claimFeature } from "../src/feature.ts"
 import type { Host } from "../src/host.ts"
-import { baySettings, baysRead, SHARED_DEFAULTS, SIDEBAR_BAYS } from "../src/settings.ts"
+import { silentLog } from "../src/log.ts"
+import type { ServerHost } from "../src/server.ts"
 import {
+  baysOfEntry,
   briefAgent,
-  buildSetupReport,
   HOST_BLOCKS,
   type ReportInput,
   readHostFile,
+  readInstalls,
   registerSetup,
-  setupBrief,
+  SETTINGS_TOOL,
+  SETUP_PROMPT,
+  SETUP_SKILL_DIR,
+  settingsReport,
+  settingsText,
+  setupServer,
 } from "../src/setup.ts"
 
 /**
- * `/cockpit-setup` sends this to the agent. What is tested is its structure and the facts in it —
- * which bays, which files, which names to fix, which defaults — not its prose.
+ * `cockpit_settings` is what the agent reads before and after it edits. What is tested is the facts
+ * in it — which bays, which files, which values from where, what to fix — and that it says them in
+ * the order an agent acts on them, not its prose.
  */
 
 const GLOBAL = "/home/me/.config/opencode-cockpit/config.json"
 const PROJECT = "/work/app/.cockpit.json"
+const OPENCODE = "/home/me/.config/opencode/opencode.json"
+const V1_TUI = "/home/me/.config/opencode/tui.json"
+const V2_CLI = "/home/me/.config/opencode/cli.json"
 
-const bundle = (bays: string[]) => new Map(bays.map((bay) => [bay, "opencode-cockpit"]))
-
-function brief(files: Record<string, unknown>, over: Partial<ReportInput> = {}) {
-  const report = buildSetupReport({
+/** The bundle installed, plus whatever files a test adds. */
+function report(files: Record<string, unknown>, over: Partial<ReportInput> = {}) {
+  const all: Record<string, unknown> = { [OPENCODE]: { plugins: ["opencode-cockpit@0.9.0"] }, ...files }
+  const result = settingsReport({
     opencode: 2,
     directory: "/work/app",
-    claims: bundle(["status", "subagents", "shell", "trail", "review", "updater", "trust"]),
     env: {},
     home: "/home/me",
     read: (path) => {
-      const file = files[path]
+      const file = all[path]
       return file === undefined ? undefined : typeof file === "string" ? file : JSON.stringify(file)
     },
     ...over,
   })
-  return { report, text: setupBrief(report) }
+  return { report: result, text: settingsText(result) }
 }
 
 const headings = (text: string) => text.split("\n").filter((line) => line.startsWith("## "))
+const bay = (text: string, name: string) => {
+  const lines = text.split("\n")
+  const at = lines.findIndex((line) => line.startsWith(`### ${name} `))
+  return at < 0 ? "" : lines.slice(at, lines.indexOf("", at)).join("\n")
+}
 
-describe("the brief's shape", () => {
-  test("its sections, in order, with nothing to fix", () => {
-    expect(headings(brief({}).text)).toEqual([
-      "## Where it stands",
-      "## The settings",
+describe("its shape", () => {
+  test("nothing to fix: says so first, then files, bays, OpenCode's blocks, next", () => {
+    const { text } = report({})
+    expect(text.split("\n")[2]).toBe("Notices: none. Every setting written is read.")
+    expect(headings(text).map((line) => line.split(" (")[0])).toEqual([
+      "## Files",
+      "## Bays",
       "## OpenCode's own sidebar blocks",
-      "## Ask me first, one question at a time",
-      "## Then",
+      "## Next",
     ])
   })
 
-  test("old names get a section of their own, first after where it stands", () => {
-    const { text } = brief({ [PROJECT]: { statusline: { preset: "minimal" }, sidebar: ["shells"] } })
-    expect(headings(text).slice(0, 4)).toEqual([
-      "## Where it stands",
-      "## Fix these first",
-      "## Also not read",
-      "## The settings",
-    ])
-  })
-
-  test("it ends by asking before anything is edited", () => {
-    expect(brief({}).text.trimEnd().endsWith("Ask me what I want before you edit anything.")).toBe(true)
-  })
-
-  test("the questions are numbered without gaps, whichever bays are loaded", () => {
-    const { text } = brief({}, { claims: bundle(["shell"]) })
-    const numbers = text.match(/^\d+\. /gm)?.map((n) => Number.parseInt(n, 10))
-    expect(numbers).toEqual(numbers?.map((_, at) => at + 1))
-    expect(text).not.toContain("trust.sidebar")
-    expect(text).not.toContain("(`status.sidebar`)")
-  })
-})
-
-describe("where it stands", () => {
-  test("names the bays this window loaded and where from, and the ones it did not", () => {
-    const { text } = brief(
-      {},
-      {
-        claims: new Map([
-          ["shell", "@opencode-cockpit/shell"],
-          ["setup", "x"],
-        ]),
-      },
-    )
-    expect(text).toContain("Loaded in this window (from @opencode-cockpit/shell):")
-    expect(text).toContain("  - `shell`:")
-    expect(text).toMatch(/Not installed: status, subagents, trail, trust, review, updater\./)
-    expect(text).not.toContain("`setup`")
-  })
-
-  test("both files, and whether each exists", () => {
-    const { text } = brief({ [PROJECT]: "{}" })
-    expect(text).toContain(`  - global: \`${GLOBAL}\` (does not exist yet)`)
-    expect(text).toContain(`  - project: \`${PROJECT}\` (exists)`)
-  })
-
-  test("a file that will not parse says so", () => {
-    expect(brief({ [GLOBAL]: "{ nope" }).text).toMatch(
-      /global: .* \(unreadable: .*; the whole file is ignored/,
-    )
-  })
-
-  test("what is written, merged, as JSON — or that nothing is", () => {
-    expect(brief({}).text).toContain("Nothing is written in either file")
-    const { text } = brief({
-      [GLOBAL]: { shell: { dockHeight: 20 } },
-      [PROJECT]: { shell: { colors: false } },
-    })
-    expect(text).toContain('"dockHeight": 20')
-    expect(text).toContain('"colors": false')
+  test("with something to fix, that comes first", () => {
+    const { text } = report({ [PROJECT]: { statusline: { preset: "minimal" } } })
+    expect(headings(text)[0]).toBe("## Fix these first (1)")
+    expect(text).toContain("- Fix the 1 notice above first.")
   })
 })
 
 describe("what to fix", () => {
-  test("every old name, with the name to write instead", () => {
-    const { text } = brief({ [PROJECT]: { statusline: {}, subagents: { hideNestedAfter: 5 } } })
-    expect(text).toContain("`statusline` is no longer read. Write it as `status`.")
+  test("an old name says where its value goes", () => {
+    const { text } = report({ [GLOBAL]: { statusline: {}, ui: { sidebarRows: 3 } } })
     expect(text).toContain(
-      "`subagents.hideNestedAfter` is no longer read. Write it as `subagents.hideNestedAfterSeconds`.",
+      `- ${GLOBAL}: "statusline" is no longer read. Move its value to "status" and remove "statusline".`,
     )
-    expect(text).toContain('fix every old name under "Fix these first"')
+    expect(text).toContain(`"ui.sidebarRows" is no longer read. Move its value to "shell.sidebarRows"`)
   })
 
-  test("a bay's old number for its place points at the list, not at a new name to copy it to", () => {
-    expect(brief({ [PROJECT]: { shell: { sidebarOrder: 170 } } }).text).toContain(
-      "`shell.sidebarOrder` is no longer read. Remove it; the order is the top-level `sidebar` list.",
+  test("an old place number points at the list, not at a name to copy it to", () => {
+    const { text } = report({ [PROJECT]: { review: { sidebarOrder: 3 } } })
+    expect(text).toContain(
+      `"review.sidebarOrder" is no longer read. Remove it; the order is the top-level "sidebar" list.`,
     )
   })
 
-  test("notices from a bay's plugin options are in it too", () => {
-    baySettings("review", {}, { options: { sidebarOrder: 3 }, settings: brief({}).report.settings })
-    const { text } = brief({}, { bays: baysRead() })
-    expect(text).toContain("`plugin options`: `sidebarOrder` is no longer read.")
+  test("a key no bay reads is a notice too, with the one it most likely meant", () => {
+    const { report: r, text } = report({ [PROJECT]: { shell: { hideWhenEmty: true } } })
+    expect(r.notices).toHaveLength(1)
+    expect(text).toContain(`"shell.hideWhenEmty" is not a setting of shell: did you mean "hideWhenEmpty"?`)
+  })
+
+  test("a starting point's keys raise none", () => {
+    const { report: r } = report({
+      [GLOBAL]: { subagents: { hideWhenEmpty: true, sidebarRows: 4 }, status: { sidebar: false } },
+    })
+    expect(r.notices).toEqual([])
   })
 })
 
-describe("the settings, from the loader's own defaults", () => {
-  test("every sidebar bay's block defaults, from SHARED_DEFAULTS", () => {
-    const { text } = brief({})
-    for (const bay of SIDEBAR_BAYS) {
-      const d = SHARED_DEFAULTS[bay]
-      expect(text).toContain(`| ${bay} | ${d.sidebar} | ${d.sidebarRows} | ${d.hideWhenEmpty} |`)
-    }
+describe("files", () => {
+  test("both, and whether each exists or parses", () => {
+    const { text } = report({ [GLOBAL]: "{ nope" })
+    expect(text).toContain(`- global: ${GLOBAL} — does not parse`)
+    expect(text).toContain(`- project: ${PROJECT} — not created yet (for settings only this project uses)`)
   })
 
-  test("a loaded bay's own keys come from the defaults it handed baySettings", () => {
-    baySettings(
-      "shell",
-      { dockHeight: 14, defaultView: "screen", watch: {} },
-      { settings: brief({}).report.settings },
+  test("what is written, merged — or that nothing is", () => {
+    expect(report({}).text).toContain("Written: nothing. Every bay is on its defaults.")
+    expect(report({ [PROJECT]: { shell: { dockHeight: 16 } } }).text).toContain(
+      'Written, both files merged: {"shell":{"dockHeight":16}}',
     )
-    const { text } = brief({}, { bays: baysRead() })
-    expect(text).toMatch(/- `shell`: .*`dockHeight` 14, `defaultView` "screen", `watch` unset/)
+  })
+})
+
+describe("bays", () => {
+  test("installed from OpenCode's plugin lists, in either version's spelling", () => {
+    expect(baysOfEntry("opencode-cockpit@0.9.0")).toHaveLength(7)
+    expect(baysOfEntry("/x/node_modules/opencode-cockpit")).toHaveLength(7)
+    expect(baysOfEntry("@opencode-cockpit/shell@0.9.0")).toEqual(["shell"])
+    expect(baysOfEntry("/x/node_modules/@opencode-cockpit/trail/")).toEqual(["trail"])
+    expect(baysOfEntry("@opencode-cockpit/client")).toEqual([])
+    expect(
+      readInstalls(V1_TUI, JSON.stringify({ plugin: [["opencode-cockpit", { features: {} }]] })),
+    ).toEqual([{ entry: "opencode-cockpit", bundle: true, file: V1_TUI, options: { features: {} } }])
+    expect(
+      readInstalls(V2_CLI, JSON.stringify({ plugins: [{ package: "@opencode-cockpit/status" }] })),
+    ).toHaveLength(1)
   })
 
-  test("a bay that is not loaded has no own-keys line", () => {
-    baySettings("trust", { threshold: 3 }, { settings: brief({}).report.settings })
-    expect(brief({}, { claims: bundle(["shell"]), bays: baysRead() }).text).not.toContain("- `trust`:")
+  test("a bay nobody installed is named once, and its settings are not offered", () => {
+    const { text } = report({ [OPENCODE]: { plugins: ["@opencode-cockpit/shell"] } })
+    expect(text).toContain("### shell — on")
+    expect(text).not.toContain("### status")
+    expect(text).toContain("Not installed: status, subagents, trail, trust, review, updater.")
+  })
+
+  test("each value says where it came from; defaults are listed apart", () => {
+    const { text } = report({
+      [GLOBAL]: { shell: { dockHeight: 16, hideWhenEmpty: true } },
+      [PROJECT]: { shell: { dockHeight: 20 } },
+    })
+    const shell = bay(text, "shell")
+    expect(shell).toContain("- set: hideWhenEmpty true (global) · dockHeight 20 (project)")
+    expect(shell).toContain("- defaults: enabled true · sidebar true · sidebarRows 5 ·")
+    expect(shell).toContain("block: shown, hidden while empty")
+  })
+
+  test("plugin-entry options are a source of their own", () => {
+    const { text } = report({
+      [OPENCODE]: { plugins: [{ package: "opencode-cockpit", options: { trust: { threshold: 5 } } }] },
+    })
+    expect(bay(text, "trust")).toContain("threshold 5 (plugin options)")
+  })
+
+  test("off, and why: a file's switch, the entry's, or enabled", () => {
+    expect(report({ [GLOBAL]: { features: { shell: false } } }).text).toContain(
+      "### shell — off (`features` in a settings file)",
+    )
+    expect(
+      report({
+        [OPENCODE]: { plugins: [{ package: "opencode-cockpit", options: { features: { trail: false } } }] },
+      }).text,
+    ).toContain("### trail — off (`features` in the plugin entry)")
+    expect(report({ [PROJECT]: { subagents: { enabled: false } } }).text).toContain(
+      "### subagents — off (`enabled: false`)",
+    )
+  })
+
+  test("where each block is: Status's surface, a hidden block, Trust's default", () => {
+    const { text } = report({ [GLOBAL]: { status: { sidebar: false }, shell: { sidebar: false } } })
+    expect(bay(text, "status")).toContain("block: a line under the prompt")
+    expect(bay(text, "shell")).toContain("block: hidden (sidebar: false)")
+    expect(bay(text, "trust")).toContain("block: hidden (sidebar: false)")
+    expect(bay(text, "review")).toContain("block: no sidebar block")
+  })
+
+  test("the order, from the list or the default, of the blocks that are on", () => {
+    expect(report({}).text).toContain(
+      "## Bays (sidebar order, top to bottom: status, subagents, shell, trail, trust, the default)",
+    )
+    expect(report({ [GLOBAL]: { sidebar: ["trail", "status"] } }).text).toContain(
+      "top to bottom: trail, status, subagents, shell, trust, from the `sidebar` list",
+    )
   })
 })
 
 describe("OpenCode's own blocks", () => {
-  const V1 = "/home/me/.config/opencode/tui.json"
-  const V2 = "/home/me/.config/opencode/cli.json"
-
   test("reads the switches each version writes", () => {
     expect(
       readHostFile(
         1,
-        V1,
+        V1_TUI,
         JSON.stringify({ plugin_enabled: { "internal:sidebar-todo": false, other: false } }),
       ).blocks,
     ).toEqual({ "internal:sidebar-todo": false })
-    expect(readHostFile(2, V2, '{ "plugins": ["x", "-opencode.sidebar.context"] }').blocks).toEqual({
+    expect(readHostFile(2, V2_CLI, '{ "plugins": ["x", "-opencode.sidebar.context"] }').blocks).toEqual({
       "opencode.sidebar.context": false,
     })
-    expect(readHostFile(2, V2, "{ nope").error).toBeTruthy()
+    expect(readHostFile(2, V2_CLI, "{ nope").error).toBeTruthy()
   })
 
   test("suggests turning Context off when Status draws in the sidebar, in each version's syntax", () => {
-    expect(brief({}, { opencode: 1 }).text).toContain(
+    expect(report({}, { opencode: 1 }).text).toContain(
       `\`"plugin_enabled": { "${HOST_BLOCKS[1].context}": false }\``,
     )
-    expect(brief({}).text).toContain(`add \`"-${HOST_BLOCKS[2].context}"\` to the \`"plugins"\` list`)
+    expect(report({}).text).toContain(`add \`"-${HOST_BLOCKS[2].context}"\` to the \`"plugins"\` list`)
   })
 
   test("no suggestion once it is off, or when Status is at the bottom", () => {
-    const off = brief({ [V2]: { plugins: ["-opencode.sidebar.context"] } }).text
-    expect(off).toContain(`Context (\`opencode.sidebar.context\`): off (set in \`${V2}\`)`)
-    expect(off).not.toContain("Suggest turning it off")
-    expect(brief({ [PROJECT]: { status: { sidebar: false } } }).text).not.toContain("Suggest turning it off")
+    const off = report({ [V2_CLI]: { plugins: ["-opencode.sidebar.context"] } }).text
+    expect(off).toContain(`Context \`opencode.sidebar.context\`: off (set in ${V2_CLI}).`)
+    expect(off).not.toContain("Suggest turning")
+    expect(report({ [PROJECT]: { status: { sidebar: false } } }).text).not.toContain("Suggest turning")
   })
 
   test("Todo is never offered off; when it is off, turning it back on is offered", () => {
-    const on = brief({}, { opencode: 1 }).text
-    expect(on).toContain("Never suggest turning it off")
-    const off = brief({ [V1]: { plugin_enabled: { "internal:sidebar-todo": false } } }, { opencode: 1 }).text
+    expect(report({}, { opencode: 1 }).text).toContain("Never suggest turning it off")
+    const off = report(
+      { [V1_TUI]: { plugin_enabled: { "internal:sidebar-todo": false } } },
+      { opencode: 1 },
+    ).text
     expect(off).toContain("offer to turn it back on")
     expect(off).toContain('`"plugin_enabled": { "internal:sidebar-todo": true }`')
   })
 
   test("OpenCode 2 has no LSP or Todo block to talk about", () => {
-    const { text } = brief({})
+    const { text } = report({})
     expect(text).not.toContain("internal:sidebar-lsp")
-    expect(text).toContain("OpenCode 2 draws no LSP or Todo block")
+    expect(text).toContain("OpenCode 2 has no LSP or Todo block in the sidebar.")
   })
 })
 
-/* ─── the command ───────────────────────────────────────────────────────────────────────────── */
+/* ─── the agent side ────────────────────────────────────────────────────────────────────────── */
+
+function serverHost(scope: object = {}): ServerHost {
+  return {
+    version: 1,
+    directory: "/work/app",
+    scope,
+    session: { get: async () => undefined, notify: async () => {} },
+    readFile: async () => undefined,
+    log: silentLog,
+  }
+}
+
+describe("setupServer", () => {
+  test("the tool, the skill and the command, once per OpenCode", () => {
+    const scope = {}
+    const first = setupServer(serverHost(scope), "opencode-cockpit")
+    expect(Object.keys(first.tools ?? {})).toEqual([SETTINGS_TOOL])
+    expect(first.skills).toEqual([{ dir: SETUP_SKILL_DIR }])
+    expect(first.commands).toEqual([expect.objectContaining({ name: "cockpit-setup", prompt: SETUP_PROMPT })])
+    expect(setupServer(serverHost(scope), "@opencode-cockpit/shell")).toEqual({})
+  })
+
+  test("the skill it points at is in the package", () => {
+    expect(existsSync(join(SETUP_SKILL_DIR, "SKILL.md"))).toBe(true)
+    expect(existsSync(join(SETUP_SKILL_DIR, "references", "settings.md"))).toBe(true)
+  })
+
+  test("the command's line names the skill", () => {
+    expect(SETUP_PROMPT).toContain("cockpit-setup skill")
+  })
+})
+
+/* ─── the interface's palette entry ─────────────────────────────────────────────────────────── */
 
 interface Fake {
   host: Host
@@ -241,8 +304,7 @@ function fakeHost(over: { version?: 1 | 2; route?: Host["route"]["current"]; sta
           v1: {
             client: {
               tui: {
-                appendPrompt: async ({ text }: { text: string }) =>
-                  void calls.push(`append ${text.length > 0}`),
+                appendPrompt: async ({ text }: { text: string }) => void calls.push(`append ${text}`),
                 submitPrompt: async () => void calls.push("submit"),
               },
             },
@@ -275,45 +337,55 @@ function fakeHost(over: { version?: 1 | 2; route?: Host["route"]["current"]; sta
 const settle = () => new Promise((done) => setTimeout(done, 5))
 
 describe("registerSetup", () => {
-  test("the first entry in a window registers the command; the rest do not", () => {
+  test("the first entry in a window registers a palette entry with no slash name of its own", () => {
     const a = fakeHost()
     registerSetup(a.host, "opencode-cockpit")
     registerSetup({ ...a.host } as Host, "@opencode-cockpit/shell")
     expect(a.layers).toHaveLength(1)
-    const command = (
-      a.layers[0] as { commands: { slashName: string; category: string; namespace: string }[] }
-    ).commands[0]
-    expect(command).toMatchObject({ slashName: "cockpit-setup", category: "Cockpit", namespace: "palette" })
+    const command = (a.layers[0] as { commands: Record<string, unknown>[] }).commands[0]
+    expect(command).toMatchObject({
+      title: "Ask the agent to set up Cockpit",
+      category: "Cockpit",
+      namespace: "palette",
+    })
+    expect(command).not.toHaveProperty("slashName")
   })
 
-  test("the bays it lists are the window's claims, read when it runs", () => {
+  test("running it sends the command's own line", async () => {
+    const fake = fakeHost({ version: 1 })
+    registerSetup(fake.host, "opencode-cockpit")
+    ;(fake.layers[0] as { commands: { run(): void }[] }).commands[0]?.run()
+    await settle()
+    expect(fake.calls).toEqual([`append ${SETUP_PROMPT}`, "submit"])
+  })
+
+  test("a claim is per window", () => {
     const { host } = fakeHost()
-    claimFeature(host.renderer, "shell", "@opencode-cockpit/shell")
-    expect([...claimedFeatures(host.renderer).keys()]).toEqual(["shell"])
+    expect(claimFeature(host.renderer, "setup", "x").active).toBe(true)
   })
 })
 
 describe("briefAgent, from every state", () => {
-  test("OpenCode 2 at home: a conversation is made, opened, and briefed", async () => {
+  test("OpenCode 2 at home: a conversation is made, opened, and asked", async () => {
     const fake = fakeHost()
-    briefAgent(fake.host, "brief", "Cockpit setup")
+    briefAgent(fake.host, "line", "Cockpit setup")
     await settle()
     expect(fake.calls).toEqual(["create", "navigate ses_new", "prompt ses_new default"])
-    expect(fake.toasts).toEqual(["Briefed the agent."])
+    expect(fake.toasts).toEqual(["Asked the agent."])
   })
 
   test("OpenCode 2, agent busy: queued behind the running turn, not steered into it", async () => {
     const fake = fakeHost({ route: { name: "session", params: { sessionID: "ses_1" } }, status: "running" })
-    briefAgent(fake.host, "brief", "Cockpit setup")
+    briefAgent(fake.host, "line", "Cockpit setup")
     await settle()
     expect(fake.calls).toEqual(["prompt ses_1 queue"])
   })
 
   test("OpenCode 1: into the prompt and submitted, which starts or queues a turn itself", async () => {
     const fake = fakeHost({ version: 1 })
-    briefAgent(fake.host, "brief", "Cockpit setup")
+    briefAgent(fake.host, "line", "Cockpit setup")
     await settle()
-    expect(fake.calls).toEqual(["append true", "submit"])
-    expect(fake.toasts).toEqual(["Briefed the agent."])
+    expect(fake.calls).toEqual(["append line", "submit"])
+    expect(fake.toasts).toEqual(["Asked the agent."])
   })
 })

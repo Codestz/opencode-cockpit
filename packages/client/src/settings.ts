@@ -1,6 +1,6 @@
 /**
  * Cockpit's settings: one loader every bay reads through, so the files mean the same thing to all of
- * them, to doctor and to `/cockpit-setup`.
+ * them, to doctor and to `cockpit_settings`.
  *
  *   ~/.config/opencode-cockpit/config.json   (or $XDG_CONFIG_HOME/…)
  *   <project>/.cockpit.json                   wins over the global file
@@ -20,7 +20,8 @@
  *   (`hideFinishedAfterMinutes`, `hideNestedAfterSeconds`).
  * - **One order**: the top-level `sidebar` list, and nothing else.
  * - **Old names are not read.** They are recognised, so each one is a notice — the bay draws it as a
- *   `!` row, doctor prints it, `/cockpit-setup` fixes it — and its value is ignored.
+ *   `!` row, doctor prints it, `cockpit_settings` lists it for the `cockpit-setup` skill to fix — and
+ *   its value is ignored.
  * - **It never throws.** An unreadable file, a wrong type, an unknown name: a notice, and the
  *   defaults. A typo in a config should never cost you the interface.
  *
@@ -187,7 +188,7 @@ const OLD_UI: Readonly<Record<string, string>> = {
   sidebarOrder: "sidebar",
 }
 
-/** Every old name the loader recognises, and what to write instead — for `/cockpit-setup`'s brief. */
+/** Every old name the loader recognises, and what to write instead — for the `cockpit-setup` skill's reference. */
 export const OLD_NAMES: readonly { old: string; new: string }[] = [
   { old: "statusline", new: "status" },
   { old: "status.maxRows", new: "status.sidebarRows" },
@@ -680,7 +681,6 @@ export function baySettings<T extends object = Record<never, never>>(
   const config = mergeSections(base, written) as SharedSettings & Widen<T>
   config.sidebarRows = Math.max(0, Math.floor(config.sidebarRows))
   if (settings.features[bay] === false) config.enabled = false
-  seenBays().set(bay, { defaults: base, notices: notices.filter((notice) => notice.file === OPTIONS_SOURCE) })
   return {
     config,
     written,
@@ -691,34 +691,11 @@ export function baySettings<T extends object = Record<never, never>>(
 }
 
 /**
- * What each bay read its settings with, as it last called `baySettings`: its defaults, shared keys
- * included, and the notices its plugin options raised (the files' are in `loadSettings` already). So
- * `/cockpit-setup` lists every key an installed bay reads, and its default, from the very object the
- * bay merges over rather than from a copy that drifts. On `globalThis`, because the bundle and a
- * standalone bay can each bring their own copy of this module.
- */
-export interface BayRead {
-  defaults: Section
-  notices: SettingsNotice[]
-}
-
-const BAYS_READ = Symbol.for("opencode-cockpit.settings.read")
-
-function seenBays(): Map<Bay, BayRead> {
-  const host = globalThis as { [BAYS_READ]?: Map<Bay, BayRead> }
-  host[BAYS_READ] ??= new Map()
-  return host[BAYS_READ]
-}
-
-/** Every bay that has read its settings in this process, and what it read them with. */
-export const baysRead = (): ReadonlyMap<Bay, BayRead> => new Map(seenBays())
-
-/**
  * Plugin options as one bay's section: a whole cockpit config's section for it, else the options
  * themselves (a standalone entry carries its own keys). Only for options — a *file* without a section
  * says nothing about the bay; reading the whole file as its settings was Status's trap.
  */
-function optionsSection(bay: Bay, options: unknown): Section | undefined {
+export function optionsSection(bay: Bay, options: unknown): Section | undefined {
   if (!isObject(options)) return undefined
   const own = options[bay]
   return isObject(own) ? own : options

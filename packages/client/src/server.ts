@@ -12,7 +12,8 @@
  * structural types below.
  */
 
-import { isAbsolute, relative, resolve } from "node:path"
+import { readFileSync } from "node:fs"
+import { isAbsolute, join, relative, resolve } from "node:path"
 import {
   type Hooks,
   type PluginInput,
@@ -21,6 +22,7 @@ import {
   tool,
 } from "@opencode-ai/plugin"
 import { cockpitVersion, createLog, type Log, silentLog } from "./log.ts"
+import { setupServer } from "./setup.ts"
 
 export interface ServerHost {
   readonly version: 1 | 2
@@ -84,8 +86,31 @@ export interface ToolCall {
   agent?: string
 }
 
+/**
+ * A skill shipped in a package: the folder holding its `SKILL.md`, whose frontmatter names it. OpenCode 1
+ * reads the folder (`skills.paths`), OpenCode 2 is handed the file's text (`ctx.skill`): either way the
+ * skill's files stay in the installed package and nothing is written to the user's config
+ * (docs/opencode/shipping-agents.md).
+ */
+export interface SkillSpec {
+  dir: string
+}
+
+/**
+ * A slash command shipped from the agent side: one line of prompt. OpenCode then does what it does for
+ * its own commands — from home it opens a conversation, while the agent answers it queues — on both
+ * versions (measured on 1.18.32 and 2.0.18). Whatever is typed after the name follows the line.
+ */
+export interface CommandSpec {
+  name: string
+  description: string
+  prompt: string
+}
+
 export interface ServerParts {
   tools?: Record<string, ToolDefinition>
+  skills?: SkillSpec[]
+  commands?: CommandSpec[]
   /** Added to the system prompt of each model request. The session is unknown on some v1 requests. */
   system?: (sessionID: string | undefined) => Promise<string[]>
   /**
@@ -110,10 +135,21 @@ export function composeParts(parts: ServerParts[]): ServerParts {
       tools[name] = def
     }
   }
+  const commands: CommandSpec[] = []
+  for (const command of parts.flatMap((part) => part.commands ?? [])) {
+    if (commands.some((each) => each.name === command.name))
+      throw new Error(`command "/${command.name}" is registered by more than one cockpit feature`)
+    commands.push(command)
+  }
+  const skills = [
+    ...new Map(parts.flatMap((part) => part.skills ?? []).map((skill) => [skill.dir, skill])).values(),
+  ]
   /** Only what some feature has: no features is no hooks at all, not hooks that do nothing. */
   const any = (key: keyof ServerParts) => parts.some((part) => part[key] !== undefined)
   return {
     ...(Object.keys(tools).length > 0 ? { tools } : {}),
+    ...(skills.length > 0 ? { skills } : {}),
+    ...(commands.length > 0 ? { commands } : {}),
     ...(any("system")
       ? {
           system: async (sessionID: string | undefined) => {
@@ -253,9 +289,42 @@ function contentText(content: unknown): string {
     .join("\n")
 }
 
+/** The slice of OpenCode 1's config the `config` hook edits. */
+interface V1Config {
+  command?: Record<string, { template?: string; description?: string } & Record<string, unknown>>
+  skills?: { paths?: string[] } & Record<string, unknown>
+}
+
+/**
+ * Skills and commands into OpenCode 1's config, in memory. The hook gets the config already holding
+ * the user's own entries: a command of the same name is merged *beneath* theirs, so what they wrote
+ * wins. A folder already listed is not listed twice.
+ */
+export function addToV1Config(config: V1Config, parts: Pick<ServerParts, "skills" | "commands">): void {
+  for (const command of parts.commands ?? []) {
+    config.command ??= {}
+    config.command[command.name] = {
+      template: command.prompt,
+      description: command.description,
+      ...config.command[command.name],
+    }
+  }
+  if (parts.skills?.length) {
+    config.skills ??= {}
+    const paths = config.skills.paths ?? []
+    config.skills.paths = [
+      ...paths,
+      ...parts.skills.map((skill) => skill.dir).filter((dir) => !paths.includes(dir)),
+    ]
+  }
+}
+
 export function partsToV1Hooks(parts: ServerParts): Hooks {
   return {
     ...(parts.tools ? { tool: parts.tools } : {}),
+    ...(parts.skills || parts.commands
+      ? { config: async (config: V1Config) => addToV1Config(config, parts) }
+      : {}),
     ...(parts.toolAfter
       ? {
           "tool.execute.after": async (input, output) => {
@@ -300,11 +369,17 @@ export interface V2ServerContext {
     /** 2.0.18: after every tool call, Code Mode's inner calls included (docs/opencode/trail-server.md). */
     hook?(name: "execute.after", run: (event: V2ToolAfter) => unknown): Promise<unknown>
   }
+  /** 2.0.15's skill registry: an added skill is offered to the model like the user's own. */
+  skill?: { transform(edit: (editor: V2SkillEditor) => void): Promise<unknown> }
+  /** 2.0.15's slash commands: code, not a template, so a shipped one prompts the session itself. */
+  command?: { transform(edit: (editor: V2CommandEditor) => void): Promise<unknown> }
   session: {
     get(input: {
       sessionID: string
     }): Promise<{ parentID?: string; title?: string; agent?: string } | undefined>
     synthetic(input: { sessionID: string; text: string; delivery?: "steer" | "queue" }): Promise<unknown>
+    /** A message from the person: what a command sends. */
+    prompt?(input: { sessionID: string; text: string; delivery?: "steer" | "queue" }): Promise<unknown>
     /** A session's messages as the model is given them (2.0.15). */
     context?(input: { sessionID: string }): Promise<unknown[]>
     hook(name: "context", run: (event: { sessionID: string; system: unknown[] }) => unknown): Promise<unknown>
@@ -366,6 +441,75 @@ export interface V2Tool {
 
 interface V2ToolEditor {
   add(tool: V2Tool): void
+}
+
+/** A skill as v2's registry holds one. */
+export interface V2Skill {
+  id: string
+  name: string
+  description?: string
+  /** The `SKILL.md`: the model is told its folder, so the skill's relative paths resolve. */
+  path: string
+  content: string
+}
+
+interface V2SkillEditor {
+  get(id: string): unknown
+  add(skill: V2Skill): void
+}
+
+/** What v2 hands a command when it runs, measured on 2.0.18: `delivery` is `"steer"` even when idle. */
+export interface V2CommandInvocation {
+  sessionID: string
+  prompt?: { text?: string }
+  delivery?: "steer" | "queue"
+}
+
+interface V2CommandEditor {
+  add(command: {
+    name: string
+    description?: string
+    execute(input: V2CommandInvocation): Promise<void>
+  }): void
+}
+
+/**
+ * A skill's folder as v2 takes it: name and description from the frontmatter, the text without it
+ * (v1 strips it too). Undefined when the file is missing or names nothing — logged by the caller, never
+ * thrown: no skill is worth the agent side.
+ */
+export function readSkill(spec: SkillSpec): V2Skill | undefined {
+  const path = join(spec.dir, "SKILL.md")
+  let text: string
+  try {
+    text = readFileSync(path, "utf8")
+  } catch {
+    return undefined
+  }
+  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/.exec(text)
+  const field = (name: string) =>
+    match?.[1]
+      ?.split(/\r?\n/)
+      .find((line) => line.startsWith(`${name}:`))
+      ?.slice(name.length + 1)
+      .trim()
+      .replace(/^(["'])(.*)\1$/, "$2")
+  const name = field("name")
+  if (!name) return undefined
+  const description = field("description")
+  return {
+    id: name,
+    name,
+    ...(description ? { description } : {}),
+    path,
+    content: match ? text.slice(match[0].length) : text,
+  }
+}
+
+/** The line a v2 command sends: the command's own, then whatever was typed after its name. */
+export function commandText(command: CommandSpec, invocation: V2CommandInvocation): string {
+  const typed = invocation.prompt?.text?.trim()
+  return typed ? `${command.prompt}\n\n${typed}` : command.prompt
 }
 
 export interface V2ToolContext {
@@ -525,7 +669,8 @@ async function begin(
 ): Promise<ServerParts> {
   host.log.info("start", { entry: id, opencode: host.version, cockpit: cockpitVersion() })
   try {
-    const parts = await start(host, options)
+    /** `cockpit_settings`, the `cockpit-setup` skill and `/cockpit-setup`: the first entry here adds them. */
+    const parts = composeParts([await start(host, options), setupServer(host, id)])
     const { toolAfter } = parts
     return {
       ...parts,
@@ -571,6 +716,44 @@ export function dualServer(id: string, start: ServerStart) {
         await ctx.tool.transform((editor) => {
           for (const [name, def] of tools) editor.add(toolToV2(name, def, host.directory))
         })
+      }
+      const skills = (parts.skills ?? []).flatMap((spec) => {
+        const skill = readSkill(spec)
+        if (!skill) host.log.warn("skill not found", { dir: spec.dir })
+        return skill ? [skill] : []
+      })
+      if (skills.length > 0) {
+        if (ctx.skill) {
+          await ctx.skill.transform((editor) => {
+            for (const skill of skills) if (!editor.get(skill.id)) editor.add(skill)
+          })
+        } else
+          host.log.warn("this OpenCode takes no skills from plugins", { skills: skills.map((s) => s.id) })
+      }
+      const commands = parts.commands ?? []
+      if (commands.length > 0) {
+        if (ctx.command && ctx.session.prompt) {
+          const prompt = ctx.session.prompt.bind(ctx.session)
+          await ctx.command.transform((editor) => {
+            for (const command of commands)
+              editor.add({
+                name: command.name,
+                description: command.description,
+                /**
+                 * Queued, always: v2 hands every command `delivery: "steer"`, which cuts a reply in
+                 * progress off to start on this. Queued, an idle session starts at once and a busy
+                 * one shows `1 queued` and waits (measured on 2.0.18).
+                 */
+                execute: async (invocation) => {
+                  await prompt({
+                    sessionID: invocation.sessionID,
+                    text: commandText(command, invocation),
+                    delivery: "queue",
+                  })
+                },
+              })
+          })
+        } else host.log.warn("this OpenCode takes no commands from plugins", { commands: commands.length })
       }
       if (parts.toolAfter) {
         const after = parts.toolAfter

@@ -1,11 +1,17 @@
 import { describe, expect, test } from "bun:test"
+import { mkdtempSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { tool } from "@opencode-ai/plugin"
 import { silentLog } from "../src/log.ts"
 import {
+  addToV1Config,
+  commandText,
   composeParts,
   dualServer,
   follow,
   partsToV1Hooks,
+  readSkill,
   type ServerParts,
   serverFromV1,
   serverFromV2,
@@ -59,6 +65,65 @@ describe("several features as one", () => {
     expect(composeParts([])).toEqual({})
     expect(partsToV1Hooks(composeParts([{}]))).toEqual({})
   })
+
+  test("skills are listed once, and a command name registered twice throws", () => {
+    const command = { name: "same", description: "", prompt: "p" }
+    expect(composeParts([{ skills: [{ dir: "/s" }] }, { skills: [{ dir: "/s" }] }]).skills).toEqual([
+      { dir: "/s" },
+    ])
+    expect(() => composeParts([{ commands: [command] }, { commands: [command] }])).toThrow(
+      'command "/same" is registered by more than one cockpit feature',
+    )
+  })
+})
+
+describe("skills and commands", () => {
+  const command = { name: "cockpit-setup", description: "set up", prompt: "Use the cockpit-setup skill." }
+
+  test("OpenCode 1: into its config, beneath what the user wrote, each folder once", async () => {
+    const hooks = partsToV1Hooks({ skills: [{ dir: "/pkg/skills/a" }], commands: [command] })
+    const config = {
+      command: { other: { template: "x" } },
+      skills: { paths: ["/mine", "/pkg/skills/a"] },
+    } as Record<string, unknown>
+    await (hooks as { config?: (config: unknown) => Promise<void> }).config?.(config)
+    expect(config).toEqual({
+      command: {
+        other: { template: "x" },
+        "cockpit-setup": { template: "Use the cockpit-setup skill.", description: "set up" },
+      },
+      skills: { paths: ["/mine", "/pkg/skills/a"] },
+    })
+    const mine = { command: { "cockpit-setup": { template: "my own" } } } as Record<string, unknown>
+    addToV1Config(mine as never, { commands: [command], skills: [{ dir: "/b" }] })
+    expect(mine).toEqual({
+      command: { "cockpit-setup": { template: "my own", description: "set up" } },
+      skills: { paths: ["/b"] },
+    })
+  })
+
+  test("a skill's folder read for OpenCode 2: frontmatter names it, the body is the content", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ck-skill-"))
+    writeFileSync(
+      join(dir, "SKILL.md"),
+      '---\nname: probe\ndescription: "Does a thing: well"\n---\n\n# Probe\nbody\n',
+    )
+    expect(readSkill({ dir })).toEqual({
+      id: "probe",
+      name: "probe",
+      description: "Does a thing: well",
+      path: join(dir, "SKILL.md"),
+      content: "\n# Probe\nbody\n",
+    })
+    expect(readSkill({ dir: join(dir, "missing") })).toBeUndefined()
+  })
+
+  test("a command's line, then whatever was typed after its name", () => {
+    expect(commandText(command, { sessionID: "s", prompt: { text: "" } })).toBe(command.prompt)
+    expect(commandText(command, { sessionID: "s", prompt: { text: " hide shells " } })).toBe(
+      `${command.prompt}\n\nhide shells`,
+    )
+  })
 })
 
 describe("on OpenCode 1", () => {
@@ -108,21 +173,38 @@ describe("a v1 tool, as v2 registers it", () => {
 })
 
 /** Enough of a v2 server context to watch what gets registered. */
-function fakeV2(events: { type: string; data?: { sessionID?: string } }[] = []) {
+function fakeV2(events: { type: string; data?: { sessionID?: string } }[] = [], directory = "/work/project") {
   const added: string[] = []
   const hooks: string[] = []
+  const skills: { id: string; path: string }[] = []
+  const commands: { name: string; execute(input: unknown): Promise<void> }[] = []
+  const prompts: unknown[] = []
   let context: ((event: { sessionID: string; system: unknown[] }) => unknown) | undefined
   const ctx = {
     options: {},
-    location: { directory: "/work/project" },
+    location: { directory },
     tool: {
       transform: async (edit: (editor: { add: (tool: { name: string }) => void }) => void) => {
         edit({ add: (tool) => added.push(tool.name) })
       },
     },
+    skill: {
+      transform: async (edit: (editor: unknown) => void) => {
+        edit({
+          get: (id: string) => skills.find((skill) => skill.id === id),
+          add: (skill: { id: string; path: string }) => skills.push(skill),
+        })
+      },
+    },
+    command: {
+      transform: async (edit: (editor: unknown) => void) => {
+        edit({ add: (command: (typeof commands)[number]) => commands.push(command) })
+      },
+    },
     session: {
       get: async () => undefined,
       synthetic: async () => undefined,
+      prompt: async (input: unknown) => void prompts.push(input),
       hook: async (name: string, run: typeof context) => {
         hooks.push(name)
         context = run
@@ -134,7 +216,7 @@ function fakeV2(events: { type: string; data?: { sessionID?: string } }[] = []) 
       },
     },
   }
-  return { ctx, added, hooks, system: () => context }
+  return { ctx, added, hooks, skills, commands, prompts, system: () => context }
 }
 
 describe("one entry for both", () => {
@@ -166,7 +248,7 @@ describe("one entry for both", () => {
       }
     })
     const cleanup = await entry.setup(fake.ctx as never)
-    expect(fake.added).toEqual(["echo"])
+    expect(fake.added).toContain("echo")
     expect(fake.hooks).toEqual(["context"])
     const event = { sessionID: "ses_1", system: [] as unknown[] }
     await fake.system()?.(event)
@@ -175,6 +257,29 @@ describe("one entry for both", () => {
     expect(deleted).toEqual(["ses_9"])
     await cleanup?.()
     expect(disposed).toBe(true)
+  })
+
+  test("v2's setup adds the setup tool, skill and command once, and a command prompts queued", async () => {
+    const one = fakeV2([], "/work/setup-v2")
+    const two = fakeV2([], "/work/setup-v2")
+    const entry = dualServer("cockpit.test", async () => ({}))
+    const cleanup = await entry.setup(one.ctx as never)
+    await entry.setup(two.ctx as never)
+    expect(one.added).toEqual(["cockpit_settings"])
+    expect(one.skills.map((skill) => skill.id)).toEqual(["cockpit-setup"])
+    expect(one.skills[0]?.path).toEndWith("skills/cockpit-setup/SKILL.md")
+    expect(one.commands.map((command) => command.name)).toEqual(["cockpit-setup"])
+    expect(two.added).toEqual([])
+    /** v2 hands a command `steer` even when idle; it is sent queued, which starts at once when idle. */
+    await one.commands[0]?.execute({ sessionID: "ses_1", prompt: { text: "" }, delivery: "steer" })
+    expect(one.prompts).toEqual([
+      {
+        sessionID: "ses_1",
+        text: "Use the cockpit-setup skill to help me set up Cockpit.",
+        delivery: "queue",
+      },
+    ])
+    await cleanup?.()
   })
 
   test("two copies in one OpenCode 2 share a claim scope, so a feature loads once", async () => {
