@@ -17,6 +17,7 @@ import {
   STATE_TONE,
   stateMark,
   summaryRuns,
+  warnRows,
 } from "../src/design.ts"
 
 /** The shared grammar: one tone per state, and a key row that keeps its way out and says what it cut. */
@@ -189,6 +190,17 @@ describe("an empty sidebar block", () => {
     expect(lines(rows)).toEqual(["Shells".padEnd(30), " ".repeat(30), EMPTY_TEXT.padEnd(30)])
     expect(rows[0]?.[0]).toMatchObject({ text: "Shells", bold: true })
     expect(rows.at(-1)?.[0]).toMatchObject({ text: "none yet", tone: "muted" })
+  })
+
+  test("a warning wraps at spaces and keeps its fix", () => {
+    const rows = warnRows('settings: "statusline" is no longer read — run /cockpit-setup', 30)
+    expect(lines(rows)).toEqual([
+      '! settings: "statusline" is no',
+      "  longer read — run".padEnd(30),
+      "  /cockpit-setup".padEnd(30),
+    ])
+    expect(rows[0]?.[0]).toMatchObject({ text: "! ", tone: "warning" })
+    expect(lines(warnRows("one two three four five six", 9, 2))).toEqual(["! one two", "  three…".padEnd(9)])
   })
 
   test("is as tall as the same block with one single-row item", () => {

@@ -273,6 +273,46 @@ export function emptyBlock(title: string, width: number, hideWhenEmpty = false):
   ]
 }
 
+/**
+ * A warning a block says about itself — a settings notice — as rows exactly `width` wide: `!` in the
+ * warning tone, then the words, wrapped at spaces with the rest indented under the first word. A
+ * sidebar is 24–36 cells and the sentence is wider, so it wraps rather than losing its last words
+ * (the fix it names). At most `maxRows`; the last one ends in `…` when there was more.
+ */
+export function warnRows(text: string, width: number, maxRows = 3): ToneRun[][] {
+  const room = Math.max(0, width)
+  const prefix = `${GLYPH.warn} `
+  const indent = " ".repeat(prefix.length)
+  const room1 = Math.max(1, room - prefix.length)
+  const lines: string[] = []
+  let line = ""
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const next = line ? `${line} ${word}` : word
+    if (next.length <= room1 || !line) line = next
+    else {
+      lines.push(line)
+      line = word
+    }
+  }
+  if (line) lines.push(line)
+  const shown = lines.slice(0, Math.max(1, maxRows))
+  const cut = lines.length > shown.length
+  return shown.map((words, i) => {
+    let body =
+      words.length > room1 || (cut && i === shown.length - 1)
+        ? `${words.slice(0, room1 - 1)}${GLYPH.more}`
+        : words
+    body = body.slice(0, room1)
+    const lead: ToneRun = i === 0 ? { text: prefix, tone: "warning" } : { text: indent }
+    const used = Math.min(room, prefix.length + body.length)
+    return [
+      lead,
+      { text: body, tone: "warning" },
+      ...(room > used ? [{ text: " ".repeat(room - used) }] : []),
+    ]
+  })
+}
+
 /** Whether a block draws at all: always, unless it is empty and asked to hide then. */
 export const blockShown = (count: number, hideWhenEmpty = false): boolean => count > 0 || !hideWhenEmpty
 
