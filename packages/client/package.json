@@ -55,6 +55,10 @@
     "./settings": {
       "types": "./types/settings.d.ts",
       "default": "./dist/settings.js"
+    },
+    "./setup": {
+      "types": "./types/setup.d.ts",
+      "default": "./dist/setup.js"
     }
   },
   "files": [

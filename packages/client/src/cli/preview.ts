@@ -7,11 +7,13 @@
  *   bun packages/client/src/cli/preview.ts
  *   bun packages/client/src/cli/preview.ts --width 28
  *   bun packages/client/src/cli/preview.ts --config ./my.json   notices for a config file of yours
+ *   bun packages/client/src/cli/preview.ts --setup              the brief /cockpit-setup sends
  */
 
 import { readFileSync } from "node:fs"
 import { emptyBlock, GLYPH, type ToneRun } from "../design.ts"
 import { loadSettings, noticeText, type SettingsNotice } from "../settings.ts"
+import { buildSetupReport, setupBrief } from "../setup.ts"
 
 const HEX: Record<string, string> = {
   text: "#eeeeee",
@@ -66,6 +68,25 @@ const settings = loadSettings({
         : JSON.stringify(sample)
       : undefined,
 })
+
+/** `--setup`: the brief, for the sample (or your) config, with the bundle's bays loaded. */
+if (process.argv.includes("--setup")) {
+  const bays = ["status", "subagents", "shell", "trail", "review", "updater"]
+  const claims = new Map(bays.map((bay) => [bay, "opencode-cockpit"]))
+  /** `--opencode 1` for OpenCode 1's wording of its own blocks; your own OpenCode files are not read. */
+  const opencode = arg("--opencode") === "1" ? 1 : 2
+  const report = buildSetupReport({
+    opencode,
+    directory: "/project",
+    claims,
+    settings,
+    env: {},
+    home: "/nowhere",
+    read: () => undefined,
+  })
+  console.log(setupBrief(report))
+  process.exit(0)
+}
 
 for (const width of widths) {
   const ruler = `── ${width} columns `.padEnd(width, "─")

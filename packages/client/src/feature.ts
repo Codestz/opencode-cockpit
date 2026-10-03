@@ -50,6 +50,14 @@ export function claimFeature(scope: object, feature: string, source: string): Fe
   }
 }
 
+/**
+ * Every feature claimed in a scope, and the copy that owns it — `{ shell: "opencode-cockpit" }`. What
+ * is actually loaded in this window, bundle or standalone, read by `/cockpit-setup` when it runs.
+ */
+export function claimedFeatures(scope: object): ReadonlyMap<string, string> {
+  return new Map(registry().get(scope) ?? [])
+}
+
 export function duplicateFeatureMessage(feature: string, owner: string, skipped: string): string {
   return `${feature} is configured twice (${owner} and ${skipped}). Using ${owner}; remove one of them from your OpenCode config.`
 }

@@ -680,6 +680,7 @@ export function baySettings<T extends object = Record<never, never>>(
   const config = mergeSections(base, written) as SharedSettings & Widen<T>
   config.sidebarRows = Math.max(0, Math.floor(config.sidebarRows))
   if (settings.features[bay] === false) config.enabled = false
+  seenBays().set(bay, { defaults: base, notices: notices.filter((notice) => notice.file === OPTIONS_SOURCE) })
   return {
     config,
     written,
@@ -688,6 +689,29 @@ export function baySettings<T extends object = Record<never, never>>(
     settings,
   }
 }
+
+/**
+ * What each bay read its settings with, as it last called `baySettings`: its defaults, shared keys
+ * included, and the notices its plugin options raised (the files' are in `loadSettings` already). So
+ * `/cockpit-setup` lists every key an installed bay reads, and its default, from the very object the
+ * bay merges over rather than from a copy that drifts. On `globalThis`, because the bundle and a
+ * standalone bay can each bring their own copy of this module.
+ */
+export interface BayRead {
+  defaults: Section
+  notices: SettingsNotice[]
+}
+
+const BAYS_READ = Symbol.for("opencode-cockpit.settings.read")
+
+function seenBays(): Map<Bay, BayRead> {
+  const host = globalThis as { [BAYS_READ]?: Map<Bay, BayRead> }
+  host[BAYS_READ] ??= new Map()
+  return host[BAYS_READ]
+}
+
+/** Every bay that has read its settings in this process, and what it read them with. */
+export const baysRead = (): ReadonlyMap<Bay, BayRead> => new Map(seenBays())
 
 /**
  * Plugin options as one bay's section: a whole cockpit config's section for it, else the options
