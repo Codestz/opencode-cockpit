@@ -2,7 +2,9 @@
 
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
 import { bindingLookup, dualTui, type Host } from "@opencode-cockpit/client/host"
+import { noticeText } from "@opencode-cockpit/client/settings"
 import type { BoxRenderable } from "@opentui/core"
+import { loadReview, type ReviewConfig } from "../core/config.ts"
 import { headOf, readBlob, readWorking } from "../core/git/sources.ts"
 import { createLooks } from "../core/image/looks.ts"
 import type { Source } from "../core/model/review.ts"
@@ -10,7 +12,7 @@ import { matchesBinding, paletteBindings } from "../core/palette.ts"
 import { metrics } from "../core/perf.ts"
 import { reviewPaths } from "../core/store/paths.ts"
 import { createPersistence } from "../core/store/persist.ts"
-import { frameBounds, VARIANTS, type Variant } from "../core/view/frame.ts"
+import { frameBounds, VARIANTS } from "../core/view/frame.ts"
 import { FOOTER_ROWS, HEADER_ROWS } from "../core/view/geometry.ts"
 import { createViewer, systemSpawn, systemWhich } from "../core/viewer.ts"
 import { createStore } from "./data/changes.ts"
@@ -37,18 +39,8 @@ const SLOT_ORDER = 180
 
 const SOURCES: Source[] = ["worktree", "branch"]
 
-export interface ReviewTuiOptions {
-  /** Which placement to open in: right | full. */
-  variant?: Variant
-  /**
-   * What to review on open: worktree | branch | session.
-   *
-   * Uncommitted by default, because that is what you are looking at nine times in ten — the work
-   * that just happened. Branch is for reading a pull request, which is a thing you choose to do.
-   */
-  source?: Source
-  keybinds?: Record<string, string>
-}
+/** The `review` section of the config files, then the plugin entry's options (core/config.ts). */
+export type ReviewTuiOptions = Partial<ReviewConfig>
 
 /**
  * Review's TUI half: what it is made of, and who owns what.
@@ -77,10 +69,26 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
     }
     api.lifecycle.onDispose(() => claim.release())
 
-    const options = (rawOptions ?? {}) as ReviewTuiOptions
+    const { config: options, notices } = loadReview(api.state.path.directory, rawOptions)
+    if (!options.enabled) {
+      api.log.info("review: off in the settings")
+      return
+    }
+    /**
+     * Review draws no sidebar block for a `!` row, so its settings notices are said once, as the
+     * session starts, and kept in the log.
+     */
+    for (const notice of notices) api.log.warn("review: settings", { file: notice.file, notice: notice.text })
+    if (notices.length > 0)
+      api.ui.toast({
+        variant: "warning",
+        title: "Review",
+        message: notices.map(noticeText).join("\n"),
+        duration: 10_000,
+      })
     const keys = bindingLookup({ ...DEFAULT_KEYS, ...options.keybinds })
-    const store = createStore(api, options.source ?? "worktree")
-    const surface = createSurface(options.variant ?? "right")
+    const store = createStore(api, options.source)
+    const surface = createSurface(options.variant)
 
     /**
      * The renderables the slot hands back, which do not exist until it mounts.
