@@ -14,62 +14,66 @@
  */
 
 import { readFileSync, watch } from "node:fs"
-import { settingsPaths } from "@opencode-cockpit/client/settings"
+import { homedir } from "node:os"
 import { budgetFile, readBudget } from "../core/budget.ts"
-import { asSegmentConfig, loadStatus, type ResolvedLine, resolveLines } from "../core/config.ts"
+import { type ResolvedLine, resolveLines, type Surface } from "../core/config.ts"
 import { loadCustomSegments, resolveModulePath } from "../core/custom.ts"
 import { FIXTURES, type FixtureName } from "../core/fixtures.ts"
-import { moduleNoticeText, noticeRows } from "../core/notices.ts"
-import { fit, fitColumn } from "../core/render.ts"
-import { buildSegments, type SegmentDef, segmentWidth } from "../core/segments.ts"
+import { moduleNoticeText } from "../core/notices.ts"
+import { drawState, parseArgs, plainRuns, previewSettings, SIDEBAR_WIDTH } from "../core/preview.ts"
+import type { SegmentDef } from "../core/segments.ts"
 import { paintRuns as paintColour } from "./ansi.ts"
 
-const args = process.argv.slice(2).filter((arg) => arg !== "preview")
-const flag = (name: string): string | undefined => {
-  const at = args.indexOf(`--${name}`)
-  return at === -1 ? undefined : args[at + 1]
-}
-const has = (name: string) => args.includes(`--${name}`)
+const args = parseArgs(process.argv.slice(2))
+const flag = (name: keyof typeof args.values) => args.values[name]
+const has = (name: Parameters<typeof args.switches.has>[0]) => args.switches.has(name)
 
 if (has("help")) {
   console.log(`
-  preview — draw your statusline here, against sample sessions
+  preview — draw your statusline here, against sample sessions, as OpenCode will
 
-    --config <path>   a config file (default: your global + project config)
+    --config <path>   this file in place of your global config, with no project file beside it
+                      (default: your global config, then this folder's .cockpit.json)
+    --surface <name>  sidebar | bottom: draw there, whatever the settings say
     --proxy <path>    the budget file a proxy writes, for spend and avail (none: draw without one)
     --module <path>   draw this module's segments, on their own
     --with-config     ...and the config's modules and segments as well
     --state <name>    ${Object.keys(FIXTURES).join(" | ")} (default: every one)
-    --width <n>       columns available to the line (default: the surface's own)
-    --debug           mark segments that drew nothing, so silence and typos look different
+    --width <n>       columns for the line (default: ${SIDEBAR_WIDTH} in the sidebar, the terminal's at the bottom)
+    --debug           name every row: ✓name drew, ✗name drew nothing, ?name is no segment at all
     --watch           redraw whenever the config or a module changes
 `)
   process.exit(0)
 }
+/** A flag the preview cannot read stops it: ignored, it drew some other settings than the ones meant. */
+if (args.errors.length > 0) {
+  for (const error of args.errors) console.error(`  ${error}`)
+  process.exit(2)
+}
 
 const directory = process.cwd()
-const configPath = flag("config")
+const expand = (path: string) => (path === "~" || path.startsWith("~/") ? homedir() + path.slice(1) : path)
+const configFlag = flag("config")
+const configPath = configFlag ? expand(configFlag) : undefined
+const surface = flag("surface") as Surface | undefined
+
 /**
- * Through the loader the bay itself uses, so the preview reads a file exactly as OpenCode will — its
- * `status` section, comments and all — and draws the same `!` rows for what it will not read. A
- * `--config` file stands in for the global one, with no project file beside it.
+ * Through the loader and the resolution the bay itself uses (`previewSettings`), so the preview reads
+ * a file exactly as OpenCode will — its `status` section, comments, `preset`, `sidebarRows` and
+ * `override` — and draws the same `!` rows for what it will not read. A file that cannot be read
+ * stops the preview: the defaults drawn in its place would look like a file that changed nothing.
  */
-const global = settingsPaths({ directory }).global
-const loadedStatus = loadStatus({
-  where: configPath
-    ? {
-        read: (path) => {
-          if (path !== global) return undefined
-          try {
-            return readFileSync(configPath, "utf8")
-          } catch {
-            return undefined
-          }
-        },
-      }
-    : { directory },
-})
-const config = loadedStatus.config
+function settings() {
+  if (!configPath) return previewSettings({ directory, surface })
+  let configText: string
+  try {
+    configText = readFileSync(configPath, "utf8")
+  } catch (error) {
+    console.error(`  cannot read --config ${configPath}: ${(error as Error).message}`)
+    process.exit(2)
+  }
+  return previewSettings({ directory, configText, surface })
+}
 
 /**
  * `--module` draws that module and nothing else.
@@ -81,26 +85,32 @@ const config = loadedStatus.config
  */
 const only = flag("module")
 const isolate = only !== undefined && !has("with-config")
-const modules = [...(isolate ? [] : (config.modules ?? [])), ...(only ? [only] : [])]
-let custom: ReadonlyMap<string, SegmentDef> = new Map()
-const moduleErrors: string[] = []
-if (modules.length > 0) {
-  const loaded = await loadCustomSegments(modules, directory)
-  custom = loaded.segments
-  moduleErrors.push(...loaded.errors)
-  for (const error of loaded.errors) console.error(`  module failed: ${error}`)
-}
-/** The `!` rows the bay would draw above its first line. */
-const troubles = [...loadedStatus.notices, ...moduleErrors.map(moduleNoticeText)]
 
-/**
- * On its own, a module draws every segment it declares, in the order it declares them, with room
- * for all of them — a column capped at the default eight silently hides the rest of a gallery.
- */
-const lines = resolveLines(
-  isolate
-    ? {
-        surface: config.surface,
+/** Everything a draw needs, read again on every redraw so `--watch` follows the config too. */
+async function prepare(fresh = false) {
+  const { loaded, lines: configured } = settings()
+  const config = loaded.config
+  const modules = [...(isolate ? [] : (config.modules ?? [])), ...(only ? [only] : [])]
+  let custom: ReadonlyMap<string, SegmentDef> = new Map()
+  const moduleErrors: string[] = []
+  if (modules.length > 0) {
+    const imported = await loadCustomSegments(
+      modules,
+      directory,
+      // Bun caches modules by specifier: without a fresh one an edit would never show.
+      fresh ? (path) => import(`${path}?v=${Date.now()}`) : undefined,
+    )
+    custom = imported.segments
+    moduleErrors.push(...imported.errors)
+    for (const error of imported.errors) console.error(`  module failed: ${error}`)
+  }
+  /**
+   * On its own, a module draws every segment it declares, in the order it declares them, with room
+   * for all of them — a column capped at the default eight silently hides the rest of a gallery.
+   */
+  const lines: ResolvedLine[] = isolate
+    ? resolveLines({
+        surface: surface ?? config.surface,
         separator: config.separator,
         stack: config.stack,
         icons: config.icons,
@@ -109,38 +119,39 @@ const lines = resolveLines(
         paddingRight: config.paddingRight,
         segments: [...custom.keys()],
         sidebarRows: Math.max(config.sidebarRows ?? 0, custom.size),
-      }
-    : config,
-)
-/** Where the notices go: the first sidebar line, else the first line — as in the TUI. */
-const noticeLine = lines.find((line) => line.surface === "sidebar") ?? lines[0]
+      })
+    : configured
+  /** The `!` rows the bay would draw above its first line. */
+  const troubles = [...loaded.notices, ...moduleErrors.map(moduleNoticeText)]
+  return { lines, modules, custom, troubles }
+}
 
 /**
  * A proxy's budget, as the bay reads it: the file the lines name, or `--proxy`. `--proxy none` draws
  * the line as someone without a proxy sees it.
  */
 const proxy = flag("proxy")
-const budgetAt =
-  proxy === "none" ? undefined : proxy ? resolveModulePath(proxy, directory) : budgetFile(lines)
-const budget = budgetAt ? readBudget(budgetAt) : undefined
+const budgetFor = (lines: readonly ResolvedLine[]) => {
+  const at = proxy === "none" ? undefined : proxy ? resolveModulePath(proxy, directory) : budgetFile(lines)
+  return at ? readBudget(at) : undefined
+}
 
 const states = flag("state") ? [flag("state") as FixtureName] : (Object.keys(FIXTURES) as FixtureName[])
-const debug = has("debug") || config.debug === true
-
-/** The room each surface actually has in OpenCode, so a preview is not wider than the real thing. */
-const roomFor = (line: ResolvedLine, terminal: number) =>
-  line.surface === "sidebar" ? 34 : terminal - line.paddingLeft - line.paddingRight
-
 const width = Number(flag("width") ?? 0) || 0
 /** Colour for a terminal, plain text under NO_COLOR or into a pipe — as Subagents and the Updater do. */
 const color = process.stdout.isTTY === true && !process.env.NO_COLOR
-const paintRuns: typeof paintColour = (runs) =>
-  color ? paintColour(runs) : runs.map((run) => run.text).join("")
+const paint = color ? paintColour : plainRuns
 const dim = (text: string) =>
   color ? `${String.fromCharCode(27)}[38;2;110;120;132m${text}${String.fromCharCode(27)}[0m` : text
 
-async function draw(): Promise<string[]> {
-  const watched: string[] = []
+/** Which settings these are, so a preview of one file cannot pass for a preview of another. */
+const source = configPath ?? "your global config, then this folder's .cockpit.json"
+
+async function draw(fresh = false): Promise<string[]> {
+  const { lines, modules, custom, troubles } = await prepare(fresh)
+  const budget = budgetFor(lines)
+  const debug = has("debug") || lines.some((line) => line.debug)
+  console.log(`\n  ${dim(`settings: ${source}${surface ? ` · --surface ${surface}` : ""}`)}`)
   for (const state of states) {
     const fixture = FIXTURES[state]
     if (!fixture) {
@@ -148,54 +159,27 @@ async function draw(): Promise<string[]> {
       process.exit(1)
     }
     console.log(`\n${dim(`── ${state} — ${fixture.about}`)}`)
-
-    for (const line of lines) {
-      const room = width || roomFor(line, process.stdout.columns || 120)
-      const ctx = { ...fixture.ctx, width: room, ...(budget ? { budget } : {}) }
-      if (line === noticeLine) {
-        for (const row of noticeRows(troubles, room)) console.log(`  ${paintRuns(row.runs).trimEnd()}`)
-      }
-      const built = buildSegments(ctx, line.segments.map(asSegmentConfig), {
-        custom,
-        icons: line.icons,
-        debug,
-      })
-      const fitted =
-        line.stack === "vertical" ? fitColumn(built, room, line.maxRows) : fit(built, room, line.separator)
-
-      if (fitted.segments.length === 0) {
-        console.log(`  ${dim(`(${line.surface}: nothing to draw)`)}`)
-        continue
-      }
-      console.log(`  ${dim(`${line.surface}, ${room} cols`)}`)
-      if (line.stack === "vertical") {
-        for (const segment of fitted.segments) console.log(`  ${paintRuns(segment.runs)}`)
-      } else {
-        const parts = fitted.segments.map((segment) => paintRuns(segment.runs))
-        console.log(`  ${parts.join(dim(line.separator))}`)
-      }
-      /** Rows a real sidebar would have dropped in silence. */
-      if (fitted.dropped > 0) {
-        const over = line.stack === "vertical" ? `sidebarRows is ${line.maxRows}` : `${room} columns`
-        console.log(`  ${dim(`↳ ${fitted.dropped} dropped — ${over}`)}`)
-      }
-      const widest = Math.max(0, ...fitted.segments.map(segmentWidth))
-      if (line.stack === "vertical" && widest > room) {
-        console.log(`  ${dim(`↳ widest row is ${widest} cols, the column has ${room}`)}`)
-      }
-    }
+    const rows = drawState({
+      lines,
+      troubles,
+      fixture,
+      terminal: process.stdout.columns || 120,
+      width,
+      debug,
+      custom,
+      ...(budget ? { budget } : {}),
+      paint,
+      dim,
+    })
+    for (const row of rows) console.log(row)
   }
   console.log()
-  return watched
+  return modules
 }
 
-await draw()
+const modules = await draw()
 
-/**
- * Redraw on change, because the point of a preview is the loop and not the picture. A module is
- * re-imported under a fresh query string: Bun caches modules by specifier, so without it an edit
- * would show the version from the first run forever.
- */
+/** Redraw on change, because the point of a preview is the loop and not the picture. */
 if (has("watch")) {
   const files = [...modules.map((m) => resolveModulePath(m, directory)), ...(configPath ? [configPath] : [])]
   console.log(dim(`  watching ${files.length} file${files.length === 1 ? "" : "s"} — ctrl+c to stop\n`))
@@ -206,19 +190,8 @@ if (has("watch")) {
         clearTimeout(pending)
         // Editors save in bursts; redraw once the burst is over.
         pending = setTimeout(() => {
-          void (async () => {
-            if (modules.length > 0) {
-              const again = await loadCustomSegments(
-                modules,
-                directory,
-                (path) => import(`${path}?v=${Date.now()}`),
-              )
-              custom = again.segments
-              for (const error of again.errors) console.error(`  module failed: ${error}`)
-            }
-            console.clear()
-            await draw()
-          })()
+          console.clear()
+          void draw(true)
         }, 120)
       })
     } catch {
