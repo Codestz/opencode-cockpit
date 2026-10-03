@@ -3,6 +3,14 @@ name: Release
 on:
   push:
     tags: ["v*.*.*"]
+  # Re-publishes an existing tag with this workflow as it is on the branch it runs from: a rerun of
+  # a tag's own run would use the workflow as it was at that tag. Publishing skips versions already
+  # on npm, so this finishes a release that stopped halfway.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to publish, e.g. v0.8.0"
+        required: true
 
 permissions:
   contents: write # GitHub release
@@ -16,23 +24,28 @@ jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag || github.ref }}
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.13
-      # npm ≥ 11.5.1 publishes with provenance and supports Trusted Publishing.
+      # No registry-url: it writes an .npmrc that expects a token, and publishing has none.
       - uses: actions/setup-node@v7
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
           # Nothing is installed with npm here; a cache would fail to save at post-job.
           package-manager-cache: false
+      # Trusted Publishing needs npm ≥ 11.5.1; Node's bundled npm may be older.
+      - run: npm install -g npm@^11.15.0 && npm --version
       - run: bun install --frozen-lockfile
 
       - name: Verify tag matches package versions
         run: |
-          tag="${GITHUB_REF_NAME#v}"
+          tag="${TAG#v}"
           for manifest in package.json packages/*/package.json; do
             version=$(jq -r .version "$manifest")
             if [ "$version" != "$tag" ]; then
@@ -49,11 +62,26 @@ jobs:
           bun test --conditions browser
           bun run pack:check
 
+      # Trusted Publishing cannot publish a package's first version, so a new package has to be put
+      # on npm by hand first (scripts/bootstrap-package.ts). Found before anything is published,
+      # so a release never stops halfway on it.
+      - name: Every package already exists on npm
+        run: |
+          missing=""
+          for dir in $(sed -n 's/^ *for dir in \([a-z ]*\); do$/\1/p' .github/workflows/release.yml); do
+            name=$(jq -r .name "packages/$dir/package.json")
+            if ! npm view "$name" name >/dev/null 2>&1; then missing="$missing $dir"; fi
+          done
+          if [ -n "$missing" ]; then
+            for dir in $missing; do
+              echo "::error::packages/$dir has never been published. Locally: bun scripts/bootstrap-package.ts $dir, then bun scripts/trust.ts $dir"
+            done
+            exit 1
+          fi
+
+      # No token: npm authenticates this job through GitHub's OIDC identity. Every package is linked
+      # to this repository and workflow as a Trusted Publisher (scripts/trust.ts).
       - name: Publish to npm
-        env:
-          # Used only until each package is linked to this workflow as a Trusted Publisher on
-          # npmjs.com; after that the secret can be deleted and npm authenticates via OIDC.
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           npm --version
           # Packing publishes whatever is on disk; compile first (see scripts/build.ts).
@@ -79,11 +107,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          version="${GITHUB_REF_NAME#v}"
+          version="${TAG#v}"
           awk -v v="$version" '
             $0 ~ "^## \\[" v "\\]" { found = 1; next }
             found && /^## \[/ { exit }
             found { print }
           ' CHANGELOG.md > notes.md
           if [ ! -s notes.md ]; then echo "See CHANGELOG.md" > notes.md; fi
-          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file notes.md --verify-tag
+          if gh release view "$TAG" >/dev/null 2>&1; then echo "release $TAG already exists"; exit 0; fi
+          gh release create "$TAG" --title "$TAG" --notes-file notes.md --verify-tag

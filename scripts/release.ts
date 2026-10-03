@@ -10,6 +10,7 @@
  *   bun scripts/release.ts patch --skip-smoke  # no OpenCode binary to drive the panel with
  */
 import { join } from "node:path"
+import { existsOnNpm, publishOrder } from "./packages.ts"
 
 const root = join(import.meta.dir, "..")
 const args = process.argv.slice(2)
@@ -82,6 +83,19 @@ const branch = run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
 if (branch !== "main" && !dryRun) fail(`releases are cut from main, not ${branch}`)
 if (run(["git", "status", "--porcelain"]).length > 0 && !dryRun) {
   fail("working tree is dirty; commit or stash first")
+}
+
+// A package never published cannot be released by the workflow: Trusted Publishing only works for
+// a package that already exists on npm. Caught here, before anything is bumped or tagged.
+const unpublished: string[] = []
+for (const { dir, name } of await publishOrder(root)) if (!(await existsOnNpm(name))) unpublished.push(dir)
+if (unpublished.length > 0 && !dryRun) {
+  fail(
+    `never published: ${unpublished.join(", ")}. For each, first run\n` +
+      unpublished
+        .map((dir) => `  bun scripts/bootstrap-package.ts ${dir} && bun scripts/trust.ts ${dir}`)
+        .join("\n"),
+  )
 }
 
 const current = (await Bun.file(join(root, "package.json")).json()).version as string

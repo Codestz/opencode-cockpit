@@ -160,8 +160,10 @@ must carry explicit types or stay module-private, or `tsc` cannot name them in d
    bundle's `server.ts` / `tui.ts`.
 3. Add the directory to `PACKAGES` in `scripts/pack-check.ts` and to the publish loop in
    `.github/workflows/release.yml`, before `opencode`.
-4. A brand-new npm package cannot use Trusted Publishing until it exists: its first release needs
-   a short-lived `NPM_TOKEN` secret, then configure its trusted publisher and delete the token.
+4. A brand-new npm package cannot use Trusted Publishing until it exists. Before its first release,
+   from your machine: `bun scripts/bootstrap-package.ts <dir>` (publishes an empty `0.0.0` with your
+   login and 2FA) and `bun scripts/trust.ts <dir>` (links it to the release workflow). The release
+   script and the workflow both refuse to start while a package has never been published.
 
 ### Publishing rule: compile, never ship JSX
 
@@ -247,7 +249,12 @@ git tag v0.2.0 && git push origin main v0.2.0
 ```
 
 The release workflow checks, packs, publishes all packages to npm with provenance in dependency
-order, and creates the GitHub release. Authentication is npm Trusted Publishing: each package on
-npmjs.com lists `Codestz/opencode-cockpit` with workflow `release.yml` as its trusted publisher,
-so no token is stored. (The `NPM_TOKEN` secret is only needed to publish a brand-new package for
-the first time.)
+order, and creates the GitHub release. Authentication is npm Trusted Publishing only, with no token
+stored: each package on npmjs.com lists `Codestz/opencode-cockpit` with workflow `release.yml` as its
+trusted publisher, set by `bun scripts/trust.ts` (it needs your login and 2FA). npm no longer lets a
+token that bypasses 2FA publish directly, so there is no token fallback.
+
+A release that stopped halfway (0.8.0 did, on that npm change) is finished by running the workflow
+by hand for the existing tag — Actions → Release → Run workflow, `tag: v0.8.0`, or
+`gh workflow run release.yml -f tag=v0.8.0`. It runs the workflow as it is on `main` against the
+tag's code, and skips every version already on npm.
