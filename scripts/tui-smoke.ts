@@ -105,7 +105,8 @@ function agentTurn(env: Record<string, string | undefined>) {
 
 const cols = Number(process.env.SMOKE_COLS) || 150
 const rows = 40
-const term = new Terminal({ cols, rows, allowProposedApi: true })
+/** One per OpenCode started: the second run (AGENT=1) draws on a clean screen of its own. */
+let term = new Terminal({ cols, rows, allowProposedApi: true })
 const screen = async () => {
   await new Promise<void>((done) => term.write("", done))
   const buffer = term.buffer.active
@@ -114,6 +115,49 @@ const screen = async () => {
     (_, y) => buffer.getLine(buffer.baseY + y)?.translateToString(true) ?? "",
   ).join("\n")
 }
+/** The sidebar's half of a screen. */
+const rightHalf = (text: string) =>
+  text
+    .split("\n")
+    .map((line) => line.slice(Math.floor(cols / 2)))
+    .join("\n")
+/** Reads the screen until `done` says so, or `ms` runs out; the last screen either way. */
+const until = async (ms: number, done: (text: string) => boolean) => {
+  let text = await screen()
+  for (const end = Date.now() + ms; !done(text) && Date.now() < end; text = await screen()) {
+    await Bun.sleep(250)
+  }
+  return text
+}
+/**
+ * A block's heading in the sidebar, and the first row under it (past the heading's air) — read in
+ * the heading's own column, so the conversation beside it cannot answer for the block.
+ */
+const under = (text: string, heading: string): string | undefined => {
+  const lines = text.split("\n")
+  const right = Math.floor(cols / 2)
+  for (const [y, line] of lines.entries()) {
+    const at = line.slice(right).search(new RegExp(`(^|\\s)${heading}(\\s|$)`))
+    if (at < 0) continue
+    const x = right + at + (line[right + at] === " " ? 1 : 0)
+    const next = lines.slice(y + 1, y + 4).find((row) => row.slice(x).trim())
+    return next?.slice(x).trim()
+  }
+  return undefined
+}
+/**
+ * A subagent's row in the sidebar: its status glyph, then the agent's name — shortened to `explo…`
+ * or `exp…` when the title wants the room.
+ */
+const EXPLORE_ROW = /[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] exp(lore|l?o?…) /
+/** The Status table's token row, which only a conversation with a reply in it fills. */
+const TOKENS_ROW = / tokens [\d.]+k? · \d+%/
+/** The last line of `/cockpit-setup`'s brief: once it is on screen, the whole brief arrived. */
+const SETUP_BRIEF_END = "Ask me what I want before you edit anything."
+/** `/status-setup` sent its brief: its toast, or the brief's last line in the conversation. */
+const STATUS_BRIEFED = /Briefed the agent\.|Ask me what I want it to show/
+/** A prompt sent while the agent answers, waiting its turn: OpenCode 1's tag, OpenCode 2's line. */
+const QUEUED = /QUEUED|1 queued · Help me set up opencode-cockpit/
 
 try {
   run(["bun", "run", "build"], root)
@@ -136,6 +180,7 @@ try {
         "@opencode-cockpit/updater": file("opencode-cockpit-updater-"),
         "@opencode-cockpit/subagents": file("opencode-cockpit-subagents-"),
         "@opencode-cockpit/trust": file("opencode-cockpit-trust-"),
+        "@opencode-cockpit/trail": file("opencode-cockpit-trail-"),
       },
       overrides: {
         "@opencode-cockpit/protocol": file("opencode-cockpit-protocol-"),
@@ -161,8 +206,16 @@ try {
 
   // The plugins must live under node_modules: that is what disables OpenCode's Solid transform.
   const bay = (name: string) => join(install, "node_modules", "@opencode-cockpit", name)
-  const tuiBays = [bay("shell"), bay("status"), bay("review"), bay("updater"), bay("subagents"), bay("trust")]
-  const serverBays = [bay("shell"), bay("review"), bay("subagents")]
+  const tuiBays = [
+    bay("shell"),
+    bay("status"),
+    bay("review"),
+    bay("updater"),
+    bay("subagents"),
+    bay("trail"),
+    bay("trust"),
+  ]
+  const serverBays = [bay("shell"), bay("review"), bay("subagents"), bay("trail")]
   /**
    * v1 reads `plugin` from opencode.json and tui.json; v2 reads `plugins` from opencode.json and
    * cli.json (docs/opencode/v2.md). The same packages go in either way.
@@ -185,6 +238,13 @@ try {
         [key]: plugins,
         /** A model that needs no key, for the turns AGENT=1 runs inside the interface. */
         ...(process.env.AGENT && name === "opencode.json" ? { model: "opencode/space-bunny-free" } : {}),
+        /**
+         * The setup briefs send the agent to read Cockpit's config, outside the project: a prompt it
+         * would wait on forever here. OpenCode 2 is started with `--auto` for the same reason.
+         */
+        ...(process.env.AGENT && !v2 && name === "opencode.json"
+          ? { permission: { external_directory: "allow" } }
+          : {}),
       }),
     )
   }
@@ -192,11 +252,18 @@ try {
    * A statusline whose value has to come from somewhere the plugin cannot fake: a literal marker
    * proves the line drew at all, and a command segment proves the whole pipeline -- spawn, parse,
    * repaint -- works from a published build.
+   *
+   * The global file carries the section's name from before 0.9, `statusline`: it is no longer read,
+   * and Status has to say so in a `!` row instead of drawing as if nothing had been written.
    */
+  await Bun.write(
+    join(config, "opencode-cockpit", "config.json"),
+    JSON.stringify({ statusline: { preset: "minimal" } }),
+  )
   await Bun.write(
     join(project, ".cockpit.json"),
     JSON.stringify({
-      statusline: {
+      status: {
         surface: "bottom",
         segments: [
           { type: "text", value: "STATUSLINE-DREW" },
@@ -204,6 +271,8 @@ try {
         ],
         commands: { smoke: { run: "printf 'COMMAND-RAN'", intervalMs: 250 } },
       },
+      /** An old name in Review's section: the pane has to say so in a `!` row. */
+      review: { sidebarOrder: 3 },
     }),
   )
 
@@ -216,17 +285,22 @@ try {
     TERM: "xterm-256color",
   }
   /** v2 would attach to the user's background service; a private server keeps the run to itself. */
-  const proc = Bun.spawn(v2 ? [opencode, "--standalone"] : [opencode], {
-    cwd: project,
-    env,
-    terminal: {
-      cols,
-      rows,
-      data: (_t: unknown, chunk: Uint8Array) => term.write(chunk.slice()),
-    },
-  } as Parameters<typeof Bun.spawn>[1]) as ReturnType<typeof Bun.spawn> & {
-    terminal: { write(data: string): void }
+  const launch = (cwd: string, args: string[] = []) => {
+    const screenOf = new Terminal({ cols, rows, allowProposedApi: true })
+    term = screenOf
+    return Bun.spawn([opencode, ...(v2 ? ["--standalone"] : []), ...args], {
+      cwd,
+      env,
+      terminal: {
+        cols,
+        rows,
+        data: (_t: unknown, chunk: Uint8Array) => screenOf.write(chunk.slice()),
+      },
+    } as Parameters<typeof Bun.spawn>[1]) as ReturnType<typeof Bun.spawn> & {
+      terminal: { write(data: string): void }
+    }
   }
+  let proc = launch(project)
   const type = async (keys: string, waitMs: number) => {
     proc.terminal.write(keys)
     await Bun.sleep(waitMs)
@@ -320,11 +394,13 @@ try {
   const found: [string, string][] = []
   for (const [name, title] of [
     ["shell", "Start a background shell"],
-    ["status", "Ask the agent to customise the statusline"],
+    ["status", "Ask the agent to set up the status bay"],
     ["review", "Open or close the changes"],
     ["updater", "Update plugins"],
     ["subagents", "Open the subagents"],
+    ["trail", "Show what this conversation made"],
     ["trust", "Show what Trust answers for you"],
+    ["setup", "Ask the agent to set up Cockpit"],
   ] as const) {
     await type("\x10", 1000)
     await type(`cockpit ${name}`, 1500)
@@ -345,6 +421,9 @@ try {
   await type("\x1b", 1200)
   const ranUpdater = await palette("Update plugins", 4000)
   await type("\x1b", 1200)
+  /** From home there is no conversation, so Trail opens on the project's records: none, and says so. */
+  const ranTrail = await palette("Show what this conversation made", 2500)
+  await type("\x1b", 1200)
 
   /**
    * The updater's dialog, opened by its slash name and by the old one it replaced — two slash names
@@ -363,7 +442,7 @@ try {
     )
     await type("\r", 1000)
     let sidebar = ""
-    for (let i = 0; i < 45 && !/[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(sidebar); i++) {
+    for (let i = 0; i < 45 && !EXPLORE_ROW.test(sidebar); i++) {
       await Bun.sleep(2000)
       sidebar = await screen()
     }
@@ -371,17 +450,28 @@ try {
     /** Found again before every click: the blocks above it (the statusline's) grow as the turn runs. */
     const clickSubagent = async () => {
       const lines = (await screen()).split("\n")
-      const y = lines.findIndex((line) => /[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(line.slice(Math.floor(cols / 2))))
+      const right = Math.floor(cols / 2)
+      const y = lines.findIndex((line) => EXPLORE_ROW.test(line.slice(right)))
       if (y < 0) throw new Error(`the sidebar never showed the subagent:\n${lines.join("\n")}`)
-      const x = (lines[y] as string).lastIndexOf(" explore ") + 3
+      const x = right + ((lines[y] as string).slice(right).search(EXPLORE_ROW) as number) + 3
       proc.terminal.write(`\x1b[<0;${x + 1};${y + 1}M`)
       await Bun.sleep(80)
       await type(`\x1b[<0;${x + 1};${y + 1}m`, 2500)
     }
     await clickSubagent()
     const full = await screen()
-    /** The cursor onto the last item and open it, then a message typed into the pane, not a dialog. */
-    await type("k", 600)
+    /** `?` swaps the run for every key the pane takes, and `?` again brings the run back. */
+    await type("?", 1200)
+    const keys = await screen()
+    await type("?", 1000)
+    /**
+     * The cursor onto the last item and open it, then a message typed into the pane, not a dialog.
+     * Each key waits on what it needs on screen rather than a fixed time: the run's first item can
+     * take a while to arrive on a slow turn, and `enter` with no cursor yet opens nothing.
+     */
+    await until(30_000, (text) => /[›⌄◇◆] /.test(rightHalf(text)))
+    await type("k", 300)
+    await until(5000, (text) => text.includes("▌ "))
     await type("\r", 1200)
     const toggled = await screen()
     await type("m", 600)
@@ -418,19 +508,94 @@ try {
     await type("x", 1500)
     const removed = await screen()
     await type("q", 1000)
-    return { sidebar, full, toggled, typing, slashed, finished, pasted, relayed, conversation, removed }
+    return { sidebar, full, keys, toggled, typing, slashed, finished, pasted, relayed, conversation, removed }
   }
 
-  const slash = async (name: string) => {
-    await type(`/${name}`, 1200)
-    await type("\r", 4000)
-    const drawn = await screen()
+  /** `ready`: read as soon as it shows, for what does not stay — a toast the next one replaces. */
+  const slash = async (name: string, ready?: (text: string) => boolean) => {
+    await type(`/${name}`, 300)
+    /** `enter` once the popup offers the name: with the agent busy it can take longer to list. */
+    await until(4000, (text) => new RegExp(`/${name}\\s{2,}\\S`).test(text))
+    await type("\r", ready ? 0 : 4000)
+    const drawn = ready ? await until(4000, ready) : await screen()
     await type("\x1b", 1000)
     return drawn
   }
   const updater = await slash("plugins-update")
   const subagents = process.env.AGENT ? await subagentsInTheInterface() : undefined
+  /**
+   * The setup commands' slash names, offered in the popup as they are typed. Only listed here, not
+   * run: running one hands a model the brief, and a run without AGENT=1 stays offline.
+   */
+  const popup = async (typed: string) => {
+    await type("\x15", 300)
+    await type(typed, 1500)
+    const listed = await screen()
+    await type("\x15", 300)
+    await type("\x1b", 800)
+    return listed
+  }
+  const popups = {
+    "/cockpit-setup": await popup("/cockpit-se"),
+    "/status-setup": await popup("/status-se"),
+  }
+  /**
+   * AGENT=1: Status's command under its new name and its old one, kept for a release as a command of
+   * its own that says the new name. In the conversation the subagent run left open, last, because
+   * both hand the agent a brief. The second goes to an agent still busy with the first, so it is
+   * known by the toast that says it was sent, or the brief's last line, whichever shows.
+   */
+  const status = process.env.AGENT
+    ? await (async () => {
+        /** Whatever an earlier step left in the prompt goes first, or the name is typed after it. */
+        await type("\x15", 300)
+        const old = await slash("statusline", (text) => text.includes("is now /status-setup"))
+        await Bun.sleep(3000)
+        const setup = await slash("status-setup", (text) => STATUS_BRIEFED.test(text))
+        return { old, setup }
+      })()
+    : undefined
   proc.kill("SIGKILL")
+
+  /**
+   * AGENT=1: a second OpenCode, in a project nothing has happened in. `/cockpit-setup` from home has
+   * to open a conversation and brief the agent there (OpenCode 2 used to answer "Open a conversation
+   * first."), and run again while the agent answers, it has to queue behind the reply rather than cut
+   * it off. With the conversation open the sidebar draws: every block that lists something has to say
+   * it is there while it is empty — the heading and `none yet` — and the Status table, which nothing
+   * configures here, has to be the default surface, with the global file's old `statusline` named in
+   * a `!` row in the sidebar.
+   */
+  const presence = async () => {
+    const fresh = join(work, "fresh")
+    await Bun.write(join(fresh, "README.md"), "fresh\n")
+    for (const cmd of [
+      ["git", "init", "-q", "-b", "main"],
+      ["git", "config", "user.email", "smoke@example.com"],
+      ["git", "config", "user.name", "Smoke"],
+      ["git", "add", "-A"],
+      ["git", "commit", "-qm", "fresh"],
+    ]) {
+      run(cmd, fresh)
+    }
+    /** The brief has the agent read Cockpit's config, outside the project: nothing may wait on a prompt. */
+    proc = launch(fresh, v2 ? ["--auto"] : [])
+    await Bun.sleep(14_000)
+    await type("/cockpit-setup", 1200)
+    await type("\r", 0)
+    const toast = await until(4000, (text) => /Briefed the agent\.|Open a conversation first/.test(text))
+    const briefed = await until(20_000, (text) => text.includes(SETUP_BRIEF_END))
+    /** Again, while the agent is still answering the first. */
+    await type("/cockpit-setup", 1200)
+    await type("\r", 0)
+    const queued = await until(6000, (text) => QUEUED.test(text))
+    const drawn = await until(180_000, (text) => TOKENS_ROW.test(rightHalf(text)))
+    await Bun.sleep(3000)
+    const settled = await screen()
+    proc.kill("SIGKILL")
+    return { toast, briefed, queued, drawn: TOKENS_ROW.test(rightHalf(settled)) ? settled : drawn }
+  }
+  const fresh = process.env.AGENT ? await presence() : undefined
   // `SMOKE_SHOW=1 bun run smoke:tui` prints the updater's frame: a marker proves it drew, not how.
   if (process.env.SMOKE_SHOW) console.log(updater)
 
@@ -446,10 +611,27 @@ try {
   ] as const) {
     if (!second.includes(marker)) throw new Error(`${what}:\n${second}`)
   }
+  if (!second.includes(`! settings: "statusline" is no longer read`))
+    throw new Error(`Status never named the old "statusline" section:\n${second}`)
+  for (const [name, listed] of Object.entries(popups)) {
+    if (!listed.includes(name)) throw new Error(`the slash popup never offered ${name}:\n${listed}`)
+  }
+  if (status) {
+    if (!status.old.includes("is now /status-setup"))
+      throw new Error(`/statusline never said its new name:\n${status.old}`)
+    if (!STATUS_BRIEFED.test(status.setup))
+      throw new Error(`/status-setup never briefed the agent:\n${status.setup}`)
+  }
+
+  for (const marker of ["Nothing recorded in this project yet.", "[esc] Close"]) {
+    if (!ranTrail.includes(marker))
+      throw new Error(`the palette's Trail never drew "${marker}":\n${ranTrail}`)
+  }
 
   for (const [what, marker] of [
     ["the review panel never drew", "review"],
     ["the review panel drew no diff", "SMOKE-REVIEW"],
+    ["the review panel never named its old setting", '! settings: "review.sidebarOrder"'],
   ] as const) {
     if (!review.includes(marker)) throw new Error(`${what}:\n${review}`)
   }
@@ -484,6 +666,9 @@ try {
       ["the sidebar never showed the Subagents block", subagents.sidebar, "Subagents"],
       ["a click on the subagent never opened its full screen", subagents.full, "EXPLORE"],
       ["the full screen never drew its keys", subagents.full, "[m] Message"],
+      ["the full screen never offered every key", subagents.full, "[?] Keys"],
+      ["? never showed every key", subagents.keys, "KEYS"],
+      ["the keys screen never said how back", subagents.keys, "[esc] Hide Keys"],
       ["enter never opened the selected item", subagents.toggled, "▌ "],
       ["m never opened the message input in the pane", subagents.typing, "┃ hello there"],
       ["/subagents never opened the full screen", subagents.slashed, "[m] Message"],
@@ -502,13 +687,24 @@ try {
         throw new Error(`the main conversation never showed the relayed exchange:\n${subagents.conversation}`)
     } else console.log("relay not checked: the subagent had not finished when the message was sent")
     const asked = subagents.removed.includes("Press x again")
-    const listed = /[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(subagents.removed)
+    const listed = EXPLORE_ROW.test(subagents.removed)
     if (!asked && listed)
       throw new Error(`x neither removed the subagent nor asked to stop it:\n${subagents.removed}`)
   }
 
   /** A plugin OpenCode could not load says so in the footer, whichever half it was. */
-  for (const text of [first, second, consoleScreen, fullScreen, review, updater, ...Object.values(ran)]) {
+  for (const text of [
+    first,
+    second,
+    consoleScreen,
+    fullScreen,
+    review,
+    updater,
+    ranTrail,
+    ...Object.values(ran),
+    ...Object.values(popups),
+    ...(fresh ? [fresh.drawn] : []),
+  ]) {
     if (/plugins? failed/.test(text)) throw new Error(`OpenCode could not load a plugin:\n${text}`)
   }
 
@@ -521,9 +717,39 @@ try {
       `the panel froze: still at tick ${firstMax} after 4s (published JSX not Solid-compiled?)\n${second}`,
     )
   }
+  if (fresh) {
+    const { toast, briefed, queued, drawn } = fresh
+    if (process.env.SMOKE_SHOW) console.log(drawn)
+    if (!toast.includes("Briefed the agent.") || toast.includes("Open a conversation first"))
+      throw new Error(`/cockpit-setup from home never said it briefed the agent:\n${toast}`)
+    if (!briefed.includes(SETUP_BRIEF_END))
+      throw new Error(`/cockpit-setup's brief never reached the conversation:\n${briefed}`)
+    if (!QUEUED.test(queued))
+      throw new Error(`/cockpit-setup while the agent answered never queued:\n${queued}`)
+    for (const heading of ["Subagents", "Shells", "Trail"]) {
+      if (!under(drawn, heading)?.startsWith("none yet"))
+        throw new Error(`the sidebar never drew "${heading}" with "none yet" under it:\n${drawn}`)
+    }
+    if (!TOKENS_ROW.test(rightHalf(drawn)))
+      throw new Error(`the sidebar never drew the Status table's tokens row:\n${drawn}`)
+    if (!rightHalf(drawn).includes(`! settings: "statusline" is no longer`))
+      throw new Error(`the sidebar never named the old "statusline" section:\n${drawn}`)
+  }
   if (process.env.AGENT) agentTurn(env)
+  /**
+   * AGENT=1: Trail's measurement against the installed server half — a turn that opens a PR (with a
+   * fake `gh`) must end with the agent having recorded it, without being told to.
+   */
+  if (process.env.AGENT) {
+    const measured = Bun.spawnSync(
+      ["bun", join(root, "packages/trail/measure/agent.ts"), "--plugin", bay("trail"), "--runs", "1"],
+      { cwd: root, env: { ...process.env, OPENCODE: opencode }, stdout: "pipe", stderr: "pipe" },
+    )
+    if (measured.exitCode !== 0)
+      throw new Error(`Trail's measurement failed:\n${measured.stdout}\n${measured.stderr}`.slice(-3000))
+  }
   console.log(
-    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; console and its keys drew; full screen drew; statusline drew; review drew its diff; updater answered its slash name; every bay found under "cockpit" in the palette, and its commands ran from there${subagents ? "; a subagent showed in the sidebar and opened full screen, by click and by /subagents" : ""}${process.env.AGENT ? "; an agent called both bays' tools and was told about them" : ""}`,
+    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; console and its keys drew; full screen drew; statusline drew and named its old section; review drew its diff and named its old setting; updater answered its slash name; trail opened empty; every bay and /cockpit-setup found under "cockpit" in the palette, and the commands ran from there; /cockpit-setup and /status-setup offered as they were typed${subagents ? "; a subagent showed in the sidebar and opened full screen, by click and by /subagents, with its keys; /statusline and /status-setup briefed the agent" : ""}${fresh ? "; /cockpit-setup from home opened a conversation and briefed it, and queued behind the reply; an empty sidebar said none yet in every block, under the Status table" : ""}${process.env.AGENT ? "; an agent called the bays' tools and was told about them; Trail's measurement recorded the PR" : ""}`,
   )
 } finally {
   /** KEEP=1 leaves the install and project behind, to inspect what a run actually loaded. */
