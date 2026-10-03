@@ -4,10 +4,12 @@ import {
   configNotices,
   DEFAULT_SEGMENTS,
   DEFAULT_SEPARATOR,
+  type LineConfig,
   loadStatus,
   PRESETS,
   resolveLines,
   SIDEBAR_SEGMENTS,
+  type StatusConfig,
 } from "../src/core/config.ts"
 import { FIXTURES } from "../src/core/fixtures.ts"
 import { fitColumn } from "../src/core/render.ts"
@@ -369,5 +371,110 @@ describe("resolving lines", () => {
   test("a bare string is that built-in with no settings", () => {
     expect(asSegmentConfig("cwd")).toEqual({ type: "cwd" })
     expect(asSegmentConfig({ type: "cwd", priority: 5 })).toEqual({ type: "cwd", priority: 5 })
+  })
+})
+
+/**
+ * Changing one row of the table used to mean copying all fourteen into `segments`, which then
+ * stopped following the preset. `override` changes the rows it names and keeps the rest.
+ */
+describe("override", () => {
+  const types = (config: StatusConfig, at = 0) =>
+    resolveLines(config)[at]?.segments.map((entry) => asSegmentConfig(entry).type)
+  const settingsOf = (config: StatusConfig, type: string) =>
+    resolveLines(config)[0]
+      ?.segments.map(asSegmentConfig)
+      .find((entry) => entry.type === type)
+  const sidebar = SIDEBAR_SEGMENTS.map((entry) => asSegmentConfig(entry).type)
+
+  test("an object merges into that segment's settings, every other row kept", () => {
+    expect(types({ override: { git: { against: "branch" } } })).toEqual(sidebar)
+    expect(settingsOf({ override: { git: { against: "branch" } } }, "git")).toEqual({
+      type: "git",
+      against: "branch",
+    })
+    expect(settingsOf({ override: { "session.status": { working: true } } }, "session.status")).toEqual({
+      type: "session.status",
+      priority: 95,
+      icon: "",
+      working: true,
+    })
+  })
+
+  test("false drops it — every segment of that name", () => {
+    expect(types({ override: { write: false } })).toEqual(sidebar.filter((type) => type !== "write"))
+    expect(types({ override: { sep: false } })).not.toContain("sep")
+  })
+
+  test("a name swaps it, in the same place", () => {
+    const swapped = types({ override: { spend: "cost" } })
+    expect(swapped?.indexOf("cost")).toBe(sidebar.indexOf("spend"))
+    expect(swapped).not.toContain("spend")
+  })
+
+  test("it applies to the preset a line names, and to `segments` when they are written", () => {
+    expect(types({ preset: "minimal", override: { diagnostics: false } })).toEqual([
+      "context",
+      "git.diff",
+      "session.status",
+    ])
+    expect(types({ segments: ["cwd", "model"], override: { model: false } })).toEqual(["cwd"])
+  })
+
+  test("a line in `lines` takes its own, else the section's", () => {
+    const config: StatusConfig = {
+      override: { todo: false },
+      lines: [
+        { surface: "bottom", segments: ["cwd", "todo"] },
+        { surface: "bottom", segments: ["cwd", "todo"], override: { cwd: false } },
+      ],
+    }
+    expect(types(config, 0)).toEqual(["cwd"])
+    expect(types(config, 1)).toEqual(["todo"])
+  })
+
+  test("read from the files, a project's override adds to the global one", () => {
+    const loaded = load({
+      [GLOBAL]: { status: { override: { git: { against: "branch" } } } },
+      [PROJECT]: { status: { override: { write: false } } },
+    })
+    expect(loaded.notices).toEqual([])
+    expect(types(loaded.config)).not.toContain("write")
+    expect(settingsOf(loaded.config, "git")?.against).toBe("branch")
+  })
+
+  test("a name that matches no segment is a `!` row naming the closest", () => {
+    expect(configNotices({ override: { gti: false } })).toEqual([
+      'settings: override "gti" matches no segment in the sidebar preset — did you mean "git"?',
+    ])
+    expect(configNotices({ segments: ["cwd"], override: { model: false } })).toEqual([
+      'settings: override "model" matches no segment in "segments"',
+    ])
+    expect(load({ [GLOBAL]: { status: { override: { gti: false } } } }).notices).toHaveLength(1)
+  })
+
+  test("a section-wide override is wrong only when it matches no line that uses it", () => {
+    const lines: LineConfig[] = [
+      { surface: "bottom", segments: ["cwd"] },
+      { surface: "bottom", segments: ["todo"] },
+    ]
+    expect(configNotices({ override: { todo: false }, lines })).toEqual([])
+    expect(configNotices({ lines: [{ segments: ["cwd"], override: { tood: false } }] })).toEqual([
+      'settings: status.lines[0].override "tood" matches no segment in "segments"',
+    ])
+  })
+
+  test("a change that is not one is said, and leaves the segment as it was", () => {
+    const config = { override: { git: true } } as unknown as StatusConfig
+    expect(configNotices(config)).toEqual([
+      'settings: override "git" is false, a segment name, or an object of its settings',
+    ])
+    expect(types(config)).toEqual(sidebar)
+  })
+
+  test("not an object, it is dropped by the loader with a row naming the key", () => {
+    const loaded = load({ [GLOBAL]: { status: { override: ["git"] } } })
+    expect(loaded.config.override).toBeUndefined()
+    expect(loaded.notices).toEqual(['settings: "status.override" should be an object; the default is used'])
   })
 })

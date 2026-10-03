@@ -15,7 +15,8 @@ Everything goes in the `"status"` section of `~/.config/opencode-cockpit/config.
 | `sidebarRows` | number | 14 with the `sidebar` preset, else 8 | rows the block lists before the rest fold into `+ N more` |
 | `surface` | "sidebar" \| "bottom" | "sidebar" | where the line draws; `"sidebar": false` says `"bottom"` too |
 | `preset` | string | the surface's own: `sidebar` in the sidebar, `default` at the bottom | a whole line by name; anything written beside it wins. The `status-setup` skill has them all |
-| `segments` | list | the preset's | the line's parts, built-ins or your own |
+| `segments` | list | the preset's | the line's parts, built-ins or your own — the whole list, replacing the preset's. To change a row or two, `override` |
+| `override` | object | none | changes to the preset's segments by name, the rest kept: `false` drops one, a name swaps it, an object merges into its settings — `{ "git": { "against": "branch" } }` |
 | `lines` | list | one line | more than one line, each with its own `surface`, `segments`, `maxRows`… |
 | `separator` | string | `" │ "` across, nothing down | drawn between segments |
 | `stack` | "horizontal" \| "vertical" | vertical in the sidebar | segments across or down |
@@ -28,8 +29,26 @@ Everything goes in the `"status"` section of `~/.config/opencode-cockpit/config.
 | `commands` | object | none | shell commands usable as segments — a Claude Code statusline script works unchanged |
 | `modules` | string[] | none | your own segments in TypeScript; a project's add to the global ones |
 
-A line in `"lines": [ … ]` takes `preset`, `surface`, `segments`, `separator`, `stack`, `icons`, `debug`,
-`maxRows` (its own row cap) and the paddings; anything a line leaves out comes from the section.
+A line in `"lines": [ … ]` takes `preset`, `surface`, `segments`, `override`, `separator`, `stack`, `icons`,
+`debug`, `maxRows` (its own row cap) and the paddings; anything a line leaves out comes from the section.
+
+## Changing a row or two: `override`
+
+`override` changes the preset's segments by name and keeps the rest, so the line still follows the
+preset. `segments` is the whole list instead: write it only to build a different line.
+
+```jsonc
+"override": {
+  "git": { "against": "branch" },        // an object merges into that segment's settings
+  "write": false,                         // false drops it
+  "session.status": { "working": true }, // the working clock as well as a stall
+  "spend": "cost"                         // a name swaps it, in the same place
+}
+```
+
+A change applies to every segment of that name (`"sep": false` drops every hairline). With `segments`
+written too, the changes apply to those. A name that matches no segment in the line is a `!` row that
+names the closest one.
 
 ## Presets
 

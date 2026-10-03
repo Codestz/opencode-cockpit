@@ -103,7 +103,7 @@ export function buildSegments(
     const def = custom?.get(config.type) ?? findSegment(config.type)
     if (!def) {
       // A name nothing answers to: a typo, or a segment from a module that failed to load.
-      if (debug) out.push(marker(`?${config.type}`, "error", config.type, seen))
+      if (debug) out.push(marker(`${MARK.unknown}${config.type}`, "error", config.type, seen))
       continue
     }
     let piece: Pieces | undefined
@@ -111,12 +111,12 @@ export function buildSegments(
       piece = def.render(ctx, config)
     } catch {
       // A segment that throws costs its own place on the line and nothing else.
-      if (debug) out.push(marker(`!${config.type}`, "error", config.type, seen))
+      if (debug) out.push(marker(`${MARK.threw}${config.type}`, "error", config.type, seen))
       continue
     }
     if (!piece) {
       // It ran and chose silence: the input it needs is missing, not its name.
-      if (debug) out.push(marker(config.type, "border", config.type, seen))
+      if (debug) out.push(marker(`${MARK.silent}${config.type}`, "border", config.type, seen))
       continue
     }
 
@@ -160,7 +160,7 @@ export function buildSegments(
       })
       drew = true
     }
-    if (!drew && debug) out.push(marker(config.type, "border", config.type, seen))
+    if (!drew && debug) out.push(marker(`${MARK.silent}${config.type}`, "border", config.type, seen))
   }
   return tidyDividers(out)
 }
@@ -180,13 +180,22 @@ export function tidyDividers(segments: readonly Segment[]): Segment[] {
   return out
 }
 
+/**
+ * What `debug` marks a segment with, one glyph in front of its name. They used to share one pair of
+ * brackets — `⟨?title⟩` for a name nothing answers to, `⟨todo⟩` for a segment that ran and said
+ * nothing — and the one character between them was easy to read past. `drew` is the preview's: it
+ * names the segment beside a row that did draw, so every row says where it came from.
+ */
+export const MARK = { drew: "✓", silent: "✗", unknown: "?", threw: "!" } as const
+
 /** What a silent segment looks like while `debug` is on. */
 function marker(text: string, tone: Tone, type: string, seen: Map<string, number>): Segment {
   const count = (seen.get(type) ?? 0) + 1
   seen.set(type, count)
   return {
     id: count === 1 ? type : `${type}#${count}`,
-    runs: [{ text: `⟨${text}⟩`, tone, dim: true }],
+    runs: [{ text, tone, dim: true }],
+    marker: true,
     // Above everything, so the thing you are debugging is not the first dropped when it is narrow.
     priority: 100,
   }

@@ -50,6 +50,8 @@ export interface Segment {
   priority: number
   /** A hairline between groups: drawn only with a row on either side of it (`tidyDividers`). */
   divider?: boolean
+  /** `debug`'s placeholder for a segment that drew nothing, rather than anything it drew. */
+  marker?: boolean
 }
 
 /** What a segment may return: one styled string, or several runs. */

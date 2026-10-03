@@ -98,7 +98,16 @@ export const OWN_KEYS: Readonly<Record<Bay, readonly KeyInfo[]>> = {
       type: "list",
       default: undefined,
       defaultText: "the preset's",
-      about: "the line's parts, built-ins or your own",
+      about:
+        "the line's parts, built-ins or your own — the whole list, replacing the preset's. To change a row or two, `override`",
+    },
+    {
+      key: "override",
+      type: "object",
+      default: undefined,
+      defaultText: "none",
+      about:
+        'changes to the preset\'s segments by name, the rest kept: `false` drops one, a name swaps it, an object merges into its settings — `{ "git": { "against": "branch" } }`',
     },
     {
       key: "lines",

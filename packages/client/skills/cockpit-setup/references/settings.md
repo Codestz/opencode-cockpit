@@ -35,7 +35,8 @@ Settings are read when OpenCode starts: a change applies after a restart.
 | `sidebarRows` | number | 14 with the `sidebar` preset, else 8 | rows the block lists before the rest fold into `+ N more` |
 | `surface` | "sidebar" \| "bottom" | "sidebar" | where the line draws; `"sidebar": false` says `"bottom"` too |
 | `preset` | string | the surface's own: `sidebar` in the sidebar, `default` at the bottom | a whole line by name; anything written beside it wins. The `status-setup` skill has them all |
-| `segments` | list | the preset's | the line's parts, built-ins or your own |
+| `segments` | list | the preset's | the line's parts, built-ins or your own — the whole list, replacing the preset's. To change a row or two, `override` |
+| `override` | object | none | changes to the preset's segments by name, the rest kept: `false` drops one, a name swaps it, an object merges into its settings — `{ "git": { "against": "branch" } }` |
 | `lines` | list | one line | more than one line, each with its own `surface`, `segments`, `maxRows`… |
 | `separator` | string | `" │ "` across, nothing down | drawn between segments |
 | `stack` | "horizontal" \| "vertical" | vertical in the sidebar | segments across or down |

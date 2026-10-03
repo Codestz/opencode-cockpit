@@ -1,5 +1,6 @@
 import {
   baySettings,
+  closestName,
   noticeText,
   type Settings,
   type SettingsNotice,
@@ -67,11 +68,26 @@ export interface CommandConfig {
  */
 export type Stack = "horizontal" | "vertical"
 
+/**
+ * One segment's change, on top of the preset's list (or `segments`): `false` drops it, a name swaps
+ * it for that segment in the same place, an object merges into its settings.
+ */
+export type SegmentChange = false | string | Record<string, unknown>
+
+/**
+ * Changes to a line's segments, keyed by segment name: `{ "git": { "against": "branch" } }`. A
+ * small change used to mean copying the preset's whole list into `segments`, which then stopped
+ * following the preset — and one wrong entry in fourteen was a row gone with no word said.
+ */
+export type Override = Record<string, SegmentChange>
+
 export interface LineConfig {
   /** A whole line by name; anything written beside it wins. */
   preset?: string
   surface?: Surface
   segments?: (string | SegmentConfig)[]
+  /** Changes to the preset's segments, or to `segments`, by segment name. */
+  override?: Override
   /** Drawn between segments. Defaults to " · " across, and nothing down. */
   separator?: string
   /** Defaults to vertical in the sidebar, horizontal everywhere else. */
@@ -109,6 +125,12 @@ export interface StatusConfig {
   /** One line, for the common case. Use `lines` for more than one surface. */
   surface?: Surface
   segments?: (string | SegmentConfig)[]
+  /**
+   * Changes to the preset's segments by name, so changing one row keeps the rest of the preset:
+   * `false` drops a segment, a name swaps it, an object merges into its settings. With `segments`
+   * written too, the changes apply to those. A line in `lines` may carry its own.
+   */
+  override?: Override
   separator?: string
   stack?: Stack
   /** Built-in icons. On by default; switch off for a terminal missing the glyphs. */
@@ -142,6 +164,7 @@ export const KINDS = {
   preset: "",
   surface: "",
   segments: [] as unknown[],
+  override: {} as Record<string, unknown>,
   separator: "",
   stack: "",
   icons: true,
@@ -245,6 +268,75 @@ export function configNotices(config: StatusConfig): string[] {
     if (line.surface !== undefined && !SURFACES.includes(line.surface)) {
       out.push(`settings: "${where}.surface" is "sidebar" or "bottom"`)
     }
+  }
+  return [...out, ...overrideNotices(config)]
+}
+
+/**
+ * An override that changes nothing is said out loud: `"gti"` matching no segment would otherwise
+ * be a row that kept its old look with no word as to why. A section-wide override is checked against
+ * every line that uses it, and is only wrong when it matches none of them.
+ */
+function overrideNotices(config: StatusConfig): string[] {
+  const out: string[] = []
+  const checked = new Map<Override, { where: string; from: string; types: Set<string> }>()
+  for (const [index, source] of lineSources(config).entries()) {
+    const raw = source.line.override ?? config.override
+    const where = source.line.override !== undefined && config.lines?.length ? `status.lines[${index}].` : ""
+    if (raw === undefined) continue
+    if (!isObject(raw)) {
+      out.push(`settings: "${where || "status."}override" should be an object of segment names`)
+      continue
+    }
+    const base = baseSegments(source.line, config)
+    const seen = checked.get(raw) ?? { where, from: base.from, types: new Set<string>() }
+    for (const entry of base.segments) seen.types.add(segmentType(entry))
+    checked.set(raw, seen)
+  }
+  for (const [override, { where, from, types }] of checked) {
+    for (const [key, change] of Object.entries(override)) {
+      if (!isChange(change)) {
+        out.push(`settings: ${where}override "${key}" is false, a segment name, or an object of its settings`)
+      } else if (!types.has(key)) {
+        const meant = closestSegment(key, [...types])
+        out.push(
+          `settings: ${where}override "${key}" matches no segment in ${from}${meant ? ` — did you mean "${meant}"?` : ""}`,
+        )
+      }
+    }
+  }
+  return out
+}
+
+/** The name a typo most likely meant: the same letters in another order first (`gti` → `git`). */
+function closestSegment(name: string, valid: string[]): string | undefined {
+  const letters = (text: string) => [...text].sort().join("")
+  return valid.find((each) => letters(each) === letters(name)) ?? closestName(name, valid)
+}
+
+const isChange = (change: unknown): change is SegmentChange =>
+  change === false || (typeof change === "string" && change.length > 0) || isObject(change)
+
+const segmentType = (entry: string | SegmentConfig) => (typeof entry === "string" ? entry : entry.type)
+
+/**
+ * A line's segments with an override applied, each change in the place of the segment it names —
+ * every segment of that name, so `{ "sep": false }` takes out every hairline. A change that is not
+ * one (`true`, a number) leaves the segment as it was; `configNotices` says so.
+ */
+export function applyOverride(
+  segments: readonly (string | SegmentConfig)[],
+  override: unknown,
+): (string | SegmentConfig)[] {
+  if (!isObject(override)) return [...segments]
+  const out: (string | SegmentConfig)[] = []
+  for (const entry of segments) {
+    const type = segmentType(entry)
+    const change = Object.hasOwn(override, type) ? override[type] : undefined
+    if (!isChange(change)) out.push(entry)
+    else if (change === false) continue
+    else if (typeof change === "string") out.push(change)
+    else out.push({ ...asSegmentConfig(entry), ...change } as SegmentConfig)
   }
   return out
 }
@@ -394,38 +486,65 @@ const PADDING: Record<Surface, { left: number; right: number; top: number; botto
 /** Rows a column draws when neither the line, the bay nor the preset says. */
 const MAX_ROWS = 8
 
+/** The lines as written: `lines`, or the section itself as the one line. */
+function lineSources(config: StatusConfig): { line: LineConfig }[] {
+  if (config.lines?.length) return config.lines.map((line) => ({ line }))
+  return [
+    {
+      line: {
+        preset: config.preset,
+        surface: config.surface,
+        segments: config.segments,
+        override: config.override,
+        separator: config.separator,
+        stack: config.stack,
+        icons: config.icons,
+        debug: config.debug,
+      },
+    },
+  ]
+}
+
+/**
+ * Where a line draws and the segments it starts from, before its override — and what to call that
+ * list in a notice: `the sidebar preset`, or the `segments` that were written.
+ */
+function baseSegments(
+  line: LineConfig,
+  config: StatusConfig,
+): { surface: Surface; segments: (string | SegmentConfig)[]; from: string; maxRows?: number } {
+  // A preset fills in what was not written; it never overrides what was.
+  const name = line.preset ?? config.preset ?? ""
+  const named = PRESETS[name]
+  const asked = line.surface ?? config.surface
+  const surface: Surface = SURFACES.includes(asked ?? "")
+    ? (asked as Surface)
+    : (named?.surface ?? DEFAULT_SURFACE)
+  /** No preset by a name that exists: the one for the surface, so the sidebar is never blank. */
+  const presetName = named ? name : PRESET_FOR[surface]
+  const preset = PRESETS[presetName]
+  const written = line.segments ?? config.segments
+  return {
+    surface,
+    segments: written ?? preset?.segments ?? DEFAULT_SEGMENTS,
+    from: written ? '"segments"' : `the ${presetName} preset`,
+    ...(preset?.maxRows !== undefined ? { maxRows: preset.maxRows } : {}),
+  }
+}
+
 /** Normalises whatever the config said into the lines the renderer draws. */
 export function resolveLines(config: StatusConfig): ResolvedLine[] {
-  const lines = config.lines?.length
-    ? config.lines
-    : [
-        {
-          preset: config.preset,
-          surface: config.surface,
-          segments: config.segments,
-          separator: config.separator,
-          stack: config.stack,
-          icons: config.icons,
-          debug: config.debug,
-        },
-      ]
-  return lines.map((line) => {
-    // A preset fills in what was not written; it never overrides what was.
-    const named = PRESETS[line.preset ?? config.preset ?? ""]
-    const asked = line.surface ?? config.surface
-    const surface: Surface = SURFACES.includes(asked ?? "")
-      ? (asked as Surface)
-      : (named?.surface ?? DEFAULT_SURFACE)
-    /** No preset by a name that exists: the one for the surface, so the sidebar is never blank. */
-    const preset = named ?? PRESETS[PRESET_FOR[surface]]
+  return lineSources(config).map(({ line }) => {
+    const base = baseSegments(line, config)
+    const surface = base.surface
     // The sidebar is a narrow column: across, it would be three truncated words.
     const stack = line.stack ?? config.stack ?? (surface === "sidebar" ? "vertical" : "horizontal")
     return {
       surface,
-      segments: line.segments ?? config.segments ?? preset?.segments ?? DEFAULT_SEGMENTS,
+      segments: applyOverride(base.segments, line.override ?? config.override),
       separator: line.separator ?? config.separator ?? (stack === "vertical" ? "" : DEFAULT_SEPARATOR),
       stack,
-      maxRows: line.maxRows ?? config.sidebarRows ?? preset?.maxRows ?? MAX_ROWS,
+      maxRows: line.maxRows ?? config.sidebarRows ?? base.maxRows ?? MAX_ROWS,
       icons: line.icons ?? config.icons ?? true,
       debug: line.debug ?? config.debug ?? false,
       paddingLeft: line.paddingLeft ?? config.paddingLeft ?? PADDING[surface].left,
