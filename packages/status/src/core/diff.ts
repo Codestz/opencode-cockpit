@@ -56,3 +56,23 @@ export function wantsDiff(
     }),
   )
 }
+
+/**
+ * The branch's whole diff: from where it forked off `base` to the working tree — every commit on the
+ * branch plus what is uncommitted, which is what a reviewer will read rather than what this session
+ * happened to touch. On the default branch itself the fork point is `HEAD`, so it is what is
+ * uncommitted. A base that does not resolve fails the command, and the row keeps saying nothing.
+ */
+export function branchDiffCommand(base: string): string {
+  const quoted = `'${base.replaceAll("'", "'\\''")}'`
+  return `git diff --shortstat "$(git merge-base ${quoted} HEAD)"`
+}
+
+/** Whether any line draws the branch's diff (`git`), so no git runs for a row nobody shows. */
+export function wantsBranchDiff(
+  lines: ReadonlyArray<{ segments: ReadonlyArray<string | { type?: string }> }>,
+): boolean {
+  return lines.some((line) =>
+    line.segments.some((segment) => (typeof segment === "string" ? segment : segment.type) === "git"),
+  )
+}

@@ -5,7 +5,7 @@ import { resolveLines } from "../src/core/config.ts"
 import { buildReport, reportHeadline } from "../src/core/report.ts"
 
 /**
- * `/statusline` exists to answer the one question the screen cannot: a quiet line looks the same
+ * `/status-setup` exists to answer the one question the screen cannot: a quiet line looks the same
  * whether there was nothing to report or the config never arrived. So the report has to be right
  * about the empty cases, not only the working one.
  */
@@ -54,6 +54,18 @@ describe("the headline", () => {
 
   test("with no config file at all it says the line is the defaults, not that it is broken", () => {
     expect(reportHeadline(report())).toContain("neither config file exists")
+  })
+
+  test("settings to fix outrank the defaults message: the line is drawing without them", () => {
+    expect(reportHeadline(report({ notices: ["settings: x"] }))).toContain("1 setting to fix")
+  })
+
+  test("the loader's files are reported as it found them", () => {
+    const files = [
+      { path: "/g/config.json", found: true },
+      { path: "/w/.cockpit.json", found: false },
+    ]
+    expect(report({ files }).sources).toEqual(files)
   })
 
   test("nothing configured says exactly that, rather than counting zero segments", () => {

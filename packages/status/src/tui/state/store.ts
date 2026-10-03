@@ -1,9 +1,17 @@
 import type { Host } from "@opencode-cockpit/client/host"
 import { type Accessor, createMemo, createRoot, createSignal } from "solid-js"
+import { BUDGET_EVERY_MS, type Budget, budgetFile, readBudget } from "../../core/budget.ts"
 import { type CommandRunner, createRunner, execShell } from "../../core/command.ts"
 import { resolveLines, type StatusConfig } from "../../core/config.ts"
 import type { StatusContext } from "../../core/context.ts"
-import { type DiffCounts, parseShortstat, UNCOMMITTED, wantsDiff } from "../../core/diff.ts"
+import {
+  branchDiffCommand,
+  type DiffCounts,
+  parseShortstat,
+  UNCOMMITTED,
+  wantsBranchDiff,
+  wantsDiff,
+} from "../../core/diff.ts"
 
 /**
  * Keeps one snapshot of OpenCode's state for every line to read. One memo rather than one per
@@ -24,6 +32,8 @@ export interface StoreOptions {
   diffIntervalMs?: number
   /** Injected in tests, so no shell runs and no clock is needed. */
   exec?: (command: string, stdin: string, timeoutMs: number) => Promise<string>
+  /** Injected in tests, so no file is read. */
+  readBudget?: (path: string) => Budget | undefined
   now?: () => number
   build: (
     api: Host,
@@ -33,6 +43,8 @@ export interface StoreOptions {
       version: string
       commands: Record<string, string>
       diff: DiffCounts | undefined
+      branchDiff: DiffCounts | undefined
+      budget: Budget | undefined
     },
   ) => StatusContext
 }
@@ -65,7 +77,8 @@ export function createStatusStore(api: Host, config: StatusConfig, options: Stor
      * they were built for. `claudeCodeCompat` is off because nothing is being handed a session on
      * stdin — this is one command with one answer.
      */
-    const diffRunner = wantsDiff(resolveLines(config))
+    const lines = resolveLines(config)
+    const diffRunner = wantsDiff(lines)
       ? createRunner(
           {
             run: UNCOMMITTED,
@@ -77,20 +90,51 @@ export function createStatusStore(api: Host, config: StatusConfig, options: Stor
         )
       : undefined
 
+    /**
+     * The branch's whole diff, for `git`. The command names the default branch, which OpenCode may
+     * only learn after the first frame, so the runner is made once it is known — and made again if
+     * it changes. Until then `main`, the likeliest answer.
+     */
+    const branchWanted = wantsBranchDiff(lines)
+    let branch: { base: string; runner: CommandRunner } | undefined
+    const branchRunner = (base: string) => {
+      if (branch?.base === base) return branch.runner
+      branch?.runner.dispose()
+      const runner = createRunner(
+        { run: branchDiffCommand(base), intervalMs: 10_000, timeoutMs: 3000, claudeCodeCompat: false },
+        { exec: options.exec ?? execShell, now: clock, onValue: () => bump((n) => n + 1) },
+      )
+      branch = { base, runner }
+      return runner
+    }
+
+    /** A proxy's budget, for `spend` and `avail`: a tiny file, read again every few seconds. */
+    const budgetPath = budgetFile(lines)
+    let budget: Budget | undefined
+    let budgetAt = Number.NEGATIVE_INFINITY
+
     const context = createMemo(() => {
       commandTick()
+      const at = now()
       const commands: Record<string, string> = {}
       for (const [name, runner] of runners) commands[name] = runner.value()
+      if (budgetPath && at - budgetAt >= BUDGET_EVERY_MS) {
+        budgetAt = at
+        budget = (options.readBudget ?? readBudget)(budgetPath)
+      }
       const ctx = options.build(api, {
-        now: now(),
+        now: at,
         width: api.renderer.width,
         version: options.version,
         commands,
         diff: diffRunner ? parseShortstat(diffRunner.value()) : undefined,
+        branchDiff: branch ? parseShortstat(branch.runner.value()) : undefined,
+        budget,
       })
       // Asking here keeps the schedule tied to what is actually drawn: a hidden line costs nothing.
       for (const runner of runners.values()) runner.maybeRun(ctx)
       diffRunner?.maybeRun(ctx)
+      if (branchWanted) branchRunner(ctx.defaultBranch ?? "main").maybeRun(ctx)
       return ctx
     })
 
@@ -99,6 +143,7 @@ export function createStatusStore(api: Host, config: StatusConfig, options: Stor
       dispose() {
         clearInterval(tick)
         for (const runner of runners.values()) runner.dispose()
+        branch?.runner.dispose()
         dispose()
       },
     }

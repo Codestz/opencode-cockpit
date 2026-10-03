@@ -48,6 +48,8 @@ export interface Segment {
   runs: Run[]
   /** Higher survives when the line is too long for the terminal. */
   priority: number
+  /** A hairline between groups: drawn only with a row on either side of it (`tidyDividers`). */
+  divider?: boolean
 }
 
 /** What a segment may return: one styled string, or several runs. */
@@ -73,5 +75,7 @@ export interface SegmentDef {
   priority: number
   /** Shown before the text when icons are on. */
   icon?: string
+  /** It separates groups rather than saying anything; see `Segment.divider`. */
+  divider?: boolean
   render(ctx: StatusContext, config: SegmentConfig): Pieces | undefined
 }

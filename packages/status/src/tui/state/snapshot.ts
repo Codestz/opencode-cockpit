@@ -1,6 +1,7 @@
 import { homedir } from "node:os"
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import type { Host, V2Context } from "@opencode-cockpit/client/host"
+import type { Budget } from "../../core/budget.ts"
 import {
   lastTurn,
   type SessionSnapshot,
@@ -217,6 +218,8 @@ export function buildContext(
     version: string
     commands: Record<string, string>
     diff?: DiffCounts
+    branchDiff?: DiffCounts
+    budget?: Budget
   },
 ): StatusContext {
   const sessionID = currentSession(api)
@@ -229,6 +232,8 @@ export function buildContext(
     ...(api.state.vcs?.default_branch ? { defaultBranch: api.state.vcs.default_branch } : {}),
     version: options.version,
     ...(options.diff ? { diff: options.diff } : {}),
+    ...(options.branchDiff ? { branchDiff: options.branchDiff } : {}),
+    ...(options.budget ? { budget: options.budget } : {}),
     ...(sessionID
       ? {
           session: api.v1

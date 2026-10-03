@@ -5,6 +5,7 @@
  *   bunx @opencode-cockpit/status preview
  *   bunx @opencode-cockpit/status preview --config ~/.config/opencode-cockpit/config.json
  *   bunx @opencode-cockpit/status preview --state full --width 60
+ *   bunx @opencode-cockpit/status preview --proxy ~/.cache/opencode-litellm-iap/spend.json
  *
  * Why this exists: a statusline is a visual thing, and editing TypeScript, restarting OpenCode and
  * squinting is a loop measured in minutes. One sidebar took about twenty restarts to design, and
@@ -12,10 +13,13 @@
  * sentence. Nothing here can tell you a design is good; it can tell you what it looks like.
  */
 
-import { watch } from "node:fs"
-import { asSegmentConfig, loadStatusConfig, type ResolvedLine, resolveLines } from "../core/config.ts"
+import { readFileSync, watch } from "node:fs"
+import { settingsPaths } from "@opencode-cockpit/client/settings"
+import { budgetFile, readBudget } from "../core/budget.ts"
+import { asSegmentConfig, loadStatus, type ResolvedLine, resolveLines } from "../core/config.ts"
 import { loadCustomSegments, resolveModulePath } from "../core/custom.ts"
 import { FIXTURES, type FixtureName } from "../core/fixtures.ts"
+import { moduleNoticeText, noticeRows } from "../core/notices.ts"
 import { fit, fitColumn } from "../core/render.ts"
 import { buildSegments, type SegmentDef, segmentWidth } from "../core/segments.ts"
 import { paintRuns as paintColour } from "./ansi.ts"
@@ -32,6 +36,7 @@ if (has("help")) {
   preview — draw your statusline here, against sample sessions
 
     --config <path>   a config file (default: your global + project config)
+    --proxy <path>    the budget file a proxy writes, for spend and avail (none: draw without one)
     --module <path>   draw this module's segments, on their own
     --with-config     ...and the config's modules and segments as well
     --state <name>    ${Object.keys(FIXTURES).join(" | ")} (default: every one)
@@ -44,9 +49,27 @@ if (has("help")) {
 
 const directory = process.cwd()
 const configPath = flag("config")
-const config = configPath
-  ? ((await Bun.file(configPath).json()).statusline ?? {})
-  : loadStatusConfig(directory)
+/**
+ * Through the loader the bay itself uses, so the preview reads a file exactly as OpenCode will — its
+ * `status` section, comments and all — and draws the same `!` rows for what it will not read. A
+ * `--config` file stands in for the global one, with no project file beside it.
+ */
+const global = settingsPaths({ directory }).global
+const loadedStatus = loadStatus({
+  where: configPath
+    ? {
+        read: (path) => {
+          if (path !== global) return undefined
+          try {
+            return readFileSync(configPath, "utf8")
+          } catch {
+            return undefined
+          }
+        },
+      }
+    : { directory },
+})
+const config = loadedStatus.config
 
 /**
  * `--module` draws that module and nothing else.
@@ -60,11 +83,15 @@ const only = flag("module")
 const isolate = only !== undefined && !has("with-config")
 const modules = [...(isolate ? [] : (config.modules ?? [])), ...(only ? [only] : [])]
 let custom: ReadonlyMap<string, SegmentDef> = new Map()
+const moduleErrors: string[] = []
 if (modules.length > 0) {
   const loaded = await loadCustomSegments(modules, directory)
   custom = loaded.segments
+  moduleErrors.push(...loaded.errors)
   for (const error of loaded.errors) console.error(`  module failed: ${error}`)
 }
+/** The `!` rows the bay would draw above its first line. */
+const troubles = [...loadedStatus.notices, ...moduleErrors.map(moduleNoticeText)]
 
 /**
  * On its own, a module draws every segment it declares, in the order it declares them, with room
@@ -81,10 +108,22 @@ const lines = resolveLines(
         paddingLeft: config.paddingLeft,
         paddingRight: config.paddingRight,
         segments: [...custom.keys()],
-        maxRows: Math.max(config.maxRows ?? 0, custom.size),
+        sidebarRows: Math.max(config.sidebarRows ?? 0, custom.size),
       }
     : config,
 )
+/** Where the notices go: the first sidebar line, else the first line — as in the TUI. */
+const noticeLine = lines.find((line) => line.surface === "sidebar") ?? lines[0]
+
+/**
+ * A proxy's budget, as the bay reads it: the file the lines name, or `--proxy`. `--proxy none` draws
+ * the line as someone without a proxy sees it.
+ */
+const proxy = flag("proxy")
+const budgetAt =
+  proxy === "none" ? undefined : proxy ? resolveModulePath(proxy, directory) : budgetFile(lines)
+const budget = budgetAt ? readBudget(budgetAt) : undefined
+
 const states = flag("state") ? [flag("state") as FixtureName] : (Object.keys(FIXTURES) as FixtureName[])
 const debug = has("debug") || config.debug === true
 
@@ -112,7 +151,10 @@ async function draw(): Promise<string[]> {
 
     for (const line of lines) {
       const room = width || roomFor(line, process.stdout.columns || 120)
-      const ctx = { ...fixture.ctx, width: room }
+      const ctx = { ...fixture.ctx, width: room, ...(budget ? { budget } : {}) }
+      if (line === noticeLine) {
+        for (const row of noticeRows(troubles, room)) console.log(`  ${paintRuns(row.runs).trimEnd()}`)
+      }
       const built = buildSegments(ctx, line.segments.map(asSegmentConfig), {
         custom,
         icons: line.icons,
@@ -134,7 +176,7 @@ async function draw(): Promise<string[]> {
       }
       /** Rows a real sidebar would have dropped in silence. */
       if (fitted.dropped > 0) {
-        const over = line.stack === "vertical" ? `maxRows is ${line.maxRows}` : `${room} columns`
+        const over = line.stack === "vertical" ? `sidebarRows is ${line.maxRows}` : `${room} columns`
         console.log(`  ${dim(`↳ ${fitted.dropped} dropped — ${over}`)}`)
       }
       const widest = Math.max(0, ...fitted.segments.map(segmentWidth))

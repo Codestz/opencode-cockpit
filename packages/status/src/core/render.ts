@@ -1,4 +1,4 @@
-import { cutSegment, type Segment, segmentWidth } from "./segments.ts"
+import { cutSegment, type Segment, segmentWidth, tidyDividers } from "./segments.ts"
 
 /**
  * Fitting the line to the terminal.
@@ -73,8 +73,10 @@ export function fitColumn(segments: readonly Segment[], width: number, maxRows: 
       .slice(0, maxRows)
       .map(({ segment }) => segment.id),
   )
+  /** Rows dropped can strand a hairline; it goes too, and is not counted as a row you lost. */
+  const kept = tidyDividers(segments.filter((segment) => keep.has(segment.id)))
   return {
-    segments: segments.filter((segment) => keep.has(segment.id)).map((segment) => cutSegment(segment, width)),
+    segments: kept.map((segment) => cutSegment(segment, width)),
     dropped: segments.length - keep.size,
   }
 }

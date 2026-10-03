@@ -156,11 +156,27 @@ export function buildSegments(
         id: count === 1 ? config.type : `${config.type}#${count}`,
         runs: styled,
         priority: typeof config.priority === "number" ? config.priority : def.priority,
+        ...(def.divider ? { divider: true } : {}),
       })
       drew = true
     }
     if (!drew && debug) out.push(marker(config.type, "border", config.type, seen))
   }
+  return tidyDividers(out)
+}
+
+/**
+ * Hairlines only between rows. A divider groups what is above it from what is below; with nothing on
+ * one side — the budget rows silent without a proxy, the first reply not in yet — it is a line of
+ * ink that says nothing, and two in a row read as a rendering fault.
+ */
+export function tidyDividers(segments: readonly Segment[]): Segment[] {
+  const out: Segment[] = []
+  for (const segment of segments) {
+    if (segment.divider && (out.length === 0 || out[out.length - 1]?.divider)) continue
+    out.push(segment)
+  }
+  while (out[out.length - 1]?.divider) out.pop()
   return out
 }
 

@@ -1,18 +1,21 @@
-import { existsSync, readFileSync } from "node:fs"
-import { homedir } from "node:os"
-import { join } from "node:path"
+import {
+  baySettings,
+  noticeText,
+  type Settings,
+  type SettingsNotice,
+  type SettingsWhere,
+} from "@opencode-cockpit/client/settings"
 
 /**
- * Statusline settings, read from the same two files every cockpit bay uses:
+ * Status's settings: the `status` section of the files every cockpit bay reads, through the one
+ * loader in `@opencode-cockpit/client/settings`:
  *
  *   ~/.config/opencode-cockpit/config.json  →  <project>/.cockpit.json  →  plugin-entry options
  *
- * Only the `statusline` section is read here. An unreadable or invalid file is ignored rather than
- * fatal — a typo in a config should never cost you the interface.
+ * Only `status` is read. `statusline` (the section's name until 0.9) and keys at the file's root are
+ * old names: the loader recognises them and the bay draws a `!` row for each, but their values are
+ * not read. A file that cannot be parsed is a notice too, never the end of the interface.
  */
-
-export const CONFIG_FILE = "config.json"
-export const PROJECT_FILE = ".cockpit.json"
 
 /**
  * Where a line is drawn.
@@ -22,6 +25,9 @@ export const PROJECT_FILE = ".cockpit.json"
  * a line there had almost no room and almost nothing left to say.
  */
 export type Surface = "bottom" | "sidebar"
+
+/** Where Status draws when nothing says otherwise. The sidebar since 0.9. */
+export const DEFAULT_SURFACE: Surface = "sidebar"
 
 /**
  * A segment is either a built-in named by string ("cwd"), or that name with settings. `when` and
@@ -74,7 +80,7 @@ export interface LineConfig {
   icons?: boolean
   /** Draw a placeholder where a segment said nothing, so a typo and missing data look different. */
   debug?: boolean
-  /** Vertical only: rows to draw at most. Lowest priority goes first. Defaults to 8. */
+  /** Vertical only: rows to draw at most. Lowest priority goes first. The bay's `sidebarRows` by default. */
   maxRows?: number
   /**
    * Columns of space either side. The defaults line each surface up with OpenCode's own
@@ -87,8 +93,14 @@ export interface LineConfig {
   paddingBottom?: number
 }
 
+/** The `status` section. */
 export interface StatusConfig {
   enabled?: boolean
+  /**
+   * Draw in the sidebar: the key every bay shares. `false` is read as `surface: "bottom"`, so the
+   * one switch works here as it does everywhere; `surface` says the same thing in Status's words.
+   */
+  sidebar?: boolean
   /**
    * A whole line by name: `minimal`, `default`, `detailed`, `sidebar`. Anything you write
    * alongside it wins, so a preset is a starting point rather than a mode.
@@ -96,14 +108,6 @@ export interface StatusConfig {
   preset?: string
   /** One line, for the common case. Use `lines` for more than one surface. */
   surface?: Surface
-  /**
-   * Where this bay's block sits among the others in a shared surface. Lower draws first.
-   *
-   * The sidebar holds whatever bays you have installed, in the order they registered — which until
-   * now was a constant nobody could reach: shells above the statusline, whatever you would rather
-   * see. Defaults to 200, and Shell's is 150.
-   */
-  sidebarOrder?: number
   segments?: (string | SegmentConfig)[]
   separator?: string
   stack?: Stack
@@ -112,11 +116,10 @@ export interface StatusConfig {
   /** Draw a placeholder where a segment said nothing, so a typo and missing data look different. */
   debug?: boolean
   /**
-   * Vertical lines: rows to draw at most. Settable here as well as per line, because writing it
-   * here is the natural guess and having it quietly ignored costs exactly the rows it was meant
-   * to keep.
+   * Rows a column draws at most: the name every bay's sidebar block uses. Inside `lines`, a line's
+   * own cap is still `maxRows`.
    */
-  maxRows?: number
+  sidebarRows?: number
   paddingLeft?: number
   paddingRight?: number
   paddingTop?: number
@@ -131,80 +134,119 @@ export interface StatusConfig {
   modules?: string[]
 }
 
-export interface CockpitStatusConfig {
-  statusline?: StatusConfig
+/**
+ * The kind of value each key takes, as the loader checks it: a value of another kind is dropped
+ * with a `!` row naming the key, where it used to reach the renderer and fail there — or nowhere.
+ */
+const KINDS = {
+  preset: "",
+  surface: "",
+  segments: [] as unknown[],
+  separator: "",
+  stack: "",
+  icons: true,
+  debug: false,
+  paddingLeft: 0,
+  paddingRight: 0,
+  paddingTop: 0,
+  paddingBottom: 0,
+  lines: [] as unknown[],
+  commands: {} as Record<string, unknown>,
+  modules: [] as unknown[],
 }
 
-export function globalConfigPath(env: Record<string, string | undefined> = process.env): string {
-  const base = env.XDG_CONFIG_HOME ?? join(env.HOME ?? homedir(), ".config")
-  return join(base, "opencode-cockpit", CONFIG_FILE)
+const SURFACES: readonly string[] = ["bottom", "sidebar"]
+
+export interface LoadedStatus {
+  /** Every source merged, as written: the gaps are `resolveLines`'s to fill. */
+  config: StatusConfig
+  /** The block's place in the sidebar, from the top-level `sidebar` list. */
+  order: number
+  /**
+   * What to fix, one `!` row each: Status's own settings, and — because Status is the one bay every
+   * install draws — the notices that belong to no bay (a file that would not parse, a top-level
+   * name nothing reads, an entry in the `sidebar` list that is not a bay).
+   */
+  notices: string[]
+  settings: Settings
 }
 
-/** Reads and merges every source. `options` is the plugin entry's own options object. */
-export function loadStatusConfig(
-  directory: string,
-  options?: unknown,
-  env: Record<string, string | undefined> = process.env,
-): StatusConfig {
-  return mergeStatus(
-    mergeStatus(readStatusFile(globalConfigPath(env)), readStatusFile(join(directory, PROJECT_FILE))),
-    asStatusConfig(options),
-  )
+export interface StatusInput {
+  /** The plugin entry's options: the section's own keys, or a whole config with a `status` section. */
+  options?: unknown
+  where?: SettingsWhere
 }
 
-export function readStatusFile(path: string): StatusConfig {
-  if (!existsSync(path)) return {}
-  try {
-    return asStatusConfig(JSON.parse(readFileSync(path, "utf8")))
-  } catch {
-    return {}
+/** Reads and merges every source. Never throws. */
+export function loadStatus(input: StatusInput = {}): LoadedStatus {
+  const loaded = baySettings("status", KINDS, { options: input.options, where: input.where })
+  const written = loaded.written as StatusConfig
+  const config: StatusConfig = { ...written }
+  /** `features.status: false` turns the bay off as `enabled: false` does. */
+  if (!loaded.config.enabled) config.enabled = false
+  /** The shared switch, in Status's words: off the sidebar means at the bottom. */
+  if (written.sidebar === false && written.surface === undefined) config.surface = "bottom"
+  if (typeof written.sidebarRows === "number") config.sidebarRows = loaded.config.sidebarRows
+  /**
+   * Modules add up rather than replace: a project can bring its own segments without losing the ones
+   * you use everywhere. Every other list replaces the one before it, as in every bay.
+   */
+  const modules = [
+    ...loaded.settings.layers.flatMap((layer) => strings(layer.sections.status?.modules)),
+    ...strings(optionsSection(input.options)?.modules),
+  ]
+  if (modules.length > 0) config.modules = [...new Set(modules)]
+  else delete config.modules
+
+  const own = [...cockpitNoticesOf(loaded.settings), ...loaded.notices].map(noticeText)
+  return {
+    config,
+    order: loaded.order,
+    notices: [...own, ...configNotices(config)],
+    settings: loaded.settings,
   }
 }
 
-/**
- * Section-wise merge. `segments` is replaced rather than concatenated: a project that lists its
- * own segments means "this line", not "these as well as the global ones".
- */
-export function mergeStatus(base: StatusConfig, over: StatusConfig): StatusConfig {
-  const merged: StatusConfig = { ...base, ...over }
-  if (base.commands || over.commands) merged.commands = { ...base.commands, ...over.commands }
-  // Modules add up: a project can bring its own segments without losing the ones you use everywhere.
-  if (base.modules || over.modules) merged.modules = [...(base.modules ?? []), ...(over.modules ?? [])]
-  return merged
+/** Every source merged, as written. */
+export function loadStatusConfig(directory: string, options?: unknown, env = process.env): StatusConfig {
+  return loadStatus({ options, where: { directory, env } }).config
+}
+
+const cockpitNoticesOf = (settings: Settings): SettingsNotice[] =>
+  settings.notices.filter((notice) => notice.bay === "cockpit")
+
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+
+const strings = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((each): each is string => typeof each === "string") : []
+
+/** Plugin options as the section: a whole config's `status`, else the options themselves. */
+function optionsSection(options: unknown): Record<string, unknown> | undefined {
+  if (!isObject(options)) return undefined
+  return isObject(options.status) ? options.status : options
 }
 
 /**
- * Accepts either a whole cockpit config (`{ statusline: {...} }`) or the statusline section on its
- * own, because plugin-entry options are written straight onto the `tui.json` entry.
+ * What the loader cannot know is wrong, because only Status knows its vocabulary: a preset nothing
+ * answers to, a surface that does not exist. Each used to fall back in silence — an unknown preset
+ * was quietly the default line, which looks like a preset that does nothing.
  */
-export function asStatusConfig(input: unknown): StatusConfig {
-  if (!input || typeof input !== "object") return {}
-  const raw = input as Record<string, unknown>
-  const section = raw.statusline ?? (raw.status as unknown)
-  if (section && typeof section === "object") return section as StatusConfig
-  const own: StatusConfig = {}
-  for (const key of [
-    "enabled",
-    "preset",
-    "surface",
-    "segments",
-    "separator",
-    "stack",
-    "icons",
-    "debug",
-    "maxRows",
-    "paddingLeft",
-    "paddingRight",
-    "paddingTop",
-    "paddingBottom",
-    "lines",
-    "commands",
-    "modules",
-    "sidebarOrder",
-  ] as const) {
-    if (raw[key] !== undefined) Object.assign(own, { [key]: raw[key] })
+export function configNotices(config: StatusConfig): string[] {
+  const out: string[] = []
+  const names = Object.keys(PRESETS).join(", ")
+  const lines: LineConfig[] = [config, ...(Array.isArray(config.lines) ? config.lines : [])]
+  for (const [index, line] of lines.entries()) {
+    const where = index === 0 ? "status" : `status.lines[${index - 1}]`
+    /** The name first: in a 24-column sidebar it is what survives the wrap. */
+    if (typeof line.preset === "string" && !PRESETS[line.preset]) {
+      out.push(`settings: no preset "${line.preset}" (${names})`)
+    }
+    if (line.surface !== undefined && !SURFACES.includes(line.surface)) {
+      out.push(`settings: "${where}.surface" is "sidebar" or "bottom"`)
+    }
   }
-  return own
+  return out
 }
 
 /**
@@ -239,6 +281,40 @@ export const DEFAULT_SEGMENTS: (string | SegmentConfig)[] = [
 export const DEFAULT_SEPARATOR = " │ "
 
 /**
+ * The sidebar's column: a table. A heading, the window as one solid bar, the tokens broken into named
+ * rows, a proxy's budget, and the branch's whole diff.
+ *
+ * It is the layout a user arrived at after five rejected iterations, and the reasons are worth more
+ * than the rows: every number gets a word, the labels are a fixed column so the values line up, the
+ * bar is solid rather than dashed, and the groups are separated by hairlines rather than headings — a
+ * heading cannot know whether the rows under it will draw. A row whose figure is zero is not drawn,
+ * the budget rows say nothing without a proxy, and a hairline with nothing on one side of it goes too.
+ *
+ * It sits beside OpenCode's own Context block and says it better; turn that one off with
+ * `{ "plugin_enabled": { "internal:sidebar-context": false } }` in OpenCode's `tui.json`.
+ */
+export const SIDEBAR_SEGMENTS: (string | SegmentConfig)[] = [
+  "title",
+  { type: "context", style: "solid", width: 16, icon: "" },
+  /**
+   * Why it stalled — `retry 2 in 5s` — which OpenCode shows as a spinner and nothing more. It is the
+   * reason this bay exists, so it outranks everything but the bar when rows run out; under the bar
+   * rather than above it, so a row that comes and goes does not move the bar about.
+   */
+  { type: "session.status", priority: 95, icon: "" },
+  { type: "tokens", style: "row", icon: "" },
+  "in",
+  "out",
+  "cache",
+  "write",
+  "sep",
+  "spend",
+  "avail",
+  "sep",
+  "git",
+]
+
+/**
  * Whole lines, by the name of what you want.
  *
  * Composing a good statusline from fourteen segments is a design exercise, and most people want a
@@ -247,7 +323,7 @@ export const DEFAULT_SEPARATOR = " │ "
  */
 export const PRESETS: Record<
   string,
-  { about: string; surface: Surface; segments: (string | SegmentConfig)[] }
+  { about: string; surface: Surface; segments: (string | SegmentConfig)[]; maxRows?: number }
 > = {
   minimal: {
     about: "how full the context is, and what changed",
@@ -280,25 +356,16 @@ export const PRESETS: Record<
     ],
   },
   sidebar: {
-    about: "a quiet column beside OpenCode's own blocks",
+    about: "a table: the window, where the tokens went, a proxy's budget, the branch's diff",
     surface: "sidebar",
-    segments: [
-      { type: "context", style: "bar", width: 14, icon: "" },
-      /**
-       * Why it stalled — `retry 2 in 5s` — which OpenCode shows as a spinner and nothing more. It is
-       * the reason this bay exists, so it outranks everything but the bar when rows run out; under
-       * the bar rather than above it, so a row that comes and goes does not move the bar about.
-       */
-      { type: "session.status", priority: 95 },
-      { type: "tokens", format: "tk {total}", icon: "" },
-      { type: "tokens", format: "cache {cacheRead}", icon: "" },
-      { type: "git.diff", icon: "" },
-      { type: "session.time", of: "turn", icon: "" },
-      "todo",
-      "diagnostics",
-    ],
+    segments: SIDEBAR_SEGMENTS,
+    /** Every row it has, on a busy session with a budget: the table is the point of it. */
+    maxRows: 14,
   },
 }
+
+/** What a line draws when it names no preset and lists no segments: the surface's own. */
+const PRESET_FOR: Record<Surface, string> = { sidebar: "sidebar", bottom: "default" }
 
 export interface ResolvedLine {
   surface: Surface
@@ -323,6 +390,9 @@ const PADDING: Record<Surface, { left: number; right: number; top: number; botto
   sidebar: { left: 0, right: 0, top: 0, bottom: 0 },
 }
 
+/** Rows a column draws when neither the line, the bay nor the preset says. */
+const MAX_ROWS = 8
+
 /** Normalises whatever the config said into the lines the renderer draws. */
 export function resolveLines(config: StatusConfig): ResolvedLine[] {
   const lines = config.lines?.length
@@ -336,13 +406,17 @@ export function resolveLines(config: StatusConfig): ResolvedLine[] {
           stack: config.stack,
           icons: config.icons,
           debug: config.debug,
-          maxRows: config.maxRows,
         },
       ]
   return lines.map((line) => {
     // A preset fills in what was not written; it never overrides what was.
-    const preset = PRESETS[line.preset ?? config.preset ?? ""]
-    const surface = line.surface ?? config.surface ?? preset?.surface ?? "bottom"
+    const named = PRESETS[line.preset ?? config.preset ?? ""]
+    const asked = line.surface ?? config.surface
+    const surface: Surface = SURFACES.includes(asked ?? "")
+      ? (asked as Surface)
+      : (named?.surface ?? DEFAULT_SURFACE)
+    /** No preset by a name that exists: the one for the surface, so the sidebar is never blank. */
+    const preset = named ?? PRESETS[PRESET_FOR[surface]]
     // The sidebar is a narrow column: across, it would be three truncated words.
     const stack = line.stack ?? config.stack ?? (surface === "sidebar" ? "vertical" : "horizontal")
     return {
@@ -350,7 +424,7 @@ export function resolveLines(config: StatusConfig): ResolvedLine[] {
       segments: line.segments ?? config.segments ?? preset?.segments ?? DEFAULT_SEGMENTS,
       separator: line.separator ?? config.separator ?? (stack === "vertical" ? "" : DEFAULT_SEPARATOR),
       stack,
-      maxRows: line.maxRows ?? config.maxRows ?? 8,
+      maxRows: line.maxRows ?? config.sidebarRows ?? preset?.maxRows ?? MAX_ROWS,
       icons: line.icons ?? config.icons ?? true,
       debug: line.debug ?? config.debug ?? false,
       paddingLeft: line.paddingLeft ?? config.paddingLeft ?? PADDING[surface].left,

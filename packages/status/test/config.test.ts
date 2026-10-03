@@ -1,18 +1,13 @@
-import { afterEach, describe, expect, test } from "bun:test"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
-import { join } from "node:path"
+import { describe, expect, test } from "bun:test"
 import {
   asSegmentConfig,
-  asStatusConfig,
+  configNotices,
   DEFAULT_SEGMENTS,
   DEFAULT_SEPARATOR,
-  globalConfigPath,
-  loadStatusConfig,
-  mergeStatus,
+  loadStatus,
   PRESETS,
-  PROJECT_FILE,
-  readStatusFile,
   resolveLines,
+  SIDEBAR_SEGMENTS,
 } from "../src/core/config.ts"
 import { FIXTURES } from "../src/core/fixtures.ts"
 import { fitColumn } from "../src/core/render.ts"
@@ -20,88 +15,193 @@ import { buildSegments, findSegment } from "../src/core/segments.ts"
 
 const rowText = (runs: readonly { text: string }[]) => runs.map((run) => run.text).join("")
 
-const dirs: string[] = []
-const tmp = () => {
-  const dir = mkdtempSync("/tmp/ck-status-")
-  dirs.push(dir)
-  return dir
-}
-afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
-})
+/** Both files in memory, through the loader every bay reads with. */
+const GLOBAL = "/cfg/opencode-cockpit/config.json"
+const PROJECT = "/w/app/.cockpit.json"
+const load = (files: Record<string, unknown>, options?: unknown) =>
+  loadStatus({
+    options,
+    where: {
+      directory: "/w/app",
+      env: { XDG_CONFIG_HOME: "/cfg" },
+      read: (path) => {
+        const file = files[path]
+        return file === undefined ? undefined : typeof file === "string" ? file : JSON.stringify(file)
+      },
+    },
+  })
 
 describe("reading the config", () => {
-  test("a missing file is simply no settings", () => {
-    expect(readStatusFile("/nowhere/at/all.json")).toEqual({})
+  test("no file at all is no settings, and nothing to fix", () => {
+    const loaded = load({})
+    expect(loaded.config).toEqual({})
+    expect(loaded.notices).toEqual([])
   })
 
-  // A typo in a config should cost you your settings, never the interface.
-  test("a broken file is ignored rather than fatal", () => {
-    const dir = tmp()
-    const file = join(dir, "broken.json")
-    writeFileSync(file, "{ not json")
-    expect(readStatusFile(file)).toEqual({})
+  test("reads the `status` section, comments and trailing commas included", () => {
+    const loaded = load({ [GLOBAL]: '{\n  // mine\n  "status": { "separator": " | ", },\n}' })
+    expect(loaded.config.separator).toBe(" | ")
+    expect(loaded.notices).toEqual([])
   })
 
-  test("reads the statusline section out of a whole cockpit config", () => {
-    const dir = tmp()
-    const file = join(dir, PROJECT_FILE)
-    writeFileSync(file, JSON.stringify({ watch: { auto: true }, statusline: { separator: " | " } }))
-    expect(readStatusFile(file)).toEqual({ separator: " | " })
+  /** A typo in a config should cost you your settings, never the interface — and it says so. */
+  test("a broken file is ignored, with a `!` row that says the file could not be read", () => {
+    const loaded = load({ [GLOBAL]: "{ not json" })
+    expect(loaded.config).toEqual({})
+    expect(loaded.notices).toHaveLength(1)
+    expect(loaded.notices[0]).toMatch(/^settings: .*the whole file is ignored$/)
   })
 
-  test("plugin-entry options are accepted as the section itself", () => {
-    expect(asStatusConfig({ separator: " | ", segments: ["cwd"] })).toEqual({
+  test("plugin-entry options are accepted as the section itself, or as a whole config", () => {
+    expect(load({}, { separator: " | ", segments: ["cwd"] }).config).toMatchObject({
       separator: " | ",
       segments: ["cwd"],
     })
+    expect(load({}, { status: { separator: " / " } }).config.separator).toBe(" / ")
   })
 
-  test("anything that is not an object is no settings", () => {
-    expect(asStatusConfig(undefined)).toEqual({})
-    expect(asStatusConfig("nonsense")).toEqual({})
-    expect(asStatusConfig(null)).toEqual({})
+  test("a value of the wrong kind is dropped, with a row naming the key", () => {
+    const loaded = load({ [GLOBAL]: { status: { icons: "no", separator: " | " } } })
+    expect(loaded.config).toEqual({ separator: " | " })
+    expect(loaded.notices).toEqual(['settings: "status.icons" should be a boolean; the default is used'])
   })
 
-  test("the global path follows XDG when it is set", () => {
-    expect(globalConfigPath({ XDG_CONFIG_HOME: "/cfg" })).toBe("/cfg/opencode-cockpit/config.json")
-    expect(globalConfigPath({ HOME: "/home/u" })).toBe("/home/u/.config/opencode-cockpit/config.json")
+  test("off by `enabled`, or by the bundle's `features.status`", () => {
+    expect(load({ [GLOBAL]: { status: { enabled: false } } }).config.enabled).toBe(false)
+    expect(load({ [GLOBAL]: { features: { status: false } } }).config.enabled).toBe(false)
+  })
+})
+
+/**
+ * 0.9 renamed the section and stopped reading the file's root as Status's. Neither is read, and
+ * neither is silent: each is a `!` row, which is how a 0.8 config learns what changed.
+ */
+describe("old names", () => {
+  test("`statusline` is not read: it is a notice that names the fix", () => {
+    const loaded = load({ [GLOBAL]: { statusline: { separator: " | " } } })
+    expect(loaded.config.separator).toBeUndefined()
+    expect(loaded.notices).toEqual(['settings: "statusline" is no longer read — run /cockpit-setup'])
+  })
+
+  test("keys at the file's root are not Status's, and say where they belong", () => {
+    const loaded = load({ [GLOBAL]: { enabled: false, debug: true } })
+    expect(loaded.config.enabled).toBeUndefined()
+    expect(loaded.notices).toContain(
+      'settings: "enabled" at the top level is not read: it belongs in "status"',
+    )
+  })
+
+  test("a bay-level `maxRows` is `sidebarRows` now; inside `lines` it is still `maxRows`", () => {
+    const loaded = load({ [GLOBAL]: { status: { maxRows: 4, lines: [{ surface: "sidebar", maxRows: 3 }] } } })
+    expect(loaded.notices).toEqual(['settings: "status.maxRows" is no longer read — run /cockpit-setup'])
+    expect(resolveLines(loaded.config)[0]?.maxRows).toBe(3)
+  })
+
+  test("`sidebarOrder` is the top-level `sidebar` list now", () => {
+    const loaded = load({ [GLOBAL]: { status: { sidebarOrder: 120 } } })
+    expect(loaded.notices).toEqual(['settings: "status.sidebarOrder" is no longer read — run /cockpit-setup'])
+  })
+})
+
+/** Status is the one bay every install draws, so the notices that belong to no bay are its to draw. */
+describe("notices that belong to no bay", () => {
+  test("a top-level name nothing reads is drawn here", () => {
+    expect(load({ [GLOBAL]: { wobble: 1 } }).notices).toEqual(['settings: "wobble" is not a setting'])
+  })
+
+  test("as is a `sidebar` entry that is not a bay", () => {
+    const loaded = load({ [GLOBAL]: { sidebar: ["status", "panels"] } })
+    expect(loaded.notices).toHaveLength(1)
+    expect(loaded.notices[0]).toContain('"panels" in "sidebar" is not a bay')
+  })
+
+  test("another bay's own notice is that bay's to draw, not this one's", () => {
+    expect(load({ [GLOBAL]: { trust: { sidebarOrder: 1 } } }).notices).toEqual([])
   })
 })
 
 describe("precedence", () => {
   test("the project file beats the global one, and plugin options beat both", () => {
-    const config = tmp()
-    const project = tmp()
-    const env = { XDG_CONFIG_HOME: config }
-    mkdirSync(join(config, "opencode-cockpit"), { recursive: true })
-    writeFileSync(
-      globalConfigPath(env),
-      JSON.stringify({ statusline: { separator: " ~ ", segments: ["version"] } }),
-    )
-
-    // Global alone.
-    expect(loadStatusConfig(project, undefined, env).separator).toBe(" ~ ")
-
+    const files = {
+      [GLOBAL]: { status: { separator: " ~ ", segments: ["version"] } },
+      [PROJECT]: { status: { separator: " | " } },
+    }
+    expect(load({ [GLOBAL]: files[GLOBAL] }).config.separator).toBe(" ~ ")
     // The project overrides what it names and inherits what it does not.
-    writeFileSync(join(project, PROJECT_FILE), JSON.stringify({ statusline: { separator: " | " } }))
-    const merged = loadStatusConfig(project, undefined, env)
-    expect(merged.separator).toBe(" | ")
-    expect(merged.segments).toEqual(["version"])
-
+    expect(load(files).config).toMatchObject({ separator: " | ", segments: ["version"] })
     // The plugin entry wins over both.
-    expect(loadStatusConfig(project, { separator: " / " }, env).separator).toBe(" / ")
+    expect(load(files, { separator: " / " }).config.separator).toBe(" / ")
   })
 
   // Listing segments in a project means "this line", not "these as well as the global ones".
   test("segments are replaced, not concatenated", () => {
-    const merged = mergeStatus({ segments: ["cwd", "cost"] }, { segments: ["model"] })
-    expect(merged.segments).toEqual(["model"])
+    const loaded = load({
+      [GLOBAL]: { status: { segments: ["cwd", "cost"] } },
+      [PROJECT]: { status: { segments: ["model"] } },
+    })
+    expect(loaded.config.segments).toEqual(["model"])
   })
 
   test("commands from both sources are kept", () => {
-    const merged = mergeStatus({ commands: { budget: { run: "a" } } }, { commands: { pods: { run: "b" } } })
-    expect(Object.keys(merged.commands ?? {}).sort()).toEqual(["budget", "pods"])
+    const loaded = load({
+      [GLOBAL]: { status: { commands: { budget: { run: "a" } } } },
+      [PROJECT]: { status: { commands: { pods: { run: "b" } } } },
+    })
+    expect(Object.keys(loaded.config.commands ?? {}).sort()).toEqual(["budget", "pods"])
+  })
+
+  test("modules from every source add up rather than replacing each other", () => {
+    const loaded = load(
+      { [GLOBAL]: { status: { modules: ["~/a.ts"] } }, [PROJECT]: { status: { modules: ["./b.ts"] } } },
+      { modules: ["./c.ts"] },
+    )
+    expect(loaded.config.modules).toEqual(["~/a.ts", "./b.ts", "./c.ts"])
+  })
+})
+
+describe("where it draws", () => {
+  test("the sidebar, when nothing says otherwise", () => {
+    expect(resolveLines(load({}).config)[0]?.surface).toBe("sidebar")
+  })
+
+  /** The switch every bay shares, in Status's words: off the sidebar means at the bottom. */
+  test("`sidebar: false` means the bottom, with the bottom's own line", () => {
+    const [line] = resolveLines(load({ [GLOBAL]: { status: { sidebar: false } } }).config)
+    expect(line?.surface).toBe("bottom")
+    expect(line?.segments).toEqual(DEFAULT_SEGMENTS)
+  })
+
+  test("`surface` says it in Status's words, and wins", () => {
+    expect(load({ [GLOBAL]: { status: { sidebar: false, surface: "sidebar" } } }).config.surface).toBe(
+      "sidebar",
+    )
+  })
+
+  test("`sidebarRows` caps the column", () => {
+    const loaded = load({ [GLOBAL]: { status: { sidebarRows: 5 } } })
+    expect(resolveLines(loaded.config)[0]?.maxRows).toBe(5)
+  })
+
+  test("the block's place comes from the top-level `sidebar` list", () => {
+    expect(load({}).order).toBeLessThan(load({ [GLOBAL]: { sidebar: ["trust", "shell", "status"] } }).order)
+  })
+})
+
+/** What only Status can tell is wrong: its own vocabulary. A preset nothing answers to used to fall back in silence. */
+describe("settings only Status can check", () => {
+  test("a preset nothing answers to is a row, and the line still draws", () => {
+    const loaded = load({ [GLOBAL]: { status: { preset: "sidebar-budget" } } })
+    expect(loaded.notices).toEqual([
+      'settings: no preset "sidebar-budget" (minimal, default, detailed, sidebar)',
+    ])
+    expect(resolveLines(loaded.config)[0]?.segments).toEqual(SIDEBAR_SEGMENTS)
+  })
+
+  test("so is one inside `lines`, and a surface that does not exist", () => {
+    expect(configNotices({ lines: [{ preset: "nope" }, { surface: "top" as never }] })).toEqual([
+      'settings: no preset "nope" (minimal, default, detailed, sidebar)',
+      'settings: "status.lines[1].surface" is "sidebar" or "bottom"',
+    ])
   })
 })
 
@@ -119,9 +219,10 @@ describe("presets", () => {
   test("a preset brings its own surface", () => {
     expect(resolveLines({ preset: "sidebar" })[0]?.surface).toBe("sidebar")
     expect(resolveLines({ preset: "sidebar" })[0]?.stack).toBe("vertical")
+    expect(resolveLines({ preset: "default" })[0]?.surface).toBe("bottom")
   })
 
-  /** Why a turn stalled is what OpenCode does not show; the sidebar preset dropped it entirely. */
+  /** Why a turn stalled is what OpenCode does not show; the sidebar keeps it when rows run out. */
   test("every preset says why a turn stalled, and the sidebar keeps it when rows run out", () => {
     for (const [name, preset] of Object.entries(PRESETS))
       expect(
@@ -141,9 +242,9 @@ describe("presets", () => {
     expect(line?.segments).toEqual(["cwd"])
   })
 
-  test("a name nothing answers to falls back rather than drawing nothing", () => {
-    const [line] = resolveLines({ preset: "nope" })
-    expect(line?.segments).toEqual(DEFAULT_SEGMENTS)
+  test("a name nothing answers to falls back to the surface's own line rather than drawing nothing", () => {
+    expect(resolveLines({ preset: "nope" })[0]?.segments).toEqual(SIDEBAR_SEGMENTS)
+    expect(resolveLines({ preset: "nope", surface: "bottom" })[0]?.segments).toEqual(DEFAULT_SEGMENTS)
   })
 
   test("every preset uses only built-ins, so none of them needs a module", () => {
@@ -157,18 +258,19 @@ describe("presets", () => {
 })
 
 describe("resolving lines", () => {
-  test("writing nothing gives the default line at the bottom", () => {
+  test("writing nothing gives the sidebar's table", () => {
     const [line] = resolveLines({})
-    expect(line?.surface).toBe("bottom")
+    expect(line?.surface).toBe("sidebar")
+    expect(line?.segments).toEqual(SIDEBAR_SEGMENTS)
+    expect(line?.separator).toBe("")
+  })
+
+  test("the bottom with nothing else written gives the default line", () => {
+    const [line] = resolveLines({ surface: "bottom" })
     expect(line?.segments).toEqual(DEFAULT_SEGMENTS)
     expect(line?.separator).toBe(DEFAULT_SEPARATOR)
   })
 
-  /**
-   * OpenCode's own footer, sidebar and prompt already carry the path, branch, tokens, context
-   * percentage, spend and model. A default that repeated them would draw the same figure several
-   * times on one screen, which is exactly what it looked like before this rule.
-   */
   /**
    * The rule is not to avoid every fact OpenCode mentions -- it is to avoid saying one no better
    * than the host does. A bar with the breakdown beside it is a different instrument from
@@ -225,11 +327,6 @@ describe("resolving lines", () => {
     expect(side?.separator).toBe(DEFAULT_SEPARATOR)
   })
 
-  test("modules from both sources add up rather than replacing each other", () => {
-    const merged = mergeStatus({ modules: ["~/a.ts"] }, { modules: ["./b.ts"] })
-    expect(merged.modules).toEqual(["~/a.ts", "./b.ts"])
-  })
-
   // Promised in the docs, so it has to actually reach the builder.
   test("icons are on by default and can be switched off globally or per line", () => {
     expect(resolveLines({})[0]?.icons).toBe(true)
@@ -253,34 +350,24 @@ describe("resolving lines", () => {
    * Writing these at the top level is the natural guess, and having them quietly ignored costs
    * exactly the rows they were meant to keep.
    */
-  test("maxRows and padding can be set once for every line", () => {
-    const [line] = resolveLines({ surface: "sidebar", maxRows: 20, paddingLeft: 4 })
+  test("the row cap and padding can be set once for every line", () => {
+    const [line] = resolveLines({ surface: "sidebar", sidebarRows: 20, paddingLeft: 4 })
     expect(line?.maxRows).toBe(20)
     expect(line?.paddingLeft).toBe(4)
   })
 
   test("a line still overrides what the top level set", () => {
-    const [line] = resolveLines({ maxRows: 20, lines: [{ surface: "sidebar", maxRows: 3 }] })
+    const [line] = resolveLines({ sidebarRows: 20, lines: [{ surface: "sidebar", maxRows: 3 }] })
     expect(line?.maxRows).toBe(3)
+  })
+
+  test("the table's preset brings room for every row it has; another column keeps eight", () => {
+    expect(resolveLines({})[0]?.maxRows).toBe(PRESETS.sidebar?.maxRows)
+    expect(resolveLines({ surface: "sidebar", segments: ["cwd"], preset: "minimal" })[0]?.maxRows).toBe(8)
   })
 
   test("a bare string is that built-in with no settings", () => {
     expect(asSegmentConfig("cwd")).toEqual({ type: "cwd" })
     expect(asSegmentConfig({ type: "cwd", priority: 5 })).toEqual({ type: "cwd", priority: 5 })
-  })
-})
-
-/**
- * Two bays share the sidebar and draw in registration order, which was a constant nobody could
- * reach. A key the loader drops is a setting that silently does nothing.
- */
-describe("where the line sits among other bays", () => {
-  test("sidebarOrder survives the loader, from a file and from plugin options", () => {
-    expect(asStatusConfig({ statusline: { sidebarOrder: 120 } }).sidebarOrder).toBe(120)
-    expect(asStatusConfig({ sidebarOrder: 120 }).sidebarOrder).toBe(120)
-  })
-
-  test("and is absent when nobody set it, so the default stands", () => {
-    expect(asStatusConfig({ surface: "sidebar" }).sidebarOrder).toBeUndefined()
   })
 })

@@ -125,7 +125,20 @@ describe("loading your own segments", () => {
     })
     expect(segments.size).toBe(0)
     expect(errors[0]).toContain("./nope.ts")
-    expect(errors[0]).toContain("Cannot find module")
+    // Nothing at that path: said in words, rather than as the resolver's stack of paths.
+    expect(errors[0]).toContain("no file there")
+  })
+
+  /** 0.9 folded the sidebar examples into the `sidebar` preset; a config naming one is told so. */
+  test("a sidebar example 0.9 removed says what replaced it", async () => {
+    const { errors } = await loadCustomSegments(
+      ["~/node_modules/@opencode-cockpit/status/examples/sidebar-budget.ts"],
+      "/w/app",
+      async () => {
+        throw new Error("Cannot find module")
+      },
+    )
+    expect(errors[0]).toContain('use "preset": "sidebar"')
   })
 
   test("an export that is not a function is reported, and its siblings still load", async () => {

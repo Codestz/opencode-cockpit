@@ -1,6 +1,6 @@
 ---
 name: statusline-design
-description: Designing or editing an opencode-cockpit statusline — a bottom line or a sidebar column, its config, or a TypeScript segment module. Use when a request mentions the statusline, a segment, .cockpit.json's statusline section, or a module importing @opencode-cockpit/status/segment.
+description: Designing or editing an opencode-cockpit statusline (the Status bay) — the sidebar table or a bottom line, its config, or a TypeScript segment module. Use when a request mentions the statusline, the status bay, /status-setup, a segment, the "status" section of config.json or .cockpit.json, or a module importing @opencode-cockpit/status/segment.
 ---
 
 # Designing a statusline
@@ -75,8 +75,11 @@ state you happen to be looking at.
 - A run takes `tone`, `color`, `bg`, `bgTone`, `bold`, `dim`, `italic`, `underline`.
 - **A track drawn in `panel` tone is invisible** on most themes — it is the panel's own colour.
   Use `border`.
-- A **column** keeps at most `maxRows` rows (default 8) — **count your rows and raise it**, or the
-  extras vanish. The preview prints `↳ N dropped` when this happens.
+- A **column** keeps at most `sidebarRows` rows (a line in `lines` says `maxRows`; 14 for the
+  `sidebar` preset, 8 for any other column) — **count your rows and raise it**, or the extras
+  vanish. The preview prints `↳ N dropped` when this happens.
+- A `sep` hairline draws only with a row on either side of it, so a group that says nothing does
+  not strand one.
 - A **line** drops the lowest-priority segments until it fits the width.
 - A segment that throws loses only its own row. A module that fails to load raises a toast naming
   the file.
@@ -99,8 +102,9 @@ truncated; a track *was* being drawn and `panel` was the panel's own colour.
 
 | What | Where |
 | --- | --- |
-| Settings, every project | `~/.config/opencode-cockpit/config.json` |
-| Settings, one project | `<project>/.cockpit.json` |
+| Settings, every project | the `"status"` section of `~/.config/opencode-cockpit/config.json` |
+| Settings, one project | the `"status"` section of `<project>/.cockpit.json` |
+| Old names | `"statusline"`, Status keys at the file's root, a bay-level `maxRows`, `sidebarOrder`: not read; each is a `!` row. Write `"status"`, `sidebarRows`, and the top-level `"sidebar"` list |
 | Modules | anywhere — `~/.config/opencode-cockpit/modules/` needs no `node_modules` beside it |
 | Which plugins load | `~/.config/opencode/tui.json` |
 
@@ -120,7 +124,9 @@ The footer under the prompt is core UI: it cannot be hidden. Design around it.
 
 ## Start simple
 
-Most people want a good line, not a composition exercise. Begin with the built-ins and a `format`
-string; reach for a module only when the answer needs the session read, decided on, or remembered
+Most people want a good line, not a composition exercise. The default is the `sidebar` preset — the
+table this skill's rules were learned on: `title`, a `solid` context bar, a `tokens` row, `in` `out`
+`cache` `write`, `sep`, `spend` `avail` (a proxy's budget file; silent without one), `sep`, `git`.
+Begin with the presets and the built-ins and a `format` string; reach for a module only when the answer needs the session read, decided on, or remembered
 across ticks — a rate, a trend, a budget from a file. Reach for a shell `command` for anything a CLI
 already prints; do not reimplement the shell as a segment.

@@ -5,6 +5,7 @@ import { contextRatio, contextUsed } from "../context.ts"
 import { bar, compact, gradient, money, percent, shortModel } from "../format.ts"
 import type { Run, SegmentDef, Tone } from "../types.ts"
 import { formatted, num, str } from "./settings.ts"
+import { labelled, level } from "./table.ts"
 
 export const SEGMENTS: SegmentDef[] = [
   {
@@ -74,6 +75,23 @@ export const SEGMENTS: SegmentDef[] = [
         return { runs }
       }
 
+      if (style === "solid") {
+        /**
+         * The sidebar table's bar: filled cells in the gauge rule's tone, the rest a solid dark track.
+         * Not `░`, which reads as floating gaps, and not `─`, a row of dashes. No end caps — `▕` and
+         * `▏` are eighth-blocks whose ink sits against one edge, so a cap indents the bar off the
+         * label column — and no figure: the `tokens` row under it reads the percentage out, and a
+         * number printed twice in a column of ten rows is what the eye catches on.
+         */
+        const filled = Math.round(ratio * width)
+        return {
+          runs: [
+            { text: "█".repeat(filled), tone: gaugeTone(ratio, warnAt, dangerAt) },
+            { text: "█".repeat(width - filled), tone: "border" },
+          ],
+        }
+      }
+
       if (style === "bar") {
         const filled = bar(ratio, width)
         /**
@@ -127,6 +145,15 @@ export const SEGMENTS: SegmentDef[] = [
         cache: compact(tokens.cache.read + tokens.cache.write),
       })
       if (shaped) return shaped
+
+      /** A row of the sidebar table: the whole window, and how full it is, coloured only as a level. */
+      if (str(config, "style") === "row") {
+        const ratio = contextRatio(ctx.session)
+        return labelled("tokens", [
+          { text: compact(used), tone: "text" },
+          ...(ratio === undefined ? [] : [{ text: ` · ${percent(ratio)}`, tone: level(ratio) }]),
+        ])
+      }
 
       /**
        * The parts, coloured by what they are rather than labelled in a row of equal-weight text:

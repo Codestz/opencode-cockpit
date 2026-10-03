@@ -9,7 +9,8 @@ import { buildSegments, type Segment, segmentText, segmentWidth } from "../src/c
  * run is worse than no example, and this is the only thing that catches one.
  */
 
-const EXAMPLES = ["bottom", "sidebar", "sidebar-full", "sidebar-budget"] as const
+/** The sidebar ones became the `sidebar` preset in 0.9; its rows are built-ins, tested in table.test.ts. */
+const EXAMPLES = ["bottom"] as const
 
 const session = (over: Partial<SessionSnapshot> = {}): SessionSnapshot => ({
   id: "ses_1",
@@ -124,129 +125,5 @@ describe("the bottom example", () => {
   test("cache reports the share of the window it did not have to re-send", () => {
     const drawn = draw("bottom", "cached", ctx({ session: working(0.5) }))
     expect(segmentText(drawn as Segment)).toBe("▌50% cached")
-  })
-})
-
-/**
- * This one replaces OpenCode's own Context block rather than sitting beside it, so it has to carry
- * what that block carried — the percentage, the token total and the spend — or turning the host's
- * block off leaves the user worse off than before.
- */
-describe("the full sidebar example", () => {
-  const full = (over: Partial<ReturnType<typeof working>> = {}) => ({ ...working(0.4), ...over })
-
-  test("carries everything the host's Context block did", () => {
-    const ctxWith = ctx({ session: full() })
-    expect(segmentText(draw("sidebar-full", "bar", ctxWith) as Segment)).toContain("40%")
-    expect(segmentText(draw("sidebar-full", "window", ctxWith) as Segment)).toContain("/")
-    expect(segmentText(draw("sidebar-full", "spend", ctxWith) as Segment)).toContain("$")
-  })
-
-  test("every row fits a sidebar column", () => {
-    const ctxWith = ctx({ session: full() })
-    for (const type of loaded["sidebar-full"].segments.keys()) {
-      const drawn = draw("sidebar-full", type, ctxWith)
-      if (drawn) expect(segmentWidth(drawn)).toBeLessThanOrEqual(32)
-    }
-  })
-
-  test("without a declared window it reports the total rather than a share of nothing", () => {
-    const unmeasured = ctx({
-      session: {
-        ...working(0.4),
-        model: { providerID: "p", modelID: "m" },
-      },
-    })
-    expect(draw("sidebar-full", "bar", unmeasured)).toBeUndefined()
-    expect(segmentText(draw("sidebar-full", "window", unmeasured) as Segment)).toContain("tok")
-  })
-
-  test("spend stays silent on an unpriced model", () => {
-    const unpriced = ctx({ session: { ...working(0.4), priced: false } })
-    expect(draw("sidebar-full", "spend", unpriced)).toBeUndefined()
-  })
-
-  test("tasks go quiet once the list is finished", () => {
-    const done = ctx({ session: { ...working(0.4), todo: { total: 5, completed: 5 } } })
-    expect(draw("sidebar-full", "todo", done)).toBeUndefined()
-  })
-})
-
-describe("the sidebar example", () => {
-  test("rows carry a dim label so a column of them reads as a table", () => {
-    const drawn = draw("sidebar", "changes", ctx({ session: working() }))
-    expect(drawn?.runs[0]).toMatchObject({ text: "diff ", dim: true })
-    expect(segmentText(drawn as Segment)).toBe("diff 3f +120 -18")
-  })
-
-  test("the bar is exactly the width asked for, with its figure beside it", () => {
-    const drawn = buildSegments(ctx({ session: working(0.5) }), [{ type: "bar", width: 10 }], {
-      custom: loaded.sidebar.segments,
-      icons: false,
-    })[0]
-    expect(segmentText(drawn as Segment)).toMatch(/^[█░]{10} 50%$/)
-  })
-
-  test("the split parts always add up to the whole window", () => {
-    const drawn = draw("sidebar", "split", ctx({ session: working() }))
-    const shares = [...segmentText(drawn as Segment).matchAll(/(\d+)%/g)].map((m) => Number(m[1]))
-    expect(shares.reduce((a, b) => a + b, 0)).toBe(100)
-  })
-})
-
-/**
- * The table sidebar. Its whole point is that a column of rows lines up, so the label gutter is
- * worth asserting: a row that pads to a different width reads as a typo from across the room.
- */
-describe("the budget sidebar example", () => {
-  const withSession = () => ctx({ session: working(0.4) })
-
-  test("every labelled row starts with the same seven-column gutter, a space past the longest label", () => {
-    for (const type of ["tokens", "in", "out", "cache"]) {
-      const drawn = draw("sidebar-budget", type, withSession())
-      expect(drawn?.runs[0]?.text).toHaveLength(7)
-    }
-  })
-
-  test("the token rows are shares of the window, and they add up to it", () => {
-    const shares = ["in", "out", "cache", "write"].map((type) => {
-      const drawn = draw("sidebar-budget", type, withSession())
-      return drawn ? Number(/(\d+)%$/.exec(segmentText(drawn))?.[1] ?? 0) : 0
-    })
-    expect(shares.reduce((a, b) => a + b, 0)).toBe(100)
-  })
-
-  /** The figure lives on the tokens row below; printing it twice is what the bar is spared. */
-  test("the bar is the full width of solid cells and nothing else", () => {
-    const text = segmentText(draw("sidebar-budget", "bar", withSession()) as Segment)
-    expect(text).toBe("█".repeat(16))
-  })
-
-  /** Without a proxy writing the file there is no budget, and a made-up one would be worse. */
-  test("the budget rows stay silent when nothing reports a spend", () => {
-    expect(draw("sidebar-budget", "spend", withSession())).toBeUndefined()
-    expect(draw("sidebar-budget", "avail", withSession())).toBeUndefined()
-  })
-
-  test("demo fills them in, so the layout can be looked at before a proxy exists", () => {
-    const drawn = buildSegments(withSession(), [{ type: "avail", demo: true }], {
-      custom: loaded["sidebar-budget"].segments,
-      icons: false,
-    })[0]
-    expect(segmentText(drawn as Segment)).toBe("avail  $173.76 · 87% left")
-  })
-
-  /** `write 0 · 0%` on a session with no cache writes said nothing, in a row of its own. */
-  test("a row whose figure is zero is not drawn", () => {
-    expect(draw("sidebar-budget", "write", withSession())).toBeUndefined()
-  })
-
-  /** The word is the label: no coloured square beside it, and the figures are not categories. */
-  test("colour is a level, never a label", () => {
-    for (const type of ["tokens", "in", "out", "cache"]) {
-      const drawn = draw("sidebar-budget", type, withSession())
-      expect(segmentText(drawn as Segment)).not.toContain("▪")
-      for (const run of drawn?.runs ?? []) expect(["text", "muted"]).toContain(run.tone)
-    }
   })
 })

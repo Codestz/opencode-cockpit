@@ -4,6 +4,7 @@
  * OpenCode to draw it in.
  */
 
+import type { Budget } from "./budget.ts"
 import type { DiffCounts } from "./diff.ts"
 
 export interface TokenCounts {
@@ -103,6 +104,13 @@ export interface StatusContext {
    * the second renders zeros.
    */
   diff?: DiffCounts
+  /**
+   * The branch's whole diff against where it forked from the default branch: every commit on it plus
+   * what is uncommitted — what a reviewer will read. Absent until git answers, and outside a repo.
+   */
+  branchDiff?: DiffCounts
+  /** What a proxy reports spending against its cap. Absent when no proxy writes one. */
+  budget?: Budget
   session?: SessionSnapshot
   lsp: ServiceSnapshot[]
   mcp: ServiceSnapshot[]
