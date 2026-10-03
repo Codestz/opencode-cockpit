@@ -11,6 +11,7 @@ export const nav = {
     { label: "Statusline", href: "#status" },
     { label: "Updater", href: "#updater" },
     { label: "Subagents", href: "#subagents" },
+    { label: "Trail", href: "#trail" },
     { label: "Trust", href: "#trust" },
     { label: "Platform", href: "#platform" },
     { label: "Install", href: "#install" },
@@ -60,7 +61,7 @@ export const compare = {
 }
 
 export const platform = {
-  number: "08",
+  number: "09",
   kicker: "The platform",
   title: "What every capability inherits.",
   intro:
@@ -111,7 +112,7 @@ export const platform = {
 export const bays = {
   number: "01",
   kicker: "What is fitted",
-  title: "Six instruments today. One switch each.",
+  title: "Seven instruments today. One switch each.",
   intro:
     "Every bay is its own npm package with a switch in config. They share the daemon, the config " +
     "file and the keys, so the second costs nothing and moving between them changes nothing you " +
@@ -282,6 +283,39 @@ export const bays = {
       },
     },
     {
+      id: "trail",
+      name: "Trail",
+      tagline: "What a conversation made — and which conversation made it",
+      state: "live",
+      status: "Available",
+      gains: {
+        agent: "Records the PRs, tickets and pages it creates, and can say which conversation made one",
+        you: "Everything a conversation made, in the sidebar, one click from the page",
+      },
+      blurb:
+        "A conversation opens pull requests in two repositories, moves a ticket, publishes a page — and " +
+        "the only record is the chat. Trail keeps it: the agent records what it creates or changes with " +
+        "whatever tools you use, and Cockpit orders it by the ticket it was for and puts it in the " +
+        "sidebar, a click from the page. Months later, `/trail` says which conversation opened PR #33 and " +
+        "takes you back into it.",
+      points: [
+        "No setup: the agent writes the trail, with gh, an MCP server, any tool",
+        "Grouped by the work — a ticket heads its PRs",
+        "Click a row: the page opens in your browser",
+        "Which conversation made it, and a jump back into it",
+        "Links it printed and never recorded are offered, never added",
+        "Copy a conversation's trail as markdown, for the PR or the standup",
+      ],
+      foot: ["sidebar · /trail · /link", "trail_add · trail_list", "@opencode-cockpit/trail"],
+      docs: "/trail/overview/",
+      media: {
+        kind: "image" as const,
+        src: "/media/trail.png",
+        alt: "Trail in the sidebar — a conversation's PRs, tickets, pages and deploys grouped under the tickets they were for — and the /trail dialog with the same records, their systems, what was done and when, and two links found in command output but not recorded",
+        caption: "bunx @opencode-cockpit/trail preview · the rows OpenCode draws, from a sample conversation",
+      },
+    },
+    {
       id: "trust",
       name: "Trust",
       tagline: "Permissions that learn — exactly what you approved, and nothing near it",
@@ -319,7 +353,7 @@ export const bays = {
 
 /** What is coming, and the reason it is next. */
 export const next = {
-  number: "09",
+  number: "10",
   kicker: "What is next",
   title: "One bay at a time, and only what can be built.",
   intro:
@@ -339,7 +373,7 @@ export const next = {
 }
 
 export const install = {
-  number: "10",
+  number: "11",
   kicker: "Install",
   title: "Two minutes, then ask it to start something.",
   modes: [

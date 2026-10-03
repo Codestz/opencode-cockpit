@@ -1,0 +1,106 @@
+---
+title: Trail
+description: What a conversation made — the PRs, tickets and pages your agent created or changed, kept per conversation, one click from the page, and which conversation made each.
+---
+
+A conversation produces things that outlive it: pull requests, often in more than one repository,
+tickets created or moved, a deploy, a page. Today the only record is the chat. Trail keeps it, per
+conversation, and answers both ways: *what did this conversation make?* and *which conversation
+made PR #33 — take me there.*
+
+```sh
+opencode plugin @opencode-cockpit/trail@0.9.0 --global --force     # OpenCode 1
+opencode plugin add @opencode-cockpit/trail@0.9.0                   # OpenCode 2
+```
+
+Or through the bundle, where it is on by default (`features.trail: false` turns it off).
+
+**There is nothing to set up.** People reach the same systems in different ways — `gh`, an MCP
+server, a company CLI — and the agent always knows what it just did. So the agent writes the trail
+and Cockpit keeps, orders and shows it. Trail has no GitHub or Jira client and stores no
+credentials.
+
+![Trail in the sidebar, grouped by the tickets the work was for, and the /trail dialog with the same records and two links found in command output but never recorded](/opencode-cockpit/media/trail.png)
+
+## How things get into it
+
+- **The agent records them** with `trail_add`, right after it creates or changes something outside
+  the repository's files. Its system prompt says so on every request, subagents included. A
+  subagent's records belong to the conversation and name the subagent.
+- **A safety net, never automatic.** A PR or issue link in the output of something the agent *ran* —
+  a shell command, an MCP call — that it has not recorded is put to it on its next request as a
+  choice: *seen in output — record it if you created or changed it*. Links in files it read or pages
+  it fetched never count. Nothing is added without the agent or you.
+- **You add one** with `/link <url> [note]`, or with `a` on a link `/trail` found in what the
+  conversation ran.
+
+The same link again updates its record — the actions become a history, `created → updated` — and a
+better title replaces the old one. Which system a thing belongs to comes from its link: GitHub,
+Jira, Confluence, Claude, Linear, or else its domain. Query parameters that look like secrets are
+dropped before anything is stored, and only `http(s)` links are ever opened.
+
+## In the sidebar
+
+On by default, after Shells. What this conversation made, grouped by the ticket it was for, newest
+work first: its name, its title, its system, what this conversation last did and when. There is no
+status — where a PR stands now belongs to GitHub, one click away; a trail that said "open" for a
+merged PR would be worse than none.
+
+- **A row with `↗` opens the page** in your browser.
+- A row without a page opens `/trail` on it; `+ N more` opens `/trail`.
+- Empty, the block says `none yet`; `hideWhenEmpty` hides it until there is something to show.
+
+## `/trail`
+
+`/trail`, `ctrl+x f`, or the palette ("cockpit trail"): **This conversation** and **All
+conversations** in the project (`tab`), grouped the same way. Under a thing several conversations
+touched, each one is listed — a deleted conversation keeps its records, marked.
+
+| key | |
+| --- | --- |
+| `enter` | open the page |
+| `g` | go to the conversation that made it |
+| `c` | copy the link |
+| `a` | add a link the conversation printed but never recorded |
+| `x` | remove it from the trail |
+| `m` | copy the trail as a markdown list |
+| `/` | search title, ref, kind and system |
+| `esc` | close |
+
+## The agent's tools
+
+| tool | |
+| --- | --- |
+| `trail_add` | `title`, and `url` or `ref`; optional `kind`, `action`, `for`, `note` — all free text |
+| `trail_list` | this conversation's trail, or with `all` the project's and which conversation made each; `query` filters |
+
+`trail_list` answers with the same facts in the same order as `/trail`. What the conversation
+produced is also rebuilt into its system prompt on every request, from the trail itself, so the
+agent still knows after a long conversation is compacted.
+
+## Settings
+
+```jsonc
+// ~/.config/opencode-cockpit/config.json, or a project's .cockpit.json
+{
+  "trail": { "sidebar": true, "sidebarRows": 5, "hideWhenEmpty": false }
+}
+```
+
+`enabled` and `keybinds` work as in every bay; the block's place is the top-level `"sidebar"` list's
+to say. See [Configuration](/opencode-cockpit/configuration/).
+
+## Team conventions
+
+Optional. A few lines in your `AGENTS.md` shape what gets recorded — they do not make it happen:
+
+```md
+## Trail
+- Tickets are Jira keys like COM-1234: pass the PR's ticket as `for`.
+- Put the Confluence space in a page's title: "WEB · Release notes 0.8".
+```
+
+## Where it keeps things
+
+One append-only file per project, outside it, under `~/.local/share/opencode-cockpit/trail/`.
+Every window and the agent append to it; nothing is ever rewritten.
