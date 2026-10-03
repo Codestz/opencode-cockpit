@@ -10,7 +10,8 @@
  * package must be linked once, by a person — `npm trust` needs your interactive login and 2FA — and
  * npm only allows it for a package that already exists (see scripts/bootstrap-package.ts).
  *
- * A package already linked makes npm say "already exists"; that one is done.
+ * A package already linked makes npm answer 409 "… already exists"; that one is done. All ten were
+ * linked for 0.8.0 (see `npm trust list <package>`).
  */
 
 import { join } from "node:path"
@@ -43,7 +44,14 @@ for (const { dir, name } of chosen) {
   )
   if ((await proc.exited) === 0) console.log(`✓ ${name}: linked to ${REPO} ${WORKFLOW}`)
   else {
-    console.log(`✗ ${name}: see npm's message above ("already exists" means it was linked before)`)
+    /**
+     * npm answers a second link with 409 "a trusted publisher configuration … already exists": that
+     * package is linked already. Checking first would cost another 2FA prompt per package, since npm
+     * asks for it to list a package's trusted publishers too.
+     */
+    console.log(
+      `✗ ${name}: see npm above. A 409 "configuration … already exists" means it is linked already.`,
+    )
     failed.push(name)
   }
 }
