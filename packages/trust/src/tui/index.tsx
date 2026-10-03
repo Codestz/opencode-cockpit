@@ -9,8 +9,10 @@
  * ledger file read and appended, and the two surfaces — the sidebar block and the ledger dialog.
  */
 
+import { warnRows } from "@opencode-cockpit/client/design"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
 import { bindingLookup, dualTui, type Host, type Layer } from "@opencode-cockpit/client/host"
+import { noticeText } from "@opencode-cockpit/client/settings"
 import type { BoxRenderable } from "@opentui/core"
 import { createSignal } from "solid-js"
 import { commandOf, type Seen } from "../core/adapt/seen.ts"
@@ -143,8 +145,14 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
     let inSidebar = settings.sidebar
     const paint = () => {
       drawnAt = sidebarWidth()
+      /**
+       * A setting in Trust's section that is not read — an old name, a value of the wrong kind — is
+       * a `!` row on top, for the session, until the file is fixed. Shown with the block hidden too:
+       * like trouble, a setting that silently does nothing is what nobody would find otherwise.
+       */
+      const warned: Row[] = notices.flatMap((notice) => warnRows(noticeText(notice), drawnAt))
       /** Hidden, the block says nothing — except trouble: a failure always speaks. */
-      const next =
+      const block =
         !inSidebar && !trouble
           ? []
           : sidebarRows({
@@ -158,6 +166,7 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
               ...(inSidebar ? { project: tally(engine.state, settings, Date.now()) } : {}),
               ...(trouble ? { trouble } : {}),
             })
+      const next = [...warned, ...block]
       /** Only when they changed: new rows rebuild every line of the block. */
       const text = JSON.stringify(next)
       if (text !== said) {
