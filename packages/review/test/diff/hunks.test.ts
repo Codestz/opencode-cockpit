@@ -212,6 +212,61 @@ describe("large files", () => {
     expect(added?.text).toBe("line 1500 — changed")
   })
 
+  /**
+   * The 0.8 limitation: the trim takes only what is identical at the very ends, so two edits 2,860
+   * lines apart left a 2,860-line middle — past the table's cap, and drawn as every line out and
+   * every line back in. It is split on its unique lines now, and reads as the two edits it is.
+   */
+  test("two edits more than 2,000 lines apart are two edits, not a rewrite", () => {
+    const lines = Array.from({ length: 3000 }, (_, index) => `field ${index + 1}`)
+    const edited = [...lines]
+    edited[39] = "renamed 40"
+    edited[2899] = "renamed 2900"
+
+    const started = performance.now()
+    const diff = diffLines(lines.join("\n"), edited.join("\n"))
+    const elapsed = performance.now() - started
+
+    expect(countChanges(diff)).toEqual({ additions: 2, deletions: 2 })
+    expect(numbered(diff.filter((line) => line.kind !== "context"))).toEqual([
+      "40||field 40",
+      "|40|renamed 40",
+      "2900||field 2900",
+      "|2900|renamed 2900",
+    ])
+    expect(toHunks(lines.join("\n"), edited.join("\n"))).toHaveLength(2)
+    expect(elapsed).toBeLessThan(250)
+  })
+
+  test("far apart, with lines inserted and removed between: every number still points at its file", () => {
+    const lines = Array.from({ length: 6000 }, (_, index) => `row ${index + 1}`)
+    const edited = [...lines]
+    edited.splice(4500, 2) // rows 4501–4502 removed
+    edited.splice(100, 0, "new a", "new b", "new c") // three inserted after row 100
+    const diff = diffLines(lines.join("\n"), edited.join("\n"))
+
+    expect(countChanges(diff)).toEqual({ additions: 3, deletions: 2 })
+    expect(numbered(diff.filter((line) => line.kind !== "context"))).toEqual([
+      "|101|new a",
+      "|102|new b",
+      "|103|new c",
+      "4501||row 4501",
+      "4502||row 4502",
+    ])
+    /** Context either side of the far edit is numbered from each file. */
+    const after = diff.find((line) => line.text === "row 4503")
+    expect([after?.before, after?.after]).toEqual([4503, 4504])
+  })
+
+  test("a stretch with no line unique to hold on to is still a rewrite, bounded", () => {
+    const repeated = Array.from({ length: 4400 }, (_, index) => (index % 2 ? "}" : "{"))
+    const before = ["start", ...repeated, "end"].join("\n")
+    const after = ["START", ...repeated.slice(1), "x", "END"].join("\n")
+    const lines = diffLines(before, after)
+    expect(lines.length).toBeGreaterThan(0)
+    expect(lines.filter((line) => line.kind !== "add").at(-1)?.before).toBe(4402)
+  })
+
   test("a rewrite is reported as everything out then everything in, still numbered from the file", () => {
     const before = Array.from({ length: 2500 }, (_, index) => `old ${index}`).join("\n")
     const after = Array.from({ length: 2500 }, (_, index) => `new ${index}`).join("\n")
