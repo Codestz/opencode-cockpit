@@ -112,6 +112,8 @@ const frame = (rows: Row[]) => {
   return rows.map((row) => `${edge}${paint(row)}${edge}`)
 }
 
+const NOTICE = 'settings: "trail.sidebarRows" should be a number; the default is used'
+
 const out: string[] = []
 for (const name of names) {
   const make = SAMPLES[name]
@@ -124,6 +126,26 @@ for (const name of names) {
   const mine = arrange(conversationThings(state, session))
   out.push("", `Sidebar (${sidebarWidth} columns)`, "")
   out.push(...frame(sidebarRows({ width: sidebarWidth, arranged: mine, now: SAMPLE_NOW, limit: 6 }).rows))
+  /** A settings notice, at a narrow sidebar's width: it wraps rather than losing the fix it names. */
+  if (name === "empty" || name === "one") {
+    out.push(
+      "",
+      `Sidebar with a settings notice (30 columns${name === "empty" ? ", and hideWhenEmpty" : ""})`,
+      "",
+    )
+    out.push(
+      ...frame(
+        sidebarRows({
+          width: 30,
+          arranged: mine,
+          now: SAMPLE_NOW,
+          limit: 6,
+          hideWhenEmpty: name === "empty",
+          notices: [NOTICE],
+        }).rows,
+      ),
+    )
+  }
 
   const dialog = (
     title: string,

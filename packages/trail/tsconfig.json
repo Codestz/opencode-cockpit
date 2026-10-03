@@ -3,6 +3,8 @@
   "compilerOptions": {
     "rootDir": "src",
     "outDir": "types",
+    "jsx": "preserve",
+    "jsxImportSource": "@opentui/solid",
     "lib": ["ESNext", "DOM"]
   },
   "include": ["src"],

@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { emptyBlock } from "@opencode-cockpit/client/design"
 import { arrange, conversationThings } from "../src/core/model.ts"
 import { SAMPLE_NOW, SAMPLES, type Sample } from "../src/core/sample.ts"
 import { emptyState } from "../src/core/store.ts"
@@ -56,6 +57,47 @@ describe("the sidebar block", () => {
     const one = texts(sidebarOf("one", 36).rows)
     expect(one).toHaveLength(rows.length)
     expect(one[0]).toMatch(/^Trail +1$/)
+  })
+
+  test("empty is the client's block: the same rows every bay draws", () => {
+    const ours = sidebarOf("empty", 30).rows
+    const theirs = emptyBlock("Trail", 30).map((runs) => runs.map((run) => run.text).join(""))
+    expect(ours.map(rowText)).toEqual(theirs)
+  })
+
+  test("a settings notice: `!`, wrapped to the column under the heading — even hidden when empty", () => {
+    const notice = 'settings: "trail.sidebarRows" should be a number; the default is used'
+    const { state, session } = sample("one")
+    const one = sidebarRows({
+      width: 30,
+      arranged: arrange(conversationThings(state, session)),
+      now: SAMPLE_NOW,
+      limit: 5,
+      notices: [notice],
+    })
+    const rows = texts(one.rows)
+    expect(rows[0]).toMatch(/^Trail +1$/)
+    expect(rows[2]).toMatch(/^! settings:/)
+    expect(rows.slice(2, 5).join(" ")).toContain("the default")
+    for (const row of one.rows) expect(widthOf(rowText(row))).toBe(30)
+    expect(one.rows[2]?.[0]).toMatchObject({ text: "! ", tone: "warning" })
+    /** The click on the record still lands on the record, below the notice. */
+    const hit = one.hits[0]
+    expect(hit && rows[hit.y]).toContain("PR #33")
+
+    const hidden = texts(
+      sidebarRows({
+        width: 30,
+        arranged: arrange([]),
+        now: SAMPLE_NOW,
+        limit: 5,
+        hideWhenEmpty: true,
+        notices: [notice],
+      }).rows,
+    )
+    expect(hidden[0]).toBe("Trail")
+    expect(hidden[2]).toMatch(/^! settings:/)
+    expect(hidden).not.toContain(EMPTY_TEXT)
   })
 
   test("hideWhenEmpty draws nothing, and only while empty", () => {

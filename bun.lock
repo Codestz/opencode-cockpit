@@ -51,6 +51,7 @@
         "@opencode-cockpit/shell": "workspace:*",
         "@opencode-cockpit/status": "workspace:*",
         "@opencode-cockpit/subagents": "workspace:*",
+        "@opencode-cockpit/trail": "workspace:*",
         "@opencode-cockpit/trust": "workspace:*",
         "@opencode-cockpit/updater": "workspace:*",
       },
@@ -149,6 +150,12 @@
       "dependencies": {
         "@opencode-ai/plugin": "1.18.31",
         "@opencode-cockpit/client": "workspace:*",
+      },
+      "devDependencies": {
+        "@opentui/core": "0.4.5",
+        "@opentui/keymap": "0.4.5",
+        "@opentui/solid": "0.4.5",
+        "solid-js": "1.9.12",
       },
     },
     "packages/trust": {
