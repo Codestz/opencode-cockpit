@@ -291,7 +291,8 @@ export const DEFAULT_SEPARATOR = " │ "
  * the budget rows say nothing without a proxy, and a hairline with nothing on one side of it goes too.
  *
  * It sits beside OpenCode's own Context block and says it better; turn that one off with
- * `{ "plugin_enabled": { "internal:sidebar-context": false } }` in OpenCode's `tui.json`.
+ * `{ "plugin_enabled": { "internal:sidebar-context": false } }` in `tui.json` (OpenCode 1) or
+ * `"-opencode.sidebar.context"` in `cli.json`'s `plugins` (OpenCode 2).
  */
 export const SIDEBAR_SEGMENTS: (string | SegmentConfig)[] = [
   "title",

@@ -236,20 +236,27 @@ behind a proxy — see [Proxies](#proxies-litellm-and-friends).
 
 ## Replacing OpenCode's own sidebar blocks
 
-Each block of OpenCode's sidebar is an internal plugin, and `tui.json` can switch one off:
+Each block of OpenCode's sidebar is an internal plugin that its config can switch off. The names
+differ by version:
 
 ```jsonc
-// ~/.config/opencode/tui.json
+// OpenCode 1 — ~/.config/opencode/tui.json
 {
   "plugin": ["@opencode-cockpit/status"],
   "plugin_enabled": { "internal:sidebar-context": false }
 }
 ```
 
+```jsonc
+// OpenCode 2 — ~/.config/opencode/cli.json
+{ "plugins": ["@opencode-cockpit/status", "-opencode.sidebar.context"] }
+```
+
 That removes the host's own `Context / tokens / % used / spent` block, leaving the space to the
-table — the honest way to avoid reading the same figure twice. The same works
-for `internal:sidebar-files`, `-todo`, `-lsp`, `-mcp`, `-footer`, and the home screen's
-`internal:home-footer` and `internal:home-tips`.
+table — the honest way to avoid reading the same figure twice. `/cockpit-setup` offers it when Status
+draws in the sidebar. On OpenCode 1 the same works for `internal:sidebar-files`, `-lsp`, `-mcp`,
+`-footer`, and the home screen's `internal:home-footer` and `internal:home-tips`; OpenCode 2's sidebar
+has no LSP or Todo block. Leave the Todo block on: nothing in Cockpit replaces it.
 
 ## What you can draw
 

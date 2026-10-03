@@ -110,14 +110,18 @@ truncated; a track *was* being drawn and `panel` was the panel's own colour.
 
 ## Turning OpenCode's own blocks off
 
-Each block of the host's sidebar is an internal plugin, and `tui.json` disables any of them:
+Each block of the host's sidebar is an internal plugin that its config disables. OpenCode 1, in
+`tui.json`:
 
 ```jsonc
 { "plugin": ["opencode-cockpit"], "plugin_enabled": { "internal:sidebar-context": false } }
 ```
 
-`internal:sidebar-{context,files,todo,lsp,mcp,footer}`, `internal:home-{footer,tips}`,
-`internal:notifications`. **A sidebar meant to replace the Context block must carry what that block
+OpenCode 2, in `cli.json`: `{ "plugins": ["opencode-cockpit", "-opencode.sidebar.context"] }`
+(`-internal:sidebar-context` does nothing there, and it has no LSP or Todo block).
+
+OpenCode 1 names: `internal:sidebar-{context,files,todo,lsp,mcp,footer}`, `internal:home-{footer,tips}`,
+`internal:notifications`. Never suggest turning the Todo block off: nothing in Cockpit replaces it. **A sidebar meant to replace the Context block must carry what that block
 carried** — percentage, token total, spend — or the user ends up with less than before.
 
 The footer under the prompt is core UI: it cannot be hidden. Design around it.
