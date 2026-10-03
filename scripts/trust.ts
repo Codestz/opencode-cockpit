@@ -10,7 +10,7 @@
  * package must be linked once, by a person — `npm trust` needs your interactive login and 2FA — and
  * npm only allows it for a package that already exists (see scripts/bootstrap-package.ts).
  *
- * A package already linked fails with "already exists" and is reported, not treated as an error.
+ * A package already linked makes npm say "already exists"; that one is done.
  */
 
 import { join } from "node:path"
@@ -33,17 +33,17 @@ for (const { dir, name } of chosen) {
     continue
   }
   console.log(`\n→ ${name}`)
+  /**
+   * npm's own terminal, not a pipe: it asks for 2FA by opening a browser link and waiting for you to
+   * approve it, and with its output piped it cannot wait — it stopped with EOTP instead.
+   */
   const proc = Bun.spawn(
     ["npm", "trust", "github", name, "--file", WORKFLOW, "--repository", REPO, "--allow-publish", "--yes"],
-    { cwd: root, stdin: "inherit", stdout: "pipe", stderr: "pipe" },
+    { cwd: root, stdin: "inherit", stdout: "inherit", stderr: "inherit" },
   )
-  const [out, err] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()])
-  const code = await proc.exited
-  const said = `${out}${err}`.trim()
-  if (code === 0) console.log(`✓ ${name}: linked to ${REPO} ${WORKFLOW}`)
-  else if (/already exists|already configured/i.test(said)) console.log(`✓ ${name}: already linked`)
+  if ((await proc.exited) === 0) console.log(`✓ ${name}: linked to ${REPO} ${WORKFLOW}`)
   else {
-    console.log(`✗ ${name}:\n${said}`)
+    console.log(`✗ ${name}: see npm's message above ("already exists" means it was linked before)`)
     failed.push(name)
   }
 }
