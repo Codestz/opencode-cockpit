@@ -9,7 +9,10 @@ import {
   type ServerParts,
   serverFromV1,
   serverFromV2,
+  type ToolCall,
   toolToV2,
+  v1ToolText,
+  v2ToolCall,
 } from "../src/server.ts"
 
 /**
@@ -259,5 +262,130 @@ describe("messaging a session that may be busy", () => {
       { sessionID: "ses_sub", text: "hi", delivery: "steer" },
       { sessionID: "ses_root", text: "hello" },
     ])
+  })
+})
+
+/**
+ * A finished tool call, heard the same on both versions (docs/opencode/trail-server.md): v1's MCP
+ * output sits in another field, and v2 fires twice for a Code Mode call — only the inner one counts.
+ */
+describe("toolAfter", () => {
+  test("v1: a built-in's output, and an MCP tool's content, both arrive as text", async () => {
+    const calls: ToolCall[] = []
+    const hooks = partsToV1Hooks({ toolAfter: (call) => void calls.push(call) })
+    const after = hooks["tool.execute.after"]
+    const input = { tool: "bash", sessionID: "ses_1", callID: "call_1", args: { command: "gh pr create" } }
+    await after?.(input, { title: "", output: "https://github.com/a/b/pull/33\n", metadata: {} })
+    await after?.({ ...input, tool: "spike_open_pr", callID: "call_2", args: {} }, {
+      content: [{ type: "text", text: "Created pull request: x/77" }, { type: "image" }],
+    } as never)
+    expect(calls).toEqual([
+      {
+        sessionID: "ses_1",
+        tool: "bash",
+        callID: "call_1",
+        args: input.args,
+        output: "https://github.com/a/b/pull/33\n",
+      },
+      {
+        sessionID: "ses_1",
+        tool: "spike_open_pr",
+        callID: "call_2",
+        args: {},
+        output: "Created pull request: x/77",
+      },
+    ])
+  })
+
+  test("v1 text, whichever field it is in", () => {
+    expect(v1ToolText({ output: "a" })).toBe("a")
+    expect(
+      v1ToolText({
+        content: [
+          { type: "text", text: "a" },
+          { type: "text", text: "b" },
+        ],
+      }),
+    ).toBe("a\nb")
+    expect(v1ToolText(undefined)).toBe("")
+  })
+
+  test("v2: the inner call is delivered, Code Mode's outer `execute` and failures are not", () => {
+    const inner = {
+      tool: "spike_open_pr",
+      sessionID: "ses_1",
+      agent: "general",
+      id: "call_9",
+      input: { title: "x" },
+      status: "completed",
+      result: {
+        output: "Created pull request: x/77",
+        content: [{ type: "text", text: "Created pull request: x/77" }],
+      },
+    }
+    expect(v2ToolCall(inner)).toEqual({
+      sessionID: "ses_1",
+      tool: "spike_open_pr",
+      callID: "call_9",
+      args: { title: "x" },
+      output: "Created pull request: x/77",
+      agent: "general",
+    })
+    expect(v2ToolCall({ ...inner, tool: "execute" })).toBeUndefined()
+    expect(v2ToolCall({ ...inner, status: "error", error: "boom" })).toBeUndefined()
+    /** `shell`'s `output` is an object; `content` carries its text. */
+    const shell = {
+      ...inner,
+      tool: "shell",
+      result: { output: { exit: 0 }, content: [{ type: "text", text: "ok" }] },
+    }
+    expect(v2ToolCall(shell)?.output).toBe("ok")
+    expect(v2ToolCall({ ...inner, result: { output: "only output" } })?.output).toBe("only output")
+  })
+
+  test("v2's setup registers execute.after, and a feature's failure never reaches the call", async () => {
+    const seen: string[] = []
+    let run: ((event: unknown) => unknown) | undefined
+    const fake = fakeV2()
+    const ctx = {
+      ...fake.ctx,
+      tool: {
+        ...fake.ctx.tool,
+        hook: async (name: string, handler: (event: unknown) => unknown) => {
+          seen.push(name)
+          run = handler
+        },
+      },
+    }
+    const calls: string[] = []
+    const entry = dualServer("cockpit.test", async () => ({
+      toolAfter: (call) => {
+        calls.push(call.tool)
+        if (call.tool === "bad") throw new Error("listener broke")
+      },
+    }))
+    await entry.setup(ctx as never)
+    expect(seen).toEqual(["execute.after"])
+    const event = (tool: string) => ({ tool, sessionID: "s", id: "c", result: { content: [] } })
+    await run?.(event("spike_open_pr"))
+    await run?.(event("execute"))
+    await run?.(event("bad"))
+    expect(calls).toEqual(["spike_open_pr", "bad"])
+  })
+
+  test("composed: every feature hears the call, even after one fails", async () => {
+    const heard: string[] = []
+    const parts = composeParts([
+      {
+        toolAfter: () => {
+          heard.push("a")
+          throw new Error("a broke")
+        },
+      },
+      { toolAfter: () => void heard.push("b") },
+    ])
+    const call = { sessionID: "s", tool: "t", callID: "c", args: {}, output: "" }
+    await expect(parts.toolAfter?.(call) ?? Promise.resolve()).rejects.toThrow("a broke")
+    expect(heard).toEqual(["a", "b"])
   })
 })

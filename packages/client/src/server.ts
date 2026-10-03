@@ -70,10 +70,29 @@ export interface ServerHost {
   readonly log: Log
 }
 
+/** A tool call that finished, as `toolAfter` hears of it on either version. */
+export interface ToolCall {
+  sessionID: string
+  /** As the host names it: `bash`/`shell`, a plugin's `trail_add`, an MCP server's `<server>_<tool>`. */
+  tool: string
+  callID: string
+  /** What the model sent. */
+  args: unknown
+  /** What the tool answered, as text — whichever field the host put it in. */
+  output: string
+  /** The agent that made the call (`general`, `explore`…). OpenCode 2 only. */
+  agent?: string
+}
+
 export interface ServerParts {
   tools?: Record<string, ToolDefinition>
   /** Added to the system prompt of each model request. The session is unknown on some v1 requests. */
   system?: (sessionID: string | undefined) => Promise<string[]>
+  /**
+   * Every tool call that completed, any tool's — built-ins, MCP, other plugins'. Read-only: it hears
+   * what a tool answered and cannot change it. A throw is logged and never reaches the call.
+   */
+  toolAfter?: (call: ToolCall) => Promise<void> | void
   sessionDeleted?: (sessionID: string) => Promise<void>
   /** Every event, as the host sends it: v1's `{ type, properties }`, v2's `{ type, data }`. */
   event?: (event: unknown) => Promise<void> | void
@@ -101,6 +120,22 @@ export function composeParts(parts: ServerParts[]): ServerParts {
             const lines: string[] = []
             for (const part of parts) lines.push(...((await part.system?.(sessionID)) ?? []))
             return lines
+          },
+        }
+      : {}),
+    ...(any("toolAfter")
+      ? {
+          /** One feature's failure does not keep the call from the next; the first is reported. */
+          toolAfter: async (call: ToolCall) => {
+            let failed: { error: unknown } | undefined
+            for (const part of parts) {
+              try {
+                await part.toolAfter?.(call)
+              } catch (error) {
+                failed ??= { error }
+              }
+            }
+            if (failed) throw failed.error
           },
         }
       : {}),
@@ -197,9 +232,43 @@ export function serverFromV1(input: PluginInput, log: Log = silentLog): ServerHo
   }
 }
 
+/**
+ * What a v1 tool answered, as text. A built-in or plugin tool answers `{ title, output, metadata }`;
+ * an MCP tool answers `{ content: [{ type: "text", text }] }` with no `output` at all, so reading
+ * `output` alone missed every MCP call (docs/opencode/trail-server.md).
+ */
+export function v1ToolText(output: unknown): string {
+  const answer = output as { output?: unknown; content?: unknown } | undefined
+  if (typeof answer?.output === "string") return answer.output
+  return contentText(answer?.content)
+}
+
+/** `[{ type: "text", text }, …]` as one string; anything that is not text is left out. */
+function contentText(content: unknown): string {
+  if (!Array.isArray(content)) return ""
+  return content
+    .flatMap((part) =>
+      typeof (part as { text?: unknown })?.text === "string" ? [(part as { text: string }).text] : [],
+    )
+    .join("\n")
+}
+
 export function partsToV1Hooks(parts: ServerParts): Hooks {
   return {
     ...(parts.tools ? { tool: parts.tools } : {}),
+    ...(parts.toolAfter
+      ? {
+          "tool.execute.after": async (input, output) => {
+            await parts.toolAfter?.({
+              sessionID: input.sessionID,
+              tool: input.tool,
+              callID: input.callID,
+              args: input.args,
+              output: v1ToolText(output),
+            })
+          },
+        }
+      : {}),
     ...(parts.system
       ? {
           "experimental.chat.system.transform": async (input, output) => {
@@ -226,7 +295,11 @@ export function partsToV1Hooks(parts: ServerParts): Hooks {
 export interface V2ServerContext {
   options?: unknown
   location?: { directory: string }
-  tool?: { transform(edit: (editor: V2ToolEditor) => void): Promise<unknown> }
+  tool?: {
+    transform(edit: (editor: V2ToolEditor) => void): Promise<unknown>
+    /** 2.0.18: after every tool call, Code Mode's inner calls included (docs/opencode/trail-server.md). */
+    hook?(name: "execute.after", run: (event: V2ToolAfter) => unknown): Promise<unknown>
+  }
   session: {
     get(input: {
       sessionID: string
@@ -242,6 +315,45 @@ export interface V2ServerContext {
 export interface V2Event {
   type: string
   data?: { sessionID?: string }
+}
+
+/** What v2's `execute.after` hands a plugin, measured on 2.0.18. */
+export interface V2ToolAfter {
+  tool: string
+  sessionID: string
+  agent?: string
+  messageID?: string
+  /** The call's id. A Code Mode call fires twice with the same one: the inner tool, then `execute`. */
+  id: string
+  input?: unknown
+  status?: string
+  /** `content[].text` is the one field every tool has; `output` is a string for MCP, an object for `shell`. */
+  result?: { output?: unknown; content?: unknown }
+  error?: unknown
+}
+
+/**
+ * Code Mode's outer call. On v2 a plugin or MCP tool is called from inside `execute`, and the hook
+ * fires for both with the same id — the outer one carrying everything the code printed, `search(…)`
+ * results (the tool catalog, URLs and all) included. Only the inner call is delivered.
+ */
+const CODE_MODE = "execute"
+
+/** A v2 `execute.after` as a `ToolCall`, or undefined for Code Mode's outer call and a call that failed. */
+export function v2ToolCall(event: V2ToolAfter): ToolCall | undefined {
+  if (event.tool === CODE_MODE) return undefined
+  if (event.error !== undefined || (event.status !== undefined && event.status !== "completed"))
+    return undefined
+  const text = contentText(event.result?.content)
+  const output = text || (typeof event.result?.output === "string" ? event.result.output : "")
+  return {
+    sessionID: event.sessionID,
+    tool: event.tool,
+    callID: event.id,
+    args: event.input,
+    output,
+    ...(event.agent ? { agent: event.agent } : {}),
+  }
 }
 
 /** A tool as v2's editor takes one. */
@@ -414,7 +526,23 @@ async function begin(
   host.log.info("start", { entry: id, opencode: host.version, cockpit: cockpitVersion() })
   try {
     const parts = await start(host, options)
-    return { ...parts, tools: loggedTools(parts.tools, host.log) }
+    const { toolAfter } = parts
+    return {
+      ...parts,
+      tools: loggedTools(parts.tools, host.log),
+      /** Listening to a call must never break it: a failure is logged and goes no further. */
+      ...(toolAfter
+        ? {
+            toolAfter: async (call: ToolCall) => {
+              try {
+                await toolAfter(call)
+              } catch (error) {
+                host.log.warn("toolAfter failed", { tool: call.tool, error })
+              }
+            },
+          }
+        : {}),
+    }
   } catch (error) {
     host.log.error("start failed", { entry: id, error })
     throw error
@@ -443,6 +571,15 @@ export function dualServer(id: string, start: ServerStart) {
         await ctx.tool.transform((editor) => {
           for (const [name, def] of tools) editor.add(toolToV2(name, def, host.directory))
         })
+      }
+      if (parts.toolAfter) {
+        const after = parts.toolAfter
+        if (ctx.tool.hook) {
+          await ctx.tool.hook("execute.after", async (event) => {
+            const call = v2ToolCall(event)
+            if (call) await after(call)
+          })
+        } else host.log.warn("this OpenCode has no execute.after hook; tool output is not followed")
       }
       if (parts.system) {
         const system = parts.system
