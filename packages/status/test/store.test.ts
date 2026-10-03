@@ -168,11 +168,12 @@ describe("what the table reads", () => {
     return { store, runs, reads }
   }
 
-  test("the default line asks git for the branch against the default branch, and draws its answer", async () => {
+  test("the default line asks git what is uncommitted, not the branch against main", async () => {
     const { store, runs } = table(() => undefined)
     store.context()
     await new Promise((done) => setTimeout(done, 0))
-    expect(runs).toContain(`git diff --shortstat "$(git merge-base 'dev' HEAD)"`)
+    expect(runs).toContain("git diff --shortstat HEAD")
+    expect(runs.some((run) => run.includes("merge-base"))).toBe(false)
     store.dispose()
   })
 

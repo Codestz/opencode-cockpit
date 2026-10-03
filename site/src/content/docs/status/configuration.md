@@ -34,7 +34,7 @@ cache  84.9k · 100%
 spend  $26.24
 avail  $173.76 · 87% left
 ──────────────
-git    5f +312 -48 vs main
+git    5f +312 -48
 ```
 
 That is the `sidebar` preset, and what you get with no configuration at all. A row with nothing to
@@ -78,10 +78,10 @@ fatal: a config written against a newer version costs you a segment, not the lin
 | `in` · `out` · `cache` · `write` | `cache  84.9k · 100%` — one part of the window and its share; nothing when zero | |
 | `sep` | a hairline between groups, drawn only with a row on either side | `width` |
 | `spend` · `avail` | `spend  $26.24`, `avail  $173.76 · 87% left` — a proxy's budget; nothing without one | `file` |
-| `git` | `git    5f +312 -48 vs main` — the branch against where it forked, commits and uncommitted | |
+| `git` | `git    5f +312 -48` — what is uncommitted; `"against": "branch"` counts the branch against where it forked (`… vs main`) | |
 | `cost` | session spend | `currency`, `showZero` |
 | `todo` | `3/7 todo` | `showComplete` |
-| `session.status` | `working 1m02s` since your prompt, or a retry and its countdown | |
+| `session.status` | `working 1m02s` since your prompt, or a retry and its countdown; `"working": false` (the sidebar preset) keeps only the retry | |
 | `session.time` | the conversation's age, or with `of: "turn"` how long the last answer took | `of`: `session` \| `turn`, `coarse` |
 | `diagnostics` | unhealthy LSP and MCP servers | |
 | `version` | the bay's version | |

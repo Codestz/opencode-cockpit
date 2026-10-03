@@ -75,7 +75,7 @@ in     265 · 0%
 out    60 · 0%
 cache  84.9k · 100%
 ──────────────
-git    5f +312 -48 vs main
+git    5f +312 -48
 ```
 
 Or a line under the prompt, `{ "status": { "sidebar": false } }`:

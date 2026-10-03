@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { budgetFile, parseBudget } from "../src/core/budget.ts"
 import { asSegmentConfig, PRESETS, resolveLines, SIDEBAR_SEGMENTS } from "../src/core/config.ts"
 import type { SessionSnapshot, StatusContext } from "../src/core/context.ts"
-import { branchDiffCommand, wantsBranchDiff } from "../src/core/diff.ts"
+import { branchDiffCommand, wantsBranchDiff, wantsDiff } from "../src/core/diff.ts"
 import { FIXTURES } from "../src/core/fixtures.ts"
 import { fitColumn } from "../src/core/render.ts"
 import { buildSegments, findSegment, type Segment, segmentText, segmentWidth } from "../src/core/segments.ts"
@@ -66,7 +66,7 @@ describe("the sidebar preset", () => {
   })
 
   test("a working session, no proxy: heading, bar, tokens by where they went, one hairline, the branch", () => {
-    expect(table(ctx({ branchDiff: { files: 3, additions: 42, deletions: 7 } }))).toEqual([
+    expect(table(ctx({ diff: { files: 3, additions: 42, deletions: 7 } }))).toEqual([
       "Context",
       "█".repeat(5) + "█".repeat(11),
       "tokens 80k · 40%",
@@ -74,20 +74,20 @@ describe("the sidebar preset", () => {
       "out    16k · 20%",
       "cache  40k · 50%",
       "─".repeat(14),
-      "git    3f +42 -7 vs main",
+      "git    3f +42 -7",
     ])
   })
 
   test("with a proxy's budget, the budget is a group of its own", () => {
     const rows = table(
-      ctx({ budget: { spent: 26.24, cap: 200 }, branchDiff: { files: 3, additions: 42, deletions: 7 } }),
+      ctx({ budget: { spent: 26.24, cap: 200 }, diff: { files: 3, additions: 42, deletions: 7 } }),
     )
     expect(rows.slice(-5)).toEqual([
       "─".repeat(14),
       "spend  $26.24",
       "avail  $173.76 · 87% left",
       "─".repeat(14),
-      "git    3f +42 -7 vs main",
+      "git    3f +42 -7",
     ])
   })
 
@@ -113,19 +113,17 @@ describe("the sidebar preset", () => {
     expect(fitColumn(built, 34, PRESETS.sidebar?.maxRows ?? 8).dropped).toBe(0)
   })
 
-  test("before the first reply: the heading and the branch, and no hairline with nothing under it", () => {
-    expect(table(ctx({ ...FIXTURES.fresh.ctx, width: 34 }))).toEqual([
-      "Context",
-      "─".repeat(14),
-      "git    5f +312 -48 vs main",
-    ])
+  test("before the first reply: the heading and what is uncommitted, and no hairline with nothing under it", () => {
+    const fresh = ctx({ ...FIXTURES.fresh.ctx, width: 34, diff: { files: 5, additions: 312, deletions: 48 } })
+    expect(table(fresh)).toEqual(["Context", "─".repeat(14), "git    5f +312 -48"])
+    expect(table(ctx({ ...FIXTURES.fresh.ctx, width: 34 }))).toEqual(["Context"])
   })
 
   test("every row fits a 24-column sidebar, a word given up before a figure", () => {
     const narrow = ctx({
       width: 24,
       budget: { spent: 26.24, cap: 200 },
-      branchDiff: { files: 28, additions: 1_840, deletions: 620 },
+      diff: { files: 28, additions: 1_840, deletions: 620 },
     })
     for (const row of table(narrow)) expect(row.length).toBeLessThanOrEqual(24)
     expect(table(narrow)).toContain("avail  $173.76 · 87%")
@@ -138,7 +136,7 @@ describe("the table's rows", () => {
     for (const type of ["in", "out", "cache", "spend", "avail", "git"]) {
       const drawn = draw(
         type,
-        ctx({ budget: { spent: 1, cap: 10 }, branchDiff: { files: 1, additions: 1, deletions: 1 } }),
+        ctx({ budget: { spent: 1, cap: 10 }, diff: { files: 1, additions: 1, deletions: 1 } }),
       )
       expect(drawn?.runs[0]?.text, type).toHaveLength(7)
     }
@@ -182,12 +180,15 @@ describe("the table's rows", () => {
     }
   })
 
-  test("git is the branch against where it forked, and silent until git says", () => {
-    expect(draw("git", ctx())).toBeUndefined()
-    expect(draw("git", ctx({ branchDiff: { files: 0, additions: 0, deletions: 0 } }))).toBeUndefined()
-    expect(
-      text(draw("git", ctx({ branchDiff: { files: 2, additions: 9, deletions: 1 }, defaultBranch: "dev" }))),
-    ).toBe("git    2f +9 -1 vs dev")
+  test("git is what is uncommitted, and silent until git says", () => {
+    expect(draw("git", ctx({ diff: undefined }))).toBeUndefined()
+    expect(draw("git", ctx({ diff: { files: 0, additions: 0, deletions: 0 } }))).toBeUndefined()
+    expect(text(draw("git", ctx({ diff: { files: 2, additions: 9, deletions: 1 } })))).toBe("git    2f +9 -1")
+  })
+
+  test("against the branch, git is the branch against where it forked", () => {
+    const branched = ctx({ branchDiff: { files: 2, additions: 9, deletions: 1 }, defaultBranch: "dev" })
+    expect(text(draw("git", branched, { against: "branch" }))).toBe("git    2f +9 -1 vs dev")
   })
 
   test("the heading says Context unless told otherwise", () => {
@@ -234,9 +235,12 @@ describe("what the table reads", () => {
     )
   })
 
-  test("git runs only for a line that draws it, against the default branch, quoted", () => {
+  test("git runs only for a line that draws it — uncommitted by default, the branch when asked", () => {
     expect(wantsBranchDiff([{ segments: ["git.diff"] }])).toBe(false)
-    expect(wantsBranchDiff([{ segments: SIDEBAR_SEGMENTS }])).toBe(true)
+    expect(wantsBranchDiff([{ segments: SIDEBAR_SEGMENTS }])).toBe(false)
+    expect(wantsDiff([{ segments: SIDEBAR_SEGMENTS }])).toBe(true)
+    expect(wantsBranchDiff([{ segments: [{ type: "git", against: "branch" }] }])).toBe(true)
+    expect(wantsDiff([{ segments: [{ type: "git", against: "branch" }] }])).toBe(false)
     expect(branchDiffCommand("main")).toBe(`git diff --shortstat "$(git merge-base 'main' HEAD)"`)
     expect(branchDiffCommand("it's")).toContain(`'it'\\''s'`)
   })

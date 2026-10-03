@@ -47,15 +47,19 @@ export const UNCOMMITTED = "git diff --shortstat HEAD"
  * it — and a great many are — costs exactly what it did before this segment learned to use git.
  */
 export function wantsDiff(
-  lines: ReadonlyArray<{ segments: ReadonlyArray<string | { type?: string }> }>,
+  lines: ReadonlyArray<{ segments: ReadonlyArray<string | { type?: string; against?: unknown }> }>,
 ): boolean {
   return lines.some((line) =>
     line.segments.some((segment) => {
       const name = typeof segment === "string" ? segment : segment.type
-      return name === "git.diff" || name === "session.diff"
+      return name === "git.diff" || name === "session.diff" || (name === "git" && !againstBranch(segment))
     }),
   )
 }
+
+/** The table's `git` row counts what is uncommitted unless it says `"against": "branch"`. */
+export const againstBranch = (segment: string | { against?: unknown }): boolean =>
+  typeof segment !== "string" && segment.against === "branch"
 
 /**
  * The branch's whole diff: from where it forked off `base` to the working tree — every commit on the
@@ -70,9 +74,11 @@ export function branchDiffCommand(base: string): string {
 
 /** Whether any line draws the branch's diff (`git`), so no git runs for a row nobody shows. */
 export function wantsBranchDiff(
-  lines: ReadonlyArray<{ segments: ReadonlyArray<string | { type?: string }> }>,
+  lines: ReadonlyArray<{ segments: ReadonlyArray<string | { type?: string; against?: unknown }> }>,
 ): boolean {
   return lines.some((line) =>
-    line.segments.some((segment) => (typeof segment === "string" ? segment : segment.type) === "git"),
+    line.segments.some(
+      (segment) => (typeof segment === "string" ? segment : segment.type) === "git" && againstBranch(segment),
+    ),
   )
 }

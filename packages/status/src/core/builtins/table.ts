@@ -125,11 +125,16 @@ export const SEGMENTS: SegmentDef[] = [
     },
   },
   {
-    /** The branch as a reviewer will see it, against where it forked — not as this session left it. */
+    /**
+     * What git would commit: the uncommitted files, by default — what this work has changed that is
+     * not saved anywhere yet. `"against": "branch"` counts the whole branch against where it forked
+     * instead (every commit plus what is uncommitted, `vs main`), the reviewer's view.
+     */
     name: "git",
     priority: 50,
-    render(ctx) {
-      const diff = ctx.branchDiff
+    render(ctx, config) {
+      const branch = config.against === "branch"
+      const diff = branch ? ctx.branchDiff : ctx.diff
       if (!diff || diff.files === 0) return undefined
       const runs: Run[] = [
         { text: `${diff.files}f`, tone: "muted" },
@@ -138,7 +143,9 @@ export const SEGMENTS: SegmentDef[] = [
       ]
       return labelled(
         "git",
-        ifRoom(ctx, runs, { text: ` vs ${ctx.defaultBranch ?? "main"}`, tone: "muted", dim: true }),
+        branch
+          ? ifRoom(ctx, runs, { text: ` vs ${ctx.defaultBranch ?? "main"}`, tone: "muted", dim: true })
+          : runs,
       )
     },
   },

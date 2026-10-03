@@ -56,7 +56,9 @@ All notable changes to this project are documented here. The format follows
   they are installed and the blocks below do not jump. `"hideWhenEmpty": true` brings the silence
   back, per bay.
 - **Status's sidebar table is built in.** `title`, `in`, `out`, `cache`, `write`, `sep`, `spend`,
-  `avail` and `git` are built-in segments now, with `context` style `solid` and `tokens` style
+  `avail` and `git` are built-in segments now (`git` counts what is uncommitted; `"against": "branch"`
+  counts the branch against main), and the table leaves out the turn's `working` clock while still
+  showing a retry. `context` gets style `solid` and `tokens` style
   `row`, so the table needs no module. `spend` and `avail` read a proxy's budget file and draw nothing
   without one; a hairline draws only between two rows.
 

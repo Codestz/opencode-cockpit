@@ -302,7 +302,7 @@ export const SIDEBAR_SEGMENTS: (string | SegmentConfig)[] = [
    * reason this bay exists, so it outranks everything but the bar when rows run out; under the bar
    * rather than above it, so a row that comes and goes does not move the bar about.
    */
-  { type: "session.status", priority: 95, icon: "" },
+  { type: "session.status", priority: 95, icon: "", working: false },
   { type: "tokens", style: "row", icon: "" },
   "in",
   "out",

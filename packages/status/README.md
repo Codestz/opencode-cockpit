@@ -25,7 +25,6 @@ OpenCode's own Context block says, better. `/status-setup` has the agent change 
 ```
 Context
 ████████████████
-working 1m02s
 tokens 85.2k · 43%
 in     265 · 0%
 out    60 · 0%
@@ -34,12 +33,13 @@ cache  84.9k · 100%
 spend  $26.24
 avail  $173.76 · 87% left
 ──────────────
-git    5f +312 -48 vs main
+git    5f +312 -48
 ```
 
 The `sidebar` preset, and the default since 0.9: how full the window is as one solid bar, the tokens
-broken into named rows with their share of it, a proxy's budget, and the branch's whole diff against
-where it forked — what a reviewer will read. Every number gets a word, in a fixed column so the
+broken into named rows with their share of it, a proxy's budget, and what is uncommitted — the work
+not saved anywhere yet (`"against": "branch"` counts the whole branch instead). A retry shows under
+the bar; the turn's own clock does not, OpenCode already shows one. Every number gets a word, in a fixed column so the
 figures line up; colour is a level (calm, then the warning, then the error), never a label.
 
 A row with nothing to say is not drawn: `write` with no cache writes, `spend` and `avail` with no
@@ -193,10 +193,10 @@ it fits. How full the context is survives a 60-column window; the version string
 | `in` · `out` · `cache` · `write` | `cache  84.9k · 100%` — one part of the window and its share; nothing when zero | |
 | `sep` | a hairline between groups, drawn only with a row on either side | `width` |
 | `spend` · `avail` | `spend  $26.24`, `avail  $173.76 · 87% left` — a proxy's budget; nothing without one | `file` |
-| `git` | `git    5f +312 -48 vs main` — the branch against where it forked, commits and uncommitted | |
+| `git` | `git    5f +312 -48` — what is uncommitted; `"against": "branch"` counts the branch against where it forked (`… vs main`) | |
 | `cost` | session spend | `currency`, `showZero` |
 | `todo` | `3/7 todo` | `showComplete` |
-| `session.status` | `working 1m02s` since the prompt, or a retry and its countdown | |
+| `session.status` | `working 1m02s` since the prompt, or a retry and its countdown; `"working": false` (the sidebar preset) keeps only the retry | |
 | `session.time` | the session's age, or with `of: "turn"` how long the last answer took | `of`: `session` \| `turn`, `coarse` |
 | `diagnostics` | unhealthy LSP and MCP servers | |
 | `version` | this bay's version | |

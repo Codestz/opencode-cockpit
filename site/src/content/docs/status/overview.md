@@ -13,7 +13,6 @@ With no configuration at all, a table in the sidebar:
 ```
 Context
 ████████████████
-working 1m02s
 tokens 85.2k · 43%
 in     265 · 0%
 out    60 · 0%
@@ -22,12 +21,13 @@ cache  84.9k · 100%
 spend  $26.24
 avail  $173.76 · 87% left
 ──────────────
-git    5f +312 -48 vs main
+git    5f +312 -48
 ```
 
 The `sidebar` preset, and the default since 0.9: how full the window is as one solid bar, the tokens
-broken into named rows with their share of it, a proxy's budget, and the branch's whole diff against
-where it forked — what a reviewer will read. Every number gets a word, in a fixed column so the
+broken into named rows with their share of it, a proxy's budget, and what is uncommitted — the work
+not saved anywhere yet (`"against": "branch"` counts the whole branch instead). A retry shows under
+the bar; the turn's own clock does not, OpenCode already shows one. Every number gets a word, in a fixed column so the
 figures line up; colour is a level (calm, then the warning, then the error), never a label. A row
 with nothing to say is not drawn: `write` with no cache writes, `spend` and `avail` with no proxy
 writing a budget ([Proxies](/opencode-cockpit/status/proxies/)), `working` while nothing runs. It sits
