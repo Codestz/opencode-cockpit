@@ -237,6 +237,8 @@ export function createTrailTui({ source = TRAIL_PACKAGE }: { source?: string } =
         await journal.append(events)
         if (trouble?.startsWith("trail not saved")) trouble = undefined
         await sync()
+        /** `runAdd` folded the event in already, so the read finds nothing new to draw for: draw anyway. */
+        draw()
         return true
       } catch (error) {
         log.error("trail not saved", { file: paths.events, error })
