@@ -1,19 +1,17 @@
 /**
- * Trust's settings, through the same merge every bay uses (docs/building/a-new-bay.md):
+ * Trust's settings, through the loader every bay shares (`@opencode-cockpit/client/settings`):
  *
  *   ~/.config/opencode-cockpit/config.json  →  <project>/.cockpit.json  →  plugin-entry options
  *
  * Only the `trust` section of a file is read. A file without one says nothing about Trust — reading
  * the whole file as Trust's settings is the trap that page warns about. An unreadable or invalid file
- * is ignored rather than fatal: a typo in a config should never cost you the interface.
+ * is ignored rather than fatal, with a notice: a typo in a config should never cost you the interface.
  *
  * This is Cockpit's config, not OpenCode's. What OpenCode allows, denies and asks about is read from
  * OpenCode itself (`rules.ts`), and never written by Trust.
  */
 
-import { readFile } from "node:fs/promises"
-import { homedir } from "node:os"
-import { join } from "node:path"
+import { baySettings, type SettingsNotice } from "@opencode-cockpit/client/settings"
 
 export interface TrustConfig {
   /** Off switch for this bay, wherever it is written. The bundle also has `features.trust: false`. */
@@ -28,12 +26,11 @@ export interface TrustConfig {
    * Whether Trust draws a block in the sidebar. Default false: the sidebar already carries the
    * statusline, subagents and shells, and Trust works the same without it — `/trust` opens the
    * ledger, and the palette's "Show or hide Trust in the sidebar" brings the block back for the session.
+   * Where it sits is the top-level `sidebar` list's to say.
    */
   sidebar?: boolean
   /** Answers by Trust listed in the sidebar. Default 3. */
   sidebarRows?: number
-  /** Where the block sits among sidebar blocks; lower draws first. */
-  sidebarOrder?: number
   keybinds?: Record<string, string>
 }
 
@@ -55,9 +52,6 @@ export const DEFAULTS: TrustSettings = {
   sidebarRows: 3,
 }
 
-export const CONFIG_FILE = "config.json"
-export const PROJECT_FILE = ".cockpit.json"
-
 const KEYS = [
   "enabled",
   "threshold",
@@ -65,14 +59,8 @@ const KEYS = [
   "expireDays",
   "sidebar",
   "sidebarRows",
-  "sidebarOrder",
   "keybinds",
 ] as const
-
-export function globalConfigPath(env: Record<string, string | undefined> = process.env): string {
-  const base = env.XDG_CONFIG_HOME ?? join(env.HOME ?? homedir(), ".config")
-  return join(base, "opencode-cockpit", CONFIG_FILE)
-}
 
 /** The `trust` section of a config file. */
 export function trustSection(raw: unknown): TrustConfig {
@@ -98,31 +86,34 @@ function pick(raw: Record<string, unknown>): TrustConfig {
   return own
 }
 
-export function mergeTrust(base: TrustConfig, over: TrustConfig): TrustConfig {
-  const merged: TrustConfig = { ...base, ...over }
-  if (base.keybinds || over.keybinds) merged.keybinds = { ...base.keybinds, ...over.keybinds }
-  return merged
+export interface LoadedTrust {
+  /** What was written, every source merged; `resolveSettings` fills the gaps. */
+  config: TrustConfig
+  /** The block's place, from the top-level `sidebar` list. */
+  order: number
+  /** Settings to fix, for a `!` row. */
+  notices: SettingsNotice[]
 }
 
-async function readSection(path: string): Promise<TrustConfig> {
-  try {
-    return trustSection(JSON.parse(await readFile(path, "utf8")))
-  } catch {
-    return {}
-  }
+/** Reads and merges every source. Never throws. */
+export async function loadTrust(
+  directory: string,
+  options?: unknown,
+  env: Record<string, string | undefined> = process.env,
+): Promise<LoadedTrust> {
+  const loaded = baySettings("trust", DEFAULTS, { options, where: { directory, env } })
+  /** `features.trust: false` in a file turns Trust off as `enabled: false` does. */
+  const off = loaded.config.enabled ? {} : { enabled: false }
+  return { config: { ...pick(loaded.written), ...off }, order: loaded.order, notices: loaded.notices }
 }
 
-/** Reads and merges every source, without blocking the interface thread. */
+/** Every source merged, as written. */
 export async function loadTrustConfig(
   directory: string,
   options?: unknown,
   env: Record<string, string | undefined> = process.env,
 ): Promise<TrustConfig> {
-  const [global, project] = await Promise.all([
-    readSection(globalConfigPath(env)),
-    readSection(join(directory, PROJECT_FILE)),
-  ])
-  return mergeTrust(mergeTrust(global, project), asTrustConfig(options))
+  return (await loadTrust(directory, options, env)).config
 }
 
 const whole = (value: unknown, fallback: number, least: number): number =>

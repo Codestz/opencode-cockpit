@@ -11,11 +11,10 @@
 
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
 import { bindingLookup, dualTui, type Host, type Layer } from "@opencode-cockpit/client/host"
-import { sidebarOrder } from "@opencode-cockpit/client/sidebar"
 import type { BoxRenderable } from "@opentui/core"
 import { createSignal } from "solid-js"
 import { commandOf, type Seen } from "../core/adapt/seen.ts"
-import { loadTrustConfig, resolveSettings, type TrustConfig } from "../core/config.ts"
+import { loadTrust, resolveSettings, type TrustConfig } from "../core/config.ts"
 import { createEngine } from "../core/engine.ts"
 import type { Request } from "../core/keys.ts"
 import type { Event } from "../core/ledger.ts"
@@ -75,7 +74,8 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
     api.lifecycle.onDispose(() => claim.release())
 
     const directory = api.state.path.directory
-    const config = await loadTrustConfig(directory, rawOptions)
+    const { config, order, notices } = await loadTrust(directory, rawOptions)
+    for (const notice of notices) log.warn("settings", { file: notice.file, notice: notice.text })
     const settings = resolveSettings(config)
     if (!settings.enabled) {
       log.info("off by config", { directory })
@@ -819,8 +819,8 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
     })
 
     api.slots.register({
-      /** Between Subagents (150) and the shells (170) by default; lower draws first. */
-      order: sidebarOrder("trust", 160, config.sidebarOrder, { directory }),
+      /** Last of Cockpit's blocks by default; the top-level `sidebar` list moves it. */
+      order,
       slots: {
         sidebar_content: () => (
           <Rows

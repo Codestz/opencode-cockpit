@@ -7,6 +7,7 @@
  */
 
 import { join, resolve } from "node:path"
+import { loadSettings } from "@opencode-cockpit/client/settings"
 import { globalConfigDir } from "../core/configs.ts"
 import type { Disk } from "../core/disk.ts"
 import { parseJsonc } from "../core/jsonc.ts"
@@ -208,22 +209,27 @@ function readDaemon(io: DoctorIo, home: string): DaemonFacts {
   }
 }
 
+/**
+ * Cockpit's own settings, read by the loader every bay reads them with — so a file doctor calls fine
+ * is a file the bays can use, and every notice a bay would draw is a line here.
+ */
 function readSettings(io: DoctorIo): Facts["settings"] {
-  const configDir = join(io.env.XDG_CONFIG_HOME ?? join(io.home, ".config"), "opencode-cockpit")
   const project = io.worktree ?? io.cwd
-  const files: Facts["settings"]["files"] = []
+  const settings = loadSettings({
+    directory: project,
+    env: io.env,
+    home: io.home,
+    read: (path) => io.disk.read(path),
+  })
+  const files: Facts["settings"]["files"] = settings.files
+    .filter((file) => file.found)
+    .map((file) => (file.error ? { path: file.path, error: file.error } : { path: file.path }))
+  const notices = settings.notices
+    .filter((notice) => notice.kind !== "unreadable")
+    .map((notice) => ({ file: notice.file, text: notice.text }))
   const modules: Facts["settings"]["modules"] = []
-  for (const path of [join(configDir, "config.json"), join(project, ".cockpit.json")]) {
-    const text = io.disk.read(path)
-    if (text === undefined) continue
-    const parsed = parseJsonc(text)
-    if (!parsed.ok) {
-      files.push({ path, error: parsed.message })
-      continue
-    }
-    files.push({ path })
-    const config = parsed.value as { statusline?: { modules?: unknown }; modules?: unknown } | null
-    const list = config?.statusline?.modules ?? config?.modules
+  for (const layer of settings.layers) {
+    const list = layer.sections.status?.modules
     if (!Array.isArray(list)) continue
     for (const module of list) {
       if (typeof module !== "string") continue
@@ -232,7 +238,7 @@ function readSettings(io: DoctorIo): Facts["settings"] {
       modules.push({ path: module, exists: io.exists(full) })
     }
   }
-  return { files, modules }
+  return { files, modules, notices }
 }
 
 /**

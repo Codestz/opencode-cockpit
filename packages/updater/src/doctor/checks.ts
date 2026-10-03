@@ -95,6 +95,8 @@ export interface DaemonFacts {
 export interface SettingsFacts {
   files: { path: string; error?: string }[]
   modules: { path: string; exists: boolean }[]
+  /** What the settings loader would tell a bay: old names, unknown sidebar entries, wrong types. */
+  notices?: { file: string; text: string }[]
 }
 
 /** The package an entry is, when it is one of ours. */
@@ -382,6 +384,9 @@ export function checkSettings(facts: Facts): Check {
   const fix: string[] = []
   for (const file of settings.files)
     if (file.error) fix.push(`${file.path}: ${file.error} — the whole file is ignored`)
+  const broken = fix.length > 0
+  for (const notice of settings.notices ?? []) fix.push(`${notice.file}: ${notice.text}`)
+  const noted = fix.length > 0
   for (const module of settings.modules) {
     if (!module.exists) fix.push(`statusline module ${module.path} does not exist`)
   }
@@ -389,11 +394,15 @@ export function checkSettings(facts: Facts): Check {
   return {
     title: "Settings",
     state: fix.length ? "warn" : "ok",
-    summary: fix.length
+    summary: broken
       ? "a settings file Cockpit cannot use"
-      : read === 0
-        ? "defaults (no settings file)"
-        : `${read} file${read === 1 ? "" : "s"}${settings.modules.length ? `, ${settings.modules.length} statusline module${settings.modules.length === 1 ? "" : "s"}` : ""}`,
+      : noted
+        ? "settings that are not read as written"
+        : fix.length
+          ? "a statusline module is missing"
+          : read === 0
+            ? "defaults (no settings file)"
+            : `${read} file${read === 1 ? "" : "s"}${settings.modules.length ? `, ${settings.modules.length} statusline module${settings.modules.length === 1 ? "" : "s"}` : ""}`,
     detail: settings.files.map((file) => file.path),
     ...(fix.length ? { fix } : {}),
   }

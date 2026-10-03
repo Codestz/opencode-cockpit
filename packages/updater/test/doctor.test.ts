@@ -328,12 +328,72 @@ describe("the rest", () => {
       opencode: "2.0.15",
       files: {
         [`${HOME}/.config/opencode-cockpit/config.json`]: json({
-          statusline: { modules: ["~/.config/opencode-cockpit/modules/gone.ts"] },
+          status: { modules: ["~/.config/opencode-cockpit/modules/gone.ts"] },
         }),
       },
     })
     expect(found.Settings?.state).toBe("warn")
     expect(found.Settings?.fix?.join()).toContain("gone.ts")
+  })
+})
+
+/**
+ * Doctor reads Cockpit's settings through the loader the bays use, so the two cannot disagree: a file
+ * with a comment was "fine" to doctor while every bay dropped it whole.
+ */
+describe("Cockpit's settings", () => {
+  const GLOBAL = `${HOME}/.config/opencode-cockpit/config.json`
+  const PROJECT = "/work/project/.cockpit.json"
+
+  test("comments and trailing commas: fine to doctor, and read by the bays", async () => {
+    const files = { [GLOBAL]: `{\n  // mine\n  "trust": { "threshold": 5, },\n}` }
+    const found = await checks({ opencode: "2.0.18", files })
+    expect(found.Settings?.state).toBe("ok")
+    expect(found.Settings?.summary).toBe("1 file")
+    const { baySettings } = await import("@opencode-cockpit/client/settings")
+    const trust = baySettings(
+      "trust",
+      { threshold: 3 },
+      {
+        where: {
+          env: {},
+          home: HOME,
+          directory: "/work/project",
+          read: (path) => memoryDisk(files).read(path),
+        },
+      },
+    )
+    expect(trust.config.threshold).toBe(5)
+  })
+
+  test("a file the bays cannot parse is not fine", async () => {
+    const found = await checks({ opencode: "2.0.18", files: { [PROJECT]: `{ "trust": { "threshold": 5 ` } })
+    expect(found.Settings?.state).toBe("warn")
+    expect(found.Settings?.summary).toBe("a settings file Cockpit cannot use")
+    expect(found.Settings?.fix?.[0]).toStartWith(`${PROJECT}: `)
+    expect(found.Settings?.fix?.[0]).toEndWith("the whole file is ignored")
+  })
+
+  test("every old name and unknown sidebar entry is a fix line", async () => {
+    const found = await checks({
+      opencode: "2.0.18",
+      files: {
+        [GLOBAL]: json({
+          statusline: { preset: "sidebar" },
+          ui: { dockHeight: 20 },
+          sidebar: ["shells", "status"],
+        }),
+        [PROJECT]: json({ trust: { sidebarOrder: 1 } }),
+      },
+    })
+    expect(found.Settings?.state).toBe("warn")
+    expect(found.Settings?.summary).toBe("settings that are not read as written")
+    expect(found.Settings?.fix).toEqual([
+      `${GLOBAL}: "statusline" is no longer read — run /cockpit-setup`,
+      `${GLOBAL}: "ui.dockHeight" is no longer read — run /cockpit-setup`,
+      `${GLOBAL}: "shells" in "sidebar" is not a bay: did you mean "shell"? (status, subagents, shell, trail, trust)`,
+      `${PROJECT}: "trust.sidebarOrder" is no longer read — run /cockpit-setup`,
+    ])
   })
 })
 
