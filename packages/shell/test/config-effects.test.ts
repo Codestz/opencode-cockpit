@@ -2,13 +2,13 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import type { ToolContext } from "@opencode-ai/plugin"
 import { startDaemon } from "../../client/test/helpers.ts"
 import { createTools } from "../src/agent/tools/index.ts"
-import type { CockpitConfig } from "../src/core/config.ts"
+import type { ShellConfig } from "../src/core/config.ts"
 
 /**
  * Settings are only worth having if they change what the agent's tools do, so these drive the real
  * tools against a real daemon with a config in place, and assert the observable difference.
  */
-const CONFIG: CockpitConfig = {
+const CONFIG: ShellConfig = {
   kinds: { e2e: "playwright|cypress" },
   watch: { presets: { e2e: { done: "\\d+ (passed|failed)", fail: "\\d+ failed" } } },
   defaults: { logFile: true, notifyOnExit: false, timeoutSeconds: 30 },

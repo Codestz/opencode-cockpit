@@ -1,5 +1,5 @@
 import type { WatchRule } from "@opencode-cockpit/protocol/shell"
-import type { CockpitConfig } from "../../core/config.ts"
+import type { ShellConfig } from "../../core/config.ts"
 
 export type WatchRequest = { preset?: string; rule?: WatchRule }
 
@@ -35,7 +35,7 @@ const RULE_KEYS = new Set(["done", "fail", "ok", "ignoreCase", "idleSeconds"])
  * parsed the way the schema says) that a string which looks like an object is parsed rather than
  * handed on as a preset name nobody has.
  */
-export function watchArgs(watch: unknown, config: CockpitConfig): WatchRequest {
+export function watchArgs(watch: unknown, config: ShellConfig): WatchRequest {
   const rule = asWatchRule(watch)
   if (rule) return { rule }
   const preset = watch === true || watch == null ? "auto" : String(watch)

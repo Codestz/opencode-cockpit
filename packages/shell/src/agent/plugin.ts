@@ -72,6 +72,11 @@ async function shellParts(host: ServerHost, options?: unknown): Promise<ServerPa
   const { directory } = host
   const log = host.log.child("shell")
   const config = loadConfig(directory, options)
+  /** Switched off in a file (`shell.enabled`, `features.shell`): no tools, no guidance. */
+  if (config.enabled === false) {
+    log.info("off in the settings")
+    return {}
+  }
   // Identifies this OpenCode window to the daemon, so shells can end with it.
   const instance = crypto.randomUUID()
   const cockpit = createClient("opencode-cockpit/server", instance)
