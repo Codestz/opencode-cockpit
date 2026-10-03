@@ -83,8 +83,8 @@ Or a line under the prompt, `{ "status": { "sidebar": false } }`:
 ![The statusline under an OpenCode conversation: a context bar at 40%, the token total with its cache, input and output parts, what is uncommitted, elapsed time and todo progress](media/statusline.png)
 
 *Every part is a segment you can reshape, recolour or remove, or write yourself in TypeScript. Your
-Claude Code statusline script runs here unchanged, colours and all. `/status-setup` briefs the agent
-in your conversation to change it with you.*
+Claude Code statusline script runs here unchanged, colours and all. `/status-setup` has the agent
+change it with you.*
 
 **23 segments · 2 surfaces · [docs](https://codestz.github.io/opencode-cockpit/status/overview/) · [`@opencode-cockpit/status`](packages/status)**
 
@@ -249,8 +249,8 @@ keeping line numbers and highlighting matches — and output keeps the colours t
 | `/shell-new` | Start a shell yourself |
 | `/shells-clear` | Remove finished shells |
 | `/plugins-update` | Every plugin you have installed: what runs, what is published, and an update checked against disk |
-| `/cockpit-setup` | Briefs the agent to set Cockpit up with you: which bays show, in the sidebar or at the bottom, in what order, quiet or present when empty — and fixes any setting from before 0.9 |
-| `/status-setup` | Briefs the agent to set up the Status bay with you (`/statusline` until 0.9; the old name still works for one release and says the new one) |
+| `/cockpit-setup` | The agent sets Cockpit up with you: which bays show, in the sidebar or at the bottom, in what order, quiet or present when empty — and fixes any setting from before 0.9 |
+| `/status-setup` | The agent designs the Status line with you: a preset, its segments, the sidebar or the bottom (`/statusline` until 0.9; the old name still works for one release and says the new one) |
 | `ctrl+x f` · `/trail` | What this conversation made, or every conversation in the project (`tab`) |
 | `/link <url> [note]` | Add a link to this conversation's trail yourself |
 
@@ -320,12 +320,14 @@ the same section, so a bay is configured in one place, not once in `opencode.jso
 `tui.json`. Comments and trailing commas are fine. Everything is optional: with no file at all you
 get the defaults below.
 
-**The easy way: `/cockpit-setup`.** It draws nothing; it briefs the agent in your conversation with
-which bays this window loaded, which files Cockpit reads and what is in them, every key with its
-default, and anything from before 0.9 that is no longer read — then asks you what you want to see
-(which bays, sidebar or bottom, in what order, quiet or present when empty) before it edits
-anything. From the home screen it opens a conversation for the brief; while the agent is answering
-it waits its turn.
+**The easy way: `/cockpit-setup`** — or just ask, "make my sidebar quieter", "hide the shells block
+when it's empty". The agent loads the `cockpit-setup` skill that ships with Cockpit and reads what
+is installed and written now with its `cockpit_settings` tool; it fixes anything from before 0.9
+first, offers a starting point (everything visible, quiet, minimal, or Status as a line under the
+prompt), asks only what is left, one question at a time, writes the smallest file that does it, and
+checks the result. From the home screen the command opens a conversation; while the agent is
+answering it waits its turn. `/status-setup` does the same for what the Status line shows. Both are
+in the palette (`ctrl+p`, "cockpit") too.
 
 ### The whole shape
 

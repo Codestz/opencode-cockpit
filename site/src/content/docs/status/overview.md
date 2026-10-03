@@ -108,13 +108,14 @@ have given to a bay you actually operate would be charging you for the privilege
 
 | Command | Does |
 | --- | --- |
-| `/status-setup` | Hands the agent a brief on your line: which config file this project reads, what is drawing, the settings to fix first, and anything that failed to load |
+| `/status-setup` | The agent sets your line up with you, with the `status-setup` skill that ships with Status: a preset to start from, the segments, the sidebar or the bottom, and the preview before it is called done |
 | `/cockpit-setup` | The same for every bay at once: which show, where, in what order — see [Configuration](/opencode-cockpit/configuration/) |
 
-`/status-setup` writes into the conversation rather than opening a panel, because the useful next
-step is usually "change this for me", and the agent needs to know what it is changing. From the home
-screen it opens a conversation for the brief. `/statusline`, its name until 0.9, still works for one
-release and says the new name.
+`/status-setup` asks the agent rather than opening a panel, because the useful next step is usually
+"change this for me". The skill reads what is written now with `cockpit_settings`, so it knows what
+it is changing; asking in plain words ("put the statusline at the bottom") loads it too. From the
+home screen it opens a conversation. `/statusline`, its name until 0.9, still works for one release
+and says the new name.
 
 ## Three ways to configure it
 

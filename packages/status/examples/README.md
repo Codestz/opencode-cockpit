@@ -59,5 +59,5 @@ The sample sessions are the states a design gets wrong: `fresh` (no model, no to
 render a wall of zeroes), `working`, `busy`, `uncached`, `full`, `unpriced` (behind a proxy, nothing
 declared), `retrying`, and `empty`.
 
-The taste rules this bay learned the expensive way live in
-[`../skills/statusline-design/`](../skills/statusline-design/SKILL.md).
+The taste rules this bay learned the expensive way live in the `status-setup` skill, at
+[`../skills/status-setup/references/design.md`](../skills/status-setup/references/design.md).

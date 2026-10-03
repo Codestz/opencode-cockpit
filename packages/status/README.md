@@ -18,8 +18,7 @@ get it with every other bay through the `opencode-cockpit` bundle.
 ```
 
 That's enough. Without any configuration you get a table at the top of the sidebar carrying what
-OpenCode's own Context block says, better. `/status-setup` briefs the agent in your conversation to
-change it with you.
+OpenCode's own Context block says, better. `/status-setup` has the agent change it with you.
 
 ## What it shows by default, and why
 
@@ -103,10 +102,13 @@ preset draws the surface's own line, with a `!` row above it naming the presets 
 
 ## `/status-setup`
 
-Type it in a conversation and the agent is briefed to set the line up with you: which config file
-this project reads, what is drawing now, the settings to fix first, the presets and built-ins, how to
-preview a change, and where the design rules are. It asks what you want before it edits anything.
-`/statusline`, its name until 0.9, still works for one release and says the new name.
+Type it, or just ask ("put the statusline at the bottom"), and the agent sets the line up with you
+through the `status-setup` skill shipped in this package (`skills/status-setup/`): it reads what is
+written now with `cockpit_settings`, fixes old names first, offers a preset to start from, asks what
+you want, writes only what differs from the defaults, and checks the line in the preview that came
+with your install. `/statusline`, its name until 0.9, still works for one release and says the new
+name. Both come from Status's agent side (`@opencode-cockpit/status/server`), which the bundle
+includes and the package's install line adds.
 
 ## Configuration
 

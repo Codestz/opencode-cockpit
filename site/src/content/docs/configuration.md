@@ -17,11 +17,15 @@ same section, so a bay is configured in one place, not once in `opencode.json` a
 get the defaults below.
 
 :::tip[The easy way: /cockpit-setup]
-`/cockpit-setup` draws nothing. It briefs the agent in your conversation with which bays this window
-loaded, which files Cockpit reads and what is in them, every key with its default, and anything from
-before 0.9 that is no longer read — then asks you what you want to see (which bays, sidebar or
-bottom, in what order, quiet or present when empty) before it edits anything. From the home screen
-it opens a conversation for the brief; while the agent is answering, it waits its turn.
+Type `/cockpit-setup`, or just ask — "make my sidebar quieter", "hide the shells block when it's
+empty", "move trail above subagents". The agent loads the `cockpit-setup` skill that ships with
+Cockpit and reads what is installed and written now with its `cockpit_settings` tool: every value
+and where it came from, anything from before 0.9 that is no longer read, OpenCode's own sidebar
+blocks. It fixes the old names first, offers a starting point (everything visible, quiet, minimal,
+or Status as a line under the prompt), asks only what is left, one question at a time, writes the
+smallest file that does it, and checks it reads back with no notices. It asks before touching
+OpenCode's own files. From the home screen the command opens a conversation; while the agent is
+answering, it waits its turn. It is in the palette too (`ctrl+p`, "cockpit").
 :::
 
 ## The whole shape

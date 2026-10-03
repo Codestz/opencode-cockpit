@@ -34,13 +34,16 @@ All notable changes to this project are documented here. The format follows
     `http(s)` links are opened. A deleted conversation keeps its records, under the title it had.
   - `trail_list` gives the agent the same facts and order as `/trail`. Kept append-only in
     `~/.local/share/opencode-cockpit/trail/`, shared by every window on the project.
-- **`/cockpit-setup` — the agent sets Cockpit up with you.** It draws nothing: it briefs the agent in
-  your conversation with the bays this window loaded, the files Cockpit reads and what is in them,
-  every key with its default, every name from before 0.9 it found, and OpenCode's own sidebar blocks —
-  then asks which bays you want, sidebar or bottom, in what order, quiet or present when empty, before
-  it edits anything. From the home screen it opens a conversation for the brief; while the agent is
-  answering, it waits its turn (`1 queued`) instead of cutting the reply off. One command, whichever
-  Cockpit packages you installed.
+- **`/cockpit-setup` — the agent sets Cockpit up with you.** Cockpit now ships a `cockpit-setup`
+  skill and a `cockpit_settings` tool, so the command — or a plain "make my sidebar quieter" — has
+  the agent read what is installed and written now (every value and where it came from, every name
+  from before 0.9, OpenCode's own sidebar blocks), fix the old names first, offer a starting point
+  (everything visible, quiet, minimal, Status as a line), ask only what is left, one question at a
+  time, write the smallest file that does it and check it reads back with no notices. It asks before
+  touching OpenCode's own files, and never suggests turning the Todo block off. From the home screen
+  the command opens a conversation; while the agent is answering it waits its turn (`1 queued`)
+  instead of cutting the reply off. In the palette as well, whichever Cockpit packages you installed.
+  The skill's settings reference is written from the code, and a test fails when the two disagree.
 - **Review shows images.** A changed binary is read as bytes instead of being skipped or shown as
   `U+FFFD`. An image says what changed — `PNG 2880×1800 · 807 KB → 789 KB` (PNG, APNG, JPEG, GIF,
   WebP, BMP; any other binary its sizes) — and PNG and GIF of the same size get a pixel diff (how much
@@ -88,9 +91,13 @@ All notable changes to this project are documented here. The format follows
   with no configuration. `{ "status": { "sidebar": false } }` (or `"surface": "bottom"`) puts the
   line under the prompt again. A preset that does not exist, or a config pointing at a removed
   example, gets a `!` row naming the presets there are, never a blank column.
-- **`/statusline` is `/status-setup`.** The old name works for one release, says the new one, and
-  still briefs the agent; from the home screen `/status-setup` opens a conversation for the brief, and
-  behind a reply it waits its turn.
+- **`/statusline` is `/status-setup`**, and loads the `status-setup` skill that ships with Status:
+  presets as starting points, every segment, the design rules, and the preview that came with your
+  install before anything is called done. The old name works for one release and says the new one
+  first. From the home screen it opens a conversation; behind a reply it waits its turn. Status gains
+  an agent side for this (`@opencode-cockpit/status/server`), included in the bundle; installed on its
+  own, its install line (`opencode plugin @opencode-cockpit/status@… --global --force`) now adds the
+  agent-side entry too.
 - **Every subagent says what it is.** Each row names its agent, muted — `general` too — and the agent
   shortens before the title does; a subagent with no title is named by its task's first words.
 - **Settings notices are drawn, not only logged.** Status, Shell, Subagents, Trail and Trust draw

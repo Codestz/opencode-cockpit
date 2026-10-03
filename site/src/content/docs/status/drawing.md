@@ -111,13 +111,13 @@ find:
 
 ## Let an agent draw it
 
-Type **`/status-setup`** in OpenCode (`/statusline` until 0.9). It draws nothing: it hands the agent
-in your session a brief carrying what it cannot look up — which config file this project reads, what is drawing right
-now, your modules and any that failed to load, the preset and segment names — and ends by asking
-what you want it to show.
+Type **`/status-setup`** in OpenCode (`/statusline` until 0.9), or just ask for the change. It draws
+nothing: the agent loads the **`status-setup` skill** that ships with Status — the presets, every
+segment, the design rules this bay learned the expensive way, and the preview to check a line with —
+reads what is written now with `cockpit_settings`, and asks what you want it to show.
 
-The rules this bay learned the expensive way also ship **as a skill** inside the package, at
-`skills/statusline-design/`. Copy it in and the agent picks up the taste as well as the api:
+For another agent, Claude Code for example, the same rules ship as a skill you can copy, at
+`skills/statusline-design/` (kept for 0.9; `skills/status-setup/` from then on):
 
 ```sh
 # Claude Code, for this project or for every project
