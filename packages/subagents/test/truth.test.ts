@@ -213,9 +213,9 @@ describe("a subagent continued the next day (two rounds, a day apart)", () => {
         .find((text) => text.includes("Review"))
         ?.trimEnd()
     expect(row(60)).toEndWith("17 calls · 4m00s · 2 rounds")
-    /** Narrower, the calls give way to the rounds, then the rounds to the title. */
-    expect(row(40)).toEndWith("● Review the export qu… 4m00s · 2 rounds")
-    expect(row(30)).toEndWith("17 calls · 4m00s")
+    /** Narrower, the calls give way to the rounds, then the rounds to the name. */
+    expect(row(40)).toEndWith("● gen… Review the expo… 4m00s · 2 rounds")
+    expect(row(30)).toEndWith("● gen… Review the expor… 4m00s")
     for (const width of [30, 40, 60]) expect(row(width)).not.toContain("24h")
   })
 

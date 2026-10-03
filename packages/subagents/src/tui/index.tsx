@@ -2,11 +2,20 @@
 
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
 import { bindingLookup, dualTui, type Host, type Layer, onPaste } from "@opencode-cockpit/client/host"
-import { sidebarOrder } from "@opencode-cockpit/client/sidebar"
+import { noticeText } from "@opencode-cockpit/client/settings"
 import type { BoxRenderable } from "@opentui/core"
 import { createSignal } from "solid-js"
+import { loadSubagents, type SubagentsConfig } from "../core/config.ts"
 import type { Change } from "../core/model/changes.ts"
-import { applyAll, emptyModel, type Node, rootOf, type Session, subagentsOf } from "../core/model/model.ts"
+import {
+  applyAll,
+  emptyModel,
+  type Node,
+  rootOf,
+  type Session,
+  subagentsOf,
+  titleOf,
+} from "../core/model/model.ts"
 import { createScreenCache, type Screen, screenRows } from "../core/view/screen.ts"
 import { type SidebarLine, sidebarLines } from "../core/view/sidebar.ts"
 import { createRowPool, type RowPool, solidSurface } from "./render.ts"
@@ -20,26 +29,8 @@ const DEFAULT_KEYS = {
   "cockpit.subagents.open": "<leader>w",
 }
 
-export interface SubagentsTuiOptions {
-  /** Subagents shown in the sidebar before the rest fold into a count. */
-  sidebarRows?: number
-  /**
-   * Minutes a finished subagent stays in the sidebar; unset keeps it for the conversation. It is only
-   * out of the sidebar — `/subagents` and the pane's `[` `]` still reach it, and it comes back if it
-   * works again.
-   */
-  hideFinishedAfter?: number
-  /**
-   * Seconds a finished *nested* subagent — one a subagent launched, an advisor it asks again and
-   * again — stays in the sidebar; 30 unless set, a negative number keeps them. As with
-   * `hideFinishedAfter` it is only out of the sidebar: the heading still counts it and the pane's
-   * `[` `]` still reach it. Seconds rather than minutes because these come and go in seconds.
-   */
-  hideNestedAfter?: number
-  /** Where the block sits among sidebar blocks; lower draws first (Shell 150, statusline 200). */
-  sidebarOrder?: number
-  keybinds?: Record<string, string>
-}
+/** The `subagents` section of the config files, then the plugin entry's options (core/config.ts). */
+export type SubagentsTuiOptions = SubagentsConfig
 
 /** The pane's state: which subagent, and how it is being looked at. */
 interface Surface {
@@ -52,6 +43,8 @@ interface Surface {
   closed: Set<string>
   thinking: boolean
   details: boolean
+  /** `?`: every key, in the body's place. */
+  keys?: boolean
   /** Half the window, or all of it. Remembered. */
   full: boolean
   /** A message being typed, at the foot of the pane. */
@@ -97,7 +90,14 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       return
     }
     api.lifecycle.onDispose(() => claim.release())
-    const options = (rawOptions ?? {}) as SubagentsTuiOptions
+    const { config: options, order, notices } = loadSubagents(api.state.path.directory, rawOptions)
+    for (const notice of notices) log.warn("settings", { file: notice.file, notice: notice.text })
+    if (!options.enabled) {
+      log.info("off in the settings")
+      return
+    }
+    /** Said in the block for the session, one `!` row each, until the file is fixed. */
+    const warnings = notices.map(noticeText)
     const keys = bindingLookup({ ...DEFAULT_KEYS, ...options.keybinds })
 
     const model = emptyModel()
@@ -171,7 +171,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
     // --- painting ----------------------------------------------------------------------------------
 
     /** Milliseconds a finished nested subagent stays in the sidebar; undefined keeps it. */
-    const nested = typeof options.hideNestedAfter === "number" ? options.hideNestedAfter : 30
+    const nested = options.hideNestedAfterSeconds ?? 30
     const fadeAfter = nested >= 0 ? nested * 1000 : undefined
     /** A finished nested one that has yet to leave: the clock has to keep drawing until it does. */
     const fading = () =>
@@ -187,7 +187,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       const now = Date.now()
       const list = nodes()
       drawnAt = sidebarWidth()
-      const after = options.hideFinishedAfter
+      const after = options.hideFinishedAfterMinutes
       const listed =
         typeof after === "number" && after >= 0
           ? list.filter(
@@ -201,8 +201,10 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
         width: drawnAt,
         now,
         frame,
-        limit: options.sidebarRows ?? 6,
+        limit: options.sidebarRows,
         ...(fadeAfter !== undefined ? { fadeAfter } : {}),
+        hideWhenEmpty: options.hideWhenEmpty,
+        notices: warnings,
       })
       /** Only when they changed: new rows rebuild every line of the block, and a scroll is many paints. */
       const said = JSON.stringify(next)
@@ -238,6 +240,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
             closed: surface.closed,
             thinking: surface.thinking,
             details: surface.details,
+            keys: surface.keys === true,
             whole: surface.whole,
             yours: (entry) => yours.has(`${session.id}:${entry.text}`),
             reveal: surface.reveal === true,
@@ -359,7 +362,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       if (working()) {
         frame++
         draw()
-      } else if (options.hideFinishedAfter !== undefined || fading()) draw() // finished ones age out with nothing running
+      } else if (options.hideFinishedAfterMinutes !== undefined || fading()) draw() // finished ones age out with nothing running
     }, 1000)
     let fast: ReturnType<typeof setInterval> | undefined
 
@@ -395,7 +398,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
         notice: undefined,
         stopping: undefined,
         draft: undefined,
-        ...(same ? {} : { top: undefined, selected: undefined, details: false }),
+        ...(same ? {} : { top: undefined, selected: undefined, details: false, keys: false }),
       })
       takeKeys()
       fast ??= setInterval(() => {
@@ -557,7 +560,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
         const how = api.v1 ? "task_id" : "sessionID"
         const text = [
           "[Cockpit notification — information, not a request. Nothing to do unless the user asks.]",
-          `The user messaged your ${session.agent} subagent "${session.title}" (${how} ${id}) directly.`,
+          `The user messaged your ${session.agent} subagent "${titleOf(session)}" (${how} ${id}) directly.`,
           `They asked: ${pending.question}`,
           session.status === "failed"
             ? `It failed: ${session.error ?? "no reason given"}`
@@ -818,6 +821,12 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
           run: () => set({ details: !surface.details, top: undefined }),
         },
         { name: "cockpit.subagents.width", title: "Half or full width", run: () => width() },
+        {
+          name: "cockpit.subagents.keys",
+          title: "Show every key",
+          /** From the top of the list going in; back where the run was coming out. */
+          run: () => set({ keys: !surface.keys, top: surface.keys ? undefined : 0 }),
+        },
         { name: "cockpit.subagents.pageDown", title: "Scroll down", run: () => scroll(10) },
         { name: "cockpit.subagents.pageUp", title: "Scroll up", run: () => scroll(-10) },
         {
@@ -829,8 +838,13 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
         {
           name: "cockpit.subagents.close",
           title: "Close",
-          /** Esc first lets go of the cursor, then closes. */
-          run: () => (surface.selected ? set({ selected: undefined, top: undefined }) : close()),
+          /** Esc first hides the keys, then lets go of the cursor, then closes. */
+          run: () =>
+            surface.keys
+              ? set({ keys: false, top: undefined })
+              : surface.selected
+                ? set({ selected: undefined, top: undefined })
+                : close(),
         },
       ],
       bindings: [
@@ -848,6 +862,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
         { key: "t", cmd: "cockpit.subagents.thinking" },
         { key: "i", cmd: "cockpit.subagents.details" },
         { key: "w", cmd: "cockpit.subagents.width" },
+        { key: "?,shift+/", cmd: "cockpit.subagents.keys" },
         { key: "d,pagedown", cmd: "cockpit.subagents.pageDown" },
         { key: "u,pageup", cmd: "cockpit.subagents.pageUp" },
         { key: "shift+g,end", cmd: "cockpit.subagents.follow" },
@@ -902,8 +917,8 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
     })
 
     api.slots.register({
-      /** Between the statusline (140) and the shells (170) by default; lower draws first. */
-      order: sidebarOrder("subagents", 150, options.sidebarOrder, { directory: api.state.path.directory }),
+      /** Where the top-level `sidebar` list puts it: under Status and above Shells by default. */
+      order,
       slots: {
         sidebar_content: () => (
           <SidebarBlock

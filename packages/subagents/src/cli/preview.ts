@@ -24,6 +24,8 @@ import {
   finishedSample,
   LATE_ROOT,
   lateSample,
+  NAMES_ROOT,
+  namesSample,
   SAMPLE_NOW,
   SAMPLE_ROOT,
   sample,
@@ -77,20 +79,34 @@ const FIXTURES: Record<string, { changes: () => Change[]; root: string; about: s
     root: FINISHED_ROOT,
     about: "everything ended: six done, one stopped",
   },
+  names: {
+    changes: namesSample,
+    root: NAMES_ROOT,
+    about: "every row names its agent: general, a long name, no title, a placeholder title",
+  },
+  empty: { changes: () => [], root: "ses_empty", about: "nothing launched yet: the heading and `none yet`" },
 }
+
+/** A settings notice as the block draws it (client/settings `noticeText`), for `--notice`. */
+const NOTICE = 'settings: "subagents.hideFinishedAfter" is no longer read — run /cockpit-setup'
 
 const args = process.argv.slice(2)
 if (args.includes("--help") || args.includes("-h")) {
   process.stdout.write(
     [
       "Usage: subagents preview [--width <sidebar columns>] [--fixture <name>] [--columns <pane columns>]",
-      "                         [--state closed|open|whole]",
+      "                         [--state closed|open|whole] [--widths 24,30,36,50] [--notice] [--hide]",
+      "                         [--keys]",
       "",
       ...Object.entries(FIXTURES).map(([name, { about }]) => `  ${name.padEnd(10)}${about}`),
       "  calls     a call of every kind: thinking as markdown, todos, an MCP tool, a task,",
       "            and an ask_advisor with a sixty-line question — folded, open and whole",
       "",
       "  --state   with --fixture calls, only that state",
+      "  --widths  the sidebar at each of these widths, and nothing else",
+      "  --notice  the block with a settings notice in it",
+      "  --hide    hideWhenEmpty: an empty block draws nothing",
+      "  --keys    the pane's [?] Keys screen",
       "",
     ].join("\n"),
   )
@@ -152,10 +168,30 @@ if (!fixture) {
 
 const model = applyAll(emptyModel(), fixture.changes())
 const nodes = subagentsOf(model, fixture.root)
-const out: string[] = ["", "Sidebar", ""]
 /** The host's default for nested ones: thirty seconds. */
-for (const line of sidebarLines({ nodes, width: sidebarWidth, now: SAMPLE_NOW, frame: 2, fadeAfter: 30_000 }))
-  out.push(paint(line.row))
+const sidebar = (width: number) =>
+  sidebarLines({
+    nodes,
+    width,
+    now: SAMPLE_NOW,
+    frame: 2,
+    fadeAfter: 30_000,
+    hideWhenEmpty: args.includes("--hide"),
+    ...(args.includes("--notice") ? { notices: [NOTICE] } : {}),
+  })
+const widths = option("--widths")
+if (widths) {
+  const out: string[] = []
+  for (const width of widths.split(",").map(Number).filter(Boolean)) {
+    out.push("", `Sidebar, ${width} columns`, "")
+    /** The edge drawn, so a row a cell short or long shows. */
+    for (const line of sidebar(width)) out.push(`${paint(line.row)}│`)
+  }
+  process.stdout.write(`${out.join("\n")}\n\n`)
+  process.exit(0)
+}
+const out: string[] = ["", "Sidebar", ""]
+for (const line of sidebar(sidebarWidth)) out.push(paint(line.row))
 const first = nodes[0]?.session
 if (first) {
   const base = {
@@ -170,6 +206,12 @@ if (first) {
     closed: new Set<string>(),
     thinking: false,
     details: false,
+  }
+  if (args.includes("--keys")) {
+    out.push("", `The pane's [?] Keys — ${columns} columns`, "")
+    for (const row of screenRows({ ...base, keys: true }).rows) out.push(paint(row))
+    process.stdout.write(`${out.join("\n")}\n\n`)
+    process.exit(0)
   }
   out.push("", "The pane — the first subagent", "")
   const folded = screenRows(base)

@@ -16,14 +16,15 @@ opencode plugin add @opencode-cockpit/subagents@0.8.0                   # OpenCo
 
 ## What it does
 
-**In the sidebar**, a Subagents block: each subagent in this conversation, its task — and its type,
-unless it is `general` — and under one still at it, what it is doing now: `grep "session" src/auth/**`,
+**In the sidebar**, a Subagents block: each subagent in this conversation, its type, muted, and its
+task — a run with no title is named by its task's first words — and under one still at it, what it is doing now: `grep "session" src/auth/**`,
 `thinking`, `waiting for permission`, `stopped` — with how many calls and how long the whole run has
 taken on the right. Working ones come first. A finished one is a single quiet row; one held on a
 permission is drawn in the warning tone and counted apart in the heading (`1 running · 1 needs you`).
 A subagent that launched its own has them indented under it, and the same helper launched again and
 again for the same task is one entry with a count (`×6`). A finished nested one leaves the sidebar
-after `hideNestedAfter` seconds; the heading still counts it.
+after `hideNestedAfterSeconds`; the heading still counts it. With none yet, the block still shows
+its heading and `none yet`, so you can tell it is there.
 
 **Click one** — or `ctrl+x w`, or `/subagents` — and its run opens in a pane on the right, half the
 window or all of it: its model and who launched it, the task, then the run. A shell command or a file
@@ -48,6 +49,7 @@ markdown too; the answer is markdown.
 | `w` | Half the window, or all of it (remembered) |
 | `[` `]` | Another subagent of this conversation |
 | `d` `u` · `g` `G` | Page down · up · to the start · follow the run |
+| `?` | Every key, in the pane — the footer has room for the ones you use constantly |
 | `esc` `q` | Back to the conversation |
 
 **Follow-ups keep their context.** The main agent is asked to continue the subagent that did the work
@@ -82,16 +84,33 @@ export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true   # in ~/.zshrc, then sta
 
 ## Settings
 
-In the bundle's entry (`"subagents": { … }`) or this package's own:
+In the `subagents` section of Cockpit's config file — read by both halves, in every project:
+
+```
+~/.config/opencode-cockpit/config.json   →   <project>/.cockpit.json   →   plugin-entry options
+```
+
+```jsonc
+{ "subagents": { "sidebarRows": 6, "hideWhenEmpty": false, "hideFinishedAfterMinutes": 60 } }
+```
+
+The same keys also work on the plugin entry (the bundle's `"subagents": { … }`, or this package's
+own), which wins over both files.
 
 | Setting | Default | |
 | --- | --- | --- |
 | `sidebarRows` | `6` | Subagents shown before the rest fold into a count — working ones first |
-| `hideFinishedAfter` | unset | Minutes a finished subagent stays in the sidebar; unset keeps it for the conversation |
-| `hideNestedAfter` | `30` | Seconds a finished *nested* subagent — one a subagent launched — stays in the sidebar; a negative number keeps them. The heading still counts them and `[` `]` still reach them |
-| `sidebarOrder` | `150` | Where the block sits in the sidebar; lower draws first |
+| `hideWhenEmpty` | `false` | With no subagents the block says `none yet` under its heading; `true` draws nothing instead |
+| `hideFinishedAfterMinutes` | unset | Minutes a finished subagent stays in the sidebar; unset keeps it for the conversation |
+| `hideNestedAfterSeconds` | `30` | Seconds a finished *nested* subagent — one a subagent launched — stays in the sidebar; a negative number keeps them. The heading still counts them and `[` `]` still reach them |
 | `keybinds` | `{ "cockpit.subagents.open": "<leader>w" }` | The key that opens the latest one |
 | `guidance` | `true` | Tell the main agent about background subagents and follow-ups (agent side) |
+| `enabled` | `true` | `false` switches both halves off |
+
+Where the block sits is the top-level `"sidebar"` list's to say (`["status", "subagents", "shell",
+"trail", "trust"]` by default). The names from before 0.9 — `hideFinishedAfter`, `hideNestedAfter`,
+`sidebarOrder` — are no longer read: the block shows a `!` row naming the new one, and
+`/cockpit-setup` fixes it.
 
 ## See it without OpenCode
 

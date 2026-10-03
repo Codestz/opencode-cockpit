@@ -10,7 +10,12 @@
  *     └ grep "session"  9 calls · 51s
  *     ⠙ advisor Review the plan      ×6
  *       └ 2 running · thinking    3s
- *   ● Update README       3 calls · 28s
+ *   ● general Update README  3 calls · 28s
+ *
+ * Every row names its agent, muted, before its title; when the row is short the agent shortens
+ * first (`expl…`), then the title, and a finished row's numbers give up their calls before the name
+ * gets too short to read. With nothing to list the block still says it exists: the heading and
+ * `none yet` in the row the first entry will take (client/design `emptyBlock`).
  *
  * A finished entry is one row: there is nothing it is doing, and a second row saying `done` under
  * every one of seven finished subagents was what pushed the rest under `+ 3 more`. What is still
@@ -22,6 +27,7 @@
  */
 
 import {
+  emptyBlock,
   HEADING,
   HEADING_GAP,
   moreText,
@@ -29,6 +35,7 @@ import {
   type State,
   stateMark,
   summaryRuns,
+  warnRows,
 } from "@opencode-cockpit/client/design"
 import {
   type Activity,
@@ -44,7 +51,7 @@ import {
   titleOf,
   working,
 } from "../model/model.ts"
-import { elapsed, fit, type Row, type Run, rowText, spread, widthOf } from "./rows.ts"
+import { cut, elapsed, fit, type Row, type Run, spread, widthOf } from "./rows.ts"
 
 export interface SidebarLine {
   row: Row
@@ -66,6 +73,13 @@ export interface SidebarInput {
    * They only leave the sidebar: the heading still counts them, and the pane still reaches them.
    */
   fadeAfter?: number
+  /** Draw nothing at all while there is nothing to list (`hideWhenEmpty`); else `none yet`. */
+  hideWhenEmpty?: boolean
+  /**
+   * Settings to fix, each said once in the block as a `!` row (client/settings `noticeText`). A
+   * failure always speaks: with these, the block shows even when `hideWhenEmpty` would hide it.
+   */
+  notices?: readonly string[]
 }
 
 /** Stopped — by you, or with the main agent — is not broken: OpenCode reports it as an error. */
@@ -143,15 +157,45 @@ function doing(activity: Activity): Row {
   }
 }
 
-/**
- * The agent's name, when it says something. `general` is what a subagent is when nobody chose one,
- * and on every row it cost eight columns the title needed; the pane's header still names it. Any
- * other agent is named, muted — it qualifies the title rather than competing with it.
- */
-const agentRun = (agent: string): Run[] => (agent === "general" ? [] : [{ text: `${agent} `, tone: "muted" }])
+/** Cells an agent's name keeps once it has started to give way: `exp…`, `gen…`. */
+const AGENT_FLOOR = 4
 
-/** Columns a finished row keeps for its agent and title before its round count gives way. */
+/**
+ * Who it is, in at most `room` cells: the agent, muted, then the title. Every row names its agent the
+ * same way — `general` too: hiding it to save width made "Write a long plan" and "explore Explore t…"
+ * read as two different kinds of thing. The space comes from the agent first: it shortens to
+ * `AGENT_FLOOR` before the title loses a letter, because the title is what tells two rows apart.
+ */
+export function nameRuns(agent: string, title: string, room: number): Run[] {
+  const space = Math.max(0, room)
+  const whole = widthOf(agent) + 1 + widthOf(title)
+  if (whole <= space)
+    return [
+      { text: `${agent} `, tone: "muted" },
+      { text: title, tone: "text" },
+    ]
+  const floor = Math.min(widthOf(agent), AGENT_FLOOR)
+  const shortAgent = cut(agent, Math.max(floor, space - 1 - widthOf(title)))
+  const left = space - widthOf(shortAgent) - 1
+  /** Too narrow for both: the title alone, as the more telling of the two. */
+  if (left < 1) return [{ text: cut(title, space), tone: "text" }]
+  return [
+    { text: `${shortAgent} `, tone: "muted" },
+    { text: cut(title, left), tone: "text" },
+  ]
+}
+
+/**
+ * Columns a finished row keeps for its agent and title before its numbers give way: the agent at its
+ * floor, and a title still worth reading.
+ */
 const TITLE_ROOM = 16
+
+/**
+ * Rows a settings notice may wrap to. Its last words are the fix (`run /cockpit-setup`), and at 30
+ * columns a long key name alone takes a row: three rows cut the fix off.
+ */
+const NOTICE_ROWS = 5
 
 /** When the last of a group's members ended. */
 const endedAt = (group: Group): number => Math.max(...group.members.map((s) => s.ended ?? s.started))
@@ -188,8 +232,17 @@ function place(groups: readonly Group[], now: number, fadeAfter: number | undefi
 
 export function sidebarLines(input: SidebarInput): SidebarLine[] {
   const { nodes, width, now, frame } = input
-  /** Silence is the rule: no subagents, no block. */
-  if (nodes.length === 0 || width < 8) return []
+  if (width < 8) return []
+  const title = "Subagents"
+  /** Each settings notice once, in the warning tone, wrapped to the column (client/design). */
+  const warnings: SidebarLine[] = (input.notices ?? []).flatMap((text) =>
+    warnRows(text, width, NOTICE_ROWS).map((row) => ({ row: fit(row, width) })),
+  )
+  /** Present when empty: the heading and `none yet`, unless asked for silence (and nothing to fix). */
+  if (nodes.length === 0) {
+    const hide = input.hideWhenEmpty === true && warnings.length === 0
+    return [...emptyBlock(title, width, hide).map((row) => ({ row: fit(row, width) })), ...warnings]
+  }
   /**
    * Every subagent, faded and grouped ones included: the heading counts sessions, not rows. Every
    * state there is, not only the worst — `1 failed` sat over six done ones — in the words and order
@@ -200,7 +253,6 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
     const state = stateOf(node.session)
     counts[state] = (counts[state] ?? 0) + 1
   }
-  const title = "Subagents"
   const summary: Run[] = summaryRuns(counts, width - title.length - 1)
   const lines: SidebarLine[] = [
     { row: spread([{ text: title, ...HEADING }], summary, width) },
@@ -243,35 +295,39 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
     /** Said in words: a bare "157 · 34m" read as a puzzle. */
     const took = calls > 0 ? `${calls} call${calls === 1 ? "" : "s"} · ${elapsed(since)}` : elapsed(since)
     const count = group.members.length > 1 ? `×${group.members.length}` : ""
-    const name: Row = [
-      { text: indent },
-      stateMark(state, frame),
-      { text: " " },
-      ...agentRun(session.agent),
-      { text: titleOf(session), tone: "text" },
+    const lead: Row = [{ text: indent }, stateMark(state, frame), { text: " " }]
+    const leadWidth = widthOf(indent) + 2
+    const title = titleOf(session)
+    /** The row's left part: its name in whatever `right` (and the gap before it) leaves. */
+    const named = (right: string): Row => [
+      ...lead,
+      ...nameRuns(session.agent, title, width - leadWidth - (right ? widthOf(right) + 1 : 0)),
     ]
 
     /**
-     * Finished, and nothing under it still working: one row, its numbers on the right. After more
-     * than one round its time is the last round's, so it says how many rounds — giving up the number
-     * of calls first, then the rounds, before the title is left too little room to be read (the
-     * pane's header says both).
+     * Finished, and nothing under it still working: one row, its numbers on the right and the name in
+     * what they leave. After more than one round its time is the last round's, so it says how many
+     * rounds. Only when the name would be left less than `TITLE_ROOM` do the numbers give way — the
+     * calls first, then the rounds, then the calls of the plain figure; the pane's header says all.
      */
     if (state === "done" && !groupWorking(group)) {
       const tail = count ? `  ${count}` : ""
-      const ladder =
-        rounds > 1 ? [`${took} · ${rounds} rounds${tail}`, `${elapsed(since)} · ${rounds} rounds${tail}`] : []
-      const lead = widthOf(rowText(name.slice(0, 3)))
-      const numbers =
-        ladder.find((text) => width - widthOf(text) - 1 - lead >= TITLE_ROOM) ?? `${took}${tail}`
-      lines.push({ id, row: spread(name, [{ text: numbers, tone: "muted" }], width) })
+      const short = elapsed(since)
+      const ladder = [
+        ...(rounds > 1 ? [`${took} · ${rounds} rounds${tail}`, `${short} · ${rounds} rounds${tail}`] : []),
+        `${took}${tail}`,
+        `${short}${tail}`,
+      ]
+      const room = (text: string) => width - leadWidth - widthOf(text) - 1
+      const numbers = ladder.find((text) => room(text) >= TITLE_ROOM) ?? `${short}${tail}`
+      lines.push({ id, row: spread(named(numbers), [{ text: numbers, tone: "muted" }], width) })
       continue
     }
 
     lines.push({
       id,
-      /** The count stays whole at the edge; the task gives way to it. */
-      row: count ? spread(name, [{ text: count, tone: "muted" }], width) : fit(name, width),
+      /** The count stays whole at the edge; the name gives way to it. */
+      row: count ? spread(named(count), [{ text: count, tone: "muted" }], width) : fit(named(""), width),
     })
     /**
      * The line describes one member; when more than one is at it, it says so — first, where the
@@ -299,5 +355,5 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
     .filter((entry) => !chosen.has(entry))
     .reduce((sum, entry) => sum + entry.group.members.length, 0)
   if (hidden > 0) lines.push({ row: fit([{ text: `  ${moreText(hidden)}`, tone: "muted" }], width) })
-  return lines
+  return [...lines, ...warnings]
 }

@@ -10,13 +10,15 @@ import {
   finishedSample,
   LATE_ROOT,
   lateSample,
+  NAMES_ROOT,
+  namesSample,
   SAMPLE_NOW,
   SAMPLE_ROOT,
   sample,
 } from "../src/core/sample.ts"
-import { rowText } from "../src/core/view/rows.ts"
+import { rowText, widthOf } from "../src/core/view/rows.ts"
 import { rowWidth } from "../src/core/view/screen.ts"
-import { type SidebarInput, sidebarLines } from "../src/core/view/sidebar.ts"
+import { nameRuns, type SidebarInput, sidebarLines } from "../src/core/view/sidebar.ts"
 
 /**
  * The sidebar's order and its nesting: working first, children under their parent, an advisor asked
@@ -55,7 +57,7 @@ describe("order", () => {
     ])
     const lines = text({ nodes: subagentsOf(m, LATE_ROOT), width: 40, now: SAMPLE_NOW, frame: 0 })
     expect(lines[2]).toContain("Document the middleware")
-    expect(lines[4]).toMatch(/^ {2}\S explore Collect examples/)
+    expect(lines[4]).toMatch(/^ {2}\S exp… Collect examples/)
     expect(lines[6]).toContain("Fix the flaky refresh test")
   })
 
@@ -354,10 +356,107 @@ describe("everything ended (the screenshots)", () => {
     }
   })
 
-  test("`general` is not named on every row; any other agent is, quietly", () => {
-    const lines = sidebarLines(input(60))
-    expect(lines.some((line) => rowText(line.row).includes("general"))).toBe(false)
-    const advisor = lines.find((line) => rowText(line.row).includes("orchestrator"))
-    expect(advisor?.row.find((run) => run.text.startsWith("orchestrator"))?.tone).toBe("muted")
+  /**
+   * `general` used to be left out to save width, so a row with an agent and one without read as two
+   * kinds of thing. Every row names its agent now, the same way: muted, before the title.
+   */
+  test("every row names its agent, muted, before its title — `general` too", () => {
+    const lines = sidebarLines(input(80))
+    const entries = lines.filter((line) => line.id && !rowText(line.row).includes("└"))
+    expect(entries.length).toBeGreaterThan(0)
+    for (const line of entries) {
+      const agent = line.row.find((run) => /^(general|orchestrator) $/.test(run.text))
+      expect(agent?.tone).toBe("muted")
+      const at = line.row.indexOf(agent as (typeof line.row)[number])
+      expect(line.row[at + 1]?.tone).toBe("text")
+    }
+  })
+})
+
+describe("names", () => {
+  const nodes = subagentsOf(applyAll(emptyModel(), namesSample()), NAMES_ROOT)
+  const rows = (width: number) =>
+    sidebarLines({ nodes, width, now: SAMPLE_NOW, frame: 0 }).map((line) => rowText(line.row))
+
+  test("the agent shortens before the title does", () => {
+    expect(nameRuns("general", "Write a plan", 40).map((run) => run.text)).toEqual([
+      "general ",
+      "Write a plan",
+    ])
+    /** Short of room: the agent gives it up, down to its floor, and the title stays whole. */
+    expect(nameRuns("general", "Write a plan", 18).map((run) => run.text)).toEqual(["gene… ", "Write a plan"])
+    expect(nameRuns("general", "Write a plan", 17).map((run) => run.text)).toEqual(["gen… ", "Write a plan"])
+    /** Shorter still: the agent is at its floor, so now the title is cut. */
+    expect(nameRuns("general", "Write a plan", 12).map((run) => run.text)).toEqual(["gen… ", "Write …"])
+    /** An agent already shorter than the floor is never cut. */
+    expect(nameRuns("qa", "Write a plan", 10).map((run) => run.text)).toEqual(["qa ", "Write …"])
+    /** No room for both: the title, which tells two rows apart. */
+    expect(nameRuns("general", "Write a plan", 3).map((run) => run.text)).toEqual(["Wr…"])
+    for (const room of [0, 1, 3, 6, 12, 16, 40])
+      expect(widthOf(rowText(nameRuns("security-reviewer", "Review the export", room)))).toBeLessThanOrEqual(
+        room,
+      )
+  })
+
+  test("the title takes what the right column leaves, and the numbers stay whole", () => {
+    for (const width of [24, 30, 36, 50]) {
+      for (const row of rows(width)) expect(widthOf(row)).toBe(width)
+      const plan = rows(width).find((row) => row.includes("Write"))
+      expect(plan).toMatch(/\d+m\d{2}s$/)
+    }
+    expect(rows(36).find((row) => row.includes("Write"))).toBe("● gen… Write a lon… 12 calls · 2m15s")
+  })
+
+  test("a subagent with no title is named by its task's first words, never by nothing", () => {
+    const bare = rows(50).find((row) => row.includes("Find every"))
+    expect(bare).toContain("general Find every caller of exportCsv")
+    /** OpenCode's placeholder is no title either. */
+    const auto = rows(80).find((row) => row.includes("Check the export"))
+    expect(auto).toContain("explore Check the export's tests for flakiness across the…")
+    expect(rows(80).join("\n")).not.toContain("Child session")
+  })
+})
+
+describe("present when empty", () => {
+  const NOTICE = 'settings: "subagents.hideFinishedAfter" is no longer read — run /cockpit-setup'
+  const empty = (extra: Partial<SidebarInput> = {}) =>
+    sidebarLines({ nodes: [], width: 30, now: SAMPLE_NOW, frame: 0, ...extra }).map((line) =>
+      rowText(line.row),
+    )
+
+  test("no subagents: the heading, and `none yet` in the row the first one will take", () => {
+    const rows = empty()
+    expect(rows.map((row) => row.trimEnd())).toEqual(["Subagents", "", "none yet"])
+    for (const row of rows) expect(widthOf(row)).toBe(30)
+    const lines = sidebarLines({ nodes: [], width: 30, now: SAMPLE_NOW, frame: 0 })
+    expect(lines.at(-1)?.row[0]?.tone).toBe("muted")
+    expect(lines.every((line) => line.id === undefined)).toBe(true)
+  })
+
+  test("one finished subagent takes the `none yet` row: the block is as tall as it was", () => {
+    const m = applyAll(emptyModel(), sub("a", "p", 1, 2, "Only one"))
+    const one = sidebarLines({ nodes: subagentsOf(m, "p"), width: 30, now: SAMPLE_NOW, frame: 0 })
+    expect(one).toHaveLength(empty().length)
+    expect(rowText(one[2]?.row ?? [])).toContain("Only one")
+  })
+
+  test("`hideWhenEmpty` draws nothing — unless a setting needs fixing", () => {
+    expect(empty({ hideWhenEmpty: true })).toEqual([])
+    const rows = empty({ hideWhenEmpty: true, notices: [NOTICE] })
+    expect(rows[0]?.trimEnd()).toBe("Subagents")
+    expect(rows.join(" ")).toContain("/cockpit-setup")
+  })
+
+  test("a settings notice is said in the block, wrapped, its fix kept, at every width", () => {
+    const nodes = subagentsOf(applyAll(emptyModel(), sample()), SAMPLE_ROOT)
+    for (const width of [24, 30, 36, 50]) {
+      const rows = sidebarLines({ nodes, width, now: SAMPLE_NOW, frame: 0, notices: [NOTICE] }).map((line) =>
+        rowText(line.row),
+      )
+      for (const row of rows) expect(widthOf(row)).toBe(width)
+      const at = rows.findIndex((row) => row.startsWith("! settings"))
+      expect(at).toBeGreaterThan(2)
+      expect(rows.slice(at).join(" ")).toContain("/cockpit-setup")
+    }
   })
 })

@@ -286,8 +286,29 @@ export const working = (s: Session): boolean => s.status !== "done" && s.status 
  * (docs/building/principles.md, rule 2).
  */
 
-/** What it is called: its title, else its task, else "subagent". */
-export const titleOf = (s: Session): string => s.title || s.task || "subagent"
+/** OpenCode's placeholder for a session nobody has titled yet: `Child session - 2026-10-03T…`. */
+const PLACEHOLDER = /^(new|child) session - \d{4}-\d{2}-\d{2}t/i
+
+/** Words of a task kept as a name: enough to tell two runs apart, short enough to be a name. */
+const NAME_WORDS = 8
+
+/** A task's first words, from its first line that says anything: a name for an untitled run. */
+export function firstWords(text: string | undefined): string {
+  const line = (text ?? "").split("\n").find((each) => each.trim() !== "") ?? ""
+  const words = line.trim().split(/\s+/).filter(Boolean)
+  return words.length > NAME_WORDS ? `${words.slice(0, NAME_WORDS).join(" ")}…` : words.join(" ")
+}
+
+/**
+ * What a subagent is called, everywhere it is named — the sidebar, the pane, the main agent's tools.
+ * Its title; with none (or only OpenCode's placeholder) its task's first words; never an empty name,
+ * which drew a row that was an agent and a time with nothing between them.
+ */
+export function titleOf(s: Session): string {
+  const title = s.title?.trim()
+  if (title && !PLACEHOLDER.test(title)) return title
+  return firstWords(s.task) || "subagent"
+}
 
 /** How many calls it made. */
 export const callsOf = (s: Session): number => s.entries.filter((entry) => entry.kind === "tool").length
