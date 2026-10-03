@@ -6,7 +6,7 @@
  * trouble, the performance numbers, a selection — *replaces* what is there rather than adding to it.
  */
 
-import { closeHint, fitHints, GLYPH, HINT_GAP, type Hint } from "@opencode-cockpit/client/design"
+import { closeHint, fitHints, GLYPH, HINT_GAP, type Hint, warnRows } from "@opencode-cockpit/client/design"
 import { type ChangeSet, progress, type Review } from "../model/review.ts"
 import type { Columns } from "./geometry.ts"
 import { clipRuns, type Fill, type Row, type Run, rowWidth } from "./rows.ts"
@@ -68,6 +68,22 @@ export function headerRows(changes: ChangeSet, review: Review, width: number, la
     },
     { runs: [{ text: "─".repeat(width), tone: "border" }] },
   ]
+}
+
+/**
+ * The settings notices as the one row under the header, in place of its rule — the header stays two
+ * rows, so nothing below it moves. The shared `!` row (`warnRows`) cut to one line; with several,
+ * how many comes first, so a narrow pane still says there is more than the one it shows.
+ */
+export function settingsRow(notices: readonly string[], width: number): Row | undefined {
+  const [first] = notices
+  if (first === undefined) return undefined
+  const text =
+    notices.length === 1
+      ? first
+      : `settings: ${notices.length} to fix, run /cockpit-setup — ${first.replace(/^settings: /, "")}`
+  const [row = []] = warnRows(text, width, 1)
+  return { runs: row.map((run) => ({ text: run.text, ...(run.tone ? { tone: run.tone } : {}) })) }
 }
 
 /**

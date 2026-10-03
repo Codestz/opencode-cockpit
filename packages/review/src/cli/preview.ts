@@ -32,6 +32,7 @@ if (args.includes("--help")) {
     --height <n>      rows (default: this terminal)
     --diff            the cursor in the diff pane rather than the file list
     --keys            the [?] Keys screen
+    --settings <n>    n settings notices: the ! row under the header (1 or 2)
 `)
   process.exit(0)
 }
@@ -133,6 +134,14 @@ const rows = layout(
     waiting,
     ...(fixture.looks ? { looks: fixture.looks } : {}),
     ...(args.includes("--keys") ? { keys: true } : {}),
+    ...(args.includes("--settings")
+      ? {
+          settings: [
+            'settings: "review.sidebarOrder" is no longer read — run /cockpit-setup',
+            'settings: "review.source" should be a string; the default is used',
+          ].slice(0, Number(flag("settings")) || 1),
+        }
+      : {}),
     ...(args.includes("--diff") ? { pane: "diff" as const } : {}),
   },
   { width, height },

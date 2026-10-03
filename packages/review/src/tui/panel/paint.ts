@@ -40,6 +40,8 @@ export interface PaintDeps {
   boxes: () => Boxes
   /** What is known about the images under review, beyond their headers. */
   looks: () => ReadonlyMap<string, ImageLook>
+  /** Settings Review does not read, as sentences: the `!` row under the header. */
+  settings?: readonly string[]
 }
 
 /** How long something the review said stays in the footer. */
@@ -121,6 +123,7 @@ export function createPainter(deps: PaintDeps): Painter {
         ...(away.length > 0 ? { elsewhere: away } : {}),
         looks: deps.looks(),
         canvas: packed(behind),
+        ...(deps.settings?.length ? { settings: deps.settings } : {}),
         /** Trouble outranks the numbers; both outrank the keys, and the footer stays two rows. */
         ...(trouble
           ? { notice: trouble }

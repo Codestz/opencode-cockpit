@@ -83,6 +83,12 @@ export interface ViewState {
    * use than a row of keys you can get back with `?`.
    */
   notice?: string
+  /**
+   * Settings Review does not read — an old name, a value of the wrong kind — each a sentence
+   * (`noticeText`). Review has no sidebar block to say them in, so the pane does: one `!` row in
+   * place of the header's rule, for as long as the file is wrong, not a toast gone in ten seconds.
+   */
+  settings?: readonly string[]
   /** The numbers, when you have asked to see them. Same place, same reasoning. */
   stats?: readonly Run[]
   /**

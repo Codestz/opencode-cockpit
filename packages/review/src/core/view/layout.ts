@@ -14,7 +14,7 @@
 
 import type { ChangeSet, Review } from "../model/review.ts"
 import { metrics } from "../perf.ts"
-import { footerRows, headerRows } from "./chrome.ts"
+import { footerRows, headerRows, settingsRow } from "./chrome.ts"
 import { type Columns, FOOTER_ROWS, GUTTER, HEADER_ROWS, inset, splitColumns, window } from "./geometry.ts"
 import { keyRows } from "./keys.ts"
 import { fileRows, listScroll, listWidth } from "./list.ts"
@@ -56,8 +56,10 @@ function compose(changes: ChangeSet, review: Review, state: ViewState, viewport:
 
   /** The rule spans the pane, edge to edge; everything with words in it sits inside the gutter. */
   const rule: Row = { runs: [{ text: "─".repeat(inner), tone: "border" }] }
+  /** A setting Review does not read takes the rule's place under the header, so nothing moves. */
+  const warning = settingsRow(state.settings ?? [], content)
   const rows: Row[] = headerRows(changes, review, content, state.label).map((row, index) =>
-    index === HEADER_ROWS - 1 ? rule : inset(row, inner),
+    index === HEADER_ROWS - 1 ? (warning ? inset(warning, inner) : rule) : inset(row, inner),
   )
 
   const body = Math.max(1, viewport.height - HEADER_ROWS - FOOTER_ROWS)

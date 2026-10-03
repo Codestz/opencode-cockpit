@@ -75,8 +75,8 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       return
     }
     /**
-     * Review draws no sidebar block for a `!` row, so its settings notices are said once, as the
-     * session starts, and kept in the log.
+     * Review draws no sidebar block, so its settings notices are a `!` row in the pane (in place of
+     * the header's rule, `chrome.ts`), said once more as the session starts, and kept in the log.
      */
     for (const notice of notices) api.log.warn("review: settings", { file: notice.file, notice: notice.text })
     if (notices.length > 0)
@@ -164,6 +164,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       notice,
       boxes: () => ({ backdrop, panel, pool }),
       looks: () => looks.current(),
+      settings: notices.map(noticeText),
     })
 
     /** `o`: the old side out of git, uncapped — a viewer needs the whole file, not its header. */
