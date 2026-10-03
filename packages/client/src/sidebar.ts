@@ -1,63 +1,42 @@
-import { readFileSync } from "node:fs"
-import { homedir } from "node:os"
-import { join } from "node:path"
 import type { Host } from "./host.ts"
+import { isSidebarBay, loadSettings, orderOf, type SettingsWhere } from "./settings.ts"
 
 /**
  * Where a bay's block sits in OpenCode's sidebar.
  *
  * Every bay used to take its place from its own setting (Shell's `ui.sidebarOrder`, Status's
  * `statusline.sidebarOrder`…), so putting the statusline first meant knowing three numbers. Now one
- * list in Cockpit's config orders them all:
+ * list in Cockpit's config orders them all, and it is the only order:
  *
- *   { "sidebar": ["status", "subagents", "shell"] }
+ *   { "sidebar": ["status", "subagents", "shell", "trail", "trust"] }
  *
- * in `~/.config/opencode-cockpit/config.json`, or a project's `.cockpit.json` (which wins). A bay's
- * own explicit number still beats the list, and a bay the list leaves out keeps its default.
+ * in `~/.config/opencode-cockpit/config.json`, or a project's `.cockpit.json` (which replaces it).
+ * That list is also the default. A bay the list leaves out follows the ones it names, in default
+ * order. A bay's own `sidebarOrder` number is no longer read (`orderOf` in settings.ts, which also
+ * says where the numbers sit among OpenCode's own blocks).
  *
- * Read once, at start — never in a draw path.
+ * New code takes `order` from `baySettings`; the two functions here are kept for the bays that have
+ * not moved to it yet. Read once, at start — never in a draw path.
  */
 
-/** Positions the list hands out: before every default (Status 140, Subagents 150, Shell 170). */
-const FIRST = 100
-const STEP = 10
+export type SidebarWhere = SettingsWhere
 
-function readList(file: string): string[] | undefined {
-  try {
-    const parsed = JSON.parse(readFileSync(file, "utf8")) as { sidebar?: unknown }
-    return Array.isArray(parsed.sidebar)
-      ? parsed.sidebar.filter((name): name is string => typeof name === "string")
-      : undefined
-  } catch {
-    return undefined
-  }
-}
-
-export interface SidebarWhere {
-  /** The project directory, for its `.cockpit.json`. */
-  directory?: string
-  env?: Record<string, string | undefined>
-  home?: string
-}
-
-/** The configured order, project over global; undefined when neither sets one. */
+/** The configured order, project over global, valid names only; undefined when neither sets one. */
 export function sidebarList(where: SidebarWhere = {}): string[] | undefined {
-  const env = where.env ?? process.env
-  const home = where.home ?? homedir()
-  const global = join(env.XDG_CONFIG_HOME ?? join(home, ".config"), "opencode-cockpit", "config.json")
-  const project = where.directory ? readList(join(where.directory, ".cockpit.json")) : undefined
-  return project ?? readList(global)
+  return loadSettings(where).sidebarList
 }
 
+/**
+ * @deprecated `baySettings(bay, …).order`. `explicit` — a bay's old `sidebarOrder` — is ignored now;
+ * `fallback` only places a name that is not a sidebar bay.
+ */
 export function sidebarOrder(
   bay: string,
   fallback: number,
-  explicit: number | undefined,
+  _explicit?: number,
   where: SidebarWhere = {},
 ): number {
-  if (typeof explicit === "number") return explicit
-  const at = sidebarList(where)?.indexOf(bay) ?? -1
-  return at >= 0 ? FIRST + at * STEP : fallback
+  return isSidebarBay(bay) ? orderOf(loadSettings(where), bay) : fallback
 }
 
 type Register = Host["slots"]["register"]

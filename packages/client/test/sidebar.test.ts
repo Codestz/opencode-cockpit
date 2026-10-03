@@ -2,9 +2,9 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import type { Host } from "../src/host.ts"
-import { orderedSidebar, sidebarOrder } from "../src/sidebar.ts"
+import { orderedSidebar, sidebarList, sidebarOrder } from "../src/sidebar.ts"
 
-/** One list orders every bay's sidebar block; a bay's own number still wins; a project beats global. */
+/** One list orders every bay's sidebar block, and nothing else does; a project's list beats global. */
 
 const dirs: string[] = []
 afterEach(() => {
@@ -22,29 +22,28 @@ function setup(global?: unknown, project?: unknown) {
   return { directory, env: { XDG_CONFIG_HOME: config } }
 }
 
-describe("the sidebar order", () => {
-  test("the list puts the statusline first, ahead of every default", () => {
-    const where = setup({ sidebar: ["status", "subagents", "shell"] })
-    const status = sidebarOrder("status", 200, undefined, where)
-    const subagents = sidebarOrder("subagents", 160, undefined, where)
-    const shell = sidebarOrder("shell", 150, undefined, where)
-    expect(status).toBeLessThan(subagents)
-    expect(subagents).toBeLessThan(shell)
-    expect(shell).toBeLessThan(150)
+describe("the sidebar order, for bays that have not moved to baySettings", () => {
+  test("with no list, the default order: status, subagents, shell, trail, trust", () => {
+    const where = setup()
+    const order = ["status", "subagents", "shell", "trail", "trust"].map((bay) =>
+      sidebarOrder(bay, 999, undefined, where),
+    )
+    expect(order).toEqual([...order].sort((a, b) => a - b))
+    expect(order.every((at) => at > 100 && at < 200)).toBe(true)
   })
 
-  test("a bay's own number beats the list; a bay the list leaves out keeps its default", () => {
-    const where = setup({ sidebar: ["status"] })
-    expect(sidebarOrder("status", 200, 999, where)).toBe(999)
-    expect(sidebarOrder("shell", 150, undefined, where)).toBe(150)
+  test("the list decides, and a bay's own number no longer does", () => {
+    const where = setup({ sidebar: ["trust", "status"] })
+    expect(sidebarOrder("trust", 160, undefined, where)).toBeLessThan(sidebarOrder("status", 140, 1, where))
+    expect(sidebarList(where)).toEqual(["trust", "status"])
   })
 
-  test("a project's list beats the global one; no list, no change", () => {
+  test("a project's list beats the global one; a name that is not a sidebar bay keeps its fallback", () => {
     const where = setup({ sidebar: ["shell", "status"] }, { sidebar: ["status", "shell"] })
     expect(sidebarOrder("status", 200, undefined, where)).toBeLessThan(
       sidebarOrder("shell", 150, undefined, where),
     )
-    expect(sidebarOrder("status", 200, undefined, setup())).toBe(200)
+    expect(sidebarOrder("review", 777, undefined, where)).toBe(777)
   })
 })
 
