@@ -473,13 +473,13 @@ function sessionOnScreen(host: Host): string | undefined {
  * On the next tick, because running a slash command clears the prompt it was typed into: anything
  * written during the command itself is wiped a moment later.
  */
-export function briefAgent(host: Host, text: string, title: string): void {
+export function briefAgent(host: Host, text: string, title: string, done = "Briefed the agent."): void {
   setTimeout(() => {
     const failed = (error?: unknown) => {
       host.log.warn("setup: could not reach the agent", { error })
       host.ui.toast({ variant: "error", title, message: "Could not reach the agent." })
     }
-    const sent = () => host.ui.toast({ variant: "info", title, message: "Briefed the agent." })
+    const sent = () => host.ui.toast({ variant: "info", title, message: done })
     if (host.v1) {
       const tui = host.v1.client.tui
       void tui

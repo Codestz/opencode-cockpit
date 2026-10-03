@@ -164,7 +164,7 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
           notices,
         }),
       )
-    const send = () => {
+    const send = (done?: string) => {
       const text = brief()
       /**
        * Sent, not left in the prompt. The brief is forty lines; parked in the input it is a wall of
@@ -175,7 +175,7 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
        * queues it behind a reply in progress, and from home opens a conversation for it — the same
        * path as /cockpit-setup.
        */
-      briefAgent(api, text, "Status")
+      briefAgent(api, text, "Status", done)
     }
 
     api.keymap.registerLayer({
@@ -186,7 +186,7 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
           category: "Cockpit · Status",
           namespace: "palette",
           slashName: SETUP_SLASH,
-          run: send,
+          run: () => send(),
         },
         /**
          * The old name, for one release (removed in 0.10). A second command rather than an alias:
@@ -200,15 +200,11 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
           category: "Cockpit · Status",
           namespace: "palette",
           slashName: OLD_SLASH,
-          run: () => {
-            api.ui.toast({
-              variant: "info",
-              title: "Status",
-              message: `/${OLD_SLASH} is now /${SETUP_SLASH} — briefing the agent all the same.`,
-              duration: 8_000,
-            })
-            send()
-          },
+          /**
+           * The rename rides on the toast that says the brief went out: a toast of its own was
+           * replaced by that one a moment later, so nobody ever read it.
+           */
+          run: () => send(`/${OLD_SLASH} is now /${SETUP_SLASH} — briefed the agent all the same.`),
         },
       ],
     })
