@@ -8,7 +8,7 @@ A statusline segment can be a shell command, fed the same JSON on stdin that Cla
 
 ```jsonc
 {
-  "statusline": {
+  "status": {
     "commands": { "mine": { "run": "~/.claude/statusline.sh", "intervalMs": 2000 } },
     "segments": [{ "type": "command", "name": "mine" }]
   }
@@ -62,7 +62,7 @@ Claude Code statuslines print one row per `echo`. Every row is kept; pick one wi
 
 ```jsonc
 {
-  "statusline": {
+  "status": {
     "commands": { "mine": { "run": "~/.claude/statusline.sh" } },
     "lines": [
       { "surface": "bottom", "segments": [{ "type": "command", "name": "mine", "row": 0 }] },

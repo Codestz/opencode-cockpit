@@ -19,29 +19,22 @@ narrows rather than disappearing, because a review you cannot change file in is 
 
 ## Settings
 
-Three, all optional, given where the plugin is listed:
+All optional, in the `review` section of `~/.config/opencode-cockpit/config.json` or a project's
+`.cockpit.json` (before 0.9 Review read no file, only its plugin entry):
 
-```json title="opencode.json"
-{
-  "plugin": [
-    ["@opencode-cockpit/review", { "variant": "full", "source": "branch" }]
-  ]
-}
+```json title="~/.config/opencode-cockpit/config.json"
+{ "review": { "variant": "full", "source": "branch" } }
 ```
 
 | | |
 | --- | --- |
 | `variant` | `right` (default) or `full` — where it opens |
-| `source` | `worktree` (default), `branch`, or `session` — what it opens on |
+| `source` | `worktree` (default) or `branch` — what it opens on |
 | `keybinds` | overrides for the two global keys, e.g. `{ "cockpit.review.open": "<leader>d" }` |
+| `enabled` | `false` switches Review off; so does `features.review: false` |
 
-Through the bundle, the same options go under a `review` key:
-
-```json title="opencode.json"
-{
-  "plugin": [["opencode-cockpit", { "review": { "variant": "full" } }]]
-}
-```
+A value Review does not know (`"variant": "left"`) is the default and a `!` row in the pane naming
+the ones it does. See [Configuration](/opencode-cockpit/configuration/).
 
 The keys *inside* the panel are not configurable. They are a closed set that only exists while the
 panel is open, and the panel gives them straight back when it closes.

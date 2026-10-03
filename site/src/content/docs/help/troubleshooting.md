@@ -147,4 +147,4 @@ cat .cockpit.json | python3 -m json.tool
 ## Shells are gone after a restart
 
 They survive OpenCode restarts, not machine restarts: the daemon exits when idle and reaps what it
-owned. Shells finished more than `ui.historyMinutes` ago are also hidden from the panel by default.
+owned. Shells finished more than `shell.hideFinishedAfterMinutes` (30) ago are also hidden from the panel by default.

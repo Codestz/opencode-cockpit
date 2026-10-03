@@ -82,7 +82,8 @@ rows(ctx: StatusContext): Piece[] {
 }
 ```
 
-A column keeps at most `maxRows` rows (default 8) — count them and raise it, or the extras vanish.
+A column keeps at most `sidebarRows` rows (default 8; a line in `lines` takes its own `maxRows`) —
+count them and raise it, or the extras vanish.
 The preview prints `↳ N dropped` when that happens.
 
 ## Alignment
@@ -110,8 +111,8 @@ find:
 
 ## Let an agent draw it
 
-Type **`/statusline`** in OpenCode. It draws nothing: it hands the agent already in your session a
-brief carrying what it cannot look up — which config file this project reads, what is drawing right
+Type **`/status-setup`** in OpenCode (`/statusline` until 0.9). It draws nothing: it hands the agent
+in your session a brief carrying what it cannot look up — which config file this project reads, what is drawing right
 now, your modules and any that failed to load, the preset and segment names — and ends by asking
 what you want it to show.
 

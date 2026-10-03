@@ -268,8 +268,11 @@ In the bundle's entry (`"trust": { … }`), the package's own, or the `trust` se
 | `enabled` | `true` | `false` turns Trust off |
 | `sidebar` | `false` | Show the block in the sidebar. The palette's "Show or hide Trust in the sidebar" flips it for the session |
 | `sidebarRows` | `3` | Answers listed in the sidebar |
-| `sidebarOrder` | `160` | Where the block sits in the sidebar; lower draws first |
 | `keybinds` | `{ "cockpit.trust.ledger": "<leader>p" }` | The key that opens the ledger |
+
+Where the block sits is the top-level `"sidebar"` list's to say — Trust last by default; a
+`trust.sidebarOrder` from before 0.9 is no longer read. See
+[Configuration](/opencode-cockpit/configuration/#the-sidebar-order).
 
 ## Where it keeps what it learned
 

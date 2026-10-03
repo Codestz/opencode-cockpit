@@ -69,9 +69,12 @@ and the interface slots are identical either way.
 
 ```json title="~/.config/opencode-cockpit/config.json"
 {
-  "defaults": { "logFile": true },
-  "ui": { "dockOpen": true }
+  "sidebar": ["status", "subagents", "shell", "trail", "trust"],
+  "shell": { "defaults": { "logFile": true }, "dockOpen": true }
 }
 ```
+
+One section per bay, read by both halves of each; [Configuration](/opencode-cockpit/configuration/)
+has every key, or type `/cockpit-setup` and the agent writes it with you.
 
 Next: [Install](/opencode-cockpit/start/install/).

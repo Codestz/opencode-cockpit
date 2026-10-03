@@ -38,9 +38,9 @@ export const hero = {
 
 export const specs = [
   { value: "1", label: "daemon, shared by every window" },
-  { value: "9", label: "agent tools" },
+  { value: "17", label: "agent tools" },
   { value: "35", label: "watch presets" },
-  { value: "14", label: "statusline segments" },
+  { value: "23", label: "statusline segments" },
 ]
 
 export const compare = {
@@ -197,18 +197,18 @@ export const bays = {
       points: [
         "A capacity bar that means something at a glance",
         "Tokens split into cache, input and output",
-        "Fourteen segments, or your own in TypeScript",
+        "A table in the sidebar by default, or a line under the prompt",
+        "Twenty-three segments, or your own in TypeScript",
         "Your Claude Code statusline script runs unchanged",
-        "Colours follow whatever theme you run",
         "Silent about anything the host already says better",
       ],
-      foot: ["14 segments", "2 surfaces", "@opencode-cockpit/status"],
+      foot: ["23 segments", "2 surfaces", "@opencode-cockpit/status"],
       docs: "/status/overview/",
       media: {
         kind: "image" as const,
         src: "/media/statusline.png",
         alt: "The statusline under an OpenCode conversation: a context bar at 40 per cent, the token total with its cache, input and output parts, the session diff, and elapsed time",
-        caption: "the default line · no configuration written at all",
+        caption: "the bottom line · { \"status\": { \"sidebar\": false } }",
       },
     },
     {
@@ -406,7 +406,7 @@ export const install = {
   steps: [
     "Run the command above — on OpenCode 1 it writes both plugin entries, on OpenCode 2 one entry loads both halves.",
     "Restart OpenCode. The daemon starts on first use and exits when idle.",
-    "Optional: put kinds, watch presets and defaults in <code>~/.config/opencode-cockpit/config.json</code>.",
+    "Optional: type <code>/cockpit-setup</code> and the agent sets up <code>~/.config/opencode-cockpit/config.json</code> with you — which bays show, where, in what order.",
     "Something off? <code>npx opencode-cockpit@latest doctor</code> checks your setup and prints the fix.",
   ],
 }

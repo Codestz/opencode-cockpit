@@ -32,7 +32,7 @@ anything. Press <kbd>s</kbd> in the console to widen it to the whole project and
 ## The panel
 
 A dock under the chat with a tab per shell, the selected shell's live screen, and the health of each
-one at a glance. `ui.dockHeight` sets how tall, `ui.dockOpen` whether it starts open.
+one at a glance. `shell.dockHeight` sets how tall, `shell.dockOpen` whether it starts open.
 
 ## The console
 
@@ -99,4 +99,4 @@ the console's; `--help` lists the states. Plain text under `NO_COLOR` or into a 
 `/shells-stop` stops the shells you are looking at; `/shells-stop-all` stops every shell in the
 project and asks first when that includes conversations you cannot see. `/shells` toggles the panel, `/shell` opens the console, `/shell-new` starts one,
 `/shells-clear` forgets finished shells, `/shells-restart-daemon` replaces a daemon running older
-code. Rebind them under `ui.keybinds`.
+code. Rebind them under `shell.keybinds`.

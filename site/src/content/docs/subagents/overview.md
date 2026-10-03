@@ -32,16 +32,17 @@ Subagents    1 running · 1 needs you
 A spinner is working and `○` waits on you — the two in colour, because they are the two that may
 need you; a red `●` failed. A finished subagent is a quiet `●` and one row; one you stopped says
 `stopped`, quietly too, since stopping is not failing. The heading counts every state, and keeps
-what needs you when the column is narrow. The agent is named unless it is `general`, the one a
-subagent is when nobody chose. A subagent that launched its own has them indented under it, and subagents with the same parent,
-agent and task — a helper asked again and again — are one entry with a count (`×6`). A finished
-nested one leaves the sidebar after `hideNestedAfter` seconds (30 by default); the heading still
-counts it and the pane still reaches it. Working subagents are always shown; finished ones fold
-into a count past `sidebarRows`, and leave after `hideFinishedAfter` minutes if you set it. No
-subagents, no block.
+what needs you when the column is narrow. Every row names its agent, muted — `general` too — and
+the agent's name shortens before the title does; a subagent with no title is named by its task's
+first words. A subagent that launched its own has them indented under it, and subagents with the
+same parent, agent and task — a helper asked again and again — are one entry with a count (`×6`). A
+finished nested one leaves the sidebar after `hideNestedAfterSeconds` (30 by default); the heading
+still counts it and the pane still reaches it. Working subagents are always shown; finished ones
+fold into a count past `sidebarRows`, and leave after `hideFinishedAfterMinutes` if you set it. With
+none yet the block says so — its heading and `none yet` — unless `hideWhenEmpty` is on.
 
-The sidebar reads statusline, subagents, shells, top to bottom — `"sidebar"` in
-[Cockpit's config](/configuration/) reorders it.
+The sidebar reads status, subagents, shells, trail, top to bottom — `"sidebar"` in
+[Cockpit's config](/opencode-cockpit/configuration/#the-sidebar-order) reorders it.
 
 ## The pane
 
@@ -156,18 +157,27 @@ on, under the same condition on OpenCode 1.
 
 ## Settings
 
-In the bundle's entry (`"subagents": { … }`) or this package's own:
+In the `subagents` section of `~/.config/opencode-cockpit/config.json`, or a project's
+`.cockpit.json` — read by both halves:
+
+```jsonc
+{ "subagents": { "sidebarRows": 6, "hideWhenEmpty": false, "hideFinishedAfterMinutes": 60 } }
+```
 
 | Setting | Default | |
 | --- | --- | --- |
 | `sidebarRows` | `6` | Subagents shown before the rest fold into a count, working ones first |
-| `hideFinishedAfter` | unset | Minutes a finished subagent stays in the sidebar; unset keeps it for the conversation |
-| `hideNestedAfter` | `30` | Seconds a finished *nested* subagent — one a subagent launched — stays in the sidebar; a negative number keeps them |
-| `sidebarOrder` | `150` | Where the block sits among sidebar blocks; lower draws first |
+| `hideWhenEmpty` | `false` | With no subagents the block says `none yet` under its heading; `true` draws nothing |
+| `hideFinishedAfterMinutes` | unset | Minutes a finished subagent stays in the sidebar; unset keeps it for the conversation |
+| `hideNestedAfterSeconds` | `30` | Seconds a finished *nested* subagent — one a subagent launched — stays in the sidebar; a negative number keeps them |
 | `keybinds` | `{ "cockpit.subagents.open": "<leader>w" }` | The key that opens the one working now |
 | `guidance` | `true` | Tell the main agent about background subagents and follow-ups (agent side) |
+| `enabled` | `true` | `false` switches both halves off; so does `features.subagents: false` |
 
-Switch the whole bay off in the bundle with `{ "features": { "subagents": false } }`.
+Where the block sits is the top-level `"sidebar"` list's to say. The names from before 0.9 —
+`hideFinishedAfter`, `hideNestedAfter`, `sidebarOrder` — are no longer read: the block shows a `!`
+row naming the new one, and `/cockpit-setup` fixes it. See
+[Configuration](/opencode-cockpit/configuration/).
 
 ## Known limits
 
