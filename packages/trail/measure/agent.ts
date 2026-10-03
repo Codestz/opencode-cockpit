@@ -45,7 +45,7 @@ const PR = "https://github.com/acme/web/pull/417"
  * first, or asks before opening anything, measures its caution, not Trail.
  */
 export const PROMPT =
-  "Open the pull request for this branch now: run `gh pr create --fill` straight away (the branch is pushed and gh is logged in; nothing needs checking first), then reply with the PR's link."
+  "Open the pull request for this branch now: run `gh pr create --fill` straight away (a private repository; I reviewed the change, the branch is pushed and gh is logged in — nothing needs checking first), then reply with the PR's link."
 
 const version = Bun.spawnSync([opencode, "--version"]).stdout.toString().trim()
 const v2 = version.replace(/^opencode\s+v?/, "").startsWith("2")
@@ -204,8 +204,21 @@ async function once(index: number): Promise<Outcome> {
 
 console.log(`Trail measurement: ${version} (${opencode}), plugin ${plugin}, ${model}, ${runs} run(s)`)
 let passed = 0
+/**
+ * A turn in which the model declined to open the PR at all measures nothing about Trail — a free
+ * model on OpenCode 2 refused `gh pr create` in 2 of 4 runs as "public-facing". Such a run is tried
+ * again, up to `ATTEMPTS` times; only a turn that opened the PR and then did not record it fails.
+ */
+const ATTEMPTS = 3
 for (let i = 1; i <= runs; i++) {
-  const outcome = await once(i)
+  let outcome = await once(i)
+  for (let attempt = 2; !outcome.ghRan && attempt <= ATTEMPTS; attempt++) {
+    console.log(
+      `run ${i}: the model never ran gh pr create — no measurement, trying again (${attempt}/${ATTEMPTS})`,
+    )
+    if (outcome.said) console.log(`  said: ${outcome.said.replace(/\s+/g, " ").slice(0, 200)}`)
+    outcome = await once(i)
+  }
   if (outcome.ok) passed++
   console.log(
     `run ${i}: ${outcome.ok ? "PASS" : "FAIL"}  gh pr create ran: ${outcome.ghRan}  trail_add: ${outcome.calls.length}  in the trail: ${outcome.recorded}`,
