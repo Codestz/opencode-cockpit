@@ -2,6 +2,7 @@
 
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
 import { dualTui, type Host } from "@opencode-cockpit/client/host"
+import { briefAgent } from "@opencode-cockpit/client/setup"
 import type { BoxRenderable } from "@opentui/core"
 import { createMemo } from "solid-js"
 import pkg from "../../package.json" with { type: "json" }
@@ -13,7 +14,7 @@ import { fit, fitColumn } from "../core/render.ts"
 import { buildReport } from "../core/report.ts"
 import { buildSegments, type SegmentDef } from "../core/segments.ts"
 import { StatusLine } from "./components/statusline.tsx"
-import { buildContext, currentSession } from "./state/snapshot.ts"
+import { buildContext } from "./state/snapshot.ts"
 import { createStatusStore } from "./state/store.ts"
 
 const STATUS_PACKAGE = "@opencode-cockpit/status"
@@ -170,31 +171,11 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
        * text the user has to scroll past to type their own sentence, and it ends by asking what they
        * want anyway — so the agent is the right place for it to land.
        *
-       * On the next tick, because running a slash command clears the prompt it was typed into:
-       * writing during the command itself is wiped a moment later, which looks exactly like a
-       * command that did nothing.
+       * `briefAgent` sends it on the next tick (a slash command clears the prompt it was typed into),
+       * queues it behind a reply in progress, and from home opens a conversation for it — the same
+       * path as /cockpit-setup.
        */
-      setTimeout(() => {
-        const failed = () => {
-          api.log.warn("status: could not reach the prompt")
-          api.ui.toast({ variant: "error", title: "Status", message: "could not reach the prompt" })
-        }
-        if (api.v1) {
-          const tui = api.v1.client.tui
-          void tui
-            .appendPrompt({ text })
-            .then(() => tui.submitPrompt())
-            .catch(failed)
-          return
-        }
-        /** OpenCode 2: straight to the conversation on screen, there being no prompt to fill. */
-        const session = currentSession(api)
-        if (!session) {
-          api.ui.toast({ title: "Status", message: "Open a conversation first." })
-          return
-        }
-        void api.promptSession(session, text).catch(failed)
-      }, 0)
+      briefAgent(api, text, "Status")
     }
 
     api.keymap.registerLayer({
