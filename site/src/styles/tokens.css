@@ -1,44 +1,57 @@
 /**
- * Every colour, radius and type decision on the site. Change a value and both the landing page and
- * the docs follow — nothing else hard-codes a colour.
+ * Every colour, radius and type decision the docs make (the landing page draws its deck with its
+ * own .deck-page tokens in landing.css, from the same family). Change a value here and the docs,
+ * the casts and the diagrams follow — nothing else hard-codes a colour.
  *
- * Light and dark are one palette seen on two grounds, not two palettes: the same blue hue for the
- * accent (deepened on paper so it still carries on white), and neutrals tinted toward that same
- * blue in both. That shared bias is what stops the light mode feeling borrowed from another site.
+ * Light and dark are one palette seen on two grounds, not two palettes: the same sky-blue hue for
+ * the accent (deepened on paper so it still carries on white), and neutrals tinted toward that same
+ * navy in both. Dark is the landing's "Flight Deck" ground; light is its cool-paper counterpart.
  *
  * Light is the base; dark is applied by the OS preference and by an explicit choice, so both the
  * landing page and Starlight's theme picker end up in the same place.
+ *
+ * Contrast (WCAG): body text and links clear AA on every ground they sit on — see the numbers
+ * beside each text token.
  */
 :root {
   /* surfaces — cool paper, never warm bone */
-  --ck-bg: #f7f8fb;
-  --ck-bg-2: #eef1f7;
+  --ck-bg: #f6f8fc;
+  --ck-bg-2: #edf1f8;
   --ck-card: #ffffff;
-  --ck-card-2: #f2f5fa;
-  --ck-line: #dfe4ee;
-  --ck-line-2: #c5cedd;
+  --ck-card-2: #f1f4fa;
+  --ck-line: #dbe2ee;
+  --ck-line-2: #c3cddd;
 
-  /* text */
-  --ck-fg: #0e131b;
-  --ck-fg-2: #4a5567;
-  --ck-fg-3: #6f7b8d;
+  /* text — navy ink */
+  --ck-fg: #0a1426; /* 17.3:1 on bg */
+  --ck-fg-2: #3d4a5f; /* 8.4:1 on bg */
+  --ck-fg-3: #5a667b; /* 5.4:1 on bg, 5.1:1 on bg-2 */
 
-  /* one accent, plus the two states the product itself uses */
-  --ck-accent: #2563c9;
+  /* one accent, plus the states the product itself uses */
+  --ck-accent: #1d5fc4; /* 5.7:1 on bg, 6.0:1 on white */
   --ck-accent-ink: #ffffff;
-  --ck-accent-soft: rgba(37, 99, 201, 0.1);
-  --ck-warn: #9a6512;
-  --ck-info: #1d6fb8;
+  --ck-accent-soft: rgba(29, 95, 196, 0.08);
+  --ck-ok: #1f7a4d; /* 5.0:1 on bg */
+  --ck-warn: #8a5a00; /* 5.6:1 on bg */
+  --ck-danger: #b4232f; /* 6.1:1 on bg */
+  --ck-info: #1d5fc4;
 
-  /* terminal recordings keep their own ground in both modes: output is output */
-  --ck-terminal: #0a0c10;
+  /* terminal recordings and code keep their own ground in both modes: output is output */
+  --ck-terminal: #070d18;
+  --ck-terminal-2: #0b1426;
+  --ck-terminal-line: #23314a;
+  --ck-terminal-fg: #e9eef6; /* 16.7:1 */
+  --ck-terminal-muted: #7a879d; /* 5.1:1 */
+  --ck-terminal-accent: #6cb6ff; /* 9.1:1 */
 
-  /* shape and type */
-  --ck-radius: 14px;
-  --ck-radius-sm: 10px;
+  /* shape and type — square, like the deck */
+  --ck-radius: 0px;
+  --ck-radius-sm: 2px;
   --ck-font: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --ck-font-display: "Sora", var(--ck-font);
+  --ck-font-display: var(--ck-font);
   --ck-font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --ck-tracking-tight: -0.03em;
+  --ck-tracking-eyebrow: 0.08em;
 
   /* rhythm */
   --ck-page: 1180px;
@@ -48,43 +61,48 @@
   color-scheme: light dark;
 }
 
-/* The same palette on a dark ground: identical hues, inverted roles. */
+/* The same palette on the deck's navy ground: identical hues, inverted roles. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --ck-bg: #0a0c10;
-    --ck-bg-2: #0e1117;
-    --ck-card: #12161d;
-    --ck-card-2: #171c24;
-    --ck-line: #1e2530;
-    --ck-line-2: #2b3440;
+    --ck-bg: #050a14;
+    --ck-bg-2: #0a1222;
+    --ck-card: #0a1222;
+    --ck-card-2: #0e1829;
+    /* the deck's hairlines, rgba(140,170,220,.14/.26), resolved on its ground */
+    --ck-line: #172131;
+    --ck-line-2: #283851;
 
-    --ck-fg: #e9edf3;
-    --ck-fg-2: #98a3b3;
-    --ck-fg-3: #667283;
+    --ck-fg: #f2f5fa; /* 18.1:1 on bg */
+    --ck-fg-2: #a3afc2; /* 8.9:1 on bg, 8.4:1 on bg-2 */
+    --ck-fg-3: #7a879d; /* 5.4:1 on bg, 5.1:1 on bg-2 */
 
-    --ck-accent: #6aa6ff;
-    --ck-accent-ink: #04152e;
-    --ck-accent-soft: rgba(106, 166, 255, 0.14);
-    --ck-warn: #f0b45e;
-    --ck-info: #67e8f9;
+    --ck-accent: #8fc4ff; /* 10.9:1 on bg */
+    --ck-accent-ink: #04101f;
+    --ck-accent-soft: rgba(143, 196, 255, 0.1);
+    --ck-ok: #5fd39a;
+    --ck-warn: #ffc45c;
+    --ck-danger: #ff8a8a;
+    --ck-info: #8fb3ff;
   }
 }
 
 :root[data-theme="dark"] {
-  --ck-bg: #0a0c10;
-  --ck-bg-2: #0e1117;
-  --ck-card: #12161d;
-  --ck-card-2: #171c24;
-  --ck-line: #1e2530;
-  --ck-line-2: #2b3440;
+  --ck-bg: #050a14;
+  --ck-bg-2: #0a1222;
+  --ck-card: #0a1222;
+  --ck-card-2: #0e1829;
+  --ck-line: #172131;
+  --ck-line-2: #283851;
 
-  --ck-fg: #e9edf3;
-  --ck-fg-2: #98a3b3;
-  --ck-fg-3: #667283;
+  --ck-fg: #f2f5fa;
+  --ck-fg-2: #a3afc2;
+  --ck-fg-3: #7a879d;
 
-  --ck-accent: #6aa6ff;
-  --ck-accent-ink: #04152e;
-  --ck-accent-soft: rgba(106, 166, 255, 0.14);
-  --ck-warn: #f0b45e;
-  --ck-info: #67e8f9;
+  --ck-accent: #8fc4ff;
+  --ck-accent-ink: #04101f;
+  --ck-accent-soft: rgba(143, 196, 255, 0.1);
+  --ck-ok: #5fd39a;
+  --ck-warn: #ffc45c;
+  --ck-danger: #ff8a8a;
+  --ck-info: #8fb3ff;
 }

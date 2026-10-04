@@ -1,424 +1,212 @@
-import manifest from "../../../package.json" with { type: "json" }
+import cockpit from "../../../packages/opencode/package.json" with { type: "json" }
+
 /**
  * Every word on the landing page. Components render this; none of them hold copy of their own, so
  * changing the pitch never means touching markup.
+ *
+ * The version is the published package's, read at build: a number typed here was wrong for two
+ * releases once, and this one is in every install command on the page.
  */
-export const nav = {
-  links: [
-    { label: "What's fitted", href: "#bays" },
-    { label: "Review", href: "#review" },
-    { label: "Shell", href: "#shell" },
-    { label: "Statusline", href: "#status" },
-    { label: "Updater", href: "#updater" },
-    { label: "Subagents", href: "#subagents" },
-    { label: "Trail", href: "#trail" },
-    { label: "Trust", href: "#trust" },
-    { label: "Platform", href: "#platform" },
-    { label: "Install", href: "#install" },
-  ],
-  /**
-   * Read from the package rather than typed here.
-   *
-   * It said v0.3.0 through two releases: a number nobody thinks to update is a number that is
-   * wrong, and this one sits in the corner of every page.
-   */
-  version: `v${manifest.version}`,
-  github: "https://github.com/Codestz/opencode-cockpit",
+export const version = cockpit.version
+
+export const github = "https://github.com/Codestz/opencode-cockpit"
+
+/** OpenCode 1 writes both config files; OpenCode 2 reads one, and its background service must restart. */
+export const install = {
+  v1: { label: "OpenCode 1", command: `opencode plugin opencode-cockpit@${version} --global --force` },
+  v2: {
+    label: "OpenCode 2",
+    command: `opencode plugin add opencode-cockpit@${version}`,
+    after: "opencode service restart",
+    afterNote: "after installing, and after every update",
+  },
+  requires: "OpenCode 1.18+ or 2.0.15+ · macOS and Linux · MIT",
+  pinned: "Pinned on purpose: OpenCode resolves a plugin once. The same line moves you to a newer release.",
 }
 
-export const hero = {
-  eyebrow: "// instruments for OpenCode",
-  title: ["Give OpenCode the", "instruments", "it does not ship with."] as const,
-  body:
-    "A tool call has to finish. A dev server does not, and neither does the context window filling " +
-    "up behind you. Cockpit is the instrument panel: things your agent can use, and things that " +
-    "tell you what it is doing. One package per capability, one switch each.",
-  install: "opencode plugin opencode-cockpit@0.9.0 --global --force",
-}
-
-export const specs = [
-  { value: "1", label: "daemon, shared by every window" },
-  { value: "18", label: "agent tools" },
-  { value: "34", label: "watch presets" },
-  { value: "23", label: "statusline segments" },
+export const nav = [
+  { label: "Bays", href: "#bays" },
+  { label: "Trail", href: "#trail" },
+  { label: "Docs", href: "start/what-cockpit-is/" },
+  { label: "Changelog", href: "help/changelog/" },
 ]
 
-export const compare = {
-  number: "",
-  kicker: "Why not just bash",
-  title: "A tool call is the wrong shape for work that keeps going.",
-  intro:
-    "Everything long-running hits the same wall: the call either blocks until the process dies, or " +
-    "backgrounds it into the dark. Cockpit changes the shape of the call.",
-  columns: ["Bash in a tool call", "A Cockpit shell"],
-  rows: [
-    ["Blocks the turn until the server is killed", "Returns the moment the port actually answers"],
-    ["Backgrounded with & and lost with the session", "Outlives the turn, the session and the window"],
-    ['"Is it ready?" answered by sleeping and hoping', "Waits on a port, a pattern, silence or exit"],
-    ["A crash nobody notices until the next command", "A process that dies is reported as a failure"],
-    ["The whole log re-read every turn, in tokens", "Reads forward from a cursor, greps before it costs"],
-  ],
+export const hero = {
+  /** Under the window: what makes it more than a picture of the product. */
+  proof: "Drawn live by Cockpit's own code — the same renderers that run in your terminal.",
+  tag: `${version} — Trail: what every conversation shipped`,
+  title: "Your agent, on instruments.",
+  accent: "See it work while it works.",
+  body:
+    "Cockpit adds the instruments OpenCode doesn't ship with: shells that keep running, subagents you " +
+    "can watch, a pull request in the terminal, and a trail of everything each conversation made.",
 }
 
-export const platform = {
-  number: "09",
-  kicker: "The platform",
-  title: "What every capability inherits.",
-  intro:
-    "A bay never re-solves process ownership, configuration or interface plumbing. It declares what " +
-    "it needs and gets the rest from the airframe.",
-  pieces: [
-    {
-      icon: "daemon",
-      title: "A daemon that outlives the session",
-      body:
-        "OpenCode's interface and server run in separate threads that cannot share memory, and neither " +
-        "survives a restart. <code>cockpitd</code> owns the state: shared by every window, self-upgrading, " +
-        "reaping what crashes leave behind, exiting when idle.",
-    },
-    {
-      icon: "config",
-      title: "One config for both halves",
-      body:
-        "On OpenCode 1, agent plugins are configured in <code>opencode.json</code>, interface plugins in <code>tui.json</code>. " +
-        "Cockpit reads one file for both — global, then project, one section per bay — and a file it " +
-        "cannot read is a <code>!</code> row and the defaults, never a blank sidebar.",
-    },
-    {
-      icon: "panel",
-      title: "Real estate in the interface",
-      body:
-        "A docked panel, a full-screen console, a sidebar section, a keymap namespace. A bay asks for the " +
-        "slot it needs and inherits the chrome, the theme and the keybind conventions.",
-    },
-    {
-      icon: "wire",
-      title: "A typed wire between them",
-      body:
-        "JSON-RPC over a private socket, schemas shared by client and daemon, versioned at " +
-        "<code>protocol 1.3</code>. A bay adds methods and events without the others knowing, and a " +
-        "mismatch is reported instead of guessed at.",
-    },
-  ],
-}
+/** The strip under the hero: one cell per bay, each a link to its section. */
+export const bays = [
+  { id: "trail", name: "Trail", what: "what it shipped" },
+  { id: "shell", name: "Shell", what: "background runs" },
+  { id: "subagents", name: "Subagents", what: "helpers, visible" },
+  { id: "review", name: "Review", what: "PRs in the terminal" },
+  { id: "status", name: "Status", what: "context & cost" },
+  { id: "trust", name: "Trust", what: "fewer prompts" },
+  { id: "updater", name: "Updater", what: "what plugins run" },
+]
 
-/**
- * One entry per bay, in the order they appear down the page.
- *
- * The page is built from this list: a short index at the top, then a section each. Fitting another
- * bay is appending an object here — it was a fixed three-card grid before, which meant a fourth
- * capability would have cost a redesign rather than an entry.
- */
-export const bays = {
-  number: "01",
-  kicker: "What is fitted",
-  title: "Seven instruments today. One switch each.",
-  intro:
-    "Every bay is its own npm package with a switch in config. They share the daemon, the config " +
-    "file and the keys, so the second costs nothing and moving between them changes nothing you " +
-    "have already set up.",
-  items: [
-    {
-      id: "review",
-      name: "Review",
-      tagline: "A pull request in the terminal",
-      state: "live",
-      status: "Available",
-      gains: { agent: "Comments it can answer and resolve", you: "The diff, with notes on the lines" },
-      blurb:
-        "Reviewing what an agent wrote means reading a diff in a chat log and describing your " +
-        "objection in prose. Review gives you the diff where the work happened, comments on the " +
-        "lines they are about, and an agent that can read them, answer them and mark them resolved " +
-        "— which a chat message cannot do.",
-      points: [
-        "Comment on a line, a range, or a whole file",
-        "The agent reads them as data, not as prose",
-        "A resolve is checked against the file before it counts",
-        "Notes live on the branch, so they outlive the chat",
-        "The agent can leave notes of its own",
-        "Uncommitted, or the whole branch against its parent",
-      ],
-      foot: ["3 agent tools", "12 filetypes", "@opencode-cockpit/review"],
-      docs: "/review/overview/",
-      media: {
-        kind: "casts" as const,
-        clips: [
-          {
-            cast: "review",
-            label: "A review, answered",
-            hint: "comment → submit → resolved",
-            caption: "tapes/review.ts · a real branch, a real turn — only the waiting is cut",
-          },
-        ],
-      },
-    },
-    {
-      id: "shell",
-      name: "Shell",
-      tagline: "Background terminals",
-      state: "live",
-      status: "Available",
-      gains: { agent: "Terminals that keep running", you: "A panel that reports its own health" },
-      blurb:
-        "A tool call has to finish. A dev server does not — so your agent either blocks on it, or " +
-        "backgrounds it and loses the output. Shell gives it terminals with a real PTY that outlive " +
-        "the turn, wait for a port or a pattern, and hand back the part that matters.",
-      points: [
-        "Waits on a port, a pattern, silence or exit",
-        "Watchers report transitions, not noise",
-        "Three views: agent log, your screen, raw replay",
-        "Search the scrollback from the console",
-        "Time and idle limits, with the reason recorded",
-        "Reuses a finished shell instead of piling up",
-      ],
-      foot: ["8 agent tools", "34 watch presets", "@opencode-cockpit/shell"],
-      docs: "/shell/overview/",
-      media: {
-        kind: "casts" as const,
-        clips: [
-          { cast: "session", label: "A real conversation", hint: "ask → shell_start → answer", caption: "tapes/session.ts · a real model turn, start to finish" },
-          { cast: "dock", label: "Panel under the chat", hint: "dev server, live", caption: "tapes/dock.ts · the panel and the console, at full size" },
-          { cast: "search", label: "Search a long log", hint: "240 lines → 4", caption: "tapes/search.ts · filtering happens in the daemon" },
-          { cast: "tour", label: "Two shells at once", hint: "two shells, one keyboard", caption: "tapes/tour.ts · switching without the mouse" },
-        ],
-      },
-    },
-    {
-      id: "status",
-      name: "Statusline",
-      tagline: "The session, at a glance",
-      state: "live",
-      status: "Available",
-      gains: { agent: "A skill to design the line with you", you: "What the session is costing you" },
-      blurb:
-        "How full is the context? Where did the tokens go? What has changed? OpenCode answers the " +
-        "first in a corner and the rest not at all. The statusline answers them where you are already " +
-        "looking, and every part of it is a segment you can reshape, recolour or write yourself.",
-      points: [
-        "A capacity bar that means something at a glance",
-        "Tokens split into cache, input and output",
-        "A table in the sidebar by default, or a line under the prompt",
-        "Twenty-three segments, or your own in TypeScript",
-        "Your Claude Code statusline script runs unchanged",
-        "Silent about anything the host already says better",
-      ],
-      foot: ["23 segments", "2 surfaces", "@opencode-cockpit/status"],
-      docs: "/status/overview/",
-      media: {
-        kind: "image" as const,
-        src: "/media/statusline.png",
-        alt: "The statusline under an OpenCode conversation: a context bar at 40 per cent, the token total with its cache, input and output parts, the session diff, and elapsed time",
-        caption: "the bottom line · { \"status\": { \"sidebar\": false } }",
-      },
-    },
-    {
-      id: "updater",
-      name: "Updater",
-      tagline: "Every plugin, and what it really runs",
-      state: "live",
-      status: "Available",
-      gains: { agent: "—", you: "Plugins that are actually current" },
-      blurb:
-        "OpenCode installs a plugin once and never resolves its spec again, so @latest quietly means " +
-        "the release that was newest the day you installed it — and nothing says which one that was. " +
-        "The Updater shows what is running beside what your config says and what is published, and " +
-        "updates what you pick, checking every file afterwards.",
-      points: [
-        "Every plugin you have, not just this one",
-        "Running, config and published, side by side",
-        "latest ⚠ — a spec that will not move on its own",
-        "Every change shown before anything is written",
-        "Pins through OpenCode's own installer",
-        "Read back from disk, with the fix for what is not",
-      ],
-      foot: ["every plugin", "npx … update when stuck", "@opencode-cockpit/updater"],
-      docs: "/updater/overview/",
-      media: {
-        kind: "casts" as const,
-        clips: [
-          {
-            cast: "updater",
-            label: "A frozen @latest",
-            hint: "found → reviewed → fixed",
-            caption: "tapes/updater.ts · real plugins, a real install — only the npm wait is cut",
-          },
-        ],
-      },
-    },
-    {
-      id: "subagents",
-      name: "Subagents",
-      tagline: "What your subagents are doing — and follow-ups that keep their context",
-      state: "live",
-      status: "Available",
-      gains: {
-        agent: "Follow-ups continue the subagent that already read the code",
-        you: "Every subagent visible, and one message away",
-      },
-      blurb:
-        "When the main agent hands work to a subagent you get one line in the chat and nothing about what " +
-        "it is doing. Subagents puts each one in the sidebar with what it is doing right now, and a click " +
-        "opens its whole run — thinking, every command and its output, the answer as it is written. Ask " +
-        "for a follow-up and the main agent continues that subagent instead of starting from nothing.",
-      points: [
-        "Every subagent in the sidebar, and what it is doing now",
-        "Click one: its run, drawn the way OpenCode draws its own",
-        "Follow-ups continue the same subagent, with its context",
-        "Message one: the main agent learns what it answered",
-        "Stop one, or move a blocking one to the background",
-        "The same on OpenCode 1 and 2",
-      ],
-      foot: ["sidebar + pane", "ctrl+x d · /subagents", "@opencode-cockpit/subagents"],
-      docs: "/subagents/overview/",
-      media: {
-        kind: "casts" as const,
-        clips: [
-          {
-            cast: "subagents",
-            label: "A subagent, watched",
-            hint: "sidebar → its run → a question",
-            caption: "tapes/subagents.ts · a real subagent on OpenCode 1 — only the silences are capped",
-          },
-        ],
-      },
-    },
-    {
-      id: "trail",
-      name: "Trail",
-      tagline: "What a conversation made — and which conversation made it",
-      state: "live",
-      status: "Available",
-      gains: {
-        agent: "Records the PRs, tickets and pages it creates, and can say which conversation made one",
-        you: "Everything a conversation made, in the sidebar, one click from the page",
-      },
-      blurb:
-        "A conversation opens pull requests in two repositories, moves a ticket, publishes a page — and " +
-        "the only record is the chat. Trail keeps it: the agent records what it creates or changes with " +
-        "whatever tools you use, and Cockpit orders it by the ticket it was for and puts it in the " +
-        "sidebar, a click from the page. Months later, `/trail` says which conversation opened PR #33 and " +
-        "takes you back into it.",
-      points: [
-        "No setup: the agent writes the trail, with gh, an MCP server, any tool",
-        "Grouped by the work — a ticket heads its PRs",
-        "Click a row: the page opens in your browser",
-        "Which conversation made it, and a jump back into it",
-        "A link it printed and never recorded is put back to it, as a choice",
-        "Copy a conversation's trail as markdown, for the PR or the standup",
-      ],
-      foot: ["sidebar · /trail · /link", "trail_add · trail_list", "@opencode-cockpit/trail"],
-      docs: "/trail/overview/",
-      media: {
-        kind: "casts" as const,
-        clips: [
-          {
-            cast: "trail",
-            label: "What a conversation shipped",
-            hint: "PR → recorded → asked from another conversation → g",
-            caption: "tapes/trail.ts · a real model turn — the prompt never mentions Trail",
-          },
-        ],
-      },
-    },
-    {
-      id: "trust",
-      name: "Trust",
-      tagline: "Permissions that learn — exactly what you approved, and nothing near it",
-      state: "live",
-      status: "Available",
-      gains: {
-        agent: "Fewer stops for the commands you always say yes to",
-        you: "Approve the same command three times; it is answered for you, and you can see why",
-      },
-      blurb:
-        "OpenCode's own \"always\" turns `docker compose -p cockpit up` into `docker compose -p *` — which " +
-        "also approves `-p prod down -v`. Trust counts the exact command: approve it three times in a row " +
-        "and it is answered for you from then on, in this project, for that agent. Dangerous commands cost " +
-        "more, your config's `ask` rules always win, and the ledger shows every rule — or a whole family " +
-        "you chose to trust — with one key to revoke it.",
-      points: [
-        "The exact command, never a prefix: a different flag starts again",
-        "Dangerous ones (rm, git push, --force, down -v) need eight in a row",
-        "Your config wins: a specific ask is never answered",
-        "Only your approvals count — not its own, not --auto",
-        "The ledger: families, what a rule answers exactly, revoke, trust a family on purpose",
-        "The same on OpenCode 1 and 2",
-      ],
-      foot: ["ledger · sidebar (opt-in)", "/trust · ctrl+x p", "@opencode-cockpit/trust"],
-      docs: "/trust/overview/",
-      media: {
-        kind: "image" as const,
-        src: "/media/trust-activity.png",
-        alt: "Trust's activity screen: prompts answered today with the reason for each, commands one approval away from being trusted, a dangerous one at 5 of 8, and a warning about OpenCode's own broad always approvals",
-        caption: "bunx @opencode-cockpit/trust preview · the rows the dialog draws, from a sample project",
-      },
-    },
-  ],
-}
-
-/** What is coming, and the reason it is next. */
-export const next = {
-  number: "10",
-  kicker: "What is next",
-  title: "One bay at a time, and only what can be built.",
-  intro:
-    "Nothing is listed here that cannot be built with what OpenCode already exposes. One bay at a " +
-    "time, shipped before the next is announced.",
-  items: [
-    {
-      name: "Review and the console in OpenCode 2's panel",
-      state: "next",
-      blurb:
-        "OpenCode 2 has a side panel of its own — with focus, a width that follows the window, and a " +
-        "full-screen toggle. Review and the full-screen console draw their own today; on OpenCode 2 " +
-        "they can live in the host's, and behave like the rest of its interface.",
-      why: "OpenCode 2's plugin API offers the panel to plugins, with focus and a full-screen toggle built in.",
-    },
-  ],
-}
-
-export const install = {
-  number: "11",
-  kicker: "Install",
-  title: "Two minutes, then ask it to start something.",
-  modes: [
-    {
-      id: "all",
-      label: "Everything",
-      command: "opencode plugin opencode-cockpit@0.9.0 --global --force",
-      note:
-        'All bays, each with a switch: <code>{ "features": { "shell": false } }</code>. The version is ' +
-        "pinned because OpenCode never re-resolves a plugin — to move later, run " +
-        "<code>npx opencode-cockpit@latest update</code>.",
-    },
-    {
-      id: "one",
-      label: "Shell only",
-      command: "opencode plugin @opencode-cockpit/shell@0.9.0 --global --force",
-      note:
-        "Just this bay. Same daemon, same config file, same interface slots — add the rest later without " +
-        "changing anything you already set up.",
-    },
-    {
-      id: "v2",
-      label: "OpenCode 2",
-      command: "opencode plugin add opencode-cockpit@0.9.0",
-      note:
-        "The same package — it carries a half for each OpenCode. One entry in <code>opencode.json</code> " +
-        "loads both halves. After installing or updating, run <code>opencode service restart</code>: " +
-        "OpenCode 2's background service loads plugins only when it starts. " +
-        '<a href="/opencode-cockpit/start/opencode-versions/">What differs on OpenCode 2</a>.',
-    },
-  ],
+export const trail = {
+  eyebrow: `TRAIL · NEW IN ${version.split(".").slice(0, 2).join(".")}`,
+  title: "Know what every conversation shipped.",
+  accent: "And which one shipped it.",
   steps: [
-    "Run the command above — on OpenCode 1 it writes both plugin entries, on OpenCode 2 one entry loads both halves.",
-    "Restart OpenCode — on OpenCode 2, <code>opencode service restart</code> as well. The daemon starts on first use and exits when idle.",
-    "Optional: type <code>/cockpit-setup</code> and the agent sets up <code>~/.config/opencode-cockpit/config.json</code> with you — which bays show, where, in what order — then, if you want, tunes Cockpit to how your project works.",
-    "Something off? <code>npx opencode-cockpit@latest doctor</code> checks your setup and prints the fix.",
+    {
+      title: "The agent records what it makes",
+      body: "A PR, a ticket, a deploy: one `trail_add` call as it happens. No setup, no scanning your history.",
+    },
+    {
+      title: "It's in the sidebar, as it happens",
+      body: "Grouped under what it was for — a PR under its ticket — with how long ago, and `↗` where there's a page to open.",
+    },
+    {
+      title: "`/trail` is the whole list",
+      body: "Every record, its system, what was done to it. `enter` opens it, `c` copies, `/` searches.",
+    },
+    {
+      title: "Any record leads back to its conversation",
+      body: "`tab` to every conversation in the project, then `g` on any line: you're back in the session that made it.",
+    },
   ],
 }
 
-export const closing = {
-  title: "Stop babysitting your terminal.",
-  body: "OpenCode 1.18+ and 2.0.15+ on macOS and Linux. MIT licensed, every bay its own package.",
+export interface Feature {
+  id: string
+  eyebrow: string
+  title: string
+  accent: string
+  body: string
+  points: { key: string; text: string }[]
+  caption: string
+  /** Character size in the window: a wide pane is drawn smaller so it keeps its columns. */
+  size?: number
+}
+
+export const features: Feature[] = [
+  {
+    id: "shell",
+    eyebrow: "02 · SHELL",
+    title: "Long things run in the background.",
+    accent: "The agent waits on them. You watch.",
+    body:
+      "A tool call has to finish; a dev server never does. Shell gives the agent real terminals that outlive " +
+      "the turn, wait for a port or a pattern, and hand back the part that matters.",
+    points: [
+      { key: "ctrl+x o", text: "the shells panel, under the chat" },
+      { key: "ctrl+x j", text: "the last shell's console" },
+      { key: "34", text: "watch presets — a port, a log line, a crash" },
+    ],
+    caption: "ctrl+x j · shells",
+    size: 11.5,
+  },
+  {
+    id: "subagents",
+    eyebrow: "03 · SUBAGENTS",
+    title: "Helpers work in parallel.",
+    accent: "Now you can watch them.",
+    body:
+      "A subagent used to be one line in the chat. Now each one is in the sidebar with what it's doing right " +
+      "now — and a key opens its whole run: the task, its thinking, every command and its output.",
+    points: [
+      { key: "ctrl+x d", text: "the subagent working now, beside the chat" },
+      { key: "m", text: "message it yourself — the main agent is told" },
+      { key: "b", text: "send a blocking one to the background" },
+    ],
+    caption: "ctrl+x d · explore",
+  },
+  {
+    id: "review",
+    eyebrow: "04 · REVIEW",
+    title: "Review changes like a pull request.",
+    accent: "In the terminal, images included.",
+    body:
+      "Comment on the lines you mean, not in prose. The agent reads your notes, fixes the code and resolves " +
+      "them — and a resolve over an untouched file stays open.",
+    points: [
+      { key: "ctrl+x v", text: "the review of what changed" },
+      { key: "c", text: "a note on this line, then s to hand them over" },
+      { key: "ctrl+x k", text: "right pane or full screen" },
+    ],
+    caption: "ctrl+x v · changes",
+    size: 10.5,
+  },
+  {
+    id: "status",
+    eyebrow: "05 · STATUS",
+    title: "See the context filling.",
+    accent: "Before it bites.",
+    body:
+      "How full is the window, where did the tokens go, what has changed, what is it costing. A table in the " +
+      "sidebar or one line under the prompt — every part a segment you can reshape.",
+    points: [
+      { key: "23", text: "segments, or write your own in TypeScript" },
+      { key: "/status-setup", text: "the agent designs it with you" },
+      { key: "75% · 90%", text: "colour only when it's worth one" },
+    ],
+    caption: "Status",
+  },
+  {
+    id: "trust",
+    eyebrow: "06 · TRUST",
+    title: "Stop answering the same prompt.",
+    accent: "Trust learns what you always allow.",
+    body:
+      "Approve `bun test` three times and Trust answers it for you. Risky commands take more, and nothing it " +
+      "learns lasts forever. Every answer it gave is one key away.",
+    points: [
+      { key: "ctrl+x p", text: "what Trust answered, and why" },
+      { key: "3×", text: "allowed, then earned — dangerous ones take more" },
+      { key: "30d", text: "trust you don't use expires" },
+    ],
+    caption: "ctrl+x p · Trust",
+  },
+  {
+    id: "updater",
+    eyebrow: "07 · UPDATER",
+    title: "Every plugin, and what it's",
+    accent: "really running.",
+    body:
+      "`@latest` means the newest release the day you installed it. Updater shows what runs beside what's " +
+      "published, and updates the ones you pick — every plugin, not just this one.",
+    points: [
+      { key: "/plugins-update", text: "inside OpenCode" },
+      { key: "npx opencode-cockpit@latest update", text: "from any shell" },
+    ],
+    caption: "/plugins-update",
+  },
+]
+
+export const setup = {
+  eyebrow: "SET UP IN ONE SENTENCE",
+  title: "Install, then",
+  accent: "/cockpit-setup.",
+  body:
+    "The agent reads your settings, asks only what matters — which bays show, in what order, how quiet when " +
+    "empty — and writes the smallest correct file.",
+  restart: "Every bay is on. Each one draws its block in the sidebar, or says `none yet` until it has something.",
+  chat: [
+    ["you", "/cockpit-setup"],
+    ["agent", "Read your settings: every bay is on, no notices."],
+    ["ask", "Which blocks should the sidebar show, top to bottom?"],
+    ["you", "trail, subagents, shells. hide shells when empty"],
+    ["agent", "Writing ~/.config/opencode-cockpit/config.json"],
+    ["ok", "✓ sidebar: trail · subagents · shell (hideWhenEmpty)"],
+  ] as const,
+}
+
+export const final = {
+  title: "Put your agent",
+  accent: "on instruments.",
+  links: [
+    { label: "Read the docs", href: "start/what-cockpit-is/" },
+    { label: "GitHub ↗", href: github },
+    { label: "Changelog", href: "help/changelog/" },
+  ],
 }

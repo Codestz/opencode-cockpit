@@ -26,6 +26,8 @@ export default defineConfig({
       components: {
         // The landing page is ours; Starlight owns everything under /docs.
         SiteTitle: "./src/components/DocsTitle.astro",
+        // Adds Geist and Geist Mono, which Starlight would not otherwise load.
+        Head: "./src/components/docs/Head.astro",
       },
       sidebar: [
         {

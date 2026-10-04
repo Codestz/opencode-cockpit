@@ -1,33 +1,52 @@
 ---
 title: Your first session
-description: Two minutes — ask for something long-running, read what came back, and review it.
+description: Two minutes — /cockpit-setup, then something long-running, then a review of what changed.
 ---
 
-import Cast from "../../../components/Cast.astro"
+import Live from "../../../components/Live.astro"
+
+The windows on this page are drawn live by Cockpit's own code — the same renderers that run in your
+terminal — playing a sample session.
+
+## Set it up in one sentence
+
+After [installing](/opencode-cockpit/start/install/) and restarting OpenCode, type:
+
+> /cockpit-setup
+
+<Live scene="setup" caption="/cockpit-setup" />
+
+The agent reads what is installed and what your settings say, fixes anything from before 0.9 first,
+and then asks only what is left: which blocks the sidebar shows, in what order, and whether an empty
+one stays. It writes the smallest file that does it and reads it back. Run it again whenever you want
+a change — or just ask: *"make my sidebar quieter"*, *"move trail above subagents"*. Every setting it
+can write is in [Configuration](/opencode-cockpit/configuration/).
+
+## Ask for something long-running
 
 Ask the agent for something that cannot finish inside a tool call:
 
 > start the dev server, wait until it's listening, then tell me the url
 
-<Cast name="session" caption="Unedited: the agent picks shell_start, the panel fills, the answer comes back." />
+<Live scene="shell" caption="ctrl+x j · the console" size={11.5} />
 
-Three things happened there, and none of them needed you.
+Three things happen, and none of them need you.
 
-**It chose the tool.** `shell_start` is described to the model as the thing to use for anything
+**It chooses the tool.** `shell_start` is described to the model as the thing to use for anything
 long-running or interactive, so a dev server goes there instead of into `bash`.
 
-**It waited on the real signal.** `waitFor: { port: 5173 }` returns the moment the port answers —
+**It waits on the real signal.** `waitFor: { port: 5173 }` returns the moment the port answers —
 not after a sleep, not after a guess.
 
-**It kept the shell.** The process is owned by the daemon, so it is still running after the turn
-ends, and it shows up in the panel and the sidebar.
-
-## Seeing it yourself
+**It keeps the shell.** The process is owned by the daemon, so it is still running after the turn
+ends, and it shows up in the panel and the sidebar. A test run that fails tells the agent once, with
+the failing line.
 
 | Key | What it does |
 | --- | --- |
 | <kbd>ctrl+x</kbd> <kbd>o</kbd> | Toggle the panel under the conversation |
 | <kbd>ctrl+x</kbd> <kbd>j</kbd> | Open the full console |
+| <kbd>←</kbd> <kbd>→</kbd> | The previous or next shell, in the console |
 | <kbd>/</kbd> | Filter the log, in the console |
 | <kbd>?</kbd> | Details for the selected shell |
 
@@ -38,7 +57,7 @@ ends, and it shows up in the panel and the sidebar.
 When it finishes, do not read the diff in the chat. Press <kbd>ctrl+x</kbd> <kbd>v</kbd> — or type
 `/changes` — and read it where the work happened.
 
-<Cast name="review" caption="Unedited except for the waiting: a comment, a handover, and the agent resolving it." />
+<Live scene="review" caption="ctrl+x v · changes" size={10.5} />
 
 Move with <kbd>j</kbd> and <kbd>k</kbd>, <kbd>enter</kbd> into a file, and when a line is wrong press
 <kbd>c</kbd> and say why. Nothing has been sent yet. <kbd>space</kbd> marks a file read and moves you
@@ -54,8 +73,9 @@ conversation still has them.
 If you installed the bundle you already have the statusline, at the top of the sidebar: how full the
 context is, where the tokens went, a proxy's budget, what has changed. It answers the questions you
 would otherwise ask by leaving — and every part of it is a segment you can reshape, recolour or
-write yourself. Under it, Subagents, Shells and Trail each say `none yet` until there is something
-to show. `/cockpit-setup` asks you what you want there, and writes the config.
+write yourself (`/status-setup` designs it with you).
+
+<Live scene="status" caption="Status" />
 
 ## What to try next
 

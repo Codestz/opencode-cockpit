@@ -1,41 +1,28 @@
 ---
 import Base from "../layouts/Base.astro"
-import Nav from "../components/landing/Nav.astro"
+import Feature from "../components/landing/Feature.astro"
+import Final from "../components/landing/Final.astro"
 import Hero from "../components/landing/Hero.astro"
-import Specs from "../components/landing/Specs.astro"
-import Fitted from "../components/landing/Fitted.astro"
-import Bay from "../components/landing/Bay.astro"
-import Compare from "../components/landing/Compare.astro"
-import Platform from "../components/landing/Platform.astro"
-import Next from "../components/landing/Next.astro"
-import Install from "../components/landing/Install.astro"
-import Closing from "../components/landing/Closing.astro"
+import Nav from "../components/landing/Nav.astro"
+import Setup from "../components/landing/Setup.astro"
+import TrailStory from "../components/landing/TrailStory.astro"
+import { features, hero } from "../data/landing"
+import "../styles/engine.css"
+import "../styles/live.css"
 ---
-<Base
-  title="Cockpit — instruments for OpenCode"
-  description="Instruments for OpenCode: background terminals your agent starts and waits on, a pull request in the terminal, a statusline that tells you what the session is costing, an updater that shows what every plugin is really running, your subagents made visible, and a trail of what each conversation made. One daemon, one config, a switch per bay."
->
-  <Nav />
-  <main>
-    <Hero />
-    <Specs />
-    <!--
-      The index, then a section each. A new bay is an entry in bays.items AND a <Bay> line here: the
-      sections are placed by hand so Compare can sit beside Shell. The Updater shipped with only the
-      first half and appeared in the index with no section below it.
-    -->
-    <Fitted />
-    <Bay id="review" number="02" />
-    <Bay id="shell" number="03" />
-    <Compare />
-    <Bay id="status" number="04" />
-    <Bay id="updater" number="05" />
-    <Bay id="subagents" number="06" />
-    <Bay id="trail" number="07" />
-    <Bay id="trust" number="08" />
-    <Platform />
-    <Next />
-    <Install />
-  </main>
-  <Closing />
+
+<Base title="Cockpit — instruments for OpenCode" description={hero.body}>
+  <div class="deck-page">
+    <Nav />
+    <main>
+      <Hero />
+      <TrailStory />
+      {features.map((feature, i) => <Feature feature={feature} flip={i % 2 === 1} />)}
+      <Setup />
+      <Final />
+    </main>
+  </div>
+  <script>
+    import "../scripts/landing"
+  </script>
 </Base>

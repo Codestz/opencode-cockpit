@@ -1,19 +1,20 @@
 ---
-/** Starlight's site title, replaced so the docs carry the same mark as the landing page. */
+/** Starlight's site title, replaced so the docs carry the landing nav's brand: the mark, "Cockpit", and a docs tag. */
 import Logo from "./Logo.astro"
 const base = import.meta.env.BASE_URL
 ---
 <a href={base} class="docs-title">
-  <Logo size={20} />
+  <Logo size={22} />
   <span>Cockpit</span>
   <em>docs</em>
 </a>
 
 <style>
-  .docs-title { display: flex; align-items: center; gap: 9px; text-decoration: none; color: var(--ck-fg); }
-  .docs-title span { font-family: var(--ck-font-display); font-weight: 600; letter-spacing: -0.02em; font-size: 16px; }
+  .docs-title { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ck-fg); }
+  .docs-title span { font-family: var(--ck-font); font-weight: 600; letter-spacing: -0.01em; font-size: 17px; }
   .docs-title em {
-    font-style: normal; font-family: var(--ck-font-mono); font-size: 11px; letter-spacing: 0.1em;
-    text-transform: uppercase; color: var(--ck-fg-3); border: 1px solid var(--ck-line); border-radius: 6px; padding: 2px 6px;
+    font-style: normal; font-family: var(--ck-font-mono); font-size: 11px; line-height: 1; letter-spacing: var(--ck-tracking-eyebrow);
+    text-transform: uppercase; color: var(--ck-fg-3); border: 1px solid var(--ck-line-2); border-radius: var(--ck-radius); padding: 4px 7px;
   }
+  .docs-title:hover em { color: var(--ck-accent); border-color: var(--ck-accent); }
 </style>

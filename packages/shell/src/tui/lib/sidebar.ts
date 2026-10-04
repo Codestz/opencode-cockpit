@@ -11,8 +11,18 @@
  * in `kindColor` and `watchColor`, and the preview paints through the same two.
  */
 
+import {
+  emptyBlock,
+  FEWER_TEXT,
+  HEADING_GAP,
+  moreText,
+  type State as Shared,
+  summaryRuns,
+  warnRows,
+} from "@opencode-cockpit/client/design"
 import type { ShellInfo } from "@opencode-cockpit/protocol/shell"
-import { badgeText, type Kind, kindOf, shortDetail, watchLabel } from "./view.ts"
+import type { Row, Run } from "./console.ts"
+import { badgeText, type Kind, kindOf, kindTone, STATE, shortDetail, watchLabel, watchTone } from "./view.ts"
 
 export interface SidebarRow {
   kind: Kind
@@ -130,4 +140,95 @@ export function sidebarRow(shell: ShellInfo, now: number, frame: number, width: 
   /** A column narrower than the badge and a gap: the badge, cut, and nothing pretending to fit. */
   const badgeOnly = badge.slice(0, Math.max(0, width)).padEnd(Math.max(0, width))
   return { ...row, rule: badgeOnly.slice(0, 1), label: badgeOnly.slice(1), title: "", watch: "", detail: "" }
+}
+
+export interface BlockInput {
+  list: readonly ShellInfo[]
+  now: number
+  /** The spinner's clock. */
+  frame: number
+  width: number
+  /** Expanded by a click on `+ N more`. */
+  showAll?: boolean
+  hideWhenEmpty?: boolean
+  /** Settings to fix, as sentences (client/settings `noticeText`): `!` rows under the block. */
+  notices?: readonly string[]
+}
+
+/** Exactly `width` cells: cut with `…`, or padded. */
+function fit(row: Row, width: number): Row {
+  const out: Row = []
+  let used = 0
+  for (const run of row) {
+    if (used >= width) break
+    const room = width - used
+    const text = run.text.length > room ? `${run.text.slice(0, Math.max(0, room - 1))}…` : run.text
+    out.push({ ...run, text })
+    used += text.length
+  }
+  if (used < width) out.push({ text: " ".repeat(width - used) })
+  return out
+}
+
+/**
+ * The Shells block as rows of tones, as `components/sidebar.tsx` draws it: the name left and every
+ * count flush right with no row of air, the shells folded to the ones still worth a look, `+ N more`
+ * under them, and any settings notice last. The preview CLI prints it and the site draws it; a theme
+ * turns the tones into colours.
+ */
+export function sidebarBlock(input: BlockInput): Row[] {
+  const { list, now, frame, width } = input
+  const warnings = (input.notices ?? []).flatMap((text) => warnRows(text, width).map((row) => row as Row))
+  if (list.length === 0)
+    return [
+      ...emptyBlock("Shells", width, input.hideWhenEmpty === true && warnings.length === 0).map(
+        (row) => row as Row,
+      ),
+      ...warnings,
+    ]
+  const folding = fold({
+    all: list,
+    folded: list.filter((shell) => kindOf(shell) === "run" || kindOf(shell) === "fail"),
+    showAll: input.showAll === true,
+    rows: 5,
+    expandedRows: 12,
+  })
+  const tally: Partial<Record<Shared, number>> = {}
+  for (const shell of list) tally[STATE[kindOf(shell)]] = (tally[STATE[kindOf(shell)]] ?? 0) + 1
+  const counts = summaryRuns(tally, Math.max(8, width - "Shells ".length))
+  const used = "Shells".length + counts.reduce((n, part) => n + part.text.length, 0)
+  const heading: Row = [
+    { text: "Shells", bold: true },
+    { text: " ".repeat(Math.max(1, width - used)) },
+    ...counts.map((part): Run => ({ text: part.text, tone: part.tone ?? "muted" })),
+  ]
+  const rows = folding.shown.map((shell): Row => {
+    const row = sidebarRow(shell, now, frame, width)
+    const tone = kindTone(kindOf(shell))
+    return fit(
+      [
+        { text: row.rule, tone },
+        { text: row.label, tone, bold: true },
+        { text: row.title },
+        { text: row.watch, tone: watchTone(shell) },
+        { text: row.detail, tone: "muted" },
+      ],
+      width,
+    )
+  })
+  const toggle = folding.toggle
+    ? [
+        fit(
+          [{ text: `  ${folding.toggle === "fewer" ? FEWER_TEXT : moreText(folding.more)}`, tone: "muted" }],
+          width,
+        ),
+      ]
+    : []
+  return [
+    fit(heading, width),
+    ...Array.from({ length: HEADING_GAP }, () => fit([], width)),
+    ...rows,
+    ...toggle,
+    ...warnings,
+  ]
 }

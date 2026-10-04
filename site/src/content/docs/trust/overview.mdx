@@ -3,6 +3,8 @@ title: Trust
 description: Permissions that learn — approve the exact same command a few times in a row and Trust answers for you, and records every answer.
 ---
 
+import Live from "../../../components/Live.astro"
+
 `"bash": "ask"` means approving `git status` for the hundredth time. OpenCode's own "Always" is
 broader than it looks: it approves by prefix, and its prefixes count flags as words, so approving
 `docker compose -p cockpit up -d` also approves `docker compose -p prod down -v`. Trust sits between:
@@ -92,7 +94,7 @@ cannot get in before OpenCode's own handler.
 `/trust`, `ctrl+x p`, or "Trust" in the palette opens on what Trust did for you, newest first, and
 what it is about to do:
 
-![Trust's activity screen: prompts answered today with the reason for each, commands close to being trusted with their meters, and a warning about OpenCode's own broad "always" approvals](/opencode-cockpit/media/trust-activity.png)
+<Live scene="trust" caption="Trust" />
 
 ```
 
@@ -141,7 +143,7 @@ the ledger; `esc` there comes back here, and `esc` here closes.
 Every rule, as a tree of families, with a card for the one selected — always on screen, so there is
 no details key to find:
 
-![Trust's ledger: a tree of command families, and a card for the selected command with exactly what it answers, what still asks, its approval history and its buttons](/opencode-cockpit/media/trust-ledger.png)
+<Live scene="trust-ledger" caption="the ledger" size={11} height={360} />
 
 ```
  Trust · app                                    8 trusted · 5 learning · 7 seen once   ● answering

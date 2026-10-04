@@ -94,9 +94,14 @@ export const SAMPLE_LIST: ShellInfo[] = [
   SHELLS.done,
 ]
 
+/** One second apart, from 12:04:10 on: the clock only moves forward, however many lines there are. */
+const clock = (i: number): string => {
+  const at = 4 * 60 + 10 + i
+  return `12:${String(Math.floor(at / 60)).padStart(2, "0")}:${String(at % 60).padStart(2, "0")}`
+}
+
 const vite = (i: number): ScreenRun[] => [
-  { text: "12:04:1" },
-  { text: String(i % 10) },
+  { text: clock(i) },
   { text: " PM " },
   { text: "[vite]", fg: "#56b6c2", bold: true },
   { text: " hmr update ", fg: "#7fd88f" },

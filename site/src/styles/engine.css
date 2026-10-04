@@ -1,0 +1,39 @@
+/**
+ * Tone → colour: the one place a tone the bays draw with becomes a colour, as each bay's own render
+ * file does inside OpenCode. The values are the page's --tn-* tokens (landing.css); the class names
+ * are the bays' tone and fill names (engine/paint.ts).
+ */
+.term { font-family: var(--mono); white-space: pre; line-height: 1.35; font-variant-ligatures: none; color: var(--tn-text); }
+.term .ln { height: 1.35em; }
+.b { font-weight: 700; }
+.dim { opacity: 0.55; }
+.i { font-style: italic; }
+
+.t-text, .t-variable, .t-operator { color: var(--tn-text); }
+.t-muted, .t-lineNumber, .t-edge, .t-punct { color: var(--tn-muted); }
+.t-accent, .t-function { color: var(--tn-accent); }
+.t-info, .t-hunk, .t-type { color: var(--tn-info); }
+.t-tool, .t-keyword { color: var(--tn-tool); }
+.t-success, .t-added, .t-string { color: var(--tn-success); }
+.t-error, .t-removed { color: var(--tn-error); }
+.t-warning, .t-number { color: var(--tn-warning); }
+.t-border { color: var(--tn-border); }
+.t-comment { color: var(--tn-muted); font-style: italic; }
+/* cut out of a solid fill: the colour of what it is drawn on */
+.t-ink, .t-inverse, .t-background { color: var(--tn-bg); }
+.t-panel { color: var(--tn-panel); }
+.t-match { color: var(--tn-bg); background: var(--tn-warning); }
+
+/* fills are per run: a cursor row fills every run, so the row reads whole */
+.f-selected, .f-cursor { background: var(--tn-selected); }
+.f-panel, .f-comment, .f-heading, .f-band, .f-button { background: var(--tn-panel); }
+.f-chip { background: color-mix(in srgb, var(--tn-info) 18%, transparent); }
+.f-buttonOn, .f-you { background: var(--tn-accent); }
+.f-agent { background: var(--tn-tool); }
+.f-ok { background: color-mix(in srgb, var(--tn-success) 20%, transparent); }
+.f-warn { background: color-mix(in srgb, var(--tn-warning) 20%, transparent); }
+.f-err { background: color-mix(in srgb, var(--tn-error) 20%, transparent); }
+.f-added { background: color-mix(in srgb, var(--tn-success) 13%, transparent); }
+.f-removed { background: color-mix(in srgb, var(--tn-error) 13%, transparent); }
+.f-addedNumber { background: color-mix(in srgb, var(--tn-success) 22%, transparent); }
+.f-removedNumber { background: color-mix(in srgb, var(--tn-error) 22%, transparent); }

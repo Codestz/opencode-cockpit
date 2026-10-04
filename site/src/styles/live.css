@@ -1,0 +1,63 @@
+/**
+ * A live window — the terminal the bays draw into — wherever one appears: the landing page and the
+ * docs (<Live />). The --tn-* tokens are the terminal's, the same in either theme: output is output.
+ * engine.css turns the bays' tone names into these colours.
+ */
+.deck-page, .live {
+  --tn-bg: #070d18;
+  --tn-text: #e9eef6;
+  --tn-muted: #6f7d93;
+  --tn-accent: #6cb6ff;
+  --tn-info: #8fb3ff;
+  --tn-tool: #c4a2ff;
+  --tn-success: #5fd39a;
+  --tn-error: #ff7272;
+  --tn-warning: #ffc45c;
+  --tn-border: #23314a;
+  --tn-selected: #13223a;
+  --tn-panel: #0b1426;
+}
+.live {
+  --mono: var(--ck-font-mono);
+  --line-2: rgba(140, 170, 220, 0.26);
+  margin: 1.5rem 0;
+}
+
+.window { border: 1px solid var(--line-2); background: var(--tn-bg); text-align: left; position: relative; min-width: 0; }
+.titlebar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--tn-border); font-family: var(--mono); font-size: 11px; color: var(--tn-muted); }
+.titlebar i { width: 10px; height: 10px; border-radius: 50%; background: #1b2740; flex: none; }
+.titlebar span { margin-left: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.screen { padding: 14px 6px; height: 400px; overflow: hidden; position: relative; }
+.screen > .term { height: 100%; position: relative; }
+
+/* a sidebar frame shown where it lives: beside a quiet chat, the prompt under it */
+.split { display: grid; grid-template-columns: 1fr auto; height: calc(100% + 28px); margin: -14px -6px; white-space: normal; }
+.split .ghost { padding: 18px; display: flex; flex-direction: column; gap: 10px; font-family: var(--mono); font-size: 11.5px; color: var(--tn-muted); min-width: 0; }
+.split .ghost .you { color: var(--tn-text); border-left: 2px solid var(--tn-accent); padding-left: 10px; }
+.split .ghost .fill { flex: 1; }
+.split .ghost .prompt { border: 1px solid var(--tn-border); padding: 8px 10px; }
+.split .ghost .prompt .term { margin-top: 6px; font-size: 11px; overflow: hidden; }
+.split .sidepane { background: var(--tn-panel); border-left: 1px solid var(--tn-border); padding: 16px 14px; white-space: pre; transition: box-shadow 0.4s; }
+.split .sidepane.lit { box-shadow: inset 0 0 0 1px var(--tn-accent), inset 0 0 30px rgba(108, 182, 255, 0.12); }
+.split .ghost { position: relative; }
+.split .ghost .muted { color: var(--tn-muted); }
+.split .ghost .ok { color: var(--tn-success); }
+.split .ghost .trust { color: var(--tn-accent); }
+.split .ghost .ask { color: var(--tn-warning); }
+
+/* what sits over a pane: Review's note dialog, OpenCode's permission prompt */
+/* redrawn every frame, so nothing here animates in: it would start again at every paint */
+.overlay { position: absolute; inset: auto 0 0 0; display: grid; place-items: end center; padding: 18px; pointer-events: none; white-space: normal; }
+.split .ghost .overlay { bottom: 52px; }
+/* a key just pressed, the way a screencast shows one */
+.overlay .keypress { justify-self: end; align-self: start; font-family: var(--mono); font-size: 12px; color: var(--tn-muted); background: var(--tn-panel); border: 1px solid var(--tn-border); padding: 6px 10px; }
+.overlay:has(.keypress) { inset: 0; place-items: start end; }
+.overlay .keypress b { color: var(--tn-bg); background: var(--tn-accent); padding: 0 7px; margin-right: 6px; font-weight: 700; }
+
+@media (max-width: 900px) {
+  .screen { overflow-x: auto; }
+  /* the chat stays — the prompt and what answered it are the story — with the sidebar under it */
+  .split { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+  .split .ghost { padding: 14px; overflow: hidden; }
+  .split .sidepane { border-left: 0; border-top: 1px solid var(--tn-border); padding: 12px 14px; }
+}

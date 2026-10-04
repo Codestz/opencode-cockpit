@@ -3,9 +3,9 @@ title: Panel and keys
 description: The dock, the console, the sidebar, and every key that drives them.
 ---
 
-import Cast from "../../../components/Cast.astro"
+import Live from "../../../components/Live.astro"
 
-<Cast name="dock" caption="The panel under the conversation, then the console." />
+<Live scene="shell" caption="ctrl+x j · the console" size={11.5} />
 
 ## Opening it
 
@@ -34,6 +34,10 @@ anything. Press <kbd>s</kbd> in the console to widen it to the whole project and
 
 A dock under the chat with a tab per shell, the selected shell's live screen, and the health of each
 one at a glance. `shell.dockHeight` sets how tall, `shell.dockOpen` whether it starts open.
+
+A shell's state reads the same in the dock, the sidebar and the console: `⠹ RUN` (the spinner turns
+while it runs), `● FAIL`, `● STOP`, `● DONE`. Running shells and recent failures stay in view; the rest
+fold behind `+ N more`.
 
 ## The console
 
@@ -79,7 +83,7 @@ anywhere in the console, whether or not you can see them.
 
 ## Searching a long log
 
-<Cast name="search" caption="240 lines down to the four that matter." />
+<Live scene="shell-search" caption="/ · search the log" size={11.5} height={340} />
 
 Filtering happens in the daemon, so a 40,000-line dev server costs nothing to search.
 
