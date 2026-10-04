@@ -97,12 +97,14 @@ describe("the sidebar preset", () => {
     expect(rows.filter((row) => row.startsWith("─"))).toHaveLength(1)
   })
 
-  /** Every row of a busy session with a budget and a branch fits under the preset's own cap. */
+  /** Every row of a busy session with a budget, uncommitted work and a broken server fits under the cap. */
   test("the cap holds every row it has, so none is dropped on a full session", () => {
     const full = ctx({
       ...FIXTURES.full.ctx,
       width: 34,
       budget: { spent: 26.24, cap: 200 },
+      diff: { files: 3, additions: 42, deletions: 7 },
+      mcp: [{ name: "github", status: "failed" }],
       session: {
         ...(FIXTURES.full.ctx.session as SessionSnapshot),
         status: "retry",
@@ -110,7 +112,9 @@ describe("the sidebar preset", () => {
       },
     })
     const built = buildSegments(full, SIDEBAR_SEGMENTS.map(asSegmentConfig))
-    expect(fitColumn(built, 34, PRESETS.sidebar?.maxRows ?? 8).dropped).toBe(0)
+    const fitted = fitColumn(built, 34, PRESETS.sidebar?.maxRows ?? 8)
+    expect(fitted.dropped).toBe(0)
+    expect(fitted.segments.map((segment) => segment.id)).toContain("diagnostics")
   })
 
   test("before the first reply: the heading and what is uncommitted, and no hairline with nothing under it", () => {

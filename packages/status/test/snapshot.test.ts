@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import { contextUsed } from "../src/core/context.ts"
+import { buildSegments, segmentText } from "../src/core/segments.ts"
 import { buildContext, sessionSnapshot } from "../src/tui/state/snapshot.ts"
 
 /** The adapter between OpenCode's live state and the snapshot every segment reads. */
@@ -196,5 +197,52 @@ describe("the whole context", () => {
       commands: {},
     })
     expect(ctx.session).toBeUndefined()
+  })
+})
+
+/**
+ * Issue #34, through the adapter the bug lived in: OpenCode 2.0.18 lists MCP servers with a tagged
+ * status (`{ status: "connected" }`, `{ status: "failed", error }`) — the shapes its own schema has;
+ * it has no `needs_client_registration`. `String()` on them made every server read as broken.
+ */
+describe("OpenCode 2's MCP servers", () => {
+  const v2Host = (servers: { name: string; status: Record<string, string> }[]) =>
+    ({
+      state: { path: { directory: "/w/app", worktree: "/w/app" } },
+      route: { current: { name: "home" } },
+      v2: {
+        location: { directory: "/w/app" },
+        data: { location: { mcp: { server: { list: () => servers } } } },
+      },
+    }) as unknown as Parameters<typeof buildContext>[0]
+  const context = (servers: { name: string; status: Record<string, string> }[]) =>
+    buildContext(v2Host(servers), { now: 0, width: 34, version: "0.9.0", commands: {} })
+  const diagnostics = (servers: { name: string; status: Record<string, string> }[]) => {
+    const [segment] = buildSegments(context(servers), [{ type: "diagnostics" }])
+    return segment ? segmentText(segment) : undefined
+  }
+
+  test("all connected says nothing — the regression #34 was", () => {
+    const servers = ["github", "linear", "jira"].map((name) => ({ name, status: { status: "connected" } }))
+    expect(context(servers).mcp.map((item) => item.status)).toEqual(["connected", "connected", "connected"])
+    expect(diagnostics(servers)).toBeUndefined()
+  })
+
+  test("each tagged state becomes its word, and only the broken ones are named", () => {
+    const servers = [
+      { name: "ok", status: { status: "connected" } },
+      { name: "off", status: { status: "disabled" } },
+      { name: "wait", status: { status: "pending" } },
+      { name: "bad", status: { status: "failed", error: "spawn ENOENT" } },
+      { name: "auth", status: { status: "needs_auth", error: "401" } },
+    ]
+    expect(context(servers).mcp.map((item) => item.status)).toEqual([
+      "connected",
+      "disabled",
+      "pending",
+      "failed",
+      "needs_auth",
+    ])
+    expect(diagnostics(servers)).toBe("! bad, auth")
   })
 })

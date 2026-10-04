@@ -121,11 +121,15 @@ export const FIXTURES: Record<FixtureName, { about: string; ctx: StatusContext }
       }),
     }),
   },
-  /** Stalled, which OpenCode itself shows only as a spinner. */
+  /** Stalled, which OpenCode itself shows only as a spinner — and an MCP server that would not start. */
   retrying: {
-    about: "a stalled turn, retrying",
+    about: "a stalled turn, retrying, and a broken MCP server",
     ctx: base({
       now: 1_000,
+      mcp: [
+        { name: "github", status: "connected" },
+        { name: "linear", status: "failed" },
+      ],
       session: session({
         status: "retry",
         startedAt: 0,

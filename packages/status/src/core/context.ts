@@ -151,8 +151,8 @@ export function serviceStatus(raw: unknown): string {
 const HEALTHY = new Set(["connected", "ready", "ok", "running", "active"])
 /**
  * Not working, and not wrong: turned off on purpose, or still connecting — OpenCode marks a server
- * that never connects `failed` once it gives up. An unknown or missing word is not a broken service
- * either: a false alarm in red is what #34 was.
+ * that never connects `failed` once it gives up (measured: under a minute on 2.0.18). A missing word
+ * is quiet too, since a false alarm in red is what #34 was; any other word, known or not, is an alarm.
  */
 const QUIET = new Set(["disabled", "pending", "starting", "connecting", ""])
 
