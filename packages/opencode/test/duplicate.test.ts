@@ -66,8 +66,8 @@ describe("configured twice in one OpenCode instance", () => {
     const off = await bundle.server(fakeInput(), {
       features: { shell: false, review: false, subagents: false, trail: false },
     })
-    /** Only what every install has: the settings tool the `cockpit-setup` skill reads. */
-    expect(Object.keys(off.tool ?? {})).toEqual(["cockpit_settings"])
+    /** Only what every install has: the tools the `cockpit-setup` skill reads and writes with. */
+    expect(Object.keys(off.tool ?? {}).sort()).toEqual(["cockpit_conventions", "cockpit_settings"])
     /** One bay off leaves the others alone, which is the whole point of the switches. */
     const shellOff = await bundle.server(fakeInput(), { features: { shell: false } })
     expect(Object.keys(shellOff.tool ?? {}).filter((name) => name.startsWith("shell_"))).toEqual([])
