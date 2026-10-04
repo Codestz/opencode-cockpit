@@ -9,10 +9,11 @@
 shells that keep running, subagents you can watch, a pull request in the terminal, and a trail of
 everything each conversation made.
 
-![Trail at work: the agent opens a PR for COM-1736 and records it on its own, the sidebar groups it under the ticket, another conversation asks what was shipped, and g jumps back](media/trail.gif)
+![One OpenCode session with Cockpit: the tests run in the background, fail, and pass after a fix; subagents work in parallel; the PR lands in Trail under its ticket; the context bar fills](media/hero.gif)
 
-*Trail, in a real OpenCode session: the agent records the PR it opened, the sidebar groups it under
-its ticket, and `g` on any record goes back to the conversation that made it.*
+*Drawn by Cockpit's own renderers, the same code that runs in your terminal: a test run failing and
+passing in the background, subagents at work, the PR landing in Trail, the context filling. Every
+bay, live, is on the [site](https://codestz.github.io/opencode-cockpit/).*
 
 ## Install
 

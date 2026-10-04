@@ -135,14 +135,19 @@ async function hero() {
   }
   const tick = () => {
     if (visible()) {
-      const t = reduced ? 18 : (performance.now() - t0) / 1000
+      let t = reduced ? 18 : (performance.now() - t0) / 1000
       if (t > LOOP) {
+        // a new loop starts at its own second zero — the old clock would replay every beat at once
+        t = 0
         state = trail.emptyState()
         tests = undefined
         beat = 0
         t0 = performance.now()
         warned = false
         head()
+        // the bar starts the new loop where it is, not sliding back from the end of the last one
+        $("hero-gauge").style.transition = "none"
+        requestAnimationFrame(() => requestAnimationFrame(() => ($("hero-gauge").style.transition = "")))
       }
       const now = trail.SAMPLE_NOW + t * 1000
       while (!reduced && beat < BEATS.length && BEATS[beat].at <= t) {
