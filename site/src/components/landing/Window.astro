@@ -1,0 +1,23 @@
+---
+/**
+ * A terminal window: three dots, a caption, and a screen the page draws into. `scene` names what
+ * the landing script plays there (src/scripts/landing.ts); `size` is the character size, smaller for
+ * a pane that needs its columns.
+ */
+interface Props {
+  caption: string
+  scene?: string
+  size?: number
+  class?: string
+}
+const { caption, scene, size = 12, class: className } = Astro.props
+---
+
+<div class:list={["window", className]}>
+  <div class="titlebar" aria-hidden="true"><i></i><i></i><i></i><span data-caption={scene}>{caption}</span></div>
+  <slot>
+    <div class="screen" role="img" aria-label={caption}>
+      <div class="term" data-scene={scene} data-size={size} style={`font-size:${size}px`}></div>
+    </div>
+  </slot>
+</div>

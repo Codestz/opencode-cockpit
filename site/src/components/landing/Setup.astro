@@ -1,0 +1,18 @@
+---
+import { inline } from "../../lib/inline"
+import { install, setup } from "../../data/landing"
+import Install from "./Install.astro"
+---
+
+<section class="setup" id="install">
+  <div class="eyebrow">{setup.eyebrow}</div>
+  <h2>{setup.title} <span class="nowrap">{setup.accent}</span></h2>
+  <p class="lede">{setup.body}</p>
+  <div class="setup-grid">
+    <div class="card"><div class="n">1</div><h3>Install</h3><Install compact /><p>{install.pinned}</p></div>
+    <div class="card"><div class="n">2</div><h3>Restart OpenCode</h3><p set:html={inline(setup.restart)} /></div>
+    <div class="card"><div class="n">3</div><h3>Type <code>/cockpit-setup</code></h3>
+      <div class="mini-chat" id="setup-chat" data-lines={JSON.stringify(setup.chat)}></div>
+    </div>
+  </div>
+</section>

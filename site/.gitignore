@@ -5,3 +5,5 @@ public/casts/
 # synced from media/ by scripts/sync.ts, like the casts above
 public/media/
 src/content/docs/help/changelog.md
+# built from engine/ by scripts/engine.ts
+public/engine/

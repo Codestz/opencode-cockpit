@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "sync": "bun scripts/sync.ts",
+    "sync": "bun scripts/sync.ts && bun scripts/engine.ts",
     "dev": "bun run sync && astro dev",
     "build": "bun run sync && astro build",
     "preview": "astro preview"

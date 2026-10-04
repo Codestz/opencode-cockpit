@@ -1,0 +1,23 @@
+---
+import type { Feature } from "../../data/landing"
+import { inline } from "../../lib/inline"
+import Window from "./Window.astro"
+interface Props {
+  feature: Feature
+  flip?: boolean
+}
+const { feature, flip = false } = Astro.props
+---
+
+<section class:list={["feature", { flip }]} id={feature.id}>
+  <div class="copy">
+    <div class="eyebrow">{feature.eyebrow}</div>
+    <h2>{feature.title} <span>{feature.accent}</span></h2>
+    <p set:html={inline(feature.body)} />
+    <ul class="points">
+      {feature.points.map((point) => <li><kbd>{point.key}</kbd><span>{point.text}</span></li>)}
+    </ul>
+    <a class="more" href={`${import.meta.env.BASE_URL}${feature.id}/overview/`}>{feature.id[0].toUpperCase() + feature.id.slice(1)} docs →</a>
+  </div>
+  <Window caption={feature.caption} scene={feature.id} size={feature.size} class="feature-window" />
+</section>

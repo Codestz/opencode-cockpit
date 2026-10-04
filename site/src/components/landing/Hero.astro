@@ -1,71 +1,40 @@
 ---
-/**
- * The hook, and nothing else.
- *
- * It used to carry a hand-built mock of the panel on the right — a drawing of the product, beside
- * the product's own recordings and screenshots further down. The real thing is a better argument
- * than an illustration of it, so the space goes to the sentence instead.
- */
-import { hero } from "../../data/landing"
+import { bays, hero } from "../../data/landing"
+import Install from "./Install.astro"
 ---
-<header class="page hero">
-  <p class="eyebrow mono">{hero.eyebrow}</p>
-  <h1>{hero.title[0]} <b>{hero.title[1]}</b> {hero.title[2]}</h1>
+
+<section class="hero">
+  <div class="tag"><i></i>{hero.tag}</div>
+  <h1>{hero.title}<span>{hero.accent}</span></h1>
   <p class="sub">{hero.body}</p>
+  <Install />
+  <div class="hero-links"><a class="btn" href="#trail">See Trail ↓</a><a class="btn" href="#bays">Every bay</a></div>
 
-  <div class="actions">
-    <a class="btn btn-solid btn-lg" href="#install">Install Cockpit</a>
-    <a class="btn btn-line btn-lg" href="#bays">See what it does</a>
+  <div class="deck">
+    <span class="plus tl"></span><span class="plus tr"></span><span class="plus bl"></span><span class="plus br"></span>
+    <div class="window live" aria-label="A scripted OpenCode session with Cockpit's sidebar, drawn by Cockpit's own code">
+      <div class="titlebar" aria-hidden="true"><i></i><i></i><i></i><span>opencode — opencode-cockpit · Fix the bundle desync</span></div>
+      <div class="panes">
+        <div class="chat" id="hero-chat"></div>
+        <aside class="side">
+          <div class="block" id="b-shell"><div class="term" id="hero-shell"></div></div>
+          <div class="block" id="b-sub"><div class="term" id="hero-sub"></div></div>
+          <div class="block" id="b-trail"><div class="term" id="hero-trail"></div></div>
+        </aside>
+      </div>
+      <div class="statusline" id="b-status">
+        <span>build · claude-opus</span><span class="gauge"><b id="hero-gauge"></b></span><span id="hero-ctx">12%</span><span class="working" id="hero-work">working 0s</span>
+      </div>
+    </div>
+    <!-- placed beside their blocks by the script, which knows where the blocks are -->
+    <div class="callout r" id="c-shell" data-for="b-shell"><b>SHELLS</b> background runs</div>
+    <div class="callout r" id="c-sub" data-for="b-sub"><b>SUBAGENTS</b> helpers, live</div>
+    <div class="callout r" id="c-trail" data-for="b-trail"><b>TRAIL</b> what it made</div>
+    <div class="callout l" id="c-chat" data-for="hero-chat">the conversation <b>OPENCODE</b></div>
+    <div class="callout l" id="c-status" data-for="b-status">context, filling <b>STATUS</b></div>
   </div>
 
-  <div class="cmd mono">
-    <span class="sigil">$</span><span data-copy-text>{hero.install}</span>
-    <button type="button" data-copy>copy</button>
+  <div class="bays" id="bays">
+    {bays.map((bay) => <a class="bay" href={`#${bay.id}`} data-bay={bay.id}>{bay.name}<small>{bay.what}</small></a>)}
   </div>
-</header>
-
-<style>
-  .hero {
-    padding-block: 104px 56px;
-    display: flex; flex-direction: column; align-items: center; text-align: center;
-  }
-  .eyebrow { font-size: 12.5px; letter-spacing: 0.06em; color: var(--ck-accent); }
-  h1 {
-    font-size: clamp(40px, 6.4vw, 78px); line-height: 1.02; margin-top: 22px;
-    max-width: 20ch; letter-spacing: -0.03em; text-wrap: balance;
-  }
-  h1 b { font-weight: 600; position: relative; white-space: nowrap; }
-  /* In em, so the mark keeps its proportion to the type instead of shrinking into a stray line. */
-  h1 b::after {
-    content: ""; position: absolute; left: -0.04em; right: -0.04em; bottom: 0.04em; height: 0.16em;
-    background: var(--ck-accent-soft); border-bottom: 0.035em solid var(--ck-accent); z-index: -1;
-  }
-  .sub {
-    margin-top: 26px; color: var(--ck-fg-2); font-size: 18.5px; line-height: 1.62;
-    max-width: 62ch; text-wrap: pretty;
-  }
-  .actions { margin-top: 36px; display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
-  .cmd {
-    margin-top: 22px; display: inline-flex; align-items: center; gap: 12px; font-size: 13.5px;
-    color: var(--ck-fg-2); border: 1px dashed var(--ck-line-2); border-radius: var(--ck-radius-sm);
-    padding: 10px 14px;
-  }
-  .cmd .sigil { color: var(--ck-accent); }
-  .cmd button { background: none; border: 0; color: var(--ck-fg-3); font: inherit; font-size: 12.5px; cursor: pointer; }
-  .cmd button:hover { color: var(--ck-fg); }
-  @media (max-width: 940px) { .hero { padding-block: 60px 34px; } }
-</style>
-
-<script>
-  // One copy handler for every command on the page.
-  for (const button of document.querySelectorAll<HTMLButtonElement>("[data-copy]")) {
-    button.addEventListener("click", async () => {
-      const text = button.parentElement?.querySelector<HTMLElement>("[data-copy-text]")?.textContent
-      if (!text) return
-      await navigator.clipboard.writeText(text.trim())
-      const was = button.textContent
-      button.textContent = "copied"
-      setTimeout(() => { button.textContent = was }, 1400)
-    })
-  }
-</script>
+</section>

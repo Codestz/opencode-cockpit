@@ -78,7 +78,7 @@ const id = `cast-${name}-${Math.random().toString(36).slice(2, 8)}`
     --term-color-foreground: #c7d2dc;
     /* recordings keep a terminal ground in both themes: the colours were made for it */
     --term-color-background: var(--ck-terminal);
-    --term-color-0: #0b0d10; --term-color-1: #f0797a; --term-color-2: #5fe3c0; --term-color-3: #f0b45e;
+    --term-color-0: var(--ck-terminal); /* programs paint their ground with black: make it ours */ --term-color-1: #f0797a; --term-color-2: #5fe3c0; --term-color-3: #f0b45e;
     --term-color-4: #6ea8fe; --term-color-5: #c79bf0; --term-color-6: #5fd8e3; --term-color-7: #c7d2dc;
     --term-color-8: #5f6e7b; --term-color-9: #ff9b9c; --term-color-10: #7ff0d1; --term-color-11: #ffc97d;
     --term-color-12: #8dbcff; --term-color-13: #dcb4ff; --term-color-14: #8ae8f0; --term-color-15: #e8edf2;

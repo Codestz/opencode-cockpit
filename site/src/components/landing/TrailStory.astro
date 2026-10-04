@@ -1,0 +1,35 @@
+---
+import Cast from "../Cast.astro"
+import { inline } from "../../lib/inline"
+import { trail } from "../../data/landing"
+---
+
+<section class="trail" id="trail">
+  <div class="eyebrow">{trail.eyebrow}</div>
+  <h2>{trail.title} <span>{trail.accent}</span></h2>
+  <div class="story">
+    <ol class="steps">
+      {trail.steps.map((step, i) => (
+        <li class="step" data-step={i}>
+          <div class="n">{String(i + 1).padStart(2, "0")}</div>
+          <h3 set:html={inline(step.title)} />
+          <p set:html={inline(step.body)} />
+        </li>
+      ))}
+    </ol>
+    <div class="stick">
+      <div class="window">
+        <div class="titlebar" aria-hidden="true"><i></i><i></i><i></i><span id="story-caption">sidebar · Trail</span></div>
+        <div class="screen story-screen" role="img" aria-label="Trail's sidebar block and /trail dialog, drawn by Trail's own code">
+          <div class="term" id="story-term"></div>
+          <div class="go-toast" id="story-go">→ ses_main · Fix the bundle desync</div>
+        </div>
+      </div>
+      <div class="progress" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+      <details class="recording">
+        <summary>▶ {trail.recording}</summary>
+        <Cast name="trail" caption="A real recording: tapes/trail.cast" autoplay={false} />
+      </details>
+    </div>
+  </div>
+</section>

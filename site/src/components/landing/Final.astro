@@ -1,0 +1,14 @@
+---
+import { final, install } from "../../data/landing"
+import Install from "./Install.astro"
+const base = import.meta.env.BASE_URL
+---
+
+<section class="final">
+  <h2>{final.title} <span>{final.accent}</span></h2>
+  <Install />
+  <div class="final-links">
+    {final.links.map((link) => <a class="btn" href={link.href.startsWith("http") ? link.href : `${base}${link.href}`}>{link.label}</a>)}
+  </div>
+  <div class="fine">{install.requires}</div>
+</section>
