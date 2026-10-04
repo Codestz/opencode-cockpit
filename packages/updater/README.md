@@ -3,6 +3,10 @@
 **Every OpenCode plugin you have installed: what actually runs, what your config says, what is
 published — and an update that is checked against disk.**
 
+<img src="https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/updater.gif" width="760" alt="/plugins-update: what each plugin runs beside what is published, two selected for an update">
+
+*Drawn by the bay's own renderer — the same code that runs in your terminal.*
+
 Part of [opencode-cockpit](https://github.com/Codestz/opencode-cockpit). It comes with the bundle, and
 it also runs on its own from a shell, without OpenCode running at all.
 

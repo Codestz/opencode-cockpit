@@ -3,7 +3,9 @@
 A statusline for [OpenCode](https://opencode.ai) you can actually configure: declarative segments,
 your own TypeScript, or the statusline script you already wrote for Claude Code.
 
-![The statusline under an OpenCode conversation: a context bar at 40%, the token total with its cache, input and output parts, what is uncommitted, elapsed time and todo progress](https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/statusline.png)
+<img src="https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/status.gif" width="760" alt="Status in the sidebar and under the prompt: one session's context filling from calm through 75% and 90%">
+
+*Drawn by the bay's own renderer — the same code that runs in your terminal.*
 
 Part of [opencode-cockpit](https://github.com/Codestz/opencode-cockpit). Install it on its own, or
 get it with every other bay through the `opencode-cockpit` bundle.

@@ -3,6 +3,10 @@
 **A pull request in the terminal.** Read what changed, hold your thoughts against the lines they
 belong to, and send one review instead of six interruptions.
 
+<img src="https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/review.gif" width="760" alt="Review: a file marked viewed, a note typed on a line and handed over, the agent resolving it, then a screenshot diff">
+
+*Drawn by the bay's own renderer — the same code that runs in your terminal.*
+
 Part of [opencode-cockpit](https://github.com/Codestz/opencode-cockpit). Install it on its own, or
 through the bundle.
 

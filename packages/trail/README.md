@@ -4,6 +4,10 @@
 changed — kept per conversation, grouped by the ticket they were for, and one click from the page.
 And the other way round: which conversation opened PR #33, and a jump back into it.
 
+<img src="https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/trail.gif" width="760" alt="/trail: this conversation's records, then every conversation in the project and which one made each">
+
+*Drawn by the bay's own renderer — the same code that runs in your terminal.*
+
 Part of [opencode-cockpit](https://github.com/Codestz/opencode-cockpit). Install it on its own, or
 through the bundle, where it is on by default (`features.trail: false` turns it off). Works on
 OpenCode 1.18+ and 2.0.15+.
