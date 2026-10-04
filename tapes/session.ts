@@ -24,7 +24,7 @@ export default {
   rows: 34,
   files: { "dev-server.sh": DEV },
   // the panel is open from the start: the point is seeing it fill while the answer arrives
-  config: { ui: { dockOpen: true } },
+  config: { shell: { dockOpen: true } },
   steps: [
     {
       send: "start ./dev-server.sh in the background, wait until it's listening, then tell me the url",
