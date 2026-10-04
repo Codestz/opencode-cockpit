@@ -41,12 +41,12 @@ Types into a shell — text, or named keys (`enter`, `up`, `ctrl+c`) for REPLs a
 
 ## shell_watch
 
-Attaches or changes a watcher. See [Watching health](/opencode-cockpit/shell/watching/).
+Attaches or changes a watcher. See [Watching health](/shell/watching/).
 
 ## shell_list
 
 Finds the right shell: filter by `query`, `status`, `session` or `kind`, including
-[kinds you defined yourself](/opencode-cockpit/configuration/).
+[kinds you defined yourself](/configuration/).
 
 ## shell_stop · shell_restart
 

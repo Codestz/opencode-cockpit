@@ -3,12 +3,12 @@ import starlight from "@astrojs/starlight"
 import { defineConfig } from "astro/config"
 
 /**
- * Published to GitHub Pages under a repository path, so every internal link has to go through
- * Astro's `base`. Colours, type and spacing live in src/styles/tokens.css — nothing here.
+ * Published to GitHub Pages at cockpit.codestz.dev, at the root: no base path, so a link is just its
+ * path. The old address (codestz.github.io/opencode-cockpit) redirects here, path and all.
+ * Colours, type and spacing live in src/styles/tokens.css — nothing here.
  */
 export default defineConfig({
-  site: "https://codestz.github.io",
-  base: "/opencode-cockpit",
+  site: "https://cockpit.codestz.dev",
   trailingSlash: "always",
   integrations: [
     starlight({
@@ -19,7 +19,7 @@ export default defineConfig({
       lastUpdated: true,
       favicon: "/favicon.svg",
       head: [
-        { tag: "meta", attrs: { property: "og:image", content: "https://codestz.github.io/opencode-cockpit/og.png" } },
+        { tag: "meta", attrs: { property: "og:image", content: "https://cockpit.codestz.dev/og.png" } },
         { tag: "meta", attrs: { name: "twitter:card", content: "summary_large_image" } },
       ],
       customCss: ["./src/styles/tokens.css", "./src/styles/starlight.css"],

@@ -1,11 +1,11 @@
 # @opencode-cockpit/shell
 
 **Bay 01 of [Cockpit](https://github.com/Codestz/opencode-cockpit).**
-[Docs →](https://codestz.github.io/opencode-cockpit/shell/overview/) ·
-[Agent tools](https://codestz.github.io/opencode-cockpit/shell/tools/) ·
-[Watching health](https://codestz.github.io/opencode-cockpit/shell/watching/) ·
-[Panel and keys](https://codestz.github.io/opencode-cockpit/shell/interface/) ·
-[Configuration](https://codestz.github.io/opencode-cockpit/configuration/)
+[Docs →](https://cockpit.codestz.dev/shell/overview/) ·
+[Agent tools](https://cockpit.codestz.dev/shell/tools/) ·
+[Watching health](https://cockpit.codestz.dev/shell/watching/) ·
+[Panel and keys](https://cockpit.codestz.dev/shell/interface/) ·
+[Configuration](https://cockpit.codestz.dev/configuration/)
 
 [![npm](https://img.shields.io/npm/v/@opencode-cockpit/shell)](https://www.npmjs.com/package/@opencode-cockpit/shell)
 
@@ -254,7 +254,7 @@ place: interface settings on an entry must be in `tui.json`, agent settings in `
 | Warning: "Shell is configured twice" | Remove either `opencode-cockpit` or `@opencode-cockpit/shell` from `opencode.json` (and `tui.json` on OpenCode 1) |
 | Panel says the daemon runs older code | `/shells-restart-daemon` once your shells are done |
 
-More in [Troubleshooting](https://codestz.github.io/opencode-cockpit/help/troubleshooting/).
+More in [Troubleshooting](https://cockpit.codestz.dev/help/troubleshooting/).
 
 ## How it works
 

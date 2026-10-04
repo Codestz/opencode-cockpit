@@ -45,7 +45,7 @@ fold into a count past `sidebarRows`, and leave after `hideFinishedAfterMinutes`
 none yet the block says so — its heading and `none yet` — unless `hideWhenEmpty` is on.
 
 The sidebar reads status, subagents, shells, trail, trust, top to bottom — `"sidebar"` in
-[Cockpit's config](/opencode-cockpit/configuration/#the-sidebar-order) reorders it.
+[Cockpit's config](/configuration/#the-sidebar-order) reorders it.
 
 ## The pane
 
@@ -181,7 +181,7 @@ In the `subagents` section of `~/.config/opencode-cockpit/config.json`, or a pro
 Where the block sits is the top-level `"sidebar"` list's to say. The names from before 0.9 —
 `hideFinishedAfter`, `hideNestedAfter`, `sidebarOrder` — are no longer read: the block shows a `!`
 row naming the new one, and `/cockpit-setup` fixes it. See
-[Configuration](/opencode-cockpit/configuration/).
+[Configuration](/configuration/).
 
 ## Known limits
 

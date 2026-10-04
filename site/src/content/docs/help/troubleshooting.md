@@ -11,7 +11,7 @@ npx opencode-cockpit@latest doctor
 
 It checks OpenCode, its config, what Cockpit logged, the daemon and the tools it needs, and prints
 the fix for anything wrong — even when Cockpit will not load at all. What it checks is in
-[Doctor](/opencode-cockpit/help/doctor/).
+[Doctor](/help/doctor/).
 
 ## Where to look first
 
@@ -64,7 +64,7 @@ the newest release, then restart:
 Edit the entry you have rather than running `opencode plugin add` beside it: `add` writes a second
 entry under `"plugins"` and leaves the old one, and two copies of a bay mean one of them stands down.
 
-Which version runs where is in [OpenCode 1 and 2](/opencode-cockpit/start/opencode-versions/).
+Which version runs where is in [OpenCode 1 and 2](/start/opencode-versions/).
 
 ## Tools fail with "did not start"
 
@@ -106,7 +106,7 @@ full-screen console and the Review pane see-through before 0.6. Update.
 ## An agent starts shells without asking, on OpenCode 2
 
 Known: OpenCode 2 gives a plugin tool no documented way to ask for permission, so `shell_start` is
-not held by your `bash` rules there. We are working on making it ask, as it does on OpenCode 1. See [what differs](/opencode-cockpit/start/opencode-versions/#what-differs-on-opencode-2).
+not held by your `bash` rules there. We are working on making it ask, as it does on OpenCode 1. See [what differs](/start/opencode-versions/#what-differs-on-opencode-2).
 
 ## The panel says the daemon runs older code
 

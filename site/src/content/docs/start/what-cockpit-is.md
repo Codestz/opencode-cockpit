@@ -13,13 +13,13 @@ OpenCode is an excellent terminal agent flying without instruments. Cockpit is t
 
 | Bay | Your agent gains | You gain |
 | --- | --- | --- |
-| **[Shell](/opencode-cockpit/shell/overview/)** | Terminals that keep running — it starts them, waits for "ready", reads the part that matters | A live panel of every process, with health it reports itself |
-| **[Statusline](/opencode-cockpit/status/overview/)** | A skill to design the line with you | The session at a glance: how full the context is, where the tokens went, what changed, how long |
-| **[Review](/opencode-cockpit/review/overview/)** | Comments it can read, answer and resolve — a resolve is checked against the file | The diff where the work happened, with notes on the lines they are about |
-| **[Updater](/opencode-cockpit/updater/overview/)** | — | Every plugin you have: what is really running, what is published, and an update checked against disk |
-| **[Subagents](/opencode-cockpit/subagents/overview/)** | Follow-ups that continue the subagent that did the work; tools to list, read and wait on its subagents | Every subagent in the sidebar with what it is doing now, its whole run in a pane, and a message away |
-| **[Trail](/opencode-cockpit/trail/overview/)** | Tools to record the PRs, tickets and pages it creates or changes, and to say which conversation made one | What a conversation made, in the sidebar, one click from the page |
-| **[Trust](/opencode-cockpit/trust/overview/)** | — | Permissions that learn: the exact same command approved three times is answered for you, and every answer is recorded |
+| **[Shell](/shell/overview/)** | Terminals that keep running — it starts them, waits for "ready", reads the part that matters | A live panel of every process, with health it reports itself |
+| **[Statusline](/status/overview/)** | A skill to design the line with you | The session at a glance: how full the context is, where the tokens went, what changed, how long |
+| **[Review](/review/overview/)** | Comments it can read, answer and resolve — a resolve is checked against the file | The diff where the work happened, with notes on the lines they are about |
+| **[Updater](/updater/overview/)** | — | Every plugin you have: what is really running, what is published, and an update checked against disk |
+| **[Subagents](/subagents/overview/)** | Follow-ups that continue the subagent that did the work; tools to list, read and wait on its subagents | Every subagent in the sidebar with what it is doing now, its whole run in a pane, and a message away |
+| **[Trail](/trail/overview/)** | Tools to record the PRs, tickets and pages it creates or changes, and to say which conversation made one | What a conversation made, in the sidebar, one click from the page |
+| **[Trust](/trust/overview/)** | — | Permissions that learn: the exact same command approved three times is answered for you, and every answer is recorded |
 
 Every one of them can be set up by asking: `/cockpit-setup` has the agent read what is installed and
 write the config with you.
@@ -28,7 +28,7 @@ Each is its own npm package with a switch in config. Take the suite or a single 
 is the same daemon, the same config file and the same keys, so moving between them changes nothing
 you have already set up.
 
-**[Doctor](/opencode-cockpit/help/doctor/)** comes with them: `npx opencode-cockpit@latest doctor`
+**[Doctor](/help/doctor/)** comes with them: `npx opencode-cockpit@latest doctor`
 checks your setup and says how to fix it.
 
 ## Why a platform and not two plugins
@@ -52,7 +52,7 @@ On OpenCode 1, agent plugins are configured in `opencode.json` and interface plu
 Without help, every setting has to be written twice.
 
 Cockpit reads **one file**, merging global → project → plugin entry, and hands the result to both
-halves. See [Configuration](/opencode-cockpit/configuration/).
+halves. See [Configuration](/configuration/).
 
 ## Real estate in the interface
 
@@ -78,7 +78,7 @@ and the interface slots are identical either way.
 }
 ```
 
-One section per bay, read by both halves of each; [Configuration](/opencode-cockpit/configuration/)
+One section per bay, read by both halves of each; [Configuration](/configuration/)
 has every key, or type `/cockpit-setup` and the agent writes it with you.
 
-Next: [Install](/opencode-cockpit/start/install/).
+Next: [Install](/start/install/).

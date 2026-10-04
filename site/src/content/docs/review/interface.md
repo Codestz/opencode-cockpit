@@ -34,7 +34,7 @@ All optional, in the `review` section of `~/.config/opencode-cockpit/config.json
 | `enabled` | `false` switches Review off; so does `features.review: false` |
 
 A value Review does not know (`"variant": "left"`) is the default and a `!` row in the pane naming
-the ones it does. See [Configuration](/opencode-cockpit/configuration/).
+the ones it does. See [Configuration](/configuration/).
 
 The keys *inside* the panel are not configurable. They are a closed set that only exists while the
 panel is open, and the panel gives them straight back when it closes.

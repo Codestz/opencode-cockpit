@@ -45,7 +45,7 @@ stop checking a number you have learned to trust.
 
 LiteLLM reports the real cost of a response and tracks team and key budgets. A locally multiplied
 estimate cannot match that. Read the real figure with a
-[command segment](/opencode-cockpit/status/commands/):
+[command segment](/status/commands/):
 
 ```jsonc
 {
@@ -74,7 +74,7 @@ will we, with no change here.
 If you delegate heavily and want to be sure, the check takes a minute: run a turn that spawns a
 subagent, then compare the `cost` segment against the sum you would expect. If it is short, the
 host is not rolling child sessions up, and a
-[command segment](/opencode-cockpit/status/commands/) against your proxy's own spend endpoint is
+[command segment](/status/commands/) against your proxy's own spend endpoint is
 the number to trust — it counts every request whoever made it.
 
 ## What is never available

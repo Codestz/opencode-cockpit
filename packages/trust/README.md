@@ -216,7 +216,7 @@ In the bundle's entry (`"trust": { … }`), this package's own, or the `trust` s
 Where the block sits is the top-level `"sidebar"` list's to say — Trust last by default; a
 `trust.sidebarOrder` from before 0.9 is no longer read, and is a `!` row in the block until
 `/cockpit-setup` removes it. A setting Trust cannot use (`"threshold": "3"`) is a `!` row too. See
-[Configuration](https://codestz.github.io/opencode-cockpit/configuration/).
+[Configuration](https://cockpit.codestz.dev/configuration/).
 
 The ledger lives outside the project, in
 `~/.local/share/opencode-cockpit/trust/<project>-<hash>/events.ndjson` (`$COCKPIT_HOME` or
@@ -240,7 +240,7 @@ npx opencode-cockpit@latest doctor
 ```
 
 checks OpenCode, its config, Cockpit's logs and the daemon, and prints the fix for anything wrong
-([what it checks](https://codestz.github.io/opencode-cockpit/help/doctor/)).
+([what it checks](https://cockpit.codestz.dev/help/doctor/)).
 
 ```sh
 tail -50 ~/.cache/opencode-cockpit/cockpit.log

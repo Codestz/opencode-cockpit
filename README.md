@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/Codestz/opencode-cockpit/actions/workflows/ci.yml/badge.svg)](https://github.com/Codestz/opencode-cockpit/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/opencode-cockpit?color=%23cb3837&label=opencode-cockpit)](https://www.npmjs.com/package/opencode-cockpit)
-[![Docs](https://img.shields.io/badge/docs-codestz.github.io-9d7cd8)](https://codestz.github.io/opencode-cockpit/)
+[![Docs](https://img.shields.io/badge/docs-cockpit.codestz.dev-9d7cd8)](https://cockpit.codestz.dev/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Your agent, on instruments.** Cockpit adds what [OpenCode](https://opencode.ai) doesn't ship with:
@@ -13,7 +13,7 @@ everything each conversation made.
 
 *Drawn by Cockpit's own renderers, the same code that runs in your terminal: a test run failing and
 passing in the background, subagents at work, the PR landing in Trail, the context filling. Every
-bay, live, is on the [site](https://codestz.github.io/opencode-cockpit/).*
+bay, live, is on the [site](https://cockpit.codestz.dev/).*
 
 ## Install
 
@@ -49,17 +49,17 @@ has something.
 
 | Bay | What it gives you | Key or command | Docs |
 | --- | --- | --- | --- |
-| **Trail** | What every conversation shipped — PRs, tickets, deploys — and which one shipped it | `ctrl+x f` · `/trail` | [Trail](https://codestz.github.io/opencode-cockpit/trail/overview/) |
-| **Shell** | Terminals that outlive the turn; the agent waits on a port or a pattern, you watch | `ctrl+x o` panel · `ctrl+x j` console | [Shell](https://codestz.github.io/opencode-cockpit/shell/overview/) |
-| **Subagents** | Every helper in the sidebar with what it's doing now, and its whole run one key away | `ctrl+x d` | [Subagents](https://codestz.github.io/opencode-cockpit/subagents/overview/) |
-| **Review** | Review changes like a pull request: notes on lines, which the agent reads and resolves | `ctrl+x v` | [Review](https://codestz.github.io/opencode-cockpit/review/overview/) |
-| **Status** | How full the context is, where the tokens went, what changed, what it costs | `/status-setup` | [Status](https://codestz.github.io/opencode-cockpit/status/overview/) |
-| **Trust** | Approve the same command three times and Trust answers it for you | `ctrl+x p` · `/trust` | [Trust](https://codestz.github.io/opencode-cockpit/trust/overview/) |
-| **Updater** | Every plugin you have: what runs, what is published, and an update you pick | `/plugins-update` | [Updater](https://codestz.github.io/opencode-cockpit/updater/overview/) |
+| **Trail** | What every conversation shipped — PRs, tickets, deploys — and which one shipped it | `ctrl+x f` · `/trail` | [Trail](https://cockpit.codestz.dev/trail/overview/) |
+| **Shell** | Terminals that outlive the turn; the agent waits on a port or a pattern, you watch | `ctrl+x o` panel · `ctrl+x j` console | [Shell](https://cockpit.codestz.dev/shell/overview/) |
+| **Subagents** | Every helper in the sidebar with what it's doing now, and its whole run one key away | `ctrl+x d` | [Subagents](https://cockpit.codestz.dev/subagents/overview/) |
+| **Review** | Review changes like a pull request: notes on lines, which the agent reads and resolves | `ctrl+x v` | [Review](https://cockpit.codestz.dev/review/overview/) |
+| **Status** | How full the context is, where the tokens went, what changed, what it costs | `/status-setup` | [Status](https://cockpit.codestz.dev/status/overview/) |
+| **Trust** | Approve the same command three times and Trust answers it for you | `ctrl+x p` · `/trust` | [Trust](https://cockpit.codestz.dev/trust/overview/) |
+| **Updater** | Every plugin you have: what runs, what is published, and an update you pick | `/plugins-update` | [Updater](https://cockpit.codestz.dev/updater/overview/) |
 
 Every key is the same on OpenCode 1 and 2, and none of them is one of OpenCode's own. Each bay is
 also published on its own, as `@opencode-cockpit/<bay>` — see
-[Install](https://codestz.github.io/opencode-cockpit/start/install/).
+[Install](https://cockpit.codestz.dev/start/install/).
 
 ## Set up in one sentence
 
@@ -67,7 +67,7 @@ Install, restart, then type `/cockpit-setup`.
 
 The agent reads your settings, asks only what matters — which bays show, in what order, how quiet
 when empty — and writes the smallest correct file. Every setting is in the
-[Configuration](https://codestz.github.io/opencode-cockpit/configuration/) reference.
+[Configuration](https://cockpit.codestz.dev/configuration/) reference.
 
 ## Something wrong?
 
@@ -76,17 +76,17 @@ npx opencode-cockpit@latest doctor
 ```
 
 It checks OpenCode, its config, Cockpit's logs and the daemon, and prints the fix for anything
-wrong. [Troubleshooting](https://codestz.github.io/opencode-cockpit/help/troubleshooting/) covers the
+wrong. [Troubleshooting](https://cockpit.codestz.dev/help/troubleshooting/) covers the
 rest.
 
 ## Links
 
-- [Documentation](https://codestz.github.io/opencode-cockpit/) — start with
-  [What Cockpit is](https://codestz.github.io/opencode-cockpit/start/what-cockpit-is/)
-- [OpenCode 1 and 2](https://codestz.github.io/opencode-cockpit/start/opencode-versions/) — what
+- [Documentation](https://cockpit.codestz.dev/) — start with
+  [What Cockpit is](https://cockpit.codestz.dev/start/what-cockpit-is/)
+- [OpenCode 1 and 2](https://cockpit.codestz.dev/start/opencode-versions/) — what
   differs between the two
 - [Changelog](CHANGELOG.md)
-- [Troubleshooting](https://codestz.github.io/opencode-cockpit/help/troubleshooting/)
+- [Troubleshooting](https://cockpit.codestz.dev/help/troubleshooting/)
 - [Contributing](CONTRIBUTING.md)
 
 ## Contributing

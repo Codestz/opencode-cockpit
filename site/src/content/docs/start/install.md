@@ -4,7 +4,7 @@ description: Two commands, both config files, and what happens on first run.
 ---
 
 Requires **OpenCode 1.18+ or 2.0.15+** on macOS or Linux — one package runs on both. Which version
-you have, and what differs, is in [OpenCode 1 and 2](/opencode-cockpit/start/opencode-versions/).
+you have, and what differs, is in [OpenCode 1 and 2](/start/opencode-versions/).
 
 ## Everything
 
@@ -36,7 +36,7 @@ OpenCode 2 runs the agent side in a background service that loads plugins once, 
 keeps running when you close OpenCode. Until it restarts, the windows draw the new Cockpit while the
 agent keeps the old one's tools and skills. A window says so when it sees it — one toast, `Cockpit was
 updated — OpenCode's background service still runs the old one. Run: opencode service restart` — and
-[doctor](/opencode-cockpit/help/doctor/)'s Service check says the same from a terminal. Cockpit never
+[doctor](/help/doctor/)'s Service check says the same from a terminal. Cockpit never
 restarts the service for you: that would cut every open window.
 
 ## A single bay
@@ -78,7 +78,7 @@ Everything works with no configuration. To choose what shows, type `/cockpit-set
 "make my sidebar quieter". The agent reads what is installed and set now, fixes any name from before
 0.9, and writes `~/.config/opencode-cockpit/config.json` with you: which bays show, in the sidebar or
 at the bottom, in what order, quiet or present when empty. Then, if you want, it tunes Cockpit to how
-you work — see [Configuration](/opencode-cockpit/configuration/#the-easy-way-cockpit-setup).
+you work — see [Configuration](/configuration/#the-easy-way-cockpit-setup).
 
 ## What happens on first run
 
