@@ -21,7 +21,11 @@ export const SEGMENTS: SegmentDef[] = [
         .map((item) => item.name)
         .join(", ")
       const more = broken.length > 2 ? ` +${broken.length - 2}` : ""
-      return { text: `${GLYPH.warn} ${names}${more}`, tone: "error" }
+      // The names give way before the count: cut at the edge, `! web-search-prime-with…` hid that
+      // three servers broke, not one.
+      const room = ctx.width > 0 ? ctx.width - 2 - more.length : Number.POSITIVE_INFINITY
+      const shown = names.length > room ? `${names.slice(0, Math.max(1, room - 1))}${GLYPH.more}` : names
+      return { text: `${GLYPH.warn} ${shown}${more}`, tone: "error" }
     },
   },
   {

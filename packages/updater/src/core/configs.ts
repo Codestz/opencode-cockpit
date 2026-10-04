@@ -9,8 +9,8 @@
  */
 
 import { join } from "node:path"
+import { parseJsonc } from "@opencode-cockpit/client/jsonc"
 import type { Disk } from "./disk.ts"
-import { parseJsonc } from "./jsonc.ts"
 import { type PluginEntry, parseSpec, type Spec, specOf } from "./spec.ts"
 
 export type Scope = "global" | "project"

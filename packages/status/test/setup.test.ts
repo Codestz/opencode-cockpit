@@ -1,0 +1,162 @@
+import { describe, expect, test } from "bun:test"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+import { readSkill } from "@opencode-cockpit/client/server"
+import { BUILTINS } from "../src/core/builtins/index.ts"
+import {
+  asSegmentConfig,
+  configNotices,
+  loadStatus,
+  PRESETS,
+  resolveLines,
+  SIDEBAR_SEGMENTS,
+  type StatusConfig,
+} from "../src/core/config.ts"
+import { SEGMENT_ABOUT, statusReference } from "../src/core/reference.ts"
+import { OLD_PROMPT, SETUP_PROMPT, SETUP_SKILL, SETUP_SKILL_DIR } from "../src/core/setup.ts"
+import { createStatusServer } from "../src/server.ts"
+
+/**
+ * The `status-setup` skill is text shipped beside code that changes. These keep it honest: its
+ * reference is what the code writes, every built-in is described, every starting point it offers is a
+ * `status` section Status reads without a notice, and the old command says its new name.
+ */
+
+const skill = readFileSync(join(SETUP_SKILL_DIR, "SKILL.md"), "utf8")
+const read = (name: string) => readFileSync(join(SETUP_SKILL_DIR, "references", name), "utf8")
+
+describe("the reference", () => {
+  test("is what the code writes — run `bun packages/status/src/cli/reference.ts` when it is not", () => {
+    expect(read("settings.md")).toBe(statusReference())
+  })
+
+  test("every built-in segment is described, and nothing that is not one", () => {
+    expect(Object.keys(SEGMENT_ABOUT).sort()).toEqual(BUILTINS.map((segment) => segment.name).sort())
+  })
+
+  test("every preset is in it", () => {
+    for (const name of Object.keys(PRESETS)) expect(read("settings.md")).toContain(`| \`${name}\` |`)
+  })
+
+  test("the design rules a copied statusline-design still carries are the same rules", () => {
+    const old = readFileSync(join(SETUP_SKILL_DIR, "..", "statusline-design", "SKILL.md"), "utf8")
+    expect(old.endsWith(read("design.md"))).toBe(true)
+  })
+})
+
+describe("the skill", () => {
+  test("is named for the command, and says when to use it", () => {
+    const parsed = readSkill({ dir: SETUP_SKILL_DIR })
+    expect(parsed?.name).toBe(SETUP_SKILL)
+    const description = parsed?.description ?? ""
+    expect(description.length).toBeLessThan(1024)
+    for (const trigger of ["/status-setup", "/statusline", "Claude Code statusline", "at the bottom"])
+      expect(description).toContain(trigger)
+    expect(skill).toContain("`cockpit_settings`")
+    expect(skill).toContain("(references/settings.md)")
+    expect(skill).toContain("(references/design.md)")
+  })
+
+  /** Each starting point: a paragraph opening with its name in bold, then its JSON. */
+  const presets = skill
+    .slice(skill.indexOf("## 3."), skill.indexOf("## 4."))
+    .split(/^(?=\*\*[^*]+\*\* — )/m)
+    .slice(1)
+    .map((part) => ({
+      name: /^\*\*([^*]+)\*\*/.exec(part)?.[1] as string,
+      json: JSON.parse(/```json\n([\s\S]*?)```/.exec(part)?.[1] ?? "null") as Record<string, unknown>,
+    }))
+
+  test("every starting point is a status section Status reads without a notice", () => {
+    expect(presets.map((preset) => preset.name)).toEqual([
+      "The table",
+      "One line",
+      "Minimal line",
+      "Detailed line",
+      "My Claude Code statusline",
+    ])
+    for (const preset of presets) {
+      const loaded = loadStatus({
+        where: {
+          env: {},
+          home: "/home/me",
+          read: (path) => (path.endsWith("config.json") ? JSON.stringify(preset.json) : undefined),
+        },
+      })
+      expect({ preset: preset.name, notices: [...loaded.notices, ...configNotices(loaded.config)] }).toEqual({
+        preset: preset.name,
+        notices: [],
+      })
+    }
+  })
+
+  /**
+   * Asked to change only the `git` row, an agent once copied the table's fourteen segments into
+   * `segments`. Each small change the skill teaches is an `override` that the table reads without a
+   * notice, and that leaves the table's every other row where the preset put it.
+   */
+  test("every small change it teaches is an override of the table, not a copy of it", () => {
+    const table = skill.slice(skill.indexOf("### A row or two"), skill.indexOf("## 5."))
+    const examples = [...table.matchAll(/^\| "[^"]+" \| `(\{.*\})` \|$/gm)].map(
+      (match) => JSON.parse(match[1] as string) as { status: StatusConfig },
+    )
+    expect(examples.length).toBeGreaterThanOrEqual(3)
+    expect(table).toContain('{ "git": { "against": "branch" } }')
+    for (const example of examples) {
+      expect(Object.keys(example.status)).toEqual(["override"])
+      const loaded = loadStatus({
+        where: {
+          env: {},
+          home: "/home/me",
+          read: (path) => (path.endsWith("config.json") ? JSON.stringify(example) : undefined),
+        },
+      })
+      expect({ example, notices: loaded.notices }).toEqual({ example, notices: [] })
+      const [line] = resolveLines(loaded.config)
+      const kept = SIDEBAR_SEGMENTS.filter(
+        (entry) => !(asSegmentConfig(entry).type in (example.status.override ?? {})),
+      )
+      for (const entry of kept) expect(line?.segments).toContainEqual(entry)
+    }
+  })
+
+  /**
+   * Piped, never written first: a temporary file outside the project is a permission prompt on
+   * OpenCode 1, and one inside it dirties the user's repo.
+   */
+  test("it previews what it is about to write on stdin, never through a temporary file", () => {
+    expect(skill).toContain("| <preview> --config - ")
+    expect(skill).toContain("--as project")
+    expect(skill).toContain("`✓git`")
+    for (const text of [skill, read("design.md")]) expect(text).not.toMatch(/\/tmp\/|status-preview\.json/)
+  })
+
+  /** `bunx` fetches the newest release from npm, not this install: 0.8 drew a 0.9 sidebar as a bottom line. */
+  test("it runs this install's preview, the one cockpit_settings names, never bunx or npx", () => {
+    expect(skill).toContain("under **Previews**")
+    for (const text of [skill, read("design.md")]) {
+      expect(text).not.toMatch(/(bunx|npx) @opencode-cockpit\/status preview/)
+    }
+  })
+})
+
+describe("the agent side", () => {
+  const host = () =>
+    ({ version: 1, directory: "/work/app", scope: {}, log: { info() {}, warn() {} } }) as never
+
+  test("the skill and both commands, the old one saying the new name first", async () => {
+    const parts = await createStatusServer()(host(), {})
+    expect(parts.skills).toEqual([{ dir: SETUP_SKILL_DIR }])
+    expect(parts.commands?.map((command) => [command.name, command.prompt])).toEqual([
+      ["status-setup", SETUP_PROMPT],
+      ["statusline", OLD_PROMPT],
+    ])
+    expect(OLD_PROMPT.startsWith("/statusline is now /status-setup.")).toBe(true)
+  })
+
+  test("the bundle and this package side by side register them once", async () => {
+    const shared = { version: 1, directory: "/work/app", scope: {}, log: { info() {}, warn() {} } } as never
+    expect((await createStatusServer({ source: "opencode-cockpit" })(shared, {})).skills).toHaveLength(1)
+    expect(await createStatusServer()(shared, {})).toEqual({})
+  })
+})

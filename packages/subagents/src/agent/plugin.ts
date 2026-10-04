@@ -1,10 +1,11 @@
 import { type ToolContext, type ToolDefinition, tool } from "@opencode-ai/plugin"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
-import { dualServer, type ServerHost, type ServerStart } from "@opencode-cockpit/client/server"
+import { dualServer, openText, type ServerHost, type ServerStart } from "@opencode-cockpit/client/server"
 import { createdSession } from "../core/adapt/created.ts"
 import { endOf, finishedAt } from "../core/adapt/ends.ts"
 import { createV1Translator } from "../core/adapt/v1.ts"
 import { createV2Translator } from "../core/adapt/v2.ts"
+import { loadSubagents } from "../core/config.ts"
 import type { Change } from "../core/model/changes.ts"
 import {
   applyAll,
@@ -13,6 +14,7 @@ import {
   rootOf,
   type Session,
   subagentsOf,
+  titleOf,
   working,
 } from "../core/model/model.ts"
 import { backgroundOffered, subagentsGuidance } from "../core/view/guidance.ts"
@@ -90,7 +92,13 @@ export function createSubagentsServer({
       return {}
     }
     const log = host.log.child("subagents")
-    const options = (rawOptions ?? {}) as { guidance?: boolean }
+    /** The `subagents` section of the files, as the interface reads it, then the entry's options. */
+    const { config: options } = loadSubagents(host.directory, rawOptions)
+    if (!options.enabled) {
+      log.info("off in the settings")
+      claim.release()
+      return {}
+    }
     const background = backgroundOffered(host.version, process.env)
     log.info("background subagents", { offered: background })
     const guidance = subagentsGuidance({ version: host.version, background })
@@ -156,7 +164,19 @@ export function createSubagentsServer({
     })
 
     return {
-      ...(options.guidance === false ? {} : { system: async () => [guidance] }),
+      ...(options.guidance === false
+        ? {}
+        : {
+            system: async () => [guidance],
+            /** For the Cockpit-wide line: subagents in the sidebar, or only behind their key. */
+            surfaces: [
+              {
+                what: "subagents",
+                ...(options.sidebar ? {} : { where: "the subagents view" }),
+                open: openText("subagents", "cockpit.subagents.open", options.keybinds, "subagents"),
+              },
+            ],
+          }),
       tools: { subagents_list: list, subagents_read: read, subagents_wait: wait },
       event: (event) => {
         try {
@@ -372,7 +392,7 @@ function createRuns(host: ServerHost) {
       known.length === 0
         ? `no subagent "${id}": this conversation has none. Ids look like ses_… and come from the task result or subagents_list.`
         : `no subagent "${id}". This conversation's subagents:\n${known
-            .map((node) => `- ${node.session.id} "${node.session.title || "subagent"}"`)
+            .map((node) => `- ${node.session.id} "${titleOf(node.session)}"`)
             .join("\n")}`,
     )
   }

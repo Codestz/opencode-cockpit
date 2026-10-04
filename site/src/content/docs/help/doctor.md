@@ -25,6 +25,7 @@ Cockpit doctor
                 2026-09-24T11:00:00Z  error tui:review  review: trouble: …
                 → the full lines, with stacks: tail -100 ~/.cache/opencode-cockpit/cockpit.log
  · Daemon       not running — it starts with the first shell, and stops when idle
+ ✓ Service      OpenCode 2's background service is not running; a window starts it
  ✓ Environment  git, ps, and a writable Cockpit home
  ✓ Settings     1 file, 1 statusline module
 
@@ -61,11 +62,24 @@ messages — including the ones that were only a toast.
 
 **Daemon.** Whether the shell daemon is running, and the build it was started from.
 
+**Service.** On OpenCode 2 only: whether its background service runs the Cockpit installed now. The
+service loads plugins once, when it starts, so after an install or an update it keeps the old agent
+side — no new tools, no new skills — until `opencode service restart`. Doctor reads which install the
+agent side recorded when it loaded, and warns when a newer one was installed since; with no record,
+it compares when the service started with when Cockpit was installed.
+
+**Subagents.** Where Subagents is installed: whether subagents can run in the background. OpenCode 2
+has it built in; OpenCode 1 only when started with `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`,
+and doctor gives the line for your shell's profile when it is missing.
+
 **Environment.** `git` on your PATH (Review reads branches through it), `ps` (the daemon stops a
 shell's processes with it), and a Cockpit home it can write to.
 
-**Settings.** `~/.config/opencode-cockpit/config.json` and the project's `.cockpit.json` parse — an
-invalid one is ignored whole — and every statusline module they list exists.
+**Settings.** `~/.config/opencode-cockpit/config.json` and the project's `.cockpit.json` parse
+(comments and trailing commas are fine; a file that does not is ignored whole, and the defaults
+apply), every setting is read as written — a name from before 0.9, a value of the wrong kind, a
+Status `override` that matches no segment are each listed, the same notices the bays draw as `!`
+rows — and every statusline module they list exists.
 
 ## For an issue
 
@@ -84,5 +98,6 @@ for a dotfiles script or CI.
 ## Not yet
 
 Doctor checks that statusline modules exist, not that they load; it does not yet know which cached
-copy of a plugin OpenCode loaded; and it runs from a terminal, not from inside OpenCode.
+copy of a plugin OpenCode loaded; and it runs from a terminal, not from inside OpenCode — though
+inside OpenCode, `cockpit_settings` gives the agent the same settings notices.
 [Troubleshooting](/opencode-cockpit/help/troubleshooting/) covers the rest.

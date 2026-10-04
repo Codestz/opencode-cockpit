@@ -10,6 +10,7 @@ import {
 import type { Host } from "@opencode-cockpit/client/host"
 import { useTerminalDimensions } from "@opentui/solid"
 import { createMemo, For, Show } from "solid-js"
+import { fold } from "../lib/sidebar.ts"
 import {
   displayCommand,
   kindColor,
@@ -44,10 +45,17 @@ export function Dock(props: DockProps) {
   const bodyRows = () => Math.max(2, props.height - 3)
   // Tabs share one row: keep them to what fits, the rest lives behind the "N more" chip.
   const tabLimit = () => Math.max(1, Math.floor((dims().width - 26) / 30))
-  const tabs = createMemo(() =>
-    (props.store.showAll() ? props.store.shells() : props.store.visible()).slice(0, tabLimit()),
+  /** The sidebar's fold, at the dock's width: the toggle only while folding hides something. */
+  const folding = createMemo(() =>
+    fold({
+      all: props.store.shells(),
+      folded: props.store.folded(),
+      showAll: props.store.showAll(),
+      rows: tabLimit(),
+      expandedRows: tabLimit(),
+    }),
   )
-  const overflow = createMemo(() => props.store.shells().length - tabs().length)
+  const tabs = () => folding().shown
   const bodyCols = () => Math.max(10, dims().width - 4)
   const body = createMemo(() => tailLines(screen()?.text, bodyRows(), bodyCols()))
   const bodyRuns = createMemo(() =>
@@ -106,15 +114,17 @@ export function Dock(props: DockProps) {
               )
             }}
           </For>
-          <Show when={overflow() > 0 || props.store.showAll()}>
-            <text
-              fg={theme().textMuted}
-              wrapMode="none"
-              flexShrink={0}
-              onMouseUp={() => props.store.toggleAll()}
-            >
-              {props.store.showAll() ? FEWER_TEXT : moreText(overflow())}
-            </text>
+          <Show when={folding().toggle}>
+            {(toggle) => (
+              <text
+                fg={theme().textMuted}
+                wrapMode="none"
+                flexShrink={0}
+                onMouseUp={() => props.store.toggleAll()}
+              >
+                {toggle() === "more" ? moreText(folding().more) : FEWER_TEXT}
+              </text>
+            )}
           </Show>
         </Show>
         <box flexGrow={1} />

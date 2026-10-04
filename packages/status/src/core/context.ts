@@ -4,6 +4,7 @@
  * OpenCode to draw it in.
  */
 
+import type { Budget } from "./budget.ts"
 import type { DiffCounts } from "./diff.ts"
 
 export interface TokenCounts {
@@ -103,6 +104,13 @@ export interface StatusContext {
    * the second renders zeros.
    */
   diff?: DiffCounts
+  /**
+   * The branch's whole diff against where it forked from the default branch: every commit on it plus
+   * what is uncommitted — what a reviewer will read. Absent until git answers, and outside a repo.
+   */
+  branchDiff?: DiffCounts
+  /** What a proxy reports spending against its cap. Absent when no proxy writes one. */
+  budget?: Budget
   session?: SessionSnapshot
   lsp: ServiceSnapshot[]
   mcp: ServiceSnapshot[]
@@ -129,8 +137,28 @@ export function todoRemaining(session: SessionSnapshot | undefined): number {
   return Math.max(0, session.todo.total - session.todo.completed)
 }
 
+/**
+ * A service's state as one word. OpenCode 1 hands a word; OpenCode 2 a tagged object —
+ * `{ status: "connected" }`, `{ status: "failed", error }` — which `String()` turned into
+ * `[object Object]`, so every connected MCP server read as broken (issue #34).
+ */
+export function serviceStatus(raw: unknown): string {
+  if (typeof raw === "string") return raw
+  const tagged = raw && typeof raw === "object" ? (raw as { status?: unknown }).status : undefined
+  return typeof tagged === "string" ? tagged : ""
+}
+
 const HEALTHY = new Set(["connected", "ready", "ok", "running", "active"])
+/**
+ * Not working, and not wrong: turned off on purpose, or still connecting — OpenCode marks a server
+ * that never connects `failed` once it gives up (measured: under a minute on 2.0.18). A missing word
+ * is quiet too, since a false alarm in red is what #34 was; any other word, known or not, is an alarm.
+ */
+const QUIET = new Set(["disabled", "pending", "starting", "connecting", ""])
 
 export function unhealthy(list: readonly ServiceSnapshot[]): ServiceSnapshot[] {
-  return list.filter((item) => !HEALTHY.has(item.status.toLowerCase()))
+  return list.filter((item) => {
+    const status = item.status.toLowerCase()
+    return !HEALTHY.has(status) && !QUIET.has(status)
+  })
 }

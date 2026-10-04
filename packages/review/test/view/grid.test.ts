@@ -38,13 +38,13 @@ const scenario = (name: string) => {
   })
   review = open(review, { file: first }, "a whole-file note", "you", 3)
   review = toggleRead(review, first)
-  return { changes: fixture?.changes, review, file: second }
+  return { changes: fixture?.changes, review, file: second, looks: fixture?.looks }
 }
 
 describe("the grid holds", () => {
   for (const name of Object.keys(FIXTURES)) {
     test(`${name}: every row is exactly the width of the pane`, () => {
-      const { changes, review, file } = scenario(name)
+      const { changes, review, file, looks } = scenario(name)
       if (!changes || changes.files.length === 0) return
       for (const width of WIDTHS) {
         for (const pane of ["files", "diff"] as const) {
@@ -52,7 +52,15 @@ describe("the grid holds", () => {
             const rows = layout(
               changes,
               review,
-              { context: 3, collapsed: new Set(), pane, file, line: 2, ...(thread ? { thread } : {}) },
+              {
+                context: 3,
+                collapsed: new Set(),
+                pane,
+                file,
+                line: 2,
+                ...(thread ? { thread } : {}),
+                ...(looks ? { looks } : {}),
+              },
               { width, height: 28 },
             )
             for (const row of rows) expect(rowWidth(row)).toBe(width - 2)

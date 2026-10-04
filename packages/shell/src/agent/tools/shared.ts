@@ -2,7 +2,7 @@ import type { ToolContext } from "@opencode-ai/plugin"
 import type { CockpitClient } from "@opencode-cockpit/client"
 import { RpcError } from "@opencode-cockpit/protocol"
 import type { ShellInfo } from "@opencode-cockpit/protocol/shell"
-import type { CockpitConfig } from "../../core/config.ts"
+import type { ShellConfig } from "../../core/config.ts"
 import { commandOf, matchByName } from "../../core/find.ts"
 import { formatRead } from "../../core/format.ts"
 
@@ -15,7 +15,7 @@ export interface ToolDeps {
   shellCommand(command: string): { command: string; args: string[] }
   env(): Record<string, string>
   /** Settings that shape defaults, kinds and watch presets. */
-  config?: CockpitConfig
+  config?: ShellConfig
   /** Human title of an OpenCode session, for telling agents which session started a shell. */
   sessionTitle?(sessionID: string): Promise<string | undefined>
   /**
@@ -37,7 +37,7 @@ export interface ToolDeps {
 export interface ToolKit {
   deps: ToolDeps
   /** Settings from ~/.config/opencode-cockpit/config.json, .cockpit.json and plugin options. */
-  config: CockpitConfig
+  config: ShellConfig
   client: CockpitClient
   peek(info: ShellInfo, tail?: number): Promise<string>
   sessionLabel(shell: ShellInfo, ctx: ToolContext): Promise<string>

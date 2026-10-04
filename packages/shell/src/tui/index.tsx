@@ -1,12 +1,13 @@
 /** @jsxImportSource @opentui/solid */
 
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
+import { defaultKeys } from "@opencode-cockpit/client/catalog"
 import { bindingLookup, dualTui, type Host, onPaste } from "@opencode-cockpit/client/host"
-import { sidebarOrder } from "@opencode-cockpit/client/sidebar"
+import { noticeText } from "@opencode-cockpit/client/settings"
 import type { BoxRenderable } from "@opentui/core"
 import { createSignal } from "solid-js"
 import { createClient } from "../connect.ts"
-import { type CockpitConfig, loadConfig } from "../core/config.ts"
+import { loadShell, type ShellConfig } from "../core/config.ts"
 import { Console } from "./components/console.tsx"
 import { Dock } from "./components/dock.tsx"
 import { SidebarShells } from "./components/sidebar.tsx"
@@ -22,13 +23,10 @@ import { createShellStore } from "./state/store.ts"
 import { Overlay } from "./view/overlay.tsx"
 import { createRowPool, type RowPool } from "./view/pool.ts"
 
-const DEFAULT_KEYS = {
-  "cockpit.shells.dock": "<leader>o",
-  "cockpit.shells.console": "<leader>i",
-}
+const DEFAULT_KEYS = defaultKeys("shell")
 
-/** Interface settings; the `ui` section of the config file (see core/config.ts). */
-export type ShellTuiOptions = NonNullable<CockpitConfig["ui"]>
+/** Shell's settings: the `shell` section of the config files, then the plugin entry (core/config.ts). */
+export type ShellTuiOptions = ShellConfig
 
 const SHELL_PACKAGE = "@opencode-cockpit/shell"
 
@@ -52,15 +50,19 @@ export function createShellTui({ source = SHELL_PACKAGE }: { source?: string } =
 }
 
 const shellTui = async (api: Host, rawOptions?: unknown) => {
-  // Settings come from the shared config file; plugin-entry options still win, flat or under "ui".
+  // Settings come from the shared config files' `shell` section; plugin-entry options win.
   const log = api.log.child("shell")
-  const config = loadConfig(api.state.path.directory, rawOptions)
-  const options: ShellTuiOptions = config.ui ?? {}
+  const { config: options, order, notices } = loadShell(api.state.path.directory, rawOptions)
+  for (const notice of notices) log.warn("settings", { file: notice.file, notice: notice.text })
+  if (options.enabled === false) {
+    log.info("off in the settings")
+    return
+  }
   const client = createClient("opencode-cockpit/tui")
-  const store = createShellStore(api, client, { historyMinutes: options.historyMinutes })
+  const store = createShellStore(api, client, { historyMinutes: options.hideFinishedAfterMinutes })
   const keys = bindingLookup({ ...DEFAULT_KEYS, ...options.keybinds })
 
-  // An explicit `ui.dockOpen` says how the panel should start; without one, whatever you last left
+  // An explicit `dockOpen` says how the panel should start; without one, whatever you last left
   // it as. Remembered state that overrides a written setting is a setting that appears to do nothing.
   const [dockOpen, setDockOpen] = createSignal<boolean>(
     options.dockOpen ?? api.kv.get("cockpit.dock.open", false),
@@ -423,10 +425,10 @@ const shellTui = async (api: Host, rawOptions?: unknown) => {
 
   api.slots.register({
     /**
-     * The sidebar on its own: its place there (statusline, subagents, then shells — `"sidebar"` in
-     * Cockpit's config moves it) is not the dock's place at the foot of the window.
+     * The sidebar on its own: its place there (status, subagents, then shells — the top-level
+     * `"sidebar"` list in Cockpit's config moves it) is not the dock's place at the foot of the window.
      */
-    order: sidebarOrder("shell", 170, options.sidebarOrder, { directory: api.state.path.directory }),
+    order,
     slots: {
       sidebar_content() {
         return (
@@ -434,6 +436,8 @@ const shellTui = async (api: Host, rawOptions?: unknown) => {
             api={api}
             store={store}
             rows={options.sidebarRows}
+            hideWhenEmpty={options.hideWhenEmpty === true}
+            notices={notices.map(noticeText)}
             onOpen={(id) => openConsole(id)}
             consoleShortcut={() => shortcut("cockpit.shells.console")}
           />

@@ -16,6 +16,7 @@ import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { FEATURES } from "../packages/opencode/src/features.ts"
+import { majorOf, type Run, restartService } from "../packages/updater/src/core/service.ts"
 
 const root = join(import.meta.dir, "..")
 const target = process.env.COCKPIT_DEV_DIR ?? join(homedir(), ".cockpit-dev")
@@ -69,3 +70,21 @@ const bundle = join(target, "node_modules", "opencode-cockpit")
 console.log(`installed into ${target}\n\nPoint both OpenCode versions at:\n  ${bundle}\n`)
 console.log(`v1  opencode.json + tui.json:  "plugin": ["${bundle}"]`)
 console.log(`v2  opencode.json + cli.json:  "plugins": ["${bundle}"]`)
+
+/**
+ * OpenCode 2's background service loads plugins once, when it starts: without a restart it keeps the
+ * agent side it had (measured: no `trail_add`, no skills, days after a reinstall). The v2 binary is
+ * the one on PATH, or OpenCode's own install directory when PATH has OpenCode 1.
+ */
+const runner: Run = (command, args) => {
+  try {
+    const result = Bun.spawnSync([command, ...args], { stdout: "pipe", stderr: "pipe", timeout: 30_000 })
+    return { status: result.exitCode ?? 1, stdout: result.stdout.toString() }
+  } catch {
+    return undefined
+  }
+}
+const v2 = [Bun.which("opencode"), join(homedir(), ".opencode", "bin", "opencode")]
+  .filter((bin): bin is string => Boolean(bin) && existsSync(bin as string))
+  .find((bin) => majorOf(runner, bin) === 2)
+if (v2) console.log(`\n${restartService(runner, v2).join("\n")}`)

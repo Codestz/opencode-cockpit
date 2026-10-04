@@ -46,9 +46,10 @@ const PUBLISHED = new Map([
  * A fake `opencode plugin <spec> -f -g` that does what the real one was seen to do: replace the
  * entry in every global file that has it, and install the new spec's directory.
  */
-function fakeOpencode(files: Record<string, string>, calls: string[][], broken = false) {
+function fakeOpencode(files: Record<string, string>, calls: string[][], broken = false, version = "1.18.32") {
   return async (args: readonly string[]) => {
     calls.push([...args])
+    if (args[0] === "--version") return { status: 0, output: `${version}\n` }
     if (args[1] === "--help") return { status: 0, output: "  -f, --force  replace existing plugin version" }
     if (broken) return { status: 1, output: "Failed updating plugin config" }
     const to = parseSpec(args[1] as string)
@@ -156,6 +157,7 @@ describe("update", () => {
     expect(cli.calls.slice(1)).toEqual([
       ["plugin", "opencode-cockpit@0.5.0", "-f", "-g"],
       ["plugin", "opencode-foo@1.3.0", "-f", "-g"],
+      ["--version"],
     ])
     expect(files[`${CONFIG}/tui.json`]).toBe(`{"plugin": ["opencode-cockpit@0.5.0"]}`)
     expect(files[`${CONFIG}/opencode.jsonc`]).toContain("// mine")
@@ -180,7 +182,7 @@ describe("update", () => {
   test("--only touches one plugin", async () => {
     const cli = io(machine())
     expect(await update(["--only", "opencode-foo", "--yes"], cli)).toBe(0)
-    expect(cli.calls.slice(1)).toEqual([["plugin", "opencode-foo@1.3.0", "-f", "-g"]])
+    expect(cli.calls.slice(1)).toEqual([["plugin", "opencode-foo@1.3.0", "-f", "-g"], ["--version"]])
   })
 
   test("declining writes nothing", async () => {
@@ -196,6 +198,27 @@ describe("update", () => {
     expect(await update([], cli)).toBe(1)
     expect(cli.calls).toEqual([["plugin", "--help"]])
     expect(cli.out.join("")).toContain("Rerun with --yes")
+  })
+
+  test("on OpenCode 2 the steps by hand end with restarting its background service", async () => {
+    const calls: string[][] = []
+    const cli = io(machine(), {
+      opencode: async (args) => {
+        calls.push([...args])
+        if (args[0] === "--version") return { status: 0, output: "opencode v2.0.18\n" }
+        return { status: 0, output: "SUBCOMMANDS\n  list  add  check  update  remove" }
+      },
+    })
+    expect(await update(["-y"], cli)).toBe(1)
+    expect(cli.out.join("")).toContain("restart its background service, which keeps the old plugin code")
+    expect(cli.out.join("")).toContain("opencode service restart")
+  })
+
+  test("on OpenCode 1 a finished update says nothing of a service", async () => {
+    const files = machine()
+    const cli = io(files)
+    expect(await update(["-y"], cli)).toBe(0)
+    expect(cli.out.join("")).not.toContain("service restart")
   })
 
   test("without opencode it writes nothing and prints what to do by hand", async () => {

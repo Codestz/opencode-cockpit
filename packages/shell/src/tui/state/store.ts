@@ -16,8 +16,12 @@ export interface ShellStore {
   /** Ordered and folded for display: running, recent failures, plus the selection. */
   visible: Accessor<ShellInfo[]>
   hidden: Accessor<ShellInfo[]>
+  /** What the folded view keeps, whether or not it is expanded now: running, recent failures, the selection. */
+  folded: Accessor<ShellInfo[]>
   showAll: Accessor<boolean>
   toggleAll(): void
+  /** Folded again, because nothing is left to unfold (`fold` in lib/sidebar.ts says when). */
+  foldAll(): void
   /** Which shells the panel is about: the conversation you are in, or the whole project. */
   scope: Accessor<Scope>
   toggleScope(): void
@@ -52,7 +56,11 @@ export function createShellStore(api: Host, client: CockpitClient, options: Stor
     const [now, setNow] = createSignal(Date.now())
     const [frame, setFrame] = createSignal(0)
     const [selectedId, setSelectedId] = createSignal<string>()
-    const [showAll, setShowAll] = createSignal<boolean>(api.kv.get("cockpit.shells.showAll", false))
+    /**
+     * Expanded or folded, for this window only. It used to be kept across restarts, so a list
+     * expanded for six shells came back expanded over one, offering `− fewer` for nothing.
+     */
+    const [showAll, setShowAll] = createSignal(false)
     const [scope, setScope] = createSignal<Scope>(
       api.kv.get("cockpit.shells.scope", options.scope ?? "session"),
     )
@@ -113,6 +121,9 @@ export function createShellStore(api: Host, client: CockpitClient, options: Stor
     const folded = createMemo(() =>
       partition(inScope(), { showAll: showAll(), historyMs, now: now(), keep: pick()?.id }),
     )
+    const foldedOnly = createMemo(
+      () => partition(inScope(), { showAll: false, historyMs, now: now(), keep: pick()?.id }).visible,
+    )
 
     return {
       client,
@@ -128,12 +139,10 @@ export function createShellStore(api: Host, client: CockpitClient, options: Stor
       all: () => state.list,
       visible: () => folded().visible,
       hidden: () => folded().hidden,
+      folded: foldedOnly,
       showAll,
-      toggleAll() {
-        const next = !showAll()
-        setShowAll(next)
-        api.kv.set("cockpit.shells.showAll", next)
-      },
+      toggleAll: () => setShowAll((all) => !all),
+      foldAll: () => setShowAll(false),
       connected,
       now,
       frame,

@@ -1,11 +1,14 @@
 ---
 name: statusline-design
-description: Designing or editing an opencode-cockpit statusline — a bottom line or a sidebar column, its config, or a TypeScript segment module. Use when a request mentions the statusline, a segment, .cockpit.json's statusline section, or a module importing @opencode-cockpit/status/segment.
+description: The design rules for an opencode-cockpit statusline (the Status bay), kept for 0.9 for anyone who copied this folder. The shipped status-setup skill replaces it and carries the same rules; prefer status-setup when it is available. Removed in 0.10.
 ---
+
+> Kept for 0.9 only. `/status-setup` loads the **status-setup** skill shipped with this package,
+> which carries these rules in `status-setup/references/design.md`. This copy is removed in 0.10.
 
 # Designing a statusline
 
-A statusline is a **visual artifact judged in a terminal**. The failure mode this skill exists to
+A statusline is a **visual artifact judged in a terminal**. The failure mode these rules exist to
 prevent is designing it blind: editing TypeScript, restarting OpenCode, and scoring the result from
 a sentence. One sidebar took about twenty restarts and five rejected iterations that way, and three
 of the rejections were glyph choices that read completely differently on screen than they do in
@@ -14,11 +17,15 @@ prose.
 ## Look at it before you ship it
 
 ```sh
-bunx @opencode-cockpit/status preview --watch          # redraws on every save
-bunx @opencode-cockpit/status preview --state full     # one state
-bunx @opencode-cockpit/status preview --debug          # mark segments that drew nothing
-bunx @opencode-cockpit/status preview --module mine.ts # that module alone, every segment it has
+<preview> --watch          # redraws on every save
+<preview> --state full     # one state
+echo '{"status":{"override":{"write":false}}}' | <preview> --config -  # a candidate on stdin, read as OpenCode will read it
+<preview> --debug          # name every row: ✓ drew, ✗ drew nothing, ? no such segment
+<preview> --module mine.ts # that module alone, every segment it has
 ```
+
+`<preview>` is the command `cockpit_settings` prints under **Previews** — this install's own copy.
+Never `bunx`/`npx` it: that downloads another release.
 
 The preview draws the real segments against sample sessions, in this terminal, with no OpenCode
 involved. **Use it after every change.** If a design decision cannot be checked in the preview, it
@@ -75,8 +82,11 @@ state you happen to be looking at.
 - A run takes `tone`, `color`, `bg`, `bgTone`, `bold`, `dim`, `italic`, `underline`.
 - **A track drawn in `panel` tone is invisible** on most themes — it is the panel's own colour.
   Use `border`.
-- A **column** keeps at most `maxRows` rows (default 8) — **count your rows and raise it**, or the
-  extras vanish. The preview prints `↳ N dropped` when this happens.
+- A **column** keeps at most `sidebarRows` rows (a line in `lines` says `maxRows`; 14 for the
+  `sidebar` preset, 8 for any other column) — **count your rows and raise it**, or the extras
+  vanish. The preview prints `↳ N dropped` when this happens.
+- A `sep` hairline draws only with a row on either side of it, so a group that says nothing does
+  not strand one.
 - A **line** drops the lowest-priority segments until it fits the width.
 - A segment that throws loses only its own row. A module that fails to load raises a toast naming
   the file.
@@ -99,28 +109,35 @@ truncated; a track *was* being drawn and `panel` was the panel's own colour.
 
 | What | Where |
 | --- | --- |
-| Settings, every project | `~/.config/opencode-cockpit/config.json` |
-| Settings, one project | `<project>/.cockpit.json` |
+| Settings, every project | the `"status"` section of `~/.config/opencode-cockpit/config.json` |
+| Settings, one project | the `"status"` section of `<project>/.cockpit.json` |
+| Old names | `"statusline"`, Status keys at the file's root, a bay-level `maxRows`, `sidebarOrder`: not read; each is a `!` row. Write `"status"`, `sidebarRows`, and the top-level `"sidebar"` list |
 | Modules | anywhere — `~/.config/opencode-cockpit/modules/` needs no `node_modules` beside it |
 | Which plugins load | `~/.config/opencode/tui.json` |
 
 ## Turning OpenCode's own blocks off
 
-Each block of the host's sidebar is an internal plugin, and `tui.json` disables any of them:
+Each block of the host's sidebar is an internal plugin that its config disables. OpenCode 1, in
+`tui.json`:
 
 ```jsonc
 { "plugin": ["opencode-cockpit"], "plugin_enabled": { "internal:sidebar-context": false } }
 ```
 
-`internal:sidebar-{context,files,todo,lsp,mcp,footer}`, `internal:home-{footer,tips}`,
-`internal:notifications`. **A sidebar meant to replace the Context block must carry what that block
+OpenCode 2, in `cli.json`: `{ "plugins": ["opencode-cockpit", "-opencode.sidebar.context"] }`
+(`-internal:sidebar-context` does nothing there, and it has no LSP or Todo block).
+
+OpenCode 1 names: `internal:sidebar-{context,files,todo,lsp,mcp,footer}`, `internal:home-{footer,tips}`,
+`internal:notifications`. Never suggest turning the Todo block off: nothing in Cockpit replaces it. **A sidebar meant to replace the Context block must carry what that block
 carried** — percentage, token total, spend — or the user ends up with less than before.
 
 The footer under the prompt is core UI: it cannot be hidden. Design around it.
 
 ## Start simple
 
-Most people want a good line, not a composition exercise. Begin with the built-ins and a `format`
-string; reach for a module only when the answer needs the session read, decided on, or remembered
+Most people want a good line, not a composition exercise. The default is the `sidebar` preset — the
+table this skill's rules were learned on: `title`, a `solid` context bar, a `tokens` row, `in` `out`
+`cache` `write`, `sep`, `spend` `avail` (a proxy's budget file; silent without one), `sep`, `git`.
+Begin with the presets and the built-ins and a `format` string; reach for a module only when the answer needs the session read, decided on, or remembered
 across ticks — a rate, a trend, a budget from a file. Reach for a shell `command` for anything a CLI
 already prints; do not reimplement the shell as a segment.

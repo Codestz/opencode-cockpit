@@ -16,6 +16,8 @@ import type { CliRenderer, KeyEvent } from "@opentui/core"
 import { createComponent, createRoot, getOwner, type JSX, type Owner, onCleanup } from "solid-js"
 import { textElement } from "./elements.tsx"
 import { cockpitVersion, createLog, type Log, silentLog } from "./log.ts"
+import { registerServiceCheck } from "./service.ts"
+import { registerSetup } from "./setup/palette.ts"
 
 type V1Layer = Parameters<TuiPluginApi["keymap"]["registerLayer"]>[0]
 export type Layer = V1Layer
@@ -286,7 +288,16 @@ export interface V2Context {
       readonly mcp?: { readonly server: { list(location?: unknown): unknown[] | undefined } }
     }
     readonly session: {
-      prompt?(input: unknown): Promise<unknown>
+      /**
+       * A message to a conversation. `delivery` (2.0.18): `"steer"`, the default, hands it to the turn
+       * that is running; `"queue"` waits for that turn to end.
+       */
+      prompt?(input: { sessionID: string; text: string; delivery?: "steer" | "queue" }): Promise<unknown>
+      /** A new conversation, here unless `location` says otherwise; `request` settles once it exists. */
+      create?(input: { location?: { directory: string }; title?: string }): {
+        id: string
+        request: Promise<unknown>
+      }
       get?(sessionID: string): unknown
       status?(sessionID: string): unknown
       sync?(sessionID: string): Promise<void>
@@ -325,7 +336,11 @@ export interface V2Context {
     readonly toast: {
       show(options: { title?: string; message: string; variant?: string; duration?: number }): void
     }
-    readonly router: { current(): { type: string; sessionID?: string } }
+    readonly router: {
+      current(): { type: string; sessionID?: string }
+      /** Present on 2.0.18: `{ type: "session", sessionID }` or `{ type: "home" }`. */
+      navigate?(route: { type: string; sessionID?: string }): void
+    }
     slot(claim: { render: (input: never) => JSX.Element } & Record<string, unknown>): () => void
   }
 }
@@ -710,6 +725,18 @@ export function dualTui(id: string, start: Start) {
       opencodeVersion: opencode,
       cockpit: cockpitVersion(),
     })
+    /** `/cockpit-setup`: every entry offers it, the first in a window registers it (setup.ts). */
+    try {
+      registerSetup(host, id)
+    } catch (error) {
+      host.log.warn("setup: not registered", { entry: id, error })
+    }
+    /** OpenCode 2: one toast when the background service still runs an older Cockpit (service.ts). */
+    try {
+      registerServiceCheck(host, id)
+    } catch (error) {
+      host.log.warn("service: not checked", { entry: id, error })
+    }
     try {
       await start(host, options)
     } catch (error) {

@@ -2,6 +2,7 @@
 
 import type { TuiThemeCurrent } from "@opencode-ai/plugin/tui"
 import type { Host } from "@opencode-cockpit/client/host"
+import type { BoxRenderable } from "@opentui/core"
 import type { JSX } from "solid-js"
 import { For, Show } from "solid-js"
 import type { Run, Segment, Tone } from "../../core/segments.ts"
@@ -68,6 +69,10 @@ function decorate(run: Run): JSX.Element {
 export interface StatusLineProps {
   api: Host
   segments: () => Segment[]
+  /** Rows above the line about the line itself — a setting to fix, a module that would not load. */
+  notices?: () => Segment[]
+  /** The line's box, once laid out, so a column can measure the room the host gave it. */
+  onReady?: (box: BoxRenderable) => void
   separator: string
   /** Across the window, or down a column. */
   stack?: "horizontal" | "vertical"
@@ -77,43 +82,52 @@ export interface StatusLineProps {
   paddingBottom?: number
 }
 
+/** One segment's runs, as one row of styled text. */
+function Runs(props: { theme: TuiThemeCurrent; segment: Segment }) {
+  return (
+    <text wrapMode="none" flexShrink={0}>
+      <For each={props.segment.runs}>
+        {(run) => (
+          <Show when={run.bold} fallback={<span style={runStyle(props.theme, run)}>{decorate(run)}</span>}>
+            <span style={runStyle(props.theme, run)}>
+              <b>{run.text}</b>
+            </span>
+          </Show>
+        )}
+      </For>
+    </text>
+  )
+}
+
 export function StatusLine(props: StatusLineProps) {
   const theme = () => props.api.theme.current
   const down = () => props.stack === "vertical"
   return (
     <box
-      flexDirection={down() ? "column" : "row"}
+      ref={(box: BoxRenderable) => props.onReady?.(box)}
+      flexDirection="column"
       flexShrink={0}
       paddingLeft={props.paddingLeft ?? 1}
       paddingRight={props.paddingRight ?? 1}
       paddingTop={props.paddingTop ?? 0}
       paddingBottom={props.paddingBottom ?? 0}
     >
-      <For each={props.segments()}>
-        {(segment, index) => (
-          <>
-            <Show when={index() > 0 && !down() && props.separator.length > 0}>
-              <text fg={theme().borderSubtle} wrapMode="none" flexShrink={0}>
-                {props.separator}
-              </text>
-            </Show>
-            <text wrapMode="none" flexShrink={0}>
-              <For each={segment.runs}>
-                {(run) => (
-                  <Show
-                    when={run.bold}
-                    fallback={<span style={runStyle(theme(), run)}>{decorate(run)}</span>}
-                  >
-                    <span style={runStyle(theme(), run)}>
-                      <b>{run.text}</b>
-                    </span>
-                  </Show>
-                )}
-              </For>
-            </text>
-          </>
-        )}
-      </For>
+      {/* Their own rows, whichever way the line reads: a sentence does not fit between two segments. */}
+      <For each={props.notices?.() ?? []}>{(notice) => <Runs theme={theme()} segment={notice} />}</For>
+      <box flexDirection={down() ? "column" : "row"} flexShrink={0}>
+        <For each={props.segments()}>
+          {(segment, index) => (
+            <>
+              <Show when={index() > 0 && !down() && props.separator.length > 0}>
+                <text fg={theme().borderSubtle} wrapMode="none" flexShrink={0}>
+                  {props.separator}
+                </text>
+              </Show>
+              <Runs theme={theme()} segment={segment} />
+            </>
+          )}
+        </For>
+      </box>
     </box>
   )
 }

@@ -346,6 +346,38 @@ export function finishedSample(): Change[] {
   ]
 }
 
+export const NAMES_ROOT = "ses_names"
+
+/**
+ * Names, as OpenCode hands them over: `general` beside `explore`, which used to be drawn as two kinds
+ * of row; an agent with a long name; a run with no title at all and one with only OpenCode's
+ * placeholder, which drew an agent and a time with nothing between them.
+ */
+export function namesSample(): Change[] {
+  const t = (s: number) => SAMPLE_NOW - 300_000 + s * 1000
+  const root = NAMES_ROOT
+  const untitled = (id: string, agent: string, title: string, task: string, start: number, end?: number) => [
+    { type: "session", id, parentID: root, agent, title, at: t(start) } as Change,
+    { type: "prompt", id, key: "u1", text: task, at: t(start) } as Change,
+    { type: "status", id, status: "busy", at: t(start) } as Change,
+    ...(end === undefined ? [] : [{ type: "status", id, status: "idle", at: t(end) } as Change]),
+  ]
+  return [
+    { type: "session", id: root, agent: "build", title: "Plan the billing export", at: t(0) },
+    ...run("ses_n_plan", root, "general", "Write a long plan for the export", t(5), t(140), 12),
+    ...run("ses_n_scan", root, "explore", "Explore the export module", t(10), undefined, 4),
+    ...run("ses_n_rev", root, "security-reviewer", "Review the export for PII", t(20), t(200), 9),
+    ...untitled("ses_n_bare", "general", "", "Find every caller of exportCsv\nand list them", 30, 90),
+    ...untitled(
+      "ses_n_auto",
+      "explore",
+      "Child session - 2026-10-03T10:00:00.000Z",
+      "Check the export's tests for flakiness across the whole suite please",
+      40,
+    ),
+  ]
+}
+
 export const LATE_ROOT = "ses_late"
 
 /**

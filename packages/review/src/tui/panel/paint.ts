@@ -10,6 +10,7 @@
 import type { Host } from "@opencode-cockpit/client/host"
 import type { BoxRenderable } from "@opentui/core"
 import type { Guard } from "../../core/guard.ts"
+import type { ImageLook } from "../../core/image/looks.ts"
 import { filesElsewhere } from "../../core/model/review.ts"
 import { waitingOnAgent } from "../../core/model/submit.ts"
 import { metrics } from "../../core/perf.ts"
@@ -17,7 +18,7 @@ import { frameBounds } from "../../core/view/frame.ts"
 import { layout } from "../../core/view/layout.ts"
 import { statsRuns } from "../../core/view/stats.ts"
 import type { Store } from "../data/changes.ts"
-import { type RowPool, solidSurface } from "../view/pool.ts"
+import { packed, type RowPool, solidSurface } from "../view/pool.ts"
 import type { Queries } from "./queries.ts"
 import type { Surface } from "./surface.ts"
 
@@ -37,7 +38,14 @@ export interface PaintDeps {
   /** What went wrong recently, if anything, for the footer to say so. */
   notice: () => string | undefined
   boxes: () => Boxes
+  /** What is known about the images under review, beyond their headers. */
+  looks: () => ReadonlyMap<string, ImageLook>
+  /** Settings Review does not read, as sentences: the `!` row under the header. */
+  settings?: readonly string[]
 }
+
+/** How long something the review said stays in the footer. */
+const SAID_MS = 8_000
 
 export interface Painter {
   /** Asks for a paint. Several asks in one turn are one paint, of the state the turn ended on. */
@@ -53,15 +61,18 @@ export function createPainter(deps: PaintDeps): Painter {
     if (!backdrop || !panel) return
     const screen = { width: api.renderer.width, height: api.renderer.height }
     const frame = frameBounds(surface.variant, screen)
+    /** Stepped aside for the host's palette, the review is open but not drawn. */
+    const showing = surface.open && !surface.yielded
 
     backdrop.width = screen.width
-    backdrop.height = surface.open ? screen.height : 0
-    backdrop.visible = surface.open
+    backdrop.height = showing ? screen.height : 0
+    backdrop.visible = showing
 
     /** Opaque whatever the theme says, or the conversation shows through (transparent themes). */
-    panel.backgroundColor = solidSurface(api.theme.current, "panel")
+    const behind = solidSurface(api.theme.current, "panel")
+    panel.backgroundColor = behind
     panel.width = frame.width
-    panel.height = surface.open ? screen.height : 0
+    panel.height = showing ? screen.height : 0
     /**
      * No border, and no title.
      *
@@ -71,7 +82,7 @@ export function createPainter(deps: PaintDeps): Painter {
      */
     panel.title = ""
 
-    if (!surface.open) {
+    if (!showing) {
       pool?.clear()
       api.renderer.requestRender()
       return
@@ -86,7 +97,7 @@ export function createPainter(deps: PaintDeps): Painter {
      * back, so the last word has to be ours.
      */
     setTimeout(() => {
-      if (surface.open) api.renderer.setCursorPosition(0, 0, false)
+      if (surface.open && !surface.yielded) api.renderer.setCursorPosition(0, 0, false)
     }, 0)
 
     /**
@@ -97,7 +108,8 @@ export function createPainter(deps: PaintDeps): Painter {
      * pane with no explanation. A diagnostic written to a field nobody renders is worse than none: it
      * looks like the feature simply does not work.
      */
-    const trouble = deps.notice() ?? store.current().notice
+    const said = surface.said && Date.now() - surface.said.at < SAID_MS ? surface.said.text : undefined
+    const trouble = deps.notice() ?? said ?? store.current().notice
     const thread = queries.hereThreadId()
     const away = filesElsewhere(surface.review, store.current().changes)
     const rows = layout(
@@ -109,6 +121,9 @@ export function createPainter(deps: PaintDeps): Painter {
         waiting: waitingOnAgent(surface.review).length,
         ...(thread ? { thread } : {}),
         ...(away.length > 0 ? { elsewhere: away } : {}),
+        looks: deps.looks(),
+        canvas: packed(behind),
+        ...(deps.settings?.length ? { settings: deps.settings } : {}),
         /** Trouble outranks the numbers; both outrank the keys, and the footer stays two rows. */
         ...(trouble
           ? { notice: trouble }

@@ -1,10 +1,12 @@
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
 import {
   dualServer,
+  openText,
   type ServerHost,
   type ServerParts,
   type ServerStart,
 } from "@opencode-cockpit/client/server"
+import { loadReview } from "../core/config.ts"
 import { waitingOn } from "../core/model/thread.ts"
 import { reviewPaths } from "../core/store/paths.ts"
 import { createPersistence, type Persistence } from "../core/store/persist.ts"
@@ -12,16 +14,21 @@ import { createTools } from "./tools/index.ts"
 import type { FileContents } from "./tools/shared.ts"
 
 /**
- * What the agent is told about reviews, once, at the top of the conversation.
+ * What the agent is told about reviews, before every request.
  *
  * Short on purpose: the tools describe themselves, and this only has to say the thing the tool
- * descriptions cannot — that the review is where this conversation happens, not the chat.
+ * descriptions cannot — that the review is where this conversation happens, not the chat. Tools are
+ * named as the model calls them: `tools.review_list` in OpenCode 2's Code Mode, whose catalog cuts
+ * each description at ~115 characters (docs/opencode/trail-server.md).
  */
-const GUIDANCE = `## Review comments (opencode-cockpit)
-A person can leave comments on specific lines of this branch's diff. review_list shows the ones waiting on you.
-Work them before answering in chat: change the code, then review_reply with resolved=true, or reply saying why not.
+export function reviewGuidance(version: 1 | 2): string {
+  const t = (name: string) => (version === 2 ? `tools.${name}` : name)
+  return `## Review comments (opencode-cockpit)
+A person can leave comments on specific lines of this branch's diff. ${t("review_list")} shows the ones waiting on you.
+Work them before answering in chat: change the code, then ${t("review_reply")} with resolved=true, or reply saying why not.
 Resolving is checked against the file — a resolve on code you did not change is recorded as a reply instead.
 You can open threads yourself: leaving notes as you read is a way to plan work that survives this conversation.`
+}
 
 export const REVIEW_PACKAGE = "@opencode-cockpit/review"
 
@@ -32,18 +39,24 @@ export interface ReviewServerOptions {
 
 /** Review's server half as a factory, so bundles such as `opencode-cockpit` can include it. */
 export function createReviewServer({ source = REVIEW_PACKAGE }: ReviewServerOptions = {}): ServerStart {
-  return async (host) => {
+  return async (host, options) => {
+    /** `enabled: false` is both halves: no tools and no guidance either. */
+    const { config } = loadReview(host.directory, options)
+    if (!config.enabled) {
+      host.log.child("review").info("off in the settings")
+      return {}
+    }
     const claim = claimFeature(host.scope, "review", source)
     if (!claim.active) {
       host.log.warn(duplicateFeatureMessage("Review", claim.owner, source))
       return {}
     }
-    const parts = await reviewParts(host)
+    const parts = await reviewParts(host, config.keybinds)
     return { ...parts, dispose: () => claim.release() }
   }
 }
 
-async function reviewParts(host: ServerHost): Promise<ServerParts> {
+async function reviewParts(host: ServerHost, keybinds: Record<string, string>): Promise<ServerParts> {
   const { directory } = host
   /**
    * The branch is asked for per call, not cached.
@@ -62,6 +75,7 @@ async function reviewParts(host: ServerHost): Promise<ServerParts> {
     return (await proc.exited) === 0 && out && out !== "HEAD" ? out : undefined
   }
 
+  const guidance = reviewGuidance(host.version)
   const store = async (): Promise<Persistence> => createPersistence(reviewPaths(directory, await branchOf()))
 
   /**
@@ -79,9 +93,17 @@ async function reviewParts(host: ServerHost): Promise<ServerParts> {
 
   return {
     tools: createTools({ directory, store, contentsOf }),
-    /** Said once per conversation, the way Shell explains its shells. */
+    /** For the Cockpit-wide line: where the threads are read and answered. */
+    surfaces: [
+      {
+        what: "review threads",
+        where: "Review",
+        open: openText("review", "cockpit.review.open", keybinds, "changes"),
+      },
+    ],
+    /** Before every request, the way Shell explains its shells. */
     system: async () => {
-      const system = [GUIDANCE]
+      const system = [guidance]
 
       /**
        * And what is actually waiting, so the agent does not have to ask to find out there is nothing.
@@ -96,7 +118,7 @@ async function reviewParts(host: ServerHost): Promise<ServerParts> {
       if (waiting.length > 0) {
         const files = [...new Set(waiting.map((thread) => thread.file))]
         system.push(
-          `${waiting.length} review comment${waiting.length === 1 ? "" : "s"} are waiting on you in ${files.join(", ")}. Read them with review_list.`,
+          `${waiting.length} review comment${waiting.length === 1 ? "" : "s"} are waiting on you in ${files.join(", ")}. Read them with ${host.version === 2 ? "tools.review_list" : "review_list"}.`,
         )
       }
       return system

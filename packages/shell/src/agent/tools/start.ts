@@ -41,7 +41,10 @@ export function shellStart(kit: ToolKit): ToolDefinition {
     description: START,
     args: {
       command: z.string().min(1).describe("Command line, run by your shell (pipes, && and env vars work)"),
-      description: z.string().min(3).describe("What this shell is for, 3-8 words, e.g. 'Next.js dev server'"),
+      description: z
+        .string()
+        .min(3)
+        .describe("The shell's name in the user's sidebar and dock: short, e.g. 'dev', 'test', 'build'"),
       workdir: z.string().optional().describe("Working directory; defaults to the project directory"),
       env: z.record(z.string(), z.string()).optional().describe("Extra environment variables"),
       waitFor: z

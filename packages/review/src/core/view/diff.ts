@@ -12,6 +12,7 @@ import { type FileChange, type Review, threadAnchor, threadsFor, threadsOnLine }
 import { metrics } from "../perf.ts"
 import { cardRows } from "./card.ts"
 import { tallyOf } from "./counts.ts"
+import { binaryRows, lookKey } from "./image.ts"
 import { cell, clipRuns, elidePath, type Fill, type Row, type Run, skipColumns, type Tone } from "./rows.ts"
 import type { ViewState } from "./state.ts"
 import { languageOf, type SyntaxState, tokenize } from "./syntax/index.ts"
@@ -151,6 +152,8 @@ const signature = (file: FileChange, review: Review, state: ViewState, width: nu
     state.shift ?? 0,
     threads.some((thread) => thread.id === state.thread) ? state.thread : "",
     threads.map((thread) => `${thread.id}:${thread.status}:${thread.entries.length}`).join(","),
+    /** A binary's card changes when its pictures arrive, and with the pane's colour behind them. */
+    file.binary ? `${lookKey(state.looks?.get(file.path))}:${state.canvas ?? ""}` : "",
   ].join("|")
 }
 
@@ -243,6 +246,12 @@ function buildDiffRows(
         each.id,
       ),
     )
+  }
+
+  /** A binary has no lines: its card says what it is, how it changed, and shows it. */
+  if (file.binary) {
+    rows.push(...binaryRows(file, state.looks?.get(file.path), width, state.canvas, paint))
+    return rows
   }
 
   const language = languageOf(file.path)

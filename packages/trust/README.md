@@ -207,8 +207,12 @@ In the bundle's entry (`"trust": { … }`), this package's own, or the `trust` s
 | `enabled` | `true` | `false` turns Trust off (the bundle also has `features.trust: false`) |
 | `sidebar` | `false` | Show the block in the sidebar. The palette's "Show or hide Trust in the sidebar" flips it for the session |
 | `sidebarRows` | `3` | Answers listed in the sidebar |
-| `sidebarOrder` | `160` | Where the block sits in the sidebar; lower draws first |
 | `keybinds` | `{ "cockpit.trust.ledger": "<leader>p" }` | The key that opens the ledger |
+
+Where the block sits is the top-level `"sidebar"` list's to say — Trust last by default; a
+`trust.sidebarOrder` from before 0.9 is no longer read, and is a `!` row in the block until
+`/cockpit-setup` removes it. A setting Trust cannot use (`"threshold": "3"`) is a `!` row too. See
+[Configuration](https://codestz.github.io/opencode-cockpit/configuration/).
 
 The ledger lives outside the project, in
 `~/.local/share/opencode-cockpit/trust/<project>-<hash>/events.ndjson` (`$COCKPIT_HOME` or

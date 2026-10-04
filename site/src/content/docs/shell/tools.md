@@ -1,6 +1,6 @@
 ---
 title: Agent tools
-description: The nine tools the agent is given, and what each one is for.
+description: The eight tools the agent is given, and what each one is for.
 ---
 
 Every per-shell tool takes an `id` or a `name` — the description the shell was started with. Partial
@@ -48,7 +48,7 @@ Attaches or changes a watcher. See [Watching health](/opencode-cockpit/shell/wat
 Finds the right shell: filter by `query`, `status`, `session` or `kind`, including
 [kinds you defined yourself](/opencode-cockpit/configuration/).
 
-## shell_stop · shell_restart · shell_remove
+## shell_stop · shell_restart
 
-End it, run it again with the same id, or forget it. A restart keeps the id and marks the new run in
-the log, so earlier output stays readable.
+End it, or run it again with the same id. `shell_stop remove=true` also forgets it. A restart keeps
+the id and marks the new run in the log, so earlier output stays readable.

@@ -7,6 +7,7 @@
  * the thing that draws the whole screen.
  */
 
+import type { ImageLook } from "../image/looks.ts"
 import type { Run } from "./rows.ts"
 
 /**
@@ -82,6 +83,12 @@ export interface ViewState {
    * use than a row of keys you can get back with `?`.
    */
   notice?: string
+  /**
+   * Settings Review does not read — an old name, a value of the wrong kind — each a sentence
+   * (`noticeText`). Review has no sidebar block to say them in, so the pane does: one `!` row in
+   * place of the header's rule, for as long as the file is wrong, not a toast gone in ten seconds.
+   */
+  settings?: readonly string[]
   /** The numbers, when you have asked to see them. Same place, same reasoning. */
   stats?: readonly Run[]
   /**
@@ -98,4 +105,14 @@ export interface ViewState {
    * you have while reading, and the answer was previously only available by pressing the key.
    */
   waiting?: number
+  /**
+   * What is known about each changed image beyond its header — the pixel diff, the thumbs a preview
+   * is drawn from — by path. Filled in off the draw path (`image/looks.ts`); absent, a binary card
+   * shows its metadata and nothing it would have to guess.
+   */
+  looks?: ReadonlyMap<string, ImageLook>
+  /** The pane's own colour, packed `0xRRGGBB`: what a transparent pixel in a preview shows. */
+  canvas?: number
+  /** `?`: every key and what it does, in the body's place. */
+  keys?: boolean
 }

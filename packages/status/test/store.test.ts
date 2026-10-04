@@ -138,6 +138,72 @@ describe("commands run off the draw path", () => {
   })
 })
 
+/** The sidebar table's two outside readings: the branch's diff from git, and a proxy's budget file. */
+describe("what the table reads", () => {
+  const table = (readBudget: (path: string) => { spent: number; cap: number } | undefined) => {
+    const runs: string[] = []
+    const reads: string[] = []
+    const store = createStatusStore(
+      api,
+      {},
+      {
+        version: "9.9.9",
+        now: () => 0,
+        exec: async (command) => {
+          runs.push(command)
+          return " 2 files changed, 9 insertions(+), 1 deletion(-)"
+        },
+        readBudget: (path) => {
+          reads.push(path)
+          return readBudget(path)
+        },
+        build: (_api, input) => ({
+          ...base,
+          defaultBranch: "dev",
+          ...(input.branchDiff ? { branchDiff: input.branchDiff } : {}),
+          ...(input.budget ? { budget: input.budget } : {}),
+        }),
+      },
+    )
+    return { store, runs, reads }
+  }
+
+  test("the default line asks git what is uncommitted, not the branch against main", async () => {
+    const { store, runs } = table(() => undefined)
+    store.context()
+    await new Promise((done) => setTimeout(done, 0))
+    expect(runs).toContain("git diff --shortstat HEAD")
+    expect(runs.some((run) => run.includes("merge-base"))).toBe(false)
+    store.dispose()
+  })
+
+  test("reads the proxy's file, and carries the budget it found", () => {
+    const { store, reads } = table(() => ({ spent: 5, cap: 50 }))
+    expect(store.context().budget).toEqual({ spent: 5, cap: 50 })
+    expect(reads[0]).toEndWith("opencode-litellm-iap/spend.json")
+    store.dispose()
+  })
+
+  test("a line with no budget row reads no file", () => {
+    const reads: string[] = []
+    const store = createStatusStore(
+      api,
+      { segments: ["context"] },
+      {
+        version: "9.9.9",
+        readBudget: (path) => {
+          reads.push(path)
+          return undefined
+        },
+        build: () => base,
+      },
+    )
+    store.context()
+    expect(reads).toEqual([])
+    store.dispose()
+  })
+})
+
 describe("disposal", () => {
   test("stops the clock and the commands", async () => {
     live = harness({ commands: { probe: { run: "x", intervalMs: 250 } } })

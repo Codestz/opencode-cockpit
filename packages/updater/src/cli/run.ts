@@ -8,6 +8,7 @@
 
 import { type ApplyIo, applyPlan, manualSteps, readiness } from "../core/apply.ts"
 import { type GatherIo, gather } from "../core/gather.ts"
+import { RESTART_COMMAND } from "../core/service.ts"
 import type { Outcome } from "../core/verify.ts"
 import { listRows, noteRows, resultRows, reviewRows } from "../core/view/layout.ts"
 import { fit, type Row } from "../core/view/rows.ts"
@@ -57,6 +58,22 @@ published — and updates the ones that are behind, checking every file afterwar
   --dry-run       show the plan, write nothing
   --yes, -y       do not ask
 `
+
+/**
+ * OpenCode 2 keeps the agent side its background service started with until the service restarts,
+ * whatever is installed under it — so a finished update there needs one more step. Unknown is no.
+ */
+async function onOpencode2(io: Pick<Io, "opencode">, cwd: string): Promise<boolean> {
+  try {
+    const result = await io.opencode(["--version"], cwd)
+    return result.status === 0 && Number(/(\d+)\.\d+\.\d+/.exec(result.output)?.[1]) >= 2
+  } catch {
+    return false
+  }
+}
+
+const SERVICE_NOTE =
+  "On OpenCode 2, then restart its background service, which keeps the old plugin code until it does:"
 
 export async function update(argv: readonly string[], io: Io): Promise<number> {
   const args = parseArgs(argv)
@@ -133,6 +150,11 @@ export async function update(argv: readonly string[], io: Io): Promise<number> {
       "warning",
     )
     for (const step of manualSteps(chosen)) line(`  ${step}`)
+    if (await onOpencode2(io, io.cwd)) {
+      line(SERVICE_NOTE, "warning")
+      // Uncut, like the fixes: a clipped command cannot be pasted.
+      io.write(`  ${RESTART_COMMAND}\n`)
+    }
     return 1
   }
 
@@ -164,6 +186,11 @@ export async function update(argv: readonly string[], io: Io): Promise<number> {
   const done = chosen.filter((plan) => outcomes.find((o) => o.name === plan.name)?.ok)
   if (done.length > 0) {
     line(`Restart OpenCode to load ${done.map((p) => `${p.name} ${p.published}`).join(", ")}.`)
+    if (await onOpencode2(io, io.cwd)) {
+      line(SERVICE_NOTE, "warning")
+      // Uncut, like the fixes: a clipped command cannot be pasted.
+      io.write(`  ${RESTART_COMMAND}\n`)
+    }
   }
   return outcomes.every((o) => o.ok) ? 0 : 1
 }

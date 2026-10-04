@@ -38,7 +38,7 @@ export const SEGMENTS: SegmentDef[] = [
     name: "session.status",
     icon: "●",
     priority: 95,
-    render(ctx) {
+    render(ctx, config) {
       const session = ctx.session
       if (!session) return undefined
       if (session.status === "retry") {
@@ -50,7 +50,8 @@ export const SEGMENTS: SegmentDef[] = [
           tone: "warning",
         }
       }
-      if (session.status === "busy") {
+      /** `"working": false` keeps the row for what is wrong (a retry) and drops the turn's clock. */
+      if (session.status === "busy" && config.working !== false) {
         // From the prompt, not from the session's creation: a conversation reopened two days later
         // was `working 2d 15h` within a second of being asked something.
         const started = session.turn?.startedAt

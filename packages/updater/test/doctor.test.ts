@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { memoryDisk } from "../src/core/disk.ts"
-import { ago, type Check } from "../src/doctor/checks.ts"
+import { ago, type Check, SERVER_BAYS } from "../src/doctor/checks.ts"
 import type { DoctorIo } from "../src/doctor/gather.ts"
 import { doctor } from "../src/doctor/run.ts"
 
@@ -22,6 +24,10 @@ interface Machine {
   alive?: number[]
   git?: boolean
   env?: Record<string, string>
+  /** OpenCode 2's service: what `opencode service status` prints, and `ps -o etime=` for its pid. */
+  service?: { status: string; elapsed?: string }
+  /** A file's last change, ms since the epoch. */
+  mtimes?: Record<string, number>
 }
 
 async function run(machine: Machine, args: string[] = []) {
@@ -34,13 +40,20 @@ async function run(machine: Machine, args: string[] = []) {
     worktree: "/work/project",
     disk: memoryDisk(files),
     exists: (path) => path in files || (machine.exists ?? []).includes(path),
-    run(command) {
-      if (command === "opencode")
+    run(command, args) {
+      if (command === "opencode" && args[0] === "--version")
         return machine.opencode ? { status: 0, stdout: `${machine.opencode}\n` } : undefined
       if (command === "git") return machine.git === false ? undefined : { status: 0, stdout: "git version 2" }
+      if (command === "opencode" && args[0] === "service")
+        return machine.service ? { status: 0, stdout: `${machine.service.status}\n` } : undefined
+      if (command === "ps" && args[0] === "-o" && args[1] === "etime=")
+        return machine.service?.elapsed
+          ? { status: 0, stdout: ` ${machine.service.elapsed}\n` }
+          : { status: 1, stdout: "" }
       return { status: 0, stdout: "" }
     },
     alive: (pid) => (machine.alive ?? []).includes(pid),
+    modified: (path) => machine.mtimes?.[path],
     writable: () => true,
     fetchLatest: async (names) => new Map(names.map((name) => [name, machine.latest?.[name]])),
     now: Date.parse("2026-09-24T12:00:00Z"),
@@ -144,6 +157,27 @@ describe("the config", () => {
     })
     expect(found.Config?.state).toBe("warn")
     expect(found.Config?.fix?.join()).toContain("also inside opencode-cockpit")
+  })
+
+  test("Trail is a bay with both halves: inside the bundle, and missing its tools on OpenCode 1", async () => {
+    const twice = await checks({
+      opencode: "2.0.18",
+      latest: { "opencode-cockpit": "0.9.0", "@opencode-cockpit/trail": "0.9.0" },
+      files: {
+        [`${CONFIG}/opencode.json`]: json({
+          plugins: ["opencode-cockpit@0.9.0", "@opencode-cockpit/trail@0.9.0"],
+        }),
+      },
+    })
+    expect(twice.Config?.fix?.join()).toContain("@opencode-cockpit/trail@0.9.0 (")
+    const half = await checks({
+      opencode: "1.18.32",
+      latest: { "@opencode-cockpit/trail": "0.9.0" },
+      files: { [`${CONFIG}/tui.json`]: json({ plugin: ["@opencode-cockpit/trail@0.9.0"] }) },
+    })
+    expect(half.Config?.fix?.join()).toContain(
+      "@opencode-cockpit/trail is in tui.json but not opencode.json: the agent has none of its tools",
+    )
   })
 
   /** v1 never reads cli.json: panels configured only there do not show. */
@@ -328,12 +362,106 @@ describe("the rest", () => {
       opencode: "2.0.15",
       files: {
         [`${HOME}/.config/opencode-cockpit/config.json`]: json({
-          statusline: { modules: ["~/.config/opencode-cockpit/modules/gone.ts"] },
+          status: { modules: ["~/.config/opencode-cockpit/modules/gone.ts"] },
         }),
       },
     })
     expect(found.Settings?.state).toBe("warn")
     expect(found.Settings?.fix?.join()).toContain("gone.ts")
+  })
+
+  /** Status reads modules from `status.modules` only; doctor agrees, and names the old places as such. */
+  test("modules under the old names are not checked: each is only the loader's notice", async () => {
+    const file = `${HOME}/.config/opencode-cockpit/config.json`
+    const found = await checks({
+      opencode: "2.0.15",
+      files: {
+        [file]: json({ statusline: { modules: ["~/old.ts"] }, modules: ["~/root.ts"] }),
+      },
+    })
+    const fix = found.Settings?.fix?.join("\n") ?? ""
+    expect(fix).not.toContain("does not exist")
+    expect(fix).toContain(`${file}: "statusline" is no longer read — run /cockpit-setup`)
+    expect(fix).toContain(`${file}: "modules" at the top level is not read: it belongs in "status"`)
+  })
+})
+
+/**
+ * Doctor reads Cockpit's settings through the loader the bays use, so the two cannot disagree: a file
+ * with a comment was "fine" to doctor while every bay dropped it whole.
+ */
+describe("Cockpit's settings", () => {
+  const GLOBAL = `${HOME}/.config/opencode-cockpit/config.json`
+  const PROJECT = "/work/project/.cockpit.json"
+
+  test("comments and trailing commas: fine to doctor, and read by the bays", async () => {
+    const files = { [GLOBAL]: `{\n  // mine\n  "trust": { "threshold": 5, },\n}` }
+    const found = await checks({ opencode: "2.0.18", files })
+    expect(found.Settings?.state).toBe("ok")
+    expect(found.Settings?.summary).toBe("1 file")
+    const { baySettings } = await import("@opencode-cockpit/client/settings")
+    const trust = baySettings(
+      "trust",
+      { threshold: 3 },
+      {
+        where: {
+          env: {},
+          home: HOME,
+          directory: "/work/project",
+          read: (path) => memoryDisk(files).read(path),
+        },
+      },
+    )
+    expect(trust.config.threshold).toBe(5)
+  })
+
+  /** What a bay draws as a `!` row is a fix line too: Trust's threshold, and Status's own words when offered. */
+  test("each bay's own notices: a key of the wrong kind, and a bay's own check", async () => {
+    const { offerSettingsCheck } = await import("@opencode-cockpit/client/checks")
+    offerSettingsCheck("status", () => [
+      { bay: "status", file: GLOBAL, kind: "invalid", text: 'override "gti" matches no segment' },
+    ])
+    try {
+      const files = { [GLOBAL]: json({ status: { override: { gti: false } }, trust: { threshold: "3" } }) }
+      const found = await checks({ opencode: "2.0.18", files })
+      expect(found.Settings?.state).toBe("warn")
+      expect(found.Settings?.fix).toEqual([
+        `${GLOBAL}: override "gti" matches no segment`,
+        `${GLOBAL}: "trust.threshold" should be a number; the default is used`,
+      ])
+    } finally {
+      offerSettingsCheck("status", () => [])
+    }
+  })
+
+  test("a file the bays cannot parse is not fine", async () => {
+    const found = await checks({ opencode: "2.0.18", files: { [PROJECT]: `{ "trust": { "threshold": 5 ` } })
+    expect(found.Settings?.state).toBe("warn")
+    expect(found.Settings?.summary).toBe("a settings file Cockpit cannot use")
+    expect(found.Settings?.fix?.[0]).toStartWith(`${PROJECT}: `)
+    expect(found.Settings?.fix?.[0]).toEndWith("the whole file is ignored")
+  })
+
+  test("every old name and unknown sidebar entry is a fix line", async () => {
+    const found = await checks({
+      opencode: "2.0.18",
+      files: {
+        [GLOBAL]: json({
+          statusline: { preset: "sidebar" },
+          ui: { dockHeight: 20 },
+          sidebar: ["shells", "status"],
+        }),
+        [PROJECT]: json({ trust: { sidebarOrder: 1 } }),
+      },
+    })
+    expect(found.Settings?.state).toBe("warn")
+    expect(found.Settings?.summary).toBe("settings that are not read as written")
+    expect(found.Settings?.fix).toEqual([
+      `${GLOBAL}: "statusline" is no longer read — run /cockpit-setup`,
+      `${GLOBAL}: "ui.dockHeight" is no longer read — run /cockpit-setup`,
+      `${GLOBAL}: "shells" in "sidebar" is not a bay: did you mean "shell"? (status, subagents, shell, trail, trust)`,
+      `${PROJECT}: "trust.sidebarOrder" is no longer read — run /cockpit-setup`,
+    ])
   })
 })
 
@@ -397,5 +525,115 @@ describe("a logged time reads as how long ago", () => {
   test("a time it cannot read, or no clock, is printed as logged", () => {
     expect(ago("yesterday", now)).toBe("yesterday")
     expect(ago("2026-09-30T11:00:00Z", undefined)).toBe("2026-09-30T11:00:00Z")
+  })
+})
+
+describe("OpenCode 2's background service (it keeps the plugin code it started with)", () => {
+  const NOW = Date.parse("2026-09-24T12:00:00Z")
+  const DEV = "/home/me/.cockpit-dev/node_modules/opencode-cockpit"
+  const machine = (service: Machine["service"], installedAgo?: number): Machine => ({
+    opencode: "2.0.18",
+    files: {
+      [`${CONFIG}/opencode.json`]: json({ plugins: [DEV] }),
+      [`${DEV}/package.json`]: json({ name: "opencode-cockpit", version: "0.9.0" }),
+      [`${HOME}/.local/state/opencode/service.json`]: json({
+        pid: 4242,
+        url: "http://127.0.0.1:49374",
+        password: "x",
+      }),
+    },
+    alive: [4242],
+    service,
+    ...(installedAgo !== undefined ? { mtimes: { [`${DEV}/package.json`]: NOW - installedAgo } } : {}),
+  })
+  const HOUR = 3600_000
+
+  test("started before the install: warns, and the fix is the restart", async () => {
+    // Started 6 days ago (the measured Sep 27 service); Cockpit installed 2 hours ago.
+    const found = await checks(machine({ status: "http://127.0.0.1:49374", elapsed: "6-00:00:00" }, 2 * HOUR))
+    expect(found.Service?.state).toBe("warn")
+    expect(found.Service?.summary).toContain("started before the install")
+    expect(found.Service?.detail?.[0]).toBe(`Started 6d ago; ${DEV} was installed 2h ago.`)
+    expect(found.Service?.fix).toEqual(["opencode service restart"])
+  })
+
+  test("started after the install: fine", async () => {
+    const found = await checks(machine({ status: "http://127.0.0.1:49374", elapsed: "10:00" }, 2 * HOUR))
+    expect(found.Service?.state).toBe("ok")
+    expect(found.Service?.summary).toContain("10m ago, after the install")
+  })
+
+  test("not running: nothing to restart", async () => {
+    expect((await checks(machine({ status: "stopped" }, HOUR))).Service?.state).toBe("ok")
+  })
+
+  test("running, but when it started or what it loads is not known: the restart, as advice", async () => {
+    const found = await checks(machine({ status: "http://127.0.0.1:49374" }))
+    expect(found.Service?.state).toBe("info")
+    expect(found.Service?.fix).toEqual(["opencode service restart"])
+  })
+
+  describe("with the record its agent side wrote (0.9+): what it loaded against what is there now", () => {
+    const CLIENT = "/home/me/.cockpit-dev/node_modules/@opencode-cockpit/client"
+    const withRecord = (now: { version: string; at: number } | undefined, loadedAt = NOW - 2 * HOUR) => {
+      const base = machine({ status: "http://127.0.0.1:49374", elapsed: "10:00" }, 6 * 24 * HOUR)
+      return {
+        ...base,
+        files: {
+          ...base.files,
+          [`${HOME}/.cache/opencode-cockpit/agents/4242.json`]: json({
+            version: "0.9.0",
+            installedAt: loadedAt,
+            dir: CLIENT,
+            pid: 4242,
+            startedAt: loadedAt + 1000,
+          }),
+          ...(now ? { [`${CLIENT}/package.json`]: json({ version: now.version }) } : {}),
+        },
+        mtimes: { ...base.mtimes, ...(now ? { [`${CLIENT}/package.json`]: now.at } : {}) },
+      }
+    }
+
+    test("the same install: fine, whatever the clocks say", async () => {
+      const found = await checks(withRecord({ version: "0.9.0", at: NOW - 2 * HOUR }))
+      expect(found.Service?.state).toBe("ok")
+      expect(found.Service?.summary).toContain("runs the installed Cockpit (0.9.0)")
+    })
+
+    test("installed again since (a dev install keeps its version): warns, with both", async () => {
+      const found = await checks(withRecord({ version: "0.9.0", at: NOW - HOUR }))
+      expect(found.Service?.state).toBe("warn")
+      expect(found.Service?.detail?.[0]).toBe(
+        "It loaded 0.9.0, installed 2h ago; 0.9.0 was installed 1h ago.",
+      )
+      expect(found.Service?.fix).toEqual(["opencode service restart"])
+    })
+
+    test("the install it loaded is gone: warns", async () => {
+      const found = await checks(withRecord(undefined))
+      expect(found.Service?.state).toBe("warn")
+      expect(found.Service?.detail?.[0]).toContain("no longer there")
+    })
+  })
+
+  test("OpenCode 1 has no service to talk about", async () => {
+    expect((await checks({ ...machine({ status: "stopped" }), opencode: "1.18.32" })).Service).toBeUndefined()
+  })
+
+  test("as a person reads it", async () => {
+    const { out } = await run(machine({ status: "http://127.0.0.1:49374", elapsed: "6-00:00:00" }, 2 * HOUR))
+    expect(out).toContain("! Service")
+    expect(out).toContain("→ opencode service restart")
+  })
+})
+
+describe("the bays doctor knows", () => {
+  test("every bay it checks for an agent half publishes one", () => {
+    for (const bay of SERVER_BAYS) {
+      const manifest = JSON.parse(
+        readFileSync(join(import.meta.dir, "..", "..", bay, "package.json"), "utf8"),
+      )
+      expect(Object.keys(manifest.exports)).toContain("./server")
+    }
   })
 })

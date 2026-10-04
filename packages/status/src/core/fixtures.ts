@@ -46,6 +46,8 @@ const base = (over: Partial<StatusContext> = {}): StatusContext => ({
   home: "/Users/you",
   branch: "feature/checkout",
   defaultBranch: "main",
+  /** The branch against where it forked: more than this session touched, and there with no session. */
+  branchDiff: { files: 5, additions: 312, deletions: 48 },
   version: "0.3.0",
   lsp: [{ name: "tsserver", status: "connected" }],
   mcp: [{ name: "github", status: "connected" }],
@@ -99,6 +101,7 @@ export const FIXTURES: Record<FixtureName, { about: string; ctx: StatusContext }
   full: {
     about: "the context nearly full, a long session",
     ctx: base({
+      branchDiff: { files: 28, additions: 1_840, deletions: 620 },
       session: session({
         cost: 26.24,
         tokens: { input: 4_200, output: 2_100, reasoning: 900, cache: { read: 181_000, write: 3_400 } },
@@ -118,11 +121,15 @@ export const FIXTURES: Record<FixtureName, { about: string; ctx: StatusContext }
       }),
     }),
   },
-  /** Stalled, which OpenCode itself shows only as a spinner. */
+  /** Stalled, which OpenCode itself shows only as a spinner — and an MCP server that would not start. */
   retrying: {
-    about: "a stalled turn, retrying",
+    about: "a stalled turn, retrying, and a broken MCP server",
     ctx: base({
       now: 1_000,
+      mcp: [
+        { name: "github", status: "connected" },
+        { name: "linear", status: "failed" },
+      ],
       session: session({
         status: "retry",
         startedAt: 0,

@@ -14,8 +14,9 @@
 
 import type { ChangeSet, Review } from "../model/review.ts"
 import { metrics } from "../perf.ts"
-import { footerRows, headerRows } from "./chrome.ts"
+import { footerRows, headerRows, settingsRow } from "./chrome.ts"
 import { type Columns, FOOTER_ROWS, GUTTER, HEADER_ROWS, inset, splitColumns, window } from "./geometry.ts"
+import { keyRows } from "./keys.ts"
 import { fileRows, listScroll, listWidth } from "./list.ts"
 import { cell, faint, type Row } from "./rows.ts"
 import type { Viewport, ViewState } from "./state.ts"
@@ -55,8 +56,10 @@ function compose(changes: ChangeSet, review: Review, state: ViewState, viewport:
 
   /** The rule spans the pane, edge to edge; everything with words in it sits inside the gutter. */
   const rule: Row = { runs: [{ text: "─".repeat(inner), tone: "border" }] }
+  /** A setting Review does not read takes the rule's place under the header, so nothing moves. */
+  const warning = settingsRow(state.settings ?? [], content)
   const rows: Row[] = headerRows(changes, review, content, state.label).map((row, index) =>
-    index === HEADER_ROWS - 1 ? rule : inset(row, inner),
+    index === HEADER_ROWS - 1 ? (warning ? inset(warning, inner) : rule) : inset(row, inner),
   )
 
   const body = Math.max(1, viewport.height - HEADER_ROWS - FOOTER_ROWS)
@@ -65,8 +68,15 @@ function compose(changes: ChangeSet, review: Review, state: ViewState, viewport:
   const blank = (width: number): Row => ({ runs: [{ text: " ".repeat(width) }] })
 
   const close = (built: Row[]): Row[] => {
-    const feet = footerRows(content, columns, state, changes.files.length === 0)
+    const binary = changes.files.find((file) => file.path === state.file)?.binary !== undefined
+    const feet = footerRows(content, columns, state, changes.files.length === 0, binary)
     return [...built, ...feet.map((row, index) => (index === 0 ? rule : inset(row, inner)))]
+  }
+
+  /** `?`: the keys take the body, and the footer is only the way back. */
+  if (state.keys) {
+    for (const row of keyRows(content, body)) rows.push(inset(row, inner))
+    return close(rows)
   }
 
   /**

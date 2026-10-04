@@ -6,6 +6,203 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Trail — a new bay: what a conversation made.** `@opencode-cockpit/trail`, also in the bundle
+  (`features.trail: false` to switch it off), on OpenCode 1 and 2 alike. The pull requests, tickets,
+  pages and deploys the agent created or changed, kept per conversation, grouped by the ticket they
+  were for, and one click from the page.
+  - **No setup.** No account, no token, no list of tools. The agent already knows what it just did,
+    with whatever it uses — `gh`, an MCP server, a company CLI — so it records it with `trail_add`
+    (`title`, a `url` or a `ref`, and free-text `kind`, `action`, `for`, `note`); the same link again
+    updates the record (`created → updated`) instead of adding a row. It is told so on every request,
+    subagents included, and what the conversation produced is rebuilt into its system prompt each
+    time, so it still knows after a compaction.
+  - **A safety net, never automatic:** when something the agent *ran* printed a PR or issue link it
+    never recorded, its next request says so, as a choice. Links in files it read or pages it fetched
+    are ignored, and nothing is added without the agent or you.
+  - **In the sidebar,** on by default after Shells: each thing's name, title, system and what this
+    conversation last did — history, not a status, because a PR's state belongs to GitHub. Click a
+    row with `↗` to open the page; `+ N more · /trail` opens the rest.
+  - **Its time says when: `now`, `12m ago`, `2h ago`** — in the sidebar and `/trail` — because the
+    column sits under Shells' and Subagents' durations, where a bare `2h` read as two hours of work.
+    A narrow sidebar drops the "ago" before it cuts the ref.
+  - **A record with no ref gives its title the ref's column.** Its kind used to stand there, cut
+    (`Confluenc…  Release notes for…`), and `/trail` said it again beside the `Confluence` chip.
+  - **`/trail`** (`ctrl+x f`): this conversation, or every conversation in the project (`tab`), with
+    the conversations that touched each thing under it. `enter` opens the page, `g` goes back to the
+    conversation that made it, `c` copies the link, `m` the whole trail as markdown, `x` removes,
+    `/` searches.
+  - **`/link`** adds one yourself: it asks for the link, and a note if you like. A link you add
+    shows in the sidebar at once.
+  - The system comes from the link (GitHub, Jira, Confluence, Linear, Claude, else the domain);
+    query parameters that look like secrets are dropped before anything is stored, and only
+    `http(s)` links are opened. A deleted conversation keeps its records, under the title it had.
+  - `trail_list` gives the agent the same facts and order as `/trail`. Kept append-only in
+    `~/.local/share/opencode-cockpit/trail/`, shared by every window on the project.
+- **`/cockpit-setup` — the agent sets Cockpit up with you.** Cockpit now ships a `cockpit-setup`
+  skill and a `cockpit_settings` tool, so the command — or a plain "make my sidebar quieter" — has
+  the agent read what is installed and written now (every value and where it came from, every name
+  from before 0.9, OpenCode's own sidebar blocks), fix the old names first, offer a starting point
+  (everything visible, quiet, minimal, Status as a line), ask only what is left, one question at a
+  time, write the smallest file that does it and check it reads back with no notices. It asks before
+  touching OpenCode's own files, and never suggests turning the Todo block off. From the home screen
+  the command opens a conversation; while the agent is answering it waits its turn (`1 queued`)
+  instead of cutting the reply off. In the palette as well, whichever Cockpit packages you installed.
+  The skill's settings reference is written from the code, and a test fails when the two disagree.
+  - **Then, if you want it: "tune it to how you work."** A tour of each bay you have on, with its
+    real key and command, then your project's conventions: which commands keep running (found in
+    `package.json` scripts, a Makefile, a compose file or a Procfile) and belong in a background
+    shell, your ticket prefix (offered from your branches and commits) so Trail groups by ticket, where
+    PRs go, whether to explore in background subagents. Written, after you agree, as one
+    `## Cockpit conventions` section in this project's `AGENTS.md` or OpenCode's global one, by a
+    `cockpit_conventions` tool that replaces that section in place on a rerun and keeps every other
+    byte of the file. Conventions only: how to use each bay is already in every request.
+  - **Every OpenCode sidebar block, by its id, for the version you run:** Context (suggested off when
+    Status's table is in the sidebar), MCP (neutral: Status's table warns when a server fails),
+    Footer, and on OpenCode 1 LSP and Files; Todo is never suggested off. `status-setup` lists the
+    same.
+- **Review shows images.** A changed binary is read as bytes instead of being skipped or shown as
+  `U+FFFD`. An image says what changed — `PNG 2880×1800 · 807 KB → 789 KB` (PNG, APNG, JPEG, GIF,
+  WebP, BMP; any other binary its sizes) — and PNG and GIF of the same size get a pixel diff (how much
+  changed, and where) and a preview, before and after side by side in half-block characters with the
+  changes lit. `o` opens both versions in your system viewer. Decoding runs in slices off the draw
+  path, so a pair of screenshots never freezes the window.
+- **`[?] Keys` in Review and Subagents**, like Trust's: every key the pane takes, and `esc` back.
+- **Every sidebar block says it is there.** Shells, Subagents and Trail draw their heading and
+  `none yet` before anything has run, in the row the first item will take, so a new user can tell
+  they are installed and the blocks below do not jump. `"hideWhenEmpty": true` brings the silence
+  back, per bay.
+- **Status's sidebar table is built in.** `title`, `in`, `out`, `cache`, `write`, `sep`, `spend`,
+  `avail` and `git` are built-in segments now (`git` counts what is uncommitted; `"against": "branch"`
+  counts the branch against main), and the table leaves out the turn's `working` clock while still
+  showing a retry. `context` gets style `solid` and `tokens` style
+  `row`, so the table needs no module. `spend` and `avail` read a proxy's budget file and draw nothing
+  without one; a hairline draws only between two rows.
+- **Status's `override` changes a row or two and keeps the rest.** `{ "status": { "override": { "git":
+  { "against": "branch" } } } }` changes the table's `git` row and leaves the other thirteen following
+  the preset, where it used to take a copy of the whole list in `segments`. `false` drops a segment, a
+  name swaps it in place, an object merges into its settings; a line in `lines` takes its own. A name
+  that matches no segment is a `!` row naming the closest (`override "gti" … did you mean "git"?`).
+- **Status's preview reads a file as OpenCode does.** `preview --config <file>` goes through the
+  plugin's own loader and resolution — `preset`, `sidebarRows`, `override` and the `!` rows — and stops
+  on a file it cannot read or a flag it does not know rather than drawing other settings. `--config -`
+  reads a candidate on stdin as the file it will become (`--as global|project`), so a change is seen
+  before it is written anywhere — the `status-setup` skill previews this way, with no temporary file.
+  The setup skills run the preview that came with your install — `cockpit_settings` names it under
+  Previews — never `bunx`, which fetches another release.
+  `--surface sidebar|bottom` draws there whatever the file says; the sidebar is 34 columns unless
+  `--width` says otherwise. `--debug` names every row: `✓git` drew, `✗spend` drew nothing, `?gti` is
+  no segment at all — where `⟨?title⟩` and `⟨todo⟩` used to differ by one character in the same
+  brackets.
+
+### Changed
+- **New default keys, the same on OpenCode 1 and 2: Subagents `ctrl+x d` (was `w`), the shell
+  console `ctrl+x j` (was `i`), Review's placement `ctrl+x k` (was `r`).** The old ones were OpenCode's
+  own — on OpenCode 2 `ctrl+x w` closes the tab and `ctrl+x i` shows image attachments, and
+  `ctrl+x r` is redo on both. A test now holds every Cockpit default clear of OpenCode's. To keep
+  the old keys, set them in the bay's `keybinds`, e.g.
+  `"subagents": { "keybinds": { "cockpit.subagents.open": "<leader>w" } }`.
+- **The agent knows where you see its work.** One line per window, written from the bays you have
+  on and your keys: shells, subagents and this conversation's trail in the sidebar, review threads in
+  Review — so it points you there instead of pasting the lists.
+- **Shell's guidance:** the agent checks for a running dev server or watcher before starting one and
+  reuses it, and gives shells short names you recognise (`dev`, `test`, `build`).
+- **Trail's guidance:** records group under the ticket with `for`, and the agent calls `trail_list`
+  before saying what the work produced instead of answering from memory.
+- **On OpenCode 2, every bay's guidance names tools as Code Mode calls them** (`tools.shell_start`).
+- **Review's `enabled: false` turns off its agent side too** — its tools and guidance.
+- **Behaviour, measured:** `AGENT=1` smoke runs real turns that must end in the right tool —
+  `shell_start` for a dev server and no second one, `review_list`/`review_reply` for a waiting comment,
+  `trail_add` for a new PR — so a wording change that stops working cannot ship unnoticed. Trail's
+  passes on two of three turns (`measure/agent.ts --runs 3 --pass 2`): a free model misses about one
+  in six.
+- **Settings: one shape, one loader, one file for both halves.** "Configure them in one file, read by
+  both halves of the plugin and by every project" was true for Shell only; now it is true for every
+  bay. Every bay reads `~/.config/opencode-cockpit/config.json` and a project's `.cockpit.json`
+  through the same loader, one section per bay — `status`, `subagents`, `shell`, `trail`, `trust`,
+  `review`, `updater` — with the same shared keys in each: `enabled`, `keybinds`, `sidebar`,
+  `sidebarRows`, `hideWhenEmpty`. Time keys carry their unit.
+  [Configuration](https://codestz.github.io/opencode-cockpit/configuration/) is the whole reference.
+  - **Subagents and Review read the files.** Before, their settings existed only on the plugin
+    entry — `tui.json` for the interface and `opencode.json` for the agent, two places for one bay.
+  - **Shell's keys moved into a `shell` section**, and `ui.*` with them: `ui.historyMinutes` is
+    `shell.hideFinishedAfterMinutes`. **Status's section is `status`**, not `statusline`.
+    Subagents' `hideFinishedAfter` / `hideNestedAfter` are `hideFinishedAfterMinutes` /
+    `hideNestedAfterSeconds`. The Updater reads `updater.updateCheck`, not `ui.updateCheck`.
+  - **The old names are not read.** Each one a file still carries is a `!` row in its bay's block —
+    `! settings: "statusline" is no longer read — run /cockpit-setup` — a line in `doctor`, and the
+    first thing `/cockpit-setup` fixes. Detection only, removed in 0.10.
+  - **One order:** the top-level `"sidebar"` list, default `["status", "subagents", "shell",
+    "trail", "trust"]`, is the only one; each bay's `sidebarOrder` is gone (Trust now sits below
+    Shells by default). An entry that is not a bay asks whether you meant the closest one
+    (`"shells"` → `"shell"`). On OpenCode 2 the bundle applies the list; separately installed
+    packages draw in the order `cli.json` lists them.
+  - Status's keys at a file's root are no longer read as Status's (a root `"enabled": false` meant
+    for something else used to turn the statusline off).
+- **Status lives in the sidebar by default, as a table.** The `sidebar` preset is now the budget
+  table — headed `Status`, the window as one solid bar, the tokens in named rows with their share, a
+  proxy's spend and what is left, what is uncommitted — and it is what you get
+  with no configuration. `{ "status": { "sidebar": false } }` (or `"surface": "bottom"`) puts the
+  line under the prompt again. A preset that does not exist, or a config pointing at a removed
+  example, gets a `!` row naming the presets there are, never a blank column.
+- **`/statusline` is `/status-setup`**, and loads the `status-setup` skill that ships with Status:
+  presets as starting points, every segment, the design rules, and the preview that came with your
+  install before anything is called done. The old name works for one release and says the new one
+  first. From the home screen it opens a conversation; behind a reply it waits its turn. Status gains
+  an agent side for this (`@opencode-cockpit/status/server`), included in the bundle; installed on its
+  own, its install line (`opencode plugin @opencode-cockpit/status@… --global --force`) now adds the
+  agent-side entry too.
+- **Every subagent says what it is.** Each row names its agent, muted — `general` too — and a
+  subagent with no title is named by its task's first words.
+  - **The agents are one column, so the titles line up.** As wide as the longest agent shown, eight
+    cells at most, so `general`, `explore` and `build` read whole; each row used to shorten its own, so one title started at column 9 and
+    the next at column 7.
+  - **A finished subagent says how long it ran, and nothing else** (`● general Plan login… 1m04s`).
+    `17 calls · 1m04s` cut its title to twelve cells; the calls and rounds are in the pane.
+- **Settings notices are drawn, not only logged.** Status, Shell, Subagents, Trail and Trust draw
+  theirs as `!` rows in their blocks, wrapped to the sidebar's width so the fix is not cut off;
+  Review draws its in the pane. Status also draws the ones that belong to no bay: a file that is not
+  valid JSON, a top-level name nothing reads.
+- **`ctrl+p` works while Review is open**: the review steps aside for the host's palette.
+
+### Fixed
+
+- **A config file with a comment or a trailing comma was dropped whole, in silence**, by Shell,
+  Status, Trust and the sidebar order — while doctor called it fine. Every bay reads JSONC now, and a
+  file that truly cannot be read is a `!` row and a doctor line, and the defaults.
+- **Review drew two edits more than 2,000 lines apart as a rewrite** of everything between them. A
+  long stretch is now split on lines unique to both sides and each piece aligned on its own.
+- **Shell offered "show fewer" with one shell left** after you had expanded the list. The toggle
+  shows only while folding hides something, and an expansion the list outgrew folds itself back.
+- **An empty Subagents block took a row of sidebar space** with `hideWhenEmpty` on OpenCode 1.
+- **The `diagnostics` segment flagged every MCP server on OpenCode 2** (#34). OpenCode 2 hands an MCP
+  server's status as a tagged object (`{ status: "connected" }`), which was read as text, so every
+  connected server showed as broken. Both versions' shapes are read now; a server that is disabled or
+  still connecting is not an alarm, one that failed or needs auth is. `diagnostics` also joins the
+  sidebar table: nothing while every server is healthy, `! name` in red when one breaks, and a cut
+  keeps the `+N` count.
+- **OpenCode 2 kept running the old Cockpit after an update.** Its background service loads plugins
+  once, when it starts, so the agent kept the old tools and skills (no `trail_add`, no skills) while
+  the windows drew the new ones. **After updating on OpenCode 2, run `opencode service restart`.**
+  `doctor` now warns when the service started before the install, `update` and `/plugins-update` say
+  to restart it, and the repository's `dev:install` restarts it itself.
+- **A window now says when OpenCode 2's service runs an older Cockpit than it does:** one toast,
+  `Cockpit was updated — OpenCode's background service still runs the old one. Run: opencode
+  service restart` (with both versions when they differ). Never restarted for you — that would cut
+  every open window — and nothing is said when it cannot tell. The agent side records which install
+  it loaded; doctor reads the same record, so it no longer guesses from clocks.
+- **`/cockpit-setup` said "Notices: none" while the sidebar still warned.** `cockpit_settings` and
+  doctor saw only the loader's notices, not each bay's own: Status's `override "gti" matches no
+  segment`, Trust's `threshold: "3"`. Each bay's notices now come from the bay — its keys' kinds, and
+  Status's own check of presets, surfaces and overrides — so "none" there means no `!` row anywhere.
+
+### Removed
+
+- The `examples/sidebar.ts`, `sidebar-full.ts` and `sidebar-budget.ts` Status modules: the `sidebar`
+  preset is the table they drew.
+- The old `sidebar` preset, and each bay's `sidebarOrder`.
+
 ## [0.8.0] - 2026-10-02
 
 ### Added

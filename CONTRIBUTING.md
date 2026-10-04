@@ -156,8 +156,9 @@ must carry explicit types or stay module-private, or `tsc` cannot name them in d
 1. `packages/<feature>` named `@opencode-cockpit/<feature>`, exporting `./server` and/or `./tui`
    whose default export is a plugin built from factories (`create<Feature>Server`,
    `create<Feature>Tui`) that accept a `source` label and start with `claimFeature`.
-2. Add it to `FEATURES` in `packages/opencode/src/features.ts` and call its factories in the
-   bundle's `server.ts` / `tui.ts`.
+2. Add it to `BAYS` in `packages/client/src/settings.ts` — the bundle's `FEATURES`, the settings
+   file and doctor all read that one list — and call its factories in the bundle's `server.ts` /
+   `tui.ts`.
 3. Add the directory to `PACKAGES` in `scripts/pack-check.ts` and to the publish loop in
    `.github/workflows/release.yml`, before `opencode`.
 4. A brand-new npm package cannot use Trusted Publishing until it exists. Before its first release,

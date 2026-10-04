@@ -47,11 +47,52 @@
     "./design": {
       "types": "./types/design.d.ts",
       "default": "./dist/design.js"
+    },
+    "./elements": {
+      "types": "./types/elements.d.ts",
+      "default": "./dist/elements.js"
+    },
+    "./settings": {
+      "types": "./types/settings.d.ts",
+      "default": "./dist/settings.js"
+    },
+    "./catalog": {
+      "types": "./types/catalog.d.ts",
+      "default": "./dist/catalog.js"
+    },
+    "./setup": {
+      "types": "./types/setup.d.ts",
+      "default": "./dist/setup.js"
+    },
+    "./brief": {
+      "types": "./types/brief.d.ts",
+      "default": "./dist/brief.js"
+    },
+    "./jsonc": {
+      "types": "./types/jsonc.d.ts",
+      "default": "./dist/jsonc.js"
+    },
+    "./plugin-entries": {
+      "types": "./types/plugin-entries.d.ts",
+      "default": "./dist/plugin-entries.js"
+    },
+    "./opener": {
+      "types": "./types/opener.d.ts",
+      "default": "./dist/opener.js"
+    },
+    "./checks": {
+      "types": "./types/checks.d.ts",
+      "default": "./dist/checks.js"
+    },
+    "./service": {
+      "types": "./types/service.d.ts",
+      "default": "./dist/service.js"
     }
   },
   "files": [
     "dist",
     "types",
+    "skills",
     "README.md",
     "LICENSE"
   ],
@@ -60,7 +101,7 @@
   },
   "dependencies": {
     "@opencode-cockpit/protocol": "workspace:*",
-    "@opencode-ai/plugin": "1.18.31"
+    "@opencode-ai/plugin": "1.18.33"
   },
   "devDependencies": {
     "@opencode-cockpit/daemon": "workspace:*",

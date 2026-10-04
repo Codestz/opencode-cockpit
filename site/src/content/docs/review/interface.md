@@ -5,7 +5,7 @@ description: Where the panel sits, every key that drives it, and what the footer
 
 ## Where it sits
 
-<kbd>&lt;leader&gt;v</kbd> opens and closes the review; <kbd>&lt;leader&gt;r</kbd> cycles where it
+<kbd>&lt;leader&gt;v</kbd> opens and closes the review; <kbd>&lt;leader&gt;k</kbd> cycles where it
 sits. `<leader>` is OpenCode's own prefix, `ctrl+x` unless you changed it. From the palette it is
 `/changes` — `/review` and `/diff` belong to OpenCode itself.
 
@@ -19,29 +19,22 @@ narrows rather than disappearing, because a review you cannot change file in is 
 
 ## Settings
 
-Three, all optional, given where the plugin is listed:
+All optional, in the `review` section of `~/.config/opencode-cockpit/config.json` or a project's
+`.cockpit.json` (before 0.9 Review read no file, only its plugin entry):
 
-```json title="opencode.json"
-{
-  "plugin": [
-    ["@opencode-cockpit/review", { "variant": "full", "source": "branch" }]
-  ]
-}
+```json title="~/.config/opencode-cockpit/config.json"
+{ "review": { "variant": "full", "source": "branch" } }
 ```
 
 | | |
 | --- | --- |
 | `variant` | `right` (default) or `full` — where it opens |
-| `source` | `worktree` (default), `branch`, or `session` — what it opens on |
-| `keybinds` | overrides for the two global keys, e.g. `{ "cockpit.review.open": "<leader>d" }` |
+| `source` | `worktree` (default) or `branch` — what it opens on |
+| `keybinds` | overrides for the two global keys, e.g. `{ "cockpit.review.open": "<leader>z" }` |
+| `enabled` | `false` switches Review off; so does `features.review: false` |
 
-Through the bundle, the same options go under a `review` key:
-
-```json title="opencode.json"
-{
-  "plugin": [["opencode-cockpit", { "review": { "variant": "full" } }]]
-}
-```
+A value Review does not know (`"variant": "left"`) is the default and a `!` row in the pane naming
+the ones it does. See [Configuration](/opencode-cockpit/configuration/).
 
 The keys *inside* the panel are not configurable. They are a closed set that only exists while the
 panel is open, and the panel gives them straight back when it closes.
@@ -53,7 +46,7 @@ The panel takes the keyboard while it is open, and gives it straight back when i
 | Key | Does |
 | --- | --- |
 | <kbd>&lt;leader&gt;v</kbd> | Open or close the review |
-| <kbd>&lt;leader&gt;r</kbd> | Move it: right pane, full screen |
+| <kbd>&lt;leader&gt;k</kbd> | Move it: right pane, full screen |
 | <kbd>j</kbd> <kbd>k</kbd> <kbd>↑</kbd> <kbd>↓</kbd> | Move |
 | <kbd>tab</kbd> | Switch pane |
 | <kbd>return</kbd> <kbd>l</kbd> <kbd>→</kbd> | Open a file, or fold a folder |
@@ -65,12 +58,18 @@ The panel takes the keyboard while it is open, and gives it straight back when i
 | <kbd>f</kbd> | Comment on the whole file |
 | <kbd>x</kbd> | Remove the thread you are on |
 | <kbd>space</kbd> <kbd>m</kbd> | Mark read, and go to the next unread |
+| <kbd>z</kbd> | Fold |
 | <kbd>s</kbd> | Submit the review |
 | <kbd>b</kbd> | Next source: uncommitted, or what this branch changes |
+| <kbd>B</kbd> | Pick the base the branch is compared with, remembered per branch |
+| <kbd>o</kbd> | On a changed image: open both versions in your system viewer |
 | <kbd>g</kbd> | Reload the diff |
 | <kbd>w</kbd> | Right pane or full screen |
 | <kbd>p</kbd> | Show what the panel is costing |
+| <kbd>?</kbd> | Every key the panel takes; <kbd>esc</kbd> back |
 | <kbd>q</kbd> <kbd>esc</kbd> | Close |
+
+<kbd>ctrl+p</kbd> works while the review is open: it steps aside for OpenCode's palette.
 
 Submit is <kbd>s</kbd> and source is <kbd>b</kbd>, which looks arbitrary until you try it the other
 way: they were <kbd>s</kbd> and <kbd>S</kbd> for an afternoon, two meanings on one letter separated

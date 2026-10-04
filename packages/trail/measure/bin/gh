@@ -1,0 +1,36 @@
+#!/bin/sh
+# A fake `gh` for Trail's measurement (measure/agent.ts): `gh pr create` prints a pull request's
+# link the way the real one does, and nothing is sent anywhere. It answers the few things a careful
+# agent asks first (auth, version, an existing PR) as the real one would — a model that meets an
+# obvious stub stops and says so. Every call is logged, so the measurement can tell it really ran.
+LOG="${TRAIL_MEASURE_LOG:-/dev/null}"
+PR="${TRAIL_MEASURE_PR:-https://github.com/acme/web/pull/417}"
+printf '%s\n' "gh $*" >> "$LOG"
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)
+case "$1 $2" in
+  "pr create")
+    : > "$LOG.created"
+    printf '\nCreating pull request for %s into main in acme/web\n\n' "$BRANCH"
+    printf '%s\n' "$PR"
+    ;;
+  "pr view" | "pr status")
+    if [ -f "$LOG.created" ]; then
+      printf '{"number":%s,"title":"%s","url":"%s","state":"OPEN"}\n' "${PR##*/}" "$(git log -1 --format=%s)" "$PR"
+    else
+      printf 'no pull requests found for branch "%s"\n' "$BRANCH" >&2
+      exit 1
+    fi
+    ;;
+  "pr list") [ -f "$LOG.created" ] && printf '%s\t%s\t%s\tOPEN\n' "${PR##*/}" "$(git log -1 --format=%s)" "$BRANCH" ;;
+  "auth status")
+    printf 'github.com\n  Logged in to github.com account acme-dev (keyring)\n  - Active account: true\n  - Git operations protocol: https\n'
+    ;;
+  "repo view") printf 'name:\tacme/web\ndescription:\tThe web app\n' ;;
+  "--version "*) printf 'gh version 2.62.0 (2024-11-14)\nhttps://github.com/cli/cli/releases/tag/v2.62.0\n' ;;
+  *)
+    case "$*" in
+      *--help* | help*) printf 'Work with GitHub pull requests.\n\nUSAGE\n  gh pr <command> [flags]\n\nGENERAL COMMANDS\n  create:     Create a pull request\n  list:       List pull requests in a repository\n  view:       View a pull request\n' ;;
+      *) printf 'unknown command "%s" for "gh"\n' "$1" >&2; exit 1 ;;
+    esac
+    ;;
+esac

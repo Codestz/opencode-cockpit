@@ -27,7 +27,7 @@ ends, and it shows up in the panel and the sidebar.
 | Key | What it does |
 | --- | --- |
 | <kbd>ctrl+x</kbd> <kbd>o</kbd> | Toggle the panel under the conversation |
-| <kbd>ctrl+x</kbd> <kbd>i</kbd> | Open the full console |
+| <kbd>ctrl+x</kbd> <kbd>j</kbd> | Open the full console |
 | <kbd>/</kbd> | Filter the log, in the console |
 | <kbd>?</kbd> | Details for the selected shell |
 
@@ -49,12 +49,13 @@ is about, it changes what needs changing, and `review_reply resolved=true` close
 only counts if the file actually changed. Your comments stay on the branch, so tomorrow's
 conversation still has them.
 
-## And the line under the prompt
+## And the table in the sidebar
 
-If you installed the bundle you already have the statusline: how full the context is, where the
-tokens went, what the session has cost, what has changed. It answers the questions you would
-otherwise ask by leaving — and every part of it is a segment you can reshape, recolour or write
-yourself.
+If you installed the bundle you already have the statusline, at the top of the sidebar: how full the
+context is, where the tokens went, a proxy's budget, what has changed. It answers the questions you
+would otherwise ask by leaving — and every part of it is a segment you can reshape, recolour or
+write yourself. Under it, Subagents, Shells and Trail each say `none yet` until there is something
+to show. `/cockpit-setup` asks you what you want there, and writes the config.
 
 ## What to try next
 

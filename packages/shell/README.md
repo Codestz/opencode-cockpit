@@ -114,7 +114,7 @@ Things to ask:
 | `/shells` | Every shell in view, plus "New shell": pick one to open its console |
 | `ctrl+x o` · `/shells-dock` | Toggle the shells panel under the chat |
 | `s` (in the console) | This conversation only, or the whole project |
-| `ctrl+x i` · `/shell` | Reopen the last shell's console |
+| `ctrl+x j` · `/shell` | Reopen the last shell's console |
 | `/shell-new` | Start a shell yourself |
 | `/shells-clear` | Remove finished shells |
 | `/shells-stop` | Stop the shells in view — this conversation, or the project |
@@ -167,26 +167,32 @@ both halves of the plugin — the agent's tools and the interface:
 ~/.config/opencode-cockpit/config.json   →   <project>/.cockpit.json   →   plugin-entry options
 ```
 
-Later sources win key by key, so a project can override one setting without restating the rest. An
-unreadable or invalid file is ignored rather than fatal: a typo should never stop shells from
-working. (`XDG_CONFIG_HOME` is honoured for the global path.)
+Shell's settings sit in the file's `shell` section. Later sources win key by key, so a project can
+override one setting without restating the rest. Comments and trailing commas are fine; an
+unreadable file is ignored rather than fatal — a typo should never stop shells from working.
+(`XDG_CONFIG_HOME` is honoured for the global path.)
 
-```json
+```jsonc
 {
-  "kinds": { "e2e": "playwright|cypress", "infra": "^(terraform|pulumi)\\b" },
-  "watch": {
-    "auto": false,
-    "presets": { "e2e": { "done": "\\d+ passed", "fail": "\\d+ failed", "ignoreCase": true } }
-  },
-  "defaults": { "logFile": true, "timeoutSeconds": 900 },
-  "notify": { "exit": true, "watch": true, "tailLines": 15 },
-  "guidance": true,
-  "listRunningShells": 15,
-  "ui": { "dockHeight": 16, "dockOpen": true, "historyMinutes": 60, "colors": true }
+  "shell": {
+    "kinds": { "e2e": "playwright|cypress", "infra": "^(terraform|pulumi)\\b" },
+    "watch": {
+      "auto": false,
+      "presets": { "e2e": { "done": "\\d+ passed", "fail": "\\d+ failed", "ignoreCase": true } }
+    },
+    "defaults": { "logFile": true, "timeoutSeconds": 900 },
+    "notify": { "exit": true, "watch": true, "tailLines": 15 },
+    "guidance": true,
+    "listRunningShells": 15,
+    "dockHeight": 16,
+    "dockOpen": true,
+    "hideFinishedAfterMinutes": 60,
+    "colors": true
+  }
 }
 ```
 
-| Section | Meaning |
+| Key | Meaning |
 |---|---|
 | `kinds` | Extra shell categories, or overrides, as name → regex matched against the command. Drives the badges in the sidebar, panel and `shell_list`, so you can group your own stack (`e2e`, `infra`, `worker`) instead of the built-ins. |
 | `watch.presets` | Your own watch rules, or replacements for built-ins, keyed by name. A rule is `{ done?, fail?, ok?, idleSeconds?, ignoreCase? }` — patterns are regular expressions matched against each output line. The agent can then ask for `watch: "e2e"`. |
@@ -196,27 +202,30 @@ working. (`XDG_CONFIG_HOME` is honoured for the global path.)
 | `notify` | What may interrupt the agent — `exit`, `watch`, and `tailLines` (output lines included in an exit message). |
 | `guidance` | The system-prompt paragraph that teaches the agent when to use shells. `false` saves ~120 tokens per request, at the cost of a model that uses shells less well. |
 | `listRunningShells` | How many running shells are listed in the system prompt each turn (~20 tokens each). `0` disables it; the agent can still call `shell_list`. |
-| `ui` | Interface only: `dockHeight`, `dockOpen` (set it and the panel always starts that way; leave it out and it starts as you last left it), `sidebarRows`, `historyMinutes`, `colors`, `defaultView` (`"screen"` or `"log"`), `keybinds`, `updateCheck`. |
+| Interface | `dockHeight` (14), `dockOpen` (set it and the panel always starts that way; leave it out and it starts as you last left it), `sidebarRows` (5), `hideWhenEmpty` (`false`: with no shells the block says `none yet` under its heading; `true` draws nothing), `hideFinishedAfterMinutes` (30: how long a finished shell stays in the folded views), `colors`, `defaultView` (`"screen"` or `"log"`), `keybinds`, `enabled`. |
 
-The same settings can go on the plugin entry instead, which is handy for one-offs and for machines
-where you'd rather keep everything in `tui.json`/`opencode.json`:
+Where the block sits is the top-level `"sidebar"` list's to say (`["status", "subagents", "shell",
+"trail", "trust"]` by default). Before 0.9 these keys sat at the file's root, with the interface's
+under `ui`; those places are no longer read — the Shells block shows a `!` row naming the new key
+(`ui.historyMinutes` is now `hideFinishedAfterMinutes`, `ui.updateCheck` is `updater.updateCheck`),
+and `/cockpit-setup` fixes it.
+
+The same keys can go on the plugin entry instead, which wins over both files — handy for one-offs:
 
 ```json
 {
   "plugin": [
     ["@opencode-cockpit/shell", {
-      "ui": { "dockHeight": 16 },
-      "keybinds": { "cockpit.shells.dock": "<leader>j", "cockpit.shells.console": "<leader>k" }
+      "dockHeight": 16,
+      "keybinds": { "cockpit.shells.console": "<leader>z" }
     }]
   ]
 }
 ```
 
-`ui` keys also work spelled flat at the top level (`{ "dockHeight": 16 }`), as they did before the
-config file existed. Using `opencode-cockpit` instead of the standalone package? Put the same
-object under `"shell"`: `["opencode-cockpit", { "shell": { "ui": { "dockHeight": 16 } } }]`.
-Interface settings must be reachable from `tui.json`, agent settings from `opencode.json` — which
-is exactly why the config file exists.
+Using `opencode-cockpit` instead of the standalone package? Put the same object under `"shell"`:
+`["opencode-cockpit", { "shell": { "dockHeight": 16 } }]`. The config file is still the better
+place: interface settings on an entry must be in `tui.json`, agent settings in `opencode.json`.
 
 | Environment variable | Default | Purpose |
 |---|---|---|

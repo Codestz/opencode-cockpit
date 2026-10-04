@@ -12,7 +12,7 @@
  * densest of the examples on purpose -- the bottom line is the only surface with real width.
  *
  *   {
- *     "statusline": {
+ *     "status": {
  *       "modules": ["<this file>"],
  *       "lines": [
  *         { "surface": "bottom", "separator": " │ ",

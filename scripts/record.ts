@@ -13,6 +13,7 @@ import { copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node
 import { dirname, join, resolve } from "node:path"
 import { SerializeAddon } from "@xterm/addon-serialize"
 import { Terminal } from "@xterm/headless"
+import { FEATURES } from "../packages/opencode/src/features.ts"
 
 export interface Step {
   /** Keys to send, exactly as the terminal would receive them (see KEYS). */
@@ -78,9 +79,9 @@ export const KEYS = {
   tab: "\t",
   ctrlP: "\x10",
   ctrlC: "\x03",
-  /** OpenCode's leader is ctrl+x; cockpit binds <leader>o and <leader>i. */
+  /** OpenCode's leader is ctrl+x; cockpit binds <leader>o and <leader>j. */
   dock: "\x18o",
-  console: "\x18i",
+  console: "\x18j",
   up: "\x1b[A",
   down: "\x1b[B",
   slash: "/",
@@ -88,10 +89,56 @@ export const KEYS = {
 
 const root = resolve(import.meta.dir, "..")
 
+/**
+ * This checkout, packed and installed under the take's own directory, as a user would get it.
+ *
+ * OpenCode 1 loads `packages/opencode` straight from the checkout. OpenCode 2 refuses it: each
+ * package has the workspace's OpenTUI and Solid beside it, a second copy next to the host's (see
+ * scripts/dev-install.ts). A packed install has none of them — and lives in the throwaway directory,
+ * never in `~/.cockpit-dev`. Needs `bun run build` first, as the smoke does.
+ */
+function packed(work: string): string {
+  const install = join(work, "install")
+  const tarballs = join(install, "tarballs")
+  mkdirSync(tarballs, { recursive: true })
+  const run = (cmd: string[], cwd: string) => {
+    const done = Bun.spawnSync(cmd, { cwd, stdout: "pipe", stderr: "pipe" })
+    if (done.exitCode !== 0) throw new Error(`$ ${cmd.join(" ")}\n${done.stdout}\n${done.stderr}`)
+  }
+  for (const dir of ["protocol", "daemon", "client", "opencode", ...FEATURES]) {
+    run(["bun", "pm", "pack", "--destination", tarballs], join(root, "packages", dir))
+  }
+  const names = [...new Bun.Glob("*.tgz").scanSync(tarballs)]
+  const tarball = (dir: string) => {
+    const pattern = dir === "opencode" ? /^opencode-cockpit-\d/ : new RegExp(`^opencode-cockpit-${dir}-\\d`)
+    return `file:./tarballs/${names.find((name) => pattern.test(name)) as string}`
+  }
+  const scoped = (dir: string) => (dir === "opencode" ? "opencode-cockpit" : `@opencode-cockpit/${dir}`)
+  writeFileSync(
+    join(install, "package.json"),
+    JSON.stringify({
+      name: "tape",
+      private: true,
+      dependencies: Object.fromEntries(["opencode", ...FEATURES].map((dir) => [scoped(dir), tarball(dir)])),
+      overrides: Object.fromEntries(
+        ["protocol", "daemon", "client"].map((dir) => [scoped(dir), tarball(dir)]),
+      ),
+    }),
+  )
+  run(["npm", "install", "--no-audit", "--no-fund", "--cache", join(work, "npm-cache")], install)
+  return join(install, "node_modules", "opencode-cockpit")
+}
+
 async function record(tape: Tape): Promise<string> {
   /** `OPENCODE=opencodeold bun scripts/record.ts …` records against another install, as the smoke does. */
   const opencode = Bun.which(process.env.OPENCODE ?? "opencode")
   if (!opencode) throw new Error("opencode binary not found; install OpenCode to record")
+  /** Which OpenCode this is decides where plugins are configured and how it is started, as in the smoke. */
+  const v2 = Bun.spawnSync([opencode, "--version"])
+    .stdout.toString()
+    .trim()
+    .replace(/^opencode\s+v?/, "")
+    .startsWith("2")
 
   const cols = tape.cols ?? 120
   const rows = tape.rows ?? 34
@@ -110,12 +157,14 @@ async function record(tape: Tape): Promise<string> {
   const realAuth = join(process.env.HOME ?? "", ".local/share/opencode/auth.json")
   if (existsSync(realAuth)) copyFileSync(realAuth, join(data, "auth.json"))
 
-  const plugin = tape.plugin ?? join(root, "packages", "opencode")
+  const plugin = tape.plugin ?? (v2 ? packed(work) : join(root, "packages", "opencode"))
+  /** v1 reads `plugin` from opencode.json and tui.json; v2 reads `plugins` from opencode.json and cli.json. */
+  const key = v2 ? "plugins" : "plugin"
   writeFileSync(
     join(config, "opencode.json"),
-    JSON.stringify({ plugin: [plugin], ...(tape.model ? { model: tape.model } : {}) }),
+    JSON.stringify({ [key]: [plugin], ...(tape.model ? { model: tape.model } : {}) }),
   )
-  writeFileSync(join(config, "tui.json"), JSON.stringify({ plugin: [plugin] }))
+  writeFileSync(join(config, v2 ? "cli.json" : "tui.json"), JSON.stringify({ [key]: [plugin] }))
   if (tape.config) writeFileSync(join(project, ".cockpit.json"), JSON.stringify(tape.config, null, 2))
   for (const [name, content] of Object.entries(tape.files ?? {})) {
     const file = join(project, name)
@@ -156,8 +205,14 @@ async function record(tape: Tape): Promise<string> {
   const mirror = new Terminal({ cols, rows, allowProposedApi: true })
   const serializer = new SerializeAddon()
   mirror.loadAddon(serializer)
+  /**
+   * One decoder for the whole stream: a chunk can end inside a character, and decoding each on its
+   * own turned a spinner's `⠋` or a `›` split across two of them into a pair of `�`.
+   */
+  const decoder = new TextDecoder("utf-8")
 
-  const proc = Bun.spawn([opencode], {
+  /** v2 would attach to the user's background service; a private server keeps the take to itself. */
+  const proc = Bun.spawn([opencode, ...(v2 ? ["--standalone"] : [])], {
     cwd: project,
     env: {
       ...process.env,
@@ -170,7 +225,8 @@ async function record(tape: Tape): Promise<string> {
       cols,
       rows,
       data(_t: unknown, chunk: Uint8Array) {
-        const text = Buffer.from(chunk).toString("utf8")
+        const text = decoder.decode(chunk, { stream: true })
+        if (!text) return
         mirror.write(text)
         if (!recording) return
         const at = ((Date.now() - started) / 1000).toFixed(3)
@@ -200,6 +256,8 @@ async function record(tape: Tape): Promise<string> {
 
   recording = false
   proc.kill("SIGKILL")
+  /** The shells' daemon outlives OpenCode by design; this one was the take's, and its path says so. */
+  Bun.spawnSync(["pkill", "-f", work])
   mirror.dispose()
 
   const header = JSON.stringify({

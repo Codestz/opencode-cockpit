@@ -49,6 +49,50 @@ export function sidebarCounts(list: readonly ShellInfo[]): string {
     .join(" · ")
 }
 
+export interface FoldInput<T> {
+  /** Every shell the block is about, in order. */
+  all: readonly T[]
+  /** The ones the folded view keeps — running, recent failures, the selection — in order. */
+  folded: readonly T[]
+  /** Expanded by a click on `+ N more`. */
+  showAll: boolean
+  /** Rows folded, and rows expanded. */
+  rows: number
+  expandedRows: number
+}
+
+export interface Fold<T> {
+  shown: T[]
+  /** Shells not shown: what `+ N more` counts. */
+  more: number
+  /**
+   * The row under the shells: `more` offers to unfold, `fewer` to fold back, `both` is expanded and
+   * still cut by the expanded limit. None when folding would hide nothing.
+   */
+  toggle?: "more" | "fewer" | "both"
+  /**
+   * Expanded, but the folded view would show every shell now: the expansion should reset itself. It
+   * outlived the shells it was for — expanded at six, down to one, the block still offered
+   * `− fewer` for a list nothing could fold.
+   */
+  stale: boolean
+}
+
+/**
+ * What the block shows, and whether it offers to fold or unfold. The toggle is there only while
+ * folding hides something; expanded with nothing left to hide, the expansion is stale.
+ */
+export function fold<T>(input: FoldInput<T>): Fold<T> {
+  const rows = Math.max(1, input.rows)
+  const folded = input.folded.slice(0, rows)
+  const folds = input.all.length > folded.length
+  const expanded = input.showAll && folds
+  const shown = expanded ? input.all.slice(0, Math.max(rows, input.expandedRows)) : folded
+  const more = input.all.length - shown.length
+  const toggle = !folds ? undefined : !expanded ? "more" : more > 0 ? "both" : "fewer"
+  return { shown, more, ...(toggle ? { toggle } : {}), stale: input.showAll && !folds }
+}
+
 /** Every part's text, in the order the row draws them. */
 export const sidebarRowText = (row: SidebarRow): string =>
   `${row.rule}${row.label}${row.title}${row.watch}${row.detail}`

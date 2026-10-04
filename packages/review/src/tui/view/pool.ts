@@ -42,7 +42,8 @@ const sameRow = (was: Row | undefined, now: Row): boolean => {
       before.bold !== after.bold ||
       before.italic !== after.italic ||
       before.faint !== after.faint ||
-      before.color !== after.color
+      before.color !== after.color ||
+      before.background !== after.background
     )
       return false
   }
@@ -208,23 +209,65 @@ const soften = (ink: RGBA, behind: RGBA): RGBA => {
   return out
 }
 
+/** A colour as packed `0xRRGGBB`, tolerant of both 0..1 and 0..255 channels. */
+export const packed = (colour: RGBA): number => {
+  const scale = Math.max(colour.r, colour.g, colour.b) > 1 ? 1 : 255
+  const channel = (value: number) => Math.max(0, Math.min(255, Math.round(value * scale)))
+  return (channel(colour.r) << 16) | (channel(colour.g) << 8) | channel(colour.b)
+}
+
+/**
+ * Packed colours as the host's own colour objects, made once each.
+ *
+ * A picture's cells arrive as numbers (the view is pure), and a screenshot repeats its colours
+ * heavily, so each is built once from the host's class — read off a theme colour, the way `soften`
+ * gets it, so nothing of OpenTUI is imported — and reused for every cell that shares it.
+ */
+const exact = new Map<number, RGBA>()
+let exactClass: unknown
+const EXACT = 8192
+
+const exactColour = (theme: TuiThemeCurrent, value: unknown): RGBA | undefined => {
+  if (typeof value !== "number") return value as RGBA | undefined
+  const Colour = theme.text.constructor as unknown as {
+    fromInts?: (r: number, g: number, b: number, a: number) => RGBA
+  }
+  if (Colour !== exactClass) {
+    exact.clear()
+    exactClass = Colour
+  }
+  const known = exact.get(value)
+  if (known) return known
+  if (typeof Colour.fromInts !== "function") return undefined
+  const made = Colour.fromInts((value >> 16) & 255, (value >> 8) & 255, value & 255, 255)
+  if (exact.size >= EXACT) exact.clear()
+  exact.set(value, made)
+  return made
+}
+
 /** One styled run becomes one chunk. An exact colour wins: a parser knows better than a tone does. */
 const chunk = (theme: TuiThemeCurrent, run: Row["runs"][number]): TextChunk => {
-  const fill = fillColour(theme, run.fill)
+  const background = run.background === undefined ? undefined : exactColour(theme, run.background)
+  const fill = background ?? fillColour(theme, run.fill)
   const base = run.tone === "inverse" ? inkOn(theme, fill) : toneColour(theme, run.tone)
-  /** Blend when there is a solid colour to blend toward; a see-through pane falls back to DIM. */
-  const behind = opaque(fill) ? fill : opaque(theme.backgroundPanel) ? theme.backgroundPanel : undefined
+  /**
+   * Blend when there is a solid colour to blend toward; a see-through pane falls back to DIM. A
+   * picture's background is its lower pixel, not a surface: both its pixels fade toward the pane.
+   */
+  const panel = opaque(theme.backgroundPanel) ? theme.backgroundPanel : undefined
+  const behind = background ? panel : opaque(fill) ? fill : panel
   const blend = run.faint && behind !== undefined
   const ink = blend && base ? soften(base, behind) : base
   const attributes = (run.bold ? BOLD : 0) | (run.italic ? ITALIC : 0) | (run.faint && !blend ? DIM : 0)
   // No ink reads on this block, so the block goes: the badge becomes its own colour, in words.
   if (run.tone === "inverse" && ink === undefined)
     return { __isChunk: true, text: run.text, fg: fill ?? theme.text, bg: undefined, attributes } as TextChunk
+  const colour = run.color === undefined ? undefined : exactColour(theme, run.color)
   return {
     __isChunk: true,
     text: run.text,
-    fg: run.color ? (blend ? soften(run.color as RGBA, behind as RGBA) : (run.color as RGBA)) : ink,
-    bg: fill,
+    fg: colour ? (blend ? soften(colour, behind as RGBA) : colour) : ink,
+    bg: background && blend ? soften(background, behind as RGBA) : fill,
     attributes,
   } as TextChunk
 }

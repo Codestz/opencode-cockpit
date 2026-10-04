@@ -33,6 +33,7 @@ its own with `review_open`, which appear in the panel beside yours.
 | key | |
 | --- | --- |
 | `ctrl+x v` | open, or close |
+| `ctrl+x k` | right pane or full screen, from anywhere |
 | `tab` | move between the file list and the diff |
 | `j` / `k` | next / previous — a file on the left; on the right a line, running on into the next file |
 | `enter` | on the left: jump to a file, or fold a folder. On the right: fold or unfold this file |
@@ -47,7 +48,13 @@ its own with `review_open`, which appear in the panel beside yours.
 | `B` | what the branch is compared against: its nearest parent, or one you pick |
 | `w` | half the window, or all of it |
 | `p` | what the panel is costing, in the footer |
-| `q` | close |
+| `o` | open an image or other binary in your system's viewer — both versions |
+| `?` | every key, in the panel |
+| `esc` / `q` | close |
+
+`ctrl+p` still opens OpenCode's command palette while the review is up: the review steps aside for
+it (on OpenCode 1 it comes back when the palette closes; on OpenCode 2 it closes, and the palette's
+"Open or close the changes" brings it back where you were).
 
 The mouse works too: click a file in the list to jump to it, click a heading to fold it, or its
 `+ note` / `[ ] viewed` buttons; the wheel scrolls whichever side it is over.
@@ -59,6 +66,24 @@ The mouse works too: click a file in the list to jump to it, click a heading to 
 | **uncommitted** | everything not committed, *including files git has never seen*. The default, because it is what you are looking at nine times in ten |
 | **branch** | everything this branch changes against its *nearest parent* — what its pull request would show. On `main ← feature ← X`, X is compared with `feature`, not `main`. `B` picks a different base, remembered per branch |
 
+## Images and other binaries
+
+A binary is never drawn as text — git's rule decides it (a NUL in the first 8000 bytes). Its card
+says what is true about it:
+
+```
+PNG 2880×1800 · 807 KB → 789 KB
+2.56% of pixels changed · 601×221 at 1900,300
+[o] Open Both
+```
+
+PNG, APNG, JPEG, GIF, WebP and BMP are named with their dimensions; anything else is
+`binary · 12.3 KB → 14.0 KB`. PNG and GIF are also decoded — in slices, off the draw path — for the
+pixel diff and a small before/after preview in half blocks, with what changed lit. A preview shows
+*where*; `o` opens both versions in your system's viewer for *what*. Binaries are read up to 32 MB
+(text stops at 400 KB) and decoded up to 4096×4096 pixels; past either, the card still names and sizes
+the file.
+
 ## Seeing it without OpenCode
 
 ```sh
@@ -66,7 +91,8 @@ bun packages/review/src/cli/preview.ts --fixture sprawl --width 200
 ```
 
 Draws the whole view against sample change sets — forty files, a three-thousand-line file, a created
-file, a deleted one — with no OpenCode running. This is where the design is made.
+file, a deleted one, every state of a changed image (`--fixture images`) — with no OpenCode running.
+`--keys` draws the keys screen. This is where the design is made.
 
 ## When the code moves
 
@@ -89,6 +115,25 @@ middle you may well start a new chat. That should no more lose your review than 
 
 Outside the project, because a review is not part of the work — the first time it turns up in
 someone's `git status` it becomes a thing to explain in a pull request.
+
+## Settings
+
+All optional, in the `review` section of `~/.config/opencode-cockpit/config.json` or a project's
+`.cockpit.json` — read by both halves:
+
+```json
+{ "review": { "variant": "full", "source": "branch" } }
+```
+
+| Setting | Default | |
+| --- | --- | --- |
+| `variant` | `right` | where it opens: `right` or `full` |
+| `source` | `worktree` | what it opens on: `worktree` (uncommitted) or `branch` |
+| `keybinds` | `{ "cockpit.review.open": "<leader>v", "cockpit.review.place": "<leader>k" }` | the two keys that work from anywhere |
+| `enabled` | `true` | `false` turns Review off, its agent tools and guidance too; so does `features.review: false` |
+
+A value Review does not know is the default and a `!` row in the pane naming the ones it does. Every
+bay's settings are on [Configuration](https://codestz.github.io/opencode-cockpit/configuration/).
 
 ## Notes
 

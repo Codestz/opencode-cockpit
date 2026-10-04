@@ -123,6 +123,13 @@ Subpaths, for bays:
 | `@opencode-cockpit/client/server` | `ServerHost`, `dualServer`, `composeParts` — the agent half, the same way |
 | `@opencode-cockpit/client/log` | `createLog`, `Log` — the shared `cockpit.log`; `COCKPIT_DEBUG=1` for detail |
 | `@opencode-cockpit/client/feature` | the duplicate-load guard on its own |
+| `@opencode-cockpit/client/settings` | `baySettings`, `loadSettings` — the one loader every bay reads `config.json` and `.cockpit.json` through, with its `!` notices |
+| `@opencode-cockpit/client/catalog` | every setting Cockpit reads, with its type and default, and each bay's default keys and commands |
+| `@opencode-cockpit/client/checks` | every notice the bays draw, for `cockpit_settings` and doctor |
+| `@opencode-cockpit/client/setup` | `/cockpit-setup`: the `cockpit_settings` and `cockpit_conventions` tools and the `cockpit-setup` skill (in `skills/`) |
+| `@opencode-cockpit/client/sidebar` | where a bay's block sits, from the top-level `sidebar` list |
+| `@opencode-cockpit/client/design`, `/elements` | the tones, glyphs, key rows and empty blocks every bay draws with |
+| `@opencode-cockpit/client/service` | OpenCode 2: whether its background service runs an older Cockpit than this window |
 
 ## Requirements
 
