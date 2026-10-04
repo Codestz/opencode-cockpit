@@ -13,8 +13,8 @@
  */
 
 import { appendFile, mkdir, open } from "node:fs/promises"
-import type { TrailPaths } from "./paths.ts"
-import { applyAll, type Event, emptyState, parseLines, type State, serialize } from "./store.ts"
+import type { TrailPaths } from "../core/paths.ts"
+import { applyAll, type Event, emptyState, parseLines, type State, serialize } from "../core/store.ts"
 
 export interface Journal {
   /** Events added since the last read, by anyone, in file order. `reset`: the file was replaced. */

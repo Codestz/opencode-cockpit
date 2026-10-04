@@ -137,7 +137,10 @@ The router refuses methods missing from the contract, and handler params are typ
 Files are grouped by role, not by type, and entry points stay thin:
 
 - `core/` — pure logic with no I/O and no JSX, imported by both halves (finding, classifying,
-  formatting).
+  formatting). It never touches the filesystem, git, the network or another process; the clock or an
+  environment variable is fine as a parameter's default, which a test passes instead.
+- `io/` — what a bay reads and writes outside itself: its files, git, processes it spawns. Both halves
+  use it; it may import `core/`, never the other way round.
 - `core/config.ts` — one loader for every setting: global file → project `.cockpit.json` → plugin
   options, merged section-wise. Both halves call `loadConfig()` at startup and read from the result;
   nothing else parses config, and a broken file resolves to `{}` instead of throwing.
