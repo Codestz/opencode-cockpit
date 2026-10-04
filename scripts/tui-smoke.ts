@@ -10,7 +10,7 @@
  * pack check cannot. Needs the `opencode` binary, so it stays out of CI.
  */
 
-import { mkdtempSync, rmSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { Terminal } from "@xterm/headless"
 import { FEATURES } from "../packages/opencode/src/features.ts"
@@ -207,13 +207,40 @@ createInterface({ input: process.stdin }).on("line", (line) => {
 })
 `
 
-try {
-  run(["bun", "run", "build"], root)
-  const tarballs = join(work, "tarballs")
-  /** The plumbing, then every bay — from the bundle's own list, so a new one cannot be left out. */
-  for (const dir of ["protocol", "daemon", "client", "opencode", ...FEATURES]) {
-    run(["bun", "pm", "pack", "--destination", tarballs], join(root, "packages", dir))
+/**
+ * Build and pack under a lock. `build` empties every `dist/` before it compiles, so a second run
+ * (v1 and v2 side by side, or a `dev:install`) packing at that moment shipped a bay without its
+ * files: OpenCode said "1 plugin failed" and Trust's commands were missing. A directory is the lock
+ * (`mkdir` is atomic); one older than ten minutes is left over from a killed run.
+ */
+const buildLock = join(root, "node_modules", ".cockpit-build.lock")
+async function withBuildLock(work: () => void): Promise<void> {
+  for (;;) {
+    try {
+      mkdirSync(buildLock)
+      break
+    } catch {
+      const age = Date.now() - (statSync(buildLock, { throwIfNoEntry: false })?.mtimeMs ?? Date.now())
+      if (age > 600_000) rmSync(buildLock, { recursive: true, force: true })
+      else await Bun.sleep(500)
+    }
   }
+  try {
+    work()
+  } finally {
+    rmSync(buildLock, { recursive: true, force: true })
+  }
+}
+
+try {
+  const tarballs = join(work, "tarballs")
+  await withBuildLock(() => {
+    run(["bun", "run", "build"], root)
+    /** The plumbing, then every bay — from the bundle's own list, so a new one cannot be left out. */
+    for (const dir of ["protocol", "daemon", "client", "opencode", ...FEATURES]) {
+      run(["bun", "pm", "pack", "--destination", tarballs], join(root, "packages", dir))
+    }
+  })
   const names = [...new Bun.Glob("*.tgz").scanSync(tarballs)]
   const file = (prefix: string) => `file:${join(tarballs, names.find((n) => n.startsWith(prefix)) as string)}`
   await Bun.write(
