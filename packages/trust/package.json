@@ -26,10 +26,6 @@
     "./tui": {
       "types": "./types/tui/index.d.ts",
       "default": "./dist/tui/index.js"
-    },
-    "./core": {
-      "types": "./types/core/index.d.ts",
-      "default": "./dist/core/index.js"
     }
   },
   "engines": {

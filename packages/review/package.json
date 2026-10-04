@@ -31,10 +31,6 @@
     "./tui": {
       "types": "./types/tui/index.d.ts",
       "default": "./dist/tui/index.js"
-    },
-    "./frame": {
-      "types": "./types/core/frame.d.ts",
-      "default": "./dist/core/frame.js"
     }
   },
   "engines": {

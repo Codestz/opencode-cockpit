@@ -39,10 +39,6 @@
     "./segment": {
       "types": "./types/core/authoring.d.ts",
       "default": "./dist/core/authoring.js"
-    },
-    "./fixtures": {
-      "types": "./types/core/fixtures.d.ts",
-      "default": "./dist/core/fixtures.js"
     }
   },
   "engines": {
