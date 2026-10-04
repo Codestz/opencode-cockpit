@@ -24,7 +24,7 @@ A whole line by name, built-ins only — nothing to install, nothing to write:
 | `detailed` | bottom | everything the built-ins know, for a wide window |
 
 ```
-Context
+Status
 ████████████████
 tokens 85.2k · 43%
 in     265 · 0%

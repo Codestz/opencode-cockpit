@@ -11,7 +11,7 @@ your conversation. Bay 02, new in 0.3.0.
 With no configuration at all, a table in the sidebar:
 
 ```
-Context
+Status
 ████████████████
 tokens 85.2k · 43%
 in     265 · 0%

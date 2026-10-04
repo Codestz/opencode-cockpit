@@ -68,7 +68,7 @@ With no configuration it is a table at the top of the sidebar — the window as 
 broken into named rows, a proxy's budget when one writes it, and the branch's diff:
 
 ```
-Context
+Status
 ████████████████
 tokens 85.2k · 43%
 in     265 · 0%

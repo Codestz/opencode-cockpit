@@ -205,7 +205,7 @@ describe("--debug", () => {
     const rows = draw({ status: { segments: ["title", "spend", "nope"] } }, { debug: true })
     expect(rows).toEqual([
       "  sidebar, 34 cols",
-      `  Context${" ".repeat(34 - "Context".length + 2)}✓title`,
+      `  Status${" ".repeat(34 - "Status".length + 2)}✓title`,
       "  ✗spend",
       "  ?nope",
     ])
@@ -219,7 +219,7 @@ describe("--debug", () => {
   test("off, a silent segment draws nothing at all", () => {
     expect(draw({ status: { segments: ["title", "spend", "nope"] } })).toEqual([
       "  sidebar, 34 cols",
-      "  Context",
+      "  Status",
     ])
   })
 })

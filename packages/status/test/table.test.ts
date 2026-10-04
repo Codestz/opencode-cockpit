@@ -67,7 +67,7 @@ describe("the sidebar preset", () => {
 
   test("a working session, no proxy: heading, bar, tokens by where they went, one hairline, the branch", () => {
     expect(table(ctx({ diff: { files: 3, additions: 42, deletions: 7 } }))).toEqual([
-      "Context",
+      "Status",
       "█".repeat(5) + "█".repeat(11),
       "tokens 80k · 40%",
       "in     24k · 30%",
@@ -119,8 +119,8 @@ describe("the sidebar preset", () => {
 
   test("before the first reply: the heading and what is uncommitted, and no hairline with nothing under it", () => {
     const fresh = ctx({ ...FIXTURES.fresh.ctx, width: 34, diff: { files: 5, additions: 312, deletions: 48 } })
-    expect(table(fresh)).toEqual(["Context", "─".repeat(14), "git    5f +312 -48"])
-    expect(table(ctx({ ...FIXTURES.fresh.ctx, width: 34 }))).toEqual(["Context"])
+    expect(table(fresh)).toEqual(["Status", "─".repeat(14), "git    5f +312 -48"])
+    expect(table(ctx({ ...FIXTURES.fresh.ctx, width: 34 }))).toEqual(["Status"])
   })
 
   test("every row fits a 24-column sidebar, a word given up before a figure", () => {
@@ -195,8 +195,8 @@ describe("the table's rows", () => {
     expect(text(draw("git", branched, { against: "branch" }))).toBe("git    2f +9 -1 vs dev")
   })
 
-  test("the heading says Context unless told otherwise", () => {
-    expect(draw("title", ctx())?.runs[0]).toMatchObject({ text: "Context", bold: true })
+  test("the heading says Status unless told otherwise", () => {
+    expect(draw("title", ctx())?.runs[0]).toMatchObject({ text: "Status", bold: true })
     expect(text(draw("title", ctx(), { text: "Window" }))).toBe("Window")
   })
 

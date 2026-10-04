@@ -52,7 +52,7 @@ export const SEGMENTS: SegmentDef[] = [
     name: "title",
     priority: 90,
     render(_ctx, config) {
-      return { runs: [{ text: str(config, "text") ?? "Context", tone: "text", bold: true }] }
+      return { runs: [{ text: str(config, "text") ?? "Status", tone: "text", bold: true }] }
     },
   },
   {

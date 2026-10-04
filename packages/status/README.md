@@ -23,7 +23,7 @@ OpenCode's own Context block says, better. `/status-setup` has the agent change 
 ## What it shows by default, and why
 
 ```
-Context
+Status
 ████████████████
 tokens 85.2k · 43%
 in     265 · 0%

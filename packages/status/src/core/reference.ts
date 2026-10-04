@@ -23,7 +23,7 @@ export const SEGMENT_ABOUT: Readonly<Record<string, string>> = {
   tokens:
     'the token total; `format` with `{total}`, `{input}`, `{output}`, `{cacheRead}`, `{cacheWrite}`; `style` `"row"` (the table\'s) or `"parts"`',
   cost: "what the session cost, hidden when nothing is priced (`showZero`, `currency`)",
-  title: 'the table\'s heading, "Context" (`text` to rename it)',
+  title: 'the table\'s heading, "Status" (`text` to rename it)',
   in: "table row: fresh prompt tokens, with their share",
   out: "table row: output and reasoning tokens, with their share",
   cache: "table row: tokens read from cache, with their share",

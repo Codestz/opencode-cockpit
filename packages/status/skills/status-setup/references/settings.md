@@ -83,7 +83,7 @@ segment also takes `prefix`, `suffix`, `priority` (higher survives a narrow line
 | `version` | the Cockpit version |
 | `text` | a fixed `value`: `{ "type": "text", "value": "hi" }` |
 | `command` | a shell command's output: `{ "type": "command", "name": "<one of commands>" }` (`row` for one line of many) |
-| `title` | the table's heading, "Context" (`text` to rename it) |
+| `title` | the table's heading, "Status" (`text` to rename it) |
 | `in` | table row: fresh prompt tokens, with their share |
 | `out` | table row: output and reasoning tokens, with their share |
 | `cache` | table row: tokens read from cache, with their share |
