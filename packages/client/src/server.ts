@@ -23,6 +23,9 @@ import {
 } from "@opencode-ai/plugin"
 import { cockpitVersion, createLog, type Log, silentLog } from "./log.ts"
 import { setupServer } from "./setup.ts"
+import { registerSurfaces, type Surface } from "./surfaces.ts"
+
+export { keyText, openText, type Surface, surfacesLine } from "./surfaces.ts"
 
 export interface ServerHost {
   readonly version: 1 | 2
@@ -114,6 +117,11 @@ export interface ServerParts {
   /** Added to the system prompt of each model request. The session is unknown on some v1 requests. */
   system?: (sessionID: string | undefined) => Promise<string[]>
   /**
+   * What this feature shows the user and where (`surfaces.ts`), for the one Cockpit-wide line said
+   * to the main agent — once per window, whichever features are loaded.
+   */
+  surfaces?: Surface[]
+  /**
    * Every tool call that completed, any tool's — built-ins, MCP, other plugins'. Read-only: it hears
    * what a tool answered and cannot change it. A throw is logged and never reaches the call.
    */
@@ -141,6 +149,7 @@ export function composeParts(parts: ServerParts[]): ServerParts {
       throw new Error(`command "/${command.name}" is registered by more than one cockpit feature`)
     commands.push(command)
   }
+  const surfaces = parts.flatMap((part) => part.surfaces ?? [])
   const skills = [
     ...new Map(parts.flatMap((part) => part.skills ?? []).map((skill) => [skill.dir, skill])).values(),
   ]
@@ -150,6 +159,7 @@ export function composeParts(parts: ServerParts[]): ServerParts {
     ...(Object.keys(tools).length > 0 ? { tools } : {}),
     ...(skills.length > 0 ? { skills } : {}),
     ...(commands.length > 0 ? { commands } : {}),
+    ...(surfaces.length > 0 ? { surfaces } : {}),
     ...(any("system")
       ? {
           system: async (sessionID: string | undefined) => {
@@ -660,6 +670,41 @@ export async function follow(
   }
 }
 
+/**
+ * The Cockpit-wide line (`surfaces.ts`) ahead of the entry's own guidance, when this entry is the one
+ * in the window that says it. Said to the main agent only — a subagent answers its caller, not the
+ * user — and to a request whose session is unknown, as the guidance is.
+ */
+function withSurfaces(host: ServerHost, parts: ServerParts): ServerParts {
+  if (!parts.surfaces?.length) return parts
+  const entry = registerSurfaces(host.scope, parts.surfaces)
+  /** Parentage never changes: asked once per session. */
+  const parented = new Map<string, boolean>()
+  const subagent = async (sessionID: string): Promise<boolean> => {
+    const known = parented.get(sessionID)
+    if (known !== undefined) return known
+    const session = await host.session.get(sessionID).catch(() => undefined)
+    if (!session) return false
+    const answer = Boolean(session.parentID)
+    parented.set(sessionID, answer)
+    return answer
+  }
+  const { system, dispose } = parts
+  return {
+    ...parts,
+    system: async (sessionID) => {
+      const own = (await system?.(sessionID)) ?? []
+      const line = entry.line()
+      if (!line || (sessionID && (await subagent(sessionID)))) return own
+      return [line, ...own]
+    },
+    dispose: async () => {
+      entry.release()
+      await dispose?.()
+    },
+  }
+}
+
 /** Starts a feature: what loaded and where first, so a feature that never answers still said it was loaded. */
 async function begin(
   id: string,
@@ -670,7 +715,7 @@ async function begin(
   host.log.info("start", { entry: id, opencode: host.version, cockpit: cockpitVersion() })
   try {
     /** `cockpit_settings`, the `cockpit-setup` skill and `/cockpit-setup`: the first entry here adds them. */
-    const parts = composeParts([await start(host, options), setupServer(host, id)])
+    const parts = withSurfaces(host, composeParts([await start(host, options), setupServer(host, id)]))
     const { toolAfter } = parts
     return {
       ...parts,
