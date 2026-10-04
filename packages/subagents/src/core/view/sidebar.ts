@@ -6,16 +6,17 @@
  * its width, and an entry's lines stay two however long its task or target is.
  *
  *   Subagents         2 running · 1 done
- *   ⠙ explore Map the auth flow
+ *   ⠙ expl… Map the auth flow
  *     └ grep "session"  9 calls · 51s
- *     ⠙ advisor Review the plan      ×6
+ *     ⠙ advi… Review the plan        ×6
  *       └ 2 running · thinking    3s
- *   ● general Update README  3 calls · 28s
+ *   ● gene… Update README          28s
  *
- * Every row names its agent, muted, before its title; when the row is short the agent shortens
- * first (`expl…`), then the title, and a finished row's numbers give up their calls before the name
- * gets too short to read. With nothing to list the block still says it exists: the heading and
- * `none yet` in the row the first entry will take (client/design `emptyBlock`).
+ * Every row names its agent, muted, before its title, in one column as wide as the longest agent
+ * shown (at most five cells, `expl…`), so every title at one depth starts in the same column. A
+ * finished row says only how long it ran; the calls are the pane's. With nothing to list the block
+ * still says it exists: the heading and `none yet` in the row the first entry will take
+ * (client/design `emptyBlock`).
  *
  * A finished entry is one row: there is nothing it is doing, and a second row saying `done` under
  * every one of seven finished subagents was what pushed the rest under `+ 3 more`. What is still
@@ -157,39 +158,39 @@ function doing(activity: Activity): Row {
   }
 }
 
-/** Cells an agent's name keeps once it has started to give way: `exp…`, `gen…`. */
-const AGENT_FLOOR = 4
+/** The agent column is never wider than this: `explore` is `expl…`, `build` stays whole. */
+export const AGENT_COLUMN = 5
+
+/** Title cells the agent column must leave; narrower than that, the block draws titles alone. */
+const TITLE_FLOOR = 6
 
 /**
- * Who it is, in at most `room` cells: the agent, muted, then the title. Every row names its agent the
- * same way — `general` too: hiding it to save width made "Write a long plan" and "explore Explore t…"
- * read as two different kinds of thing. The space comes from the agent first: it shortens to
- * `AGENT_FLOOR` before the title loses a letter, because the title is what tells two rows apart.
+ * The block's agent column: as wide as the longest agent shown, up to `AGENT_COLUMN` cells. One
+ * width for every row, so every title starts in the same column — each row shortening its own agent
+ * put one title at column 9 and the one under it at column 7. None (0) when `room`, a top-level
+ * row's, would leave the titles fewer than `TITLE_FLOOR` cells.
  */
-export function nameRuns(agent: string, title: string, room: number): Run[] {
-  const space = Math.max(0, room)
-  const whole = widthOf(agent) + 1 + widthOf(title)
-  if (whole <= space)
-    return [
-      { text: `${agent} `, tone: "muted" },
-      { text: title, tone: "text" },
-    ]
-  const floor = Math.min(widthOf(agent), AGENT_FLOOR)
-  const shortAgent = cut(agent, Math.max(floor, space - 1 - widthOf(title)))
-  const left = space - widthOf(shortAgent) - 1
-  /** Too narrow for both: the title alone, as the more telling of the two. */
-  if (left < 1) return [{ text: cut(title, space), tone: "text" }]
-  return [
-    { text: `${shortAgent} `, tone: "muted" },
-    { text: cut(title, left), tone: "text" },
-  ]
+export function agentColumn(agents: readonly string[], room: number): number {
+  const column = Math.min(AGENT_COLUMN, Math.max(0, ...agents.map((agent) => widthOf(agent))))
+  return room - column - 1 >= TITLE_FLOOR ? column : 0
 }
 
 /**
- * Columns a finished row keeps for its agent and title before its numbers give way: the agent at its
- * floor, and a title still worth reading.
+ * Who it is, in at most `room` cells: the agent, muted, in the block's `column` (cut with `…`, padded
+ * to it), then the title in what is left. Every row names its agent the same way — `general` too:
+ * hiding it to save width made "Write a long plan" and "explore Explore t…" read as two different
+ * kinds of thing. With no column, or no room after it, the title alone: it tells two rows apart.
  */
-const TITLE_ROOM = 16
+export function nameRuns(agent: string, title: string, room: number, column: number): Run[] {
+  const space = Math.max(0, room)
+  const left = space - column - 1
+  if (column <= 0 || left < 1) return [{ text: cut(title, space), tone: "text" }]
+  const name = cut(agent, column)
+  return [
+    { text: `${name}${" ".repeat(column - widthOf(name))} `, tone: "muted" },
+    { text: cut(title, left), tone: "text" },
+  ]
+}
 
 /**
  * Rows a settings notice may wrap to. Its last words are the fix (`run /cockpit-setup`), and at 30
@@ -275,6 +276,11 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
   )
   for (const entry of [...chosen]) for (let up = entry.parent; up; up = up.parent) chosen.add(up)
   const visible = placed.filter((entry) => chosen.has(entry))
+  /** One agent column for the block, from the agents it shows; a top-level row's room decides it. */
+  const column = agentColumn(
+    visible.map((entry) => entry.group.lead.agent),
+    width - 2,
+  )
 
   for (const { group } of visible) {
     const session = group.lead
@@ -301,25 +307,16 @@ export function sidebarLines(input: SidebarInput): SidebarLine[] {
     /** The row's left part: its name in whatever `right` (and the gap before it) leaves. */
     const named = (right: string): Row => [
       ...lead,
-      ...nameRuns(session.agent, title, width - leadWidth - (right ? widthOf(right) + 1 : 0)),
+      ...nameRuns(session.agent, title, width - leadWidth - (right ? widthOf(right) + 1 : 0), column),
     ]
 
     /**
-     * Finished, and nothing under it still working: one row, its numbers on the right and the name in
-     * what they leave. After more than one round its time is the last round's, so it says how many
-     * rounds. Only when the name would be left less than `TITLE_ROOM` do the numbers give way — the
-     * calls first, then the rounds, then the calls of the plain figure; the pane's header says all.
+     * Finished, and nothing under it still working: one row, how long it ran on the right and the
+     * name in what that leaves. Only the time: `5 calls · 16s` beside a running row's title cut it to
+     * twelve cells, and the calls and rounds are in the pane's header and the full screen.
      */
     if (state === "done" && !groupWorking(group)) {
-      const tail = count ? `  ${count}` : ""
-      const short = elapsed(since)
-      const ladder = [
-        ...(rounds > 1 ? [`${took} · ${rounds} rounds${tail}`, `${short} · ${rounds} rounds${tail}`] : []),
-        `${took}${tail}`,
-        `${short}${tail}`,
-      ]
-      const room = (text: string) => width - leadWidth - widthOf(text) - 1
-      const numbers = ladder.find((text) => room(text) >= TITLE_ROOM) ?? `${short}${tail}`
+      const numbers = `${elapsed(since)}${count ? `  ${count}` : ""}`
       lines.push({ id, row: spread(named(numbers), [{ text: numbers, tone: "muted" }], width) })
       continue
     }

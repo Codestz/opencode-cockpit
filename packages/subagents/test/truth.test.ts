@@ -142,14 +142,17 @@ describe("the tools say what the interface draws", () => {
     }
   })
 
-  test("the sidebar's row carries the same title, calls and duration", async () => {
+  test("the sidebar's row carries the same title and duration, and a working row its calls", async () => {
     const ui = applyAll(emptyModel(), states())
     const lines = sidebarLines({ nodes: subagentsOf(ui, "root"), width: 80, now: NOW, frame: 0, limit: 20 })
     const text = lines.map((line) => rowText(line.row)).join("\n")
     const answered = ui.sessions.get("a")
     if (!answered) throw new Error("a")
     expect(text).toContain(titleOf(answered))
-    expect(text).toContain(`1 call · ${elapsed(60_000)}`)
+    expect(lines.map((line) => rowText(line.row)).find((row) => row.includes(titleOf(answered)))).toMatch(
+      new RegExp(` ${elapsed(60_000)}\\s*$`),
+    )
+    expect(text).toContain(`1 call · ${elapsed(600_000)}`)
     expect(runPhrase(answered, NOW)).toBe(`done in ${elapsed(60_000)}`)
   })
 })
@@ -206,16 +209,15 @@ describe("a subagent continued the next day (two rounds, a day apart)", () => {
     for (const text of [header, list, read, waited]) expect(text).not.toContain("24h")
   })
 
-  test("the sidebar says the same time, and how many rounds while there is room", () => {
+  /** Finished, the sidebar says only how long it ran; the rounds are the pane header's (above). */
+  test("the sidebar says the same time: the last round's", () => {
     const row = (width: number) =>
       sidebarLines({ nodes, width, now: SAMPLE_NOW, frame: 0 })
         .map((line) => rowText(line.row))
         .find((text) => text.includes("Review"))
         ?.trimEnd()
-    expect(row(60)).toEndWith("17 calls · 4m00s · 2 rounds")
-    /** Narrower, the calls give way to the rounds, then the rounds to the name. */
-    expect(row(40)).toEndWith("● gen… Review the expo… 4m00s · 2 rounds")
-    expect(row(30)).toEndWith("● gen… Review the expor… 4m00s")
+    expect(row(60)).toMatch(/^● gene… Review the export query +4m00s$/)
+    expect(row(30)).toBe("● gene… Review the expo… 4m00s")
     for (const width of [30, 40, 60]) expect(row(width)).not.toContain("24h")
   })
 

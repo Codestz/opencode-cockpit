@@ -18,7 +18,7 @@ import {
 } from "../src/core/sample.ts"
 import { rowText, widthOf } from "../src/core/view/rows.ts"
 import { rowWidth } from "../src/core/view/screen.ts"
-import { nameRuns, type SidebarInput, sidebarLines } from "../src/core/view/sidebar.ts"
+import { agentColumn, nameRuns, type SidebarInput, sidebarLines } from "../src/core/view/sidebar.ts"
 
 /**
  * The sidebar's order and its nesting: working first, children under their parent, an advisor asked
@@ -57,7 +57,7 @@ describe("order", () => {
     ])
     const lines = text({ nodes: subagentsOf(m, LATE_ROOT), width: 40, now: SAMPLE_NOW, frame: 0 })
     expect(lines[2]).toContain("Document the middleware")
-    expect(lines[4]).toMatch(/^ {2}\S exp… Collect examples/)
+    expect(lines[4]).toMatch(/^ {2}\S expl… Collect examples/)
     expect(lines[6]).toContain("Fix the flaky refresh test")
   })
 
@@ -115,8 +115,8 @@ describe("an advisor asked again and again", () => {
     /** The newest one still at it is the one described, and the one a click opens. */
     expect(advisor?.lead.id).toBe("ses_advisor6")
     const lines = sidebarLines({ nodes, width: 40, now: SAMPLE_NOW, frame: 0 })
-    const row = lines.findIndex((line) => rowText(line.row).includes("advisor"))
-    expect(rowText(lines[row]?.row ?? []).trimEnd()).toMatch(/advisor Review the migration.* ×6$/)
+    const row = lines.findIndex((line) => rowText(line.row).includes("advi… "))
+    expect(rowText(lines[row]?.row ?? []).trimEnd()).toMatch(/advi… Review the migration.* ×6$/)
     expect(rowText(lines[row + 1]?.row ?? [])).toContain("└ 2 running · read")
     expect(lines[row]?.id).toBe("ses_advisor6")
     expect(lines[row + 1]?.id).toBe("ses_advisor6")
@@ -137,7 +137,7 @@ describe("an advisor asked again and again", () => {
     ])
     const lines = sidebarLines({ nodes: subagentsOf(done, "p"), width: 40, now: 8, frame: 0 })
     /** Finished: one row, how long the latest took, then the count. */
-    expect(rowText(lines[4]?.row ?? []).trimEnd()).toMatch(/● advisor Check +0s {2}×3$/)
+    expect(rowText(lines[4]?.row ?? []).trimEnd()).toMatch(/● advi… Check +0s {2}×3$/)
     expect(lines[4]?.id).toBe("v3")
   })
 
@@ -183,7 +183,7 @@ describe("finished nested subagents leave the sidebar", () => {
     frame: 0,
     ...(fadeAfter !== undefined ? { fadeAfter } : {}),
   })
-  const shows = (input: SidebarInput) => text(input).some((line) => line.includes("advisor Help"))
+  const shows = (input: SidebarInput) => text(input).some((line) => line.includes("advi… Help"))
 
   test("after the delay, not before", () => {
     expect(shows(at(10_000 + 29_999, 30_000))).toBe(true)
@@ -344,7 +344,9 @@ describe("everything ended (the screenshots)", () => {
   test("a finished subagent is one row; one you stopped keeps its row that says so", () => {
     const lines = text(input(60))
     expect(lines.some((line) => line.includes("└ done"))).toBe(false)
-    expect(lines.find((line) => line.includes("Prod DB forensics"))).toMatch(/94 calls · 13m23s$/)
+    expect(lines.find((line) => line.includes("Prod DB forensics"))).toMatch(
+      /Prod DB forensics COM-1736 +13m23s$/,
+    )
     const at = lines.findIndex((line) => line.includes("ContractDetails"))
     expect(lines[at + 1]).toMatch(/└ stopped +8 calls · 24s$/)
   })
@@ -365,7 +367,7 @@ describe("everything ended (the screenshots)", () => {
     const entries = lines.filter((line) => line.id && !rowText(line.row).includes("└"))
     expect(entries.length).toBeGreaterThan(0)
     for (const line of entries) {
-      const agent = line.row.find((run) => /^(general|orchestrator) $/.test(run.text))
+      const agent = line.row.find((run) => /^(gene|orch)… $/.test(run.text))
       expect(agent?.tone).toBe("muted")
       const at = line.row.indexOf(agent as (typeof line.row)[number])
       expect(line.row[at + 1]?.tone).toBe("text")
@@ -378,41 +380,74 @@ describe("names", () => {
   const rows = (width: number) =>
     sidebarLines({ nodes, width, now: SAMPLE_NOW, frame: 0 }).map((line) => rowText(line.row))
 
-  test("the agent shortens before the title does", () => {
-    expect(nameRuns("general", "Write a plan", 40).map((run) => run.text)).toEqual([
-      "general ",
+  test("the agent fills the block's column: cut with `…` past it, padded short of it", () => {
+    expect(nameRuns("general", "Write a plan", 40, 5).map((run) => run.text)).toEqual([
+      "gene… ",
       "Write a plan",
     ])
-    /** Short of room: the agent gives it up, down to its floor, and the title stays whole. */
-    expect(nameRuns("general", "Write a plan", 18).map((run) => run.text)).toEqual(["gene… ", "Write a plan"])
-    expect(nameRuns("general", "Write a plan", 17).map((run) => run.text)).toEqual(["gen… ", "Write a plan"])
-    /** Shorter still: the agent is at its floor, so now the title is cut. */
-    expect(nameRuns("general", "Write a plan", 12).map((run) => run.text)).toEqual(["gen… ", "Write …"])
-    /** An agent already shorter than the floor is never cut. */
-    expect(nameRuns("qa", "Write a plan", 10).map((run) => run.text)).toEqual(["qa ", "Write …"])
-    /** No room for both: the title, which tells two rows apart. */
-    expect(nameRuns("general", "Write a plan", 3).map((run) => run.text)).toEqual(["Wr…"])
+    expect(nameRuns("qa", "Write a plan", 40, 5).map((run) => run.text)).toEqual(["qa    ", "Write a plan"])
+    expect(nameRuns("build", "Write a plan", 40, 5).map((run) => run.text)).toEqual([
+      "build ",
+      "Write a plan",
+    ])
+    /** Short of room, the title is cut; the column never moves. */
+    expect(nameRuns("general", "Write a plan", 12, 5).map((run) => run.text)).toEqual(["gene… ", "Write…"])
+    /** No column, or no room after it: the title, which tells two rows apart. */
+    expect(nameRuns("general", "Write a plan", 40, 0).map((run) => run.text)).toEqual(["Write a plan"])
+    expect(nameRuns("general", "Write a plan", 3, 5).map((run) => run.text)).toEqual(["Wr…"])
     for (const room of [0, 1, 3, 6, 12, 16, 40])
-      expect(widthOf(rowText(nameRuns("security-reviewer", "Review the export", room)))).toBeLessThanOrEqual(
-        room,
-      )
+      expect(
+        widthOf(rowText(nameRuns("security-reviewer", "Review the export", room, 5))),
+      ).toBeLessThanOrEqual(room)
   })
 
-  test("the title takes what the right column leaves, and the numbers stay whole", () => {
+  test("the column is the longest agent shown, at most five cells, and none when titles would starve", () => {
+    expect(agentColumn(["qa", "plan"], 34)).toBe(4)
+    expect(agentColumn(["qa", "explore"], 34)).toBe(5)
+    expect(agentColumn(["explore"], 12)).toBe(5)
+    expect(agentColumn(["explore"], 11)).toBe(0)
+  })
+
+  /** Live at 36 columns, one title began at column 9 and the next at column 7. */
+  test("every top-level title starts in the same column, at every width", () => {
+    const fixtures = [
+      subagentsOf(applyAll(emptyModel(), namesSample()), NAMES_ROOT),
+      subagentsOf(applyAll(emptyModel(), finishedSample()), FINISHED_ROOT),
+      subagentsOf(applyAll(emptyModel(), advisorSample()), ADVISOR_ROOT),
+    ]
+    for (const fixtureNodes of fixtures) {
+      for (const width of [24, 30, 36, 50, 80]) {
+        const starts = sidebarLines({ nodes: fixtureNodes, width, now: SAMPLE_NOW, frame: 0 })
+          .filter((line) => line.id && !rowText(line.row).includes("└") && !rowText(line.row).startsWith(" "))
+          .map((line) => {
+            const at = line.row.findIndex((run) => run.tone === "text")
+            return widthOf(rowText(line.row.slice(0, at)))
+          })
+        expect(starts.length).toBeGreaterThan(1)
+        expect(new Set(starts).size).toBe(1)
+        expect(starts[0]).toBe(8)
+      }
+    }
+  })
+
+  test("a finished row says only how long it ran; the calls are the pane's", () => {
     for (const width of [24, 30, 36, 50]) {
       for (const row of rows(width)) expect(widthOf(row)).toBe(width)
       const plan = rows(width).find((row) => row.includes("Write"))
-      expect(plan).toMatch(/\d+m\d{2}s$/)
+      expect(plan).toMatch(/ 2m15s$/)
+      expect(plan).not.toContain("call")
     }
-    expect(rows(36).find((row) => row.includes("Write"))).toBe("● gen… Write a lon… 12 calls · 2m15s")
+    expect(rows(36).find((row) => row.includes("Write"))).toBe("● gene… Write a long plan for… 2m15s")
+    /** A running row keeps its calls, on its second row. */
+    expect(rows(36).join("\n")).toContain("4 calls · 4m50s")
   })
 
   test("a subagent with no title is named by its task's first words, never by nothing", () => {
     const bare = rows(50).find((row) => row.includes("Find every"))
-    expect(bare).toContain("general Find every caller of exportCsv")
+    expect(bare).toContain("gene… Find every caller of exportCsv")
     /** OpenCode's placeholder is no title either. */
     const auto = rows(80).find((row) => row.includes("Check the export"))
-    expect(auto).toContain("explore Check the export's tests for flakiness across the…")
+    expect(auto).toContain("expl… Check the export's tests for flakiness across the…")
     expect(rows(80).join("\n")).not.toContain("Child session")
   })
 })
