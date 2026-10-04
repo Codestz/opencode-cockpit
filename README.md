@@ -136,6 +136,8 @@ or changes outside the repository with `trail_add`, and Trail lists it in the si
 the ticket it was for, one click from the page. And the other way round: `/trail` across every
 conversation in the project says which one opened PR #33, and `g` goes back into it.
 
+![Trail at work: the agent opens a PR for COM-1736 and records it on its own, the sidebar groups it under the ticket, another conversation asks what was shipped, and g jumps back](media/trail.gif)
+
 ```
 Trail                                    9
 

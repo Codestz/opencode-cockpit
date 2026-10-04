@@ -309,10 +309,15 @@ export const bays = {
       foot: ["sidebar · /trail · /link", "trail_add · trail_list", "@opencode-cockpit/trail"],
       docs: "/trail/overview/",
       media: {
-        kind: "image" as const,
-        src: "/media/trail.png",
-        alt: "Trail in the sidebar — a conversation's PRs, tickets, pages and deploys grouped under the tickets they were for — and the /trail dialog with the same records, their systems, what was done and when",
-        caption: "bunx @opencode-cockpit/trail preview · the rows OpenCode draws, from a sample conversation",
+        kind: "casts" as const,
+        clips: [
+          {
+            cast: "trail",
+            label: "What a conversation shipped",
+            hint: "PR → recorded → asked from another conversation → g",
+            caption: "tapes/trail.ts · a real model turn — the prompt never mentions Trail",
+          },
+        ],
       },
     },
     {

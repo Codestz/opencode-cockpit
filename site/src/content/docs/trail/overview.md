@@ -20,7 +20,7 @@ server, a company CLI — and the agent always knows what it just did. So the ag
 and Cockpit keeps, orders and shows it. Trail has no GitHub or Jira client and stores no
 credentials.
 
-![Trail in the sidebar, grouped by the tickets the work was for, and the /trail dialog with the same records](/opencode-cockpit/media/trail.png)
+![The /trail dialog on All conversations: PR #42 under COM-1736, with the conversation that opened it](/opencode-cockpit/media/trail.png)
 
 ## How things get into it
 
