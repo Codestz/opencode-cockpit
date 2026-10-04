@@ -1,5 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 
+import { defaultKeys } from "@opencode-cockpit/client/catalog"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
 import { bindingLookup, dualTui, type Host } from "@opencode-cockpit/client/host"
 import { noticeText } from "@opencode-cockpit/client/settings"
@@ -26,14 +27,7 @@ import { createTrouble } from "./panel/trouble.ts"
 import { Overlay } from "./view/overlay.tsx"
 import { createRowPool, type RowPool } from "./view/pool.ts"
 
-/**
- * Global keys, leader-prefixed and few. `<leader>` is OpenCode's own prefix — `ctrl+x` by default.
- * Free on both OpenCodes (1.18.32's and 2.0.18's defaults; `r` is their redo) and in Cockpit.
- */
-const DEFAULT_KEYS = {
-  "cockpit.review.open": "<leader>v",
-  "cockpit.review.place": "<leader>k",
-}
+const DEFAULT_KEYS = defaultKeys("review")
 
 const REVIEW_PACKAGE = "@opencode-cockpit/review"
 

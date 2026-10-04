@@ -9,6 +9,7 @@
  * screen found, and the two surfaces drawn from the same `arrange` as `trail_list`.
  */
 
+import { defaultKeys } from "@opencode-cockpit/client/catalog"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
 import { bindingLookup, dualTui, type Host, type Layer } from "@opencode-cockpit/client/host"
 import type { BoxRenderable } from "@opentui/core"
@@ -30,10 +31,7 @@ import { Rows } from "./view/rows.tsx"
 
 const TRAIL_PACKAGE = "@opencode-cockpit/trail"
 
-/** `<leader>f`: free on both OpenCodes (1.18.32's and 2.0.18's defaults) and in Cockpit. */
-const DEFAULT_KEYS = {
-  "cockpit.trail.open": "<leader>f",
-}
+const DEFAULT_KEYS = defaultKeys("trail")
 
 /** How often the route is looked at; the trail file is read every few of these. */
 const TICK_MS = 1_000

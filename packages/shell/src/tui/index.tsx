@@ -1,6 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
+import { defaultKeys } from "@opencode-cockpit/client/catalog"
 import { bindingLookup, dualTui, type Host, onPaste } from "@opencode-cockpit/client/host"
 import { noticeText } from "@opencode-cockpit/client/settings"
 import type { BoxRenderable } from "@opentui/core"
@@ -22,11 +23,7 @@ import { createShellStore } from "./state/store.ts"
 import { Overlay } from "./view/overlay.tsx"
 import { createRowPool, type RowPool } from "./view/pool.ts"
 
-/** Free on both OpenCodes (1.18.32's and 2.0.18's defaults; `i` shows image attachments on 2) and in Cockpit. */
-const DEFAULT_KEYS = {
-  "cockpit.shells.dock": "<leader>o",
-  "cockpit.shells.console": "<leader>j",
-}
+const DEFAULT_KEYS = defaultKeys("shell")
 
 /** Shell's settings: the `shell` section of the config files, then the plugin entry (core/config.ts). */
 export type ShellTuiOptions = ShellConfig

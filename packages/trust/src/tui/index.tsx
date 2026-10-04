@@ -9,6 +9,7 @@
  * ledger file read and appended, and the two surfaces — the sidebar block and the ledger dialog.
  */
 
+import { defaultKeys } from "@opencode-cockpit/client/catalog"
 import { warnRows } from "@opencode-cockpit/client/design"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
 import { bindingLookup, dualTui, type Host, type Layer } from "@opencode-cockpit/client/host"
@@ -43,10 +44,7 @@ import { Rows } from "./view/rows.tsx"
 
 const TRUST_PACKAGE = "@opencode-cockpit/trust"
 
-/** `<leader>p`, for permissions: free on both OpenCodes (1.18.32's and 2.0.18's defaults) and in Cockpit. */
-const DEFAULT_KEYS = {
-  "cockpit.trust.ledger": "<leader>p",
-}
+const DEFAULT_KEYS = defaultKeys("trust")
 
 export type TrustTuiOptions = TrustConfig
 

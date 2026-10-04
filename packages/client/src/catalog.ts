@@ -64,14 +64,23 @@ const SHARED_KEYS: Readonly<Record<Bay, readonly (keyof SharedSettings)[]>> = {
   updater: ["enabled"],
 }
 
-/** The keys each bay's commands take, by default. */
+/**
+ * The keys each bay's commands take, by default — each bay's interface binds exactly these
+ * (`defaultKeys`). Leader-prefixed and few; `<leader>` is OpenCode's own prefix, `ctrl+x` by default.
+ * Every one is free on both OpenCodes (1.18.32's and 2.0.18's defaults) and in Cockpit: on 2 `w`
+ * closes a tab and `i` shows image attachments, and `r` is redo on both.
+ */
 export const DEFAULT_KEYS: Readonly<Partial<Record<Bay, Readonly<Record<string, string>>>>> = {
   subagents: { "cockpit.subagents.open": "<leader>d" },
   shell: { "cockpit.shells.dock": "<leader>o", "cockpit.shells.console": "<leader>j" },
   trail: { "cockpit.trail.open": "<leader>f" },
+  /** `p`, for permissions. */
   trust: { "cockpit.trust.ledger": "<leader>p" },
   review: { "cockpit.review.open": "<leader>v", "cockpit.review.place": "<leader>k" },
 }
+
+/** A bay's default keys, by command: none for a bay without commands. */
+export const defaultKeys = (bay: Bay): Readonly<Record<string, string>> => DEFAULT_KEYS[bay] ?? {}
 
 /** One thing a person can do with a bay: its command's key (from `DEFAULT_KEYS` and `keybinds`) and slash name. */
 export interface BayCommand {

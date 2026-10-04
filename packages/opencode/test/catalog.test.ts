@@ -55,19 +55,19 @@ describe("the catalog agrees with every bay's defaults", () => {
  */
 const OPENCODE_LEADER = new Set("abceghilmnqrstuwxy".split(""))
 
-/** A bay's interface `DEFAULT_KEYS`, read from its source: the keys it actually binds. */
-function boundKeys(bay: string): Record<string, string> {
-  const source = readFileSync(join(import.meta.dir, "..", "..", bay, "src", "tui", "index.tsx"), "utf8")
-  const block = source.match(/const DEFAULT_KEYS = \{([^}]*)\}/)?.[1] ?? ""
-  return Object.fromEntries([...block.matchAll(/"([^"]+)":\s*"([^"]+)"/g)].map((m) => [m[1], m[2]]))
-}
+/** A bay's interface entry, as source. */
+const tuiSource = (bay: string) =>
+  readFileSync(join(import.meta.dir, "..", "..", bay, "src", "tui", "index.tsx"), "utf8")
 
 describe("default keys", () => {
   const bays = Object.keys(DEFAULT_KEYS) as (keyof typeof DEFAULT_KEYS)[]
 
-  test("each bay binds the catalog's defaults", () => {
-    for (const bay of bays)
-      expect({ bay, keys: boundKeys(bay) }).toEqual({ bay, keys: { ...DEFAULT_KEYS[bay] } })
+  test("each bay binds the catalog's defaults, and keeps no copy of its own", () => {
+    for (const bay of bays) {
+      const source = tuiSource(bay)
+      expect({ bay, reads: source.includes(`defaultKeys("${bay}")`) }).toEqual({ bay, reads: true })
+      expect({ bay, copy: /const DEFAULT_KEYS = \{/.test(source) }).toEqual({ bay, copy: false })
+    }
   })
 
   test("every Cockpit default is its own key, and none is one of OpenCode's", () => {
