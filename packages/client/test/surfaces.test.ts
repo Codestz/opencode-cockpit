@@ -9,14 +9,14 @@ import { keyText, openText, registerSurfaces, surfacesLine } from "../src/surfac
  */
 
 const shells = { what: "your background shells", open: "ctrl+x o" }
-const subagents = { what: "subagents", open: "ctrl+x w" }
+const subagents = { what: "subagents", open: "ctrl+x d" }
 const trail = { what: "this conversation's trail", open: "ctrl+x f" }
 const review = { what: "review threads", where: "Review", open: "ctrl+x v" }
 
 describe("the line", () => {
   test("names the sidebar's bays together, then each other place", () => {
     expect(surfacesLine([shells, review, subagents, trail])).toBe(
-      "The user sees your background shells (ctrl+x o), subagents (ctrl+x w) and this conversation's trail (ctrl+x f) in the sidebar, and review threads in Review (ctrl+x v): point them there instead of pasting those lists.",
+      "The user sees your background shells (ctrl+x o), subagents (ctrl+x d) and this conversation's trail (ctrl+x f) in the sidebar, and review threads in Review (ctrl+x v): point them there instead of pasting those lists.",
     )
   })
 

@@ -46,7 +46,7 @@ The sidebar reads status, subagents, shells, trail, top to bottom — `"sidebar"
 
 ## The pane
 
-Click a subagent — or press `ctrl+x w`, or run `/subagents` for the one working now — and its run
+Click a subagent — or press `ctrl+x d`, or run `/subagents` for the one working now — and its run
 opens in a pane on the right: half the window, or all of it with `w`. A click outside closes it.
 
 Under its name: the model, whether it runs in the background, who launched it, and its calls, steps
@@ -170,7 +170,7 @@ In the `subagents` section of `~/.config/opencode-cockpit/config.json`, or a pro
 | `hideWhenEmpty` | `false` | With no subagents the block says `none yet` under its heading; `true` draws nothing |
 | `hideFinishedAfterMinutes` | unset | Minutes a finished subagent stays in the sidebar; unset keeps it for the conversation |
 | `hideNestedAfterSeconds` | `30` | Seconds a finished *nested* subagent — one a subagent launched — stays in the sidebar; a negative number keeps them |
-| `keybinds` | `{ "cockpit.subagents.open": "<leader>w" }` | The key that opens the one working now |
+| `keybinds` | `{ "cockpit.subagents.open": "<leader>d" }` | The key that opens the one working now |
 | `guidance` | `true` | Tell the main agent about background subagents and follow-ups (agent side) |
 | `enabled` | `true` | `false` switches both halves off; so does `features.subagents: false` |
 

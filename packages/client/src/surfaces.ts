@@ -34,7 +34,7 @@ const named = (surface: Surface) => (surface.open ? `${surface.what} (${surface.
 /**
  * The line, or nothing when no bay shows anything:
  *
- *   The user sees your background shells (ctrl+x o) and subagents (ctrl+x w) in the sidebar, and
+ *   The user sees your background shells (ctrl+x o) and subagents (ctrl+x d) in the sidebar, and
  *   review threads in Review (ctrl+x v): point them there instead of pasting those lists.
  */
 export function surfacesLine(surfaces: readonly Surface[]): string | undefined {

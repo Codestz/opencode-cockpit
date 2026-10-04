@@ -268,7 +268,7 @@ export const bays = {
         "Stop one, or move a blocking one to the background",
         "The same on OpenCode 1 and 2",
       ],
-      foot: ["sidebar + pane", "ctrl+x w · /subagents", "@opencode-cockpit/subagents"],
+      foot: ["sidebar + pane", "ctrl+x d · /subagents", "@opencode-cockpit/subagents"],
       docs: "/subagents/overview/",
       media: {
         kind: "casts" as const,

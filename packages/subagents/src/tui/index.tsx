@@ -25,8 +25,9 @@ import { SidebarBlock } from "./view/sidebar.tsx"
 
 const SUBAGENTS_PACKAGE = "@opencode-cockpit/subagents"
 
+/** `<leader>d`: free on both OpenCodes (1.18.32's and 2.0.18's defaults; `w` closes a tab on 2) and in Cockpit. */
 const DEFAULT_KEYS = {
-  "cockpit.subagents.open": "<leader>w",
+  "cockpit.subagents.open": "<leader>d",
 }
 
 /** The `subagents` section of the config files, then the plugin entry's options (core/config.ts). */

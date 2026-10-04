@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { bayKeys, OWN_KEYS } from "@opencode-cockpit/client/catalog"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
+import { bayKeys, DEFAULT_KEYS, OWN_KEYS } from "@opencode-cockpit/client/catalog"
 import { DEFAULTS as REVIEW } from "../../review/src/core/config.ts"
 import { DEFAULTS as SHELL } from "../../shell/src/core/config.ts"
 import { KINDS as STATUS } from "../../status/src/core/config.ts"
@@ -43,5 +45,38 @@ describe("the catalog agrees with every bay's defaults", () => {
     expect(OWN_KEYS.status.map((info) => info.key).sort()).toEqual(Object.keys(STATUS).sort())
     const own = Object.fromEntries(OWN_KEYS.status.map((info) => [info.key, info.default]))
     expect({ icons: own.icons, debug: own.debug }).toEqual({ icons: STATUS.icons, debug: STATUS.debug })
+  })
+})
+
+/**
+ * OpenCode's own `<leader>` letters, as 1.18.32 and 2.0.18 bind them by default — measured from both
+ * binaries. A Cockpit default on one of these takes the key from OpenCode (2's `w` closes the tab,
+ * `i` shows image attachments; `r` is redo on both), so none may be one.
+ */
+const OPENCODE_LEADER = new Set("abceghilmnqrstuwxy".split(""))
+
+/** A bay's interface `DEFAULT_KEYS`, read from its source: the keys it actually binds. */
+function boundKeys(bay: string): Record<string, string> {
+  const source = readFileSync(join(import.meta.dir, "..", "..", bay, "src", "tui", "index.tsx"), "utf8")
+  const block = source.match(/const DEFAULT_KEYS = \{([^}]*)\}/)?.[1] ?? ""
+  return Object.fromEntries([...block.matchAll(/"([^"]+)":\s*"([^"]+)"/g)].map((m) => [m[1], m[2]]))
+}
+
+describe("default keys", () => {
+  const bays = Object.keys(DEFAULT_KEYS) as (keyof typeof DEFAULT_KEYS)[]
+
+  test("each bay binds the catalog's defaults", () => {
+    for (const bay of bays)
+      expect({ bay, keys: boundKeys(bay) }).toEqual({ bay, keys: { ...DEFAULT_KEYS[bay] } })
+  })
+
+  test("every Cockpit default is its own key, and none is one of OpenCode's", () => {
+    const keys = bays.flatMap((bay) => Object.values(DEFAULT_KEYS[bay] ?? {}))
+    expect(new Set(keys).size).toBe(keys.length)
+    for (const key of keys) {
+      const letter = key.match(/^<leader>([a-z])$/)?.[1]
+      expect({ key, leaderLetter: letter !== undefined }).toEqual({ key, leaderLetter: true })
+      expect({ key, opencodes: OPENCODE_LEADER.has(letter as string) }).toEqual({ key, opencodes: false })
+    }
   })
 })

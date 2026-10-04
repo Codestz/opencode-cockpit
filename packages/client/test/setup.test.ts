@@ -309,7 +309,7 @@ describe("tune", () => {
     const text = tuneText(r, facts({}))
     expect(text).toContain("- shell — background shells")
     expect(text).toContain("`<leader>d` `/shells-dock` show or hide the shells panel")
-    expect(text).toContain("`<leader>i` `/shell` open the console")
+    expect(text).toContain("`<leader>j` `/shell` open the console")
     expect(text).toContain("`<leader>f` `/trail`")
     const off = report({ [GLOBAL]: { features: { trail: false } } }).report
     expect(tuneText(off, facts({}))).not.toContain("- trail —")

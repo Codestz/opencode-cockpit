@@ -114,7 +114,7 @@ Things to ask:
 | `/shells` | Every shell in view, plus "New shell": pick one to open its console |
 | `ctrl+x o` · `/shells-dock` | Toggle the shells panel under the chat |
 | `s` (in the console) | This conversation only, or the whole project |
-| `ctrl+x i` · `/shell` | Reopen the last shell's console |
+| `ctrl+x j` · `/shell` | Reopen the last shell's console |
 | `/shell-new` | Start a shell yourself |
 | `/shells-clear` | Remove finished shells |
 | `/shells-stop` | Stop the shells in view — this conversation, or the project |
@@ -217,7 +217,7 @@ The same keys can go on the plugin entry instead, which wins over both files —
   "plugin": [
     ["@opencode-cockpit/shell", {
       "dockHeight": 16,
-      "keybinds": { "cockpit.shells.dock": "<leader>j", "cockpit.shells.console": "<leader>k" }
+      "keybinds": { "cockpit.shells.console": "<leader>z" }
     }]
   ]
 }

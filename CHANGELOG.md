@@ -95,6 +95,12 @@ All notable changes to this project are documented here. The format follows
   brackets.
 
 ### Changed
+- **New default keys, the same on OpenCode 1 and 2: Subagents `ctrl+x d` (was `w`), the shell
+  console `ctrl+x j` (was `i`), Review's placement `ctrl+x k` (was `r`).** The old ones were OpenCode's
+  own — on OpenCode 2 `ctrl+x w` closes the tab and `ctrl+x i` shows image attachments, and
+  `ctrl+x r` is redo on both. A test now holds every Cockpit default clear of OpenCode's. To keep
+  the old keys, set them in the bay's `keybinds`, e.g.
+  `"subagents": { "keybinds": { "cockpit.subagents.open": "<leader>w" } }`.
 - **The agent knows where you see its work.** One line per window, written from the bays you have
   on and your keys: shells, subagents and this conversation's trail in the sidebar, review threads in
   Review — so it points you there instead of pasting the lists.

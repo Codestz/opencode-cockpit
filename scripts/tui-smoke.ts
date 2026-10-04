@@ -370,7 +370,7 @@ try {
    * The console, which was never opened here — so a crash on open was never caught here either.
    * Pressing `?` walks both halves of the key row: the keys that act, and the rest in the panel.
    */
-  await type("\x18i", 3000) // ctrl+x i
+  await type("\x18j", 3000) // ctrl+x j
   const consoleScreen = await screen()
   await type("?", 1500)
   const consoleDetails = await screen()
@@ -380,7 +380,7 @@ try {
    * Full screen, which neither version's run opened before — so on OpenCode 2 it could draw nothing
    * and still pass. `w` swaps the dialog for it and is remembered, so it is swapped back before leaving.
    */
-  await type("\x18i", 3000)
+  await type("\x18j", 3000)
   await type("w", 2500)
   const fullScreen = await screen()
   await type("w", 1500)

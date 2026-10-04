@@ -78,9 +78,9 @@ export const KEYS = {
   tab: "\t",
   ctrlP: "\x10",
   ctrlC: "\x03",
-  /** OpenCode's leader is ctrl+x; cockpit binds <leader>o and <leader>i. */
+  /** OpenCode's leader is ctrl+x; cockpit binds <leader>o and <leader>j. */
   dock: "\x18o",
-  console: "\x18i",
+  console: "\x18j",
   up: "\x1b[A",
   down: "\x1b[B",
   slash: "/",

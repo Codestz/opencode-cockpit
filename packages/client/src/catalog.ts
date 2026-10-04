@@ -66,11 +66,11 @@ const SHARED_KEYS: Readonly<Record<Bay, readonly (keyof SharedSettings)[]>> = {
 
 /** The keys each bay's commands take, by default. */
 export const DEFAULT_KEYS: Readonly<Partial<Record<Bay, Readonly<Record<string, string>>>>> = {
-  subagents: { "cockpit.subagents.open": "<leader>w" },
-  shell: { "cockpit.shells.dock": "<leader>o", "cockpit.shells.console": "<leader>i" },
+  subagents: { "cockpit.subagents.open": "<leader>d" },
+  shell: { "cockpit.shells.dock": "<leader>o", "cockpit.shells.console": "<leader>j" },
   trail: { "cockpit.trail.open": "<leader>f" },
   trust: { "cockpit.trust.ledger": "<leader>p" },
-  review: { "cockpit.review.open": "<leader>v", "cockpit.review.place": "<leader>r" },
+  review: { "cockpit.review.open": "<leader>v", "cockpit.review.place": "<leader>k" },
 }
 
 /** One thing a person can do with a bay: its command's key (from `DEFAULT_KEYS` and `keybinds`) and slash name. */

@@ -57,7 +57,7 @@ Settings are read when OpenCode starts: a change applies after a restart.
 | `sidebar` | boolean | `true` | draw the bay's block in the sidebar. Only the block: with `false` the bay still runs, its commands and tools still work |
 | `sidebarRows` | number | `6` | rows the block lists before the rest fold into `+ N more` |
 | `hideWhenEmpty` | boolean | `false` | `true`: no block at all while there is nothing to list. `false`: the heading and `none yet`, so you can see the bay is there |
-| `keybinds` | object | `cockpit.subagents.open`: `<leader>w` | keys for its commands, `{ "<command>": "<key>" }` |
+| `keybinds` | object | `cockpit.subagents.open`: `<leader>d` | keys for its commands, `{ "<command>": "<key>" }` |
 | `hideFinishedAfterMinutes` | number | unset: kept for the conversation | minutes a finished subagent stays in the sidebar (still reachable from `/subagents`) |
 | `hideNestedAfterSeconds` | number | `30` | seconds a finished nested subagent stays in the sidebar; negative keeps them |
 | `guidance` | boolean | `true` | tell the agent how to follow, wait on and read its subagents (system prompt) |
@@ -70,7 +70,7 @@ Settings are read when OpenCode starts: a change applies after a restart.
 | `sidebar` | boolean | `true` | draw the bay's block in the sidebar. Only the block: with `false` the bay still runs, its commands and tools still work |
 | `sidebarRows` | number | `5` | rows the block lists before the rest fold into `+ N more` |
 | `hideWhenEmpty` | boolean | `false` | `true`: no block at all while there is nothing to list. `false`: the heading and `none yet`, so you can see the bay is there |
-| `keybinds` | object | `cockpit.shells.dock`: `<leader>o`, `cockpit.shells.console`: `<leader>i` | keys for its commands, `{ "<command>": "<key>" }` |
+| `keybinds` | object | `cockpit.shells.dock`: `<leader>o`, `cockpit.shells.console`: `<leader>j` | keys for its commands, `{ "<command>": "<key>" }` |
 | `hideFinishedAfterMinutes` | number | `30` | minutes a finished shell stays in the folded views |
 | `dockHeight` | number | `14` | rows of the shells panel under the chat |
 | `dockOpen` | boolean | as you last left it | the panel starts open |
@@ -111,7 +111,7 @@ Settings are read when OpenCode starts: a change applies after a restart.
 | Key | Type | Default | What it does |
 | --- | --- | --- | --- |
 | `enabled` | boolean | `true` | the bay runs at all, both halves. `false` turns it off entirely: no block, no commands, no tools |
-| `keybinds` | object | `cockpit.review.open`: `<leader>v`, `cockpit.review.place`: `<leader>r` | keys for its commands, `{ "<command>": "<key>" }` |
+| `keybinds` | object | `cockpit.review.open`: `<leader>v`, `cockpit.review.place`: `<leader>k` | keys for its commands, `{ "<command>": "<key>" }` |
 | `variant` | "right" \| "full" | `"right"` | where the pane opens |
 | `source` | "worktree" \| "branch" | `"worktree"` | what it reviews on open: uncommitted work, or the whole branch |
 

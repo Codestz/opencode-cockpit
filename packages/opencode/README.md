@@ -95,7 +95,7 @@ keeping line numbers and highlighting matches — and output keeps the colours t
 | Key / command | Does |
 |---|---|
 | `ctrl+x o` · `/shells` | Toggle the shells panel under the chat |
-| `ctrl+x i` · `/shell` | Open the shell console |
+| `ctrl+x j` · `/shell` | Open the shell console |
 | `/shell-new` | Start a shell yourself |
 | `/shells-clear` | Remove finished shells |
 | `/plugins-update` | Every plugin you have installed: what runs, what is published, and an update checked against disk |

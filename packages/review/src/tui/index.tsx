@@ -26,10 +26,13 @@ import { createTrouble } from "./panel/trouble.ts"
 import { Overlay } from "./view/overlay.tsx"
 import { createRowPool, type RowPool } from "./view/pool.ts"
 
-/** Global keys, leader-prefixed and few. `<leader>` is OpenCode's own prefix — `ctrl+x` by default. */
+/**
+ * Global keys, leader-prefixed and few. `<leader>` is OpenCode's own prefix — `ctrl+x` by default.
+ * Free on both OpenCodes (1.18.32's and 2.0.18's defaults; `r` is their redo) and in Cockpit.
+ */
 const DEFAULT_KEYS = {
   "cockpit.review.open": "<leader>v",
-  "cockpit.review.place": "<leader>r",
+  "cockpit.review.place": "<leader>k",
 }
 
 const REVIEW_PACKAGE = "@opencode-cockpit/review"

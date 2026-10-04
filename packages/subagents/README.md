@@ -26,7 +26,7 @@ again for the same task is one entry with a count (`×6`). A finished nested one
 after `hideNestedAfterSeconds`; the heading still counts it. With none yet, the block still shows
 its heading and `none yet`, so you can tell it is there.
 
-**Click one** — or `ctrl+x w`, or `/subagents` — and its run opens in a pane on the right, half the
+**Click one** — or `ctrl+x d`, or `/subagents` — and its run opens in a pane on the right, half the
 window or all of it: its model and who launched it, the task, then the run. A shell command or a file
 change is a box with its output (ten lines, sixty open, all with `a`); reads and searches are one quiet
 line each; a task names the subagent it launched, todos are a checklist, and an MCP tool is titled
@@ -103,7 +103,7 @@ own), which wins over both files.
 | `hideWhenEmpty` | `false` | With no subagents the block says `none yet` under its heading; `true` draws nothing instead |
 | `hideFinishedAfterMinutes` | unset | Minutes a finished subagent stays in the sidebar; unset keeps it for the conversation |
 | `hideNestedAfterSeconds` | `30` | Seconds a finished *nested* subagent — one a subagent launched — stays in the sidebar; a negative number keeps them. The heading still counts them and `[` `]` still reach them |
-| `keybinds` | `{ "cockpit.subagents.open": "<leader>w" }` | The key that opens the latest one |
+| `keybinds` | `{ "cockpit.subagents.open": "<leader>d" }` | The key that opens the latest one |
 | `guidance` | `true` | Tell the main agent about background subagents and follow-ups (agent side) |
 | `enabled` | `true` | `false` switches both halves off |
 
