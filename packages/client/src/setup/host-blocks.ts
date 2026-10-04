@@ -10,7 +10,8 @@
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { parseJsonc } from "../jsonc.ts"
-import { isObject, opencodeDirs, pluginEntries } from "./installs.ts"
+import { pluginEntries } from "../plugin-entries.ts"
+import { isObject, opencodeDirs } from "./installs.ts"
 
 /** OpenCode's own sidebar blocks this talks about, and their plugin ids on each version. */
 type HostBlock = "context" | "mcp" | "lsp" | "todo" | "files" | "footer"

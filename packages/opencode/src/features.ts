@@ -1,6 +1,11 @@
-/** Every feature the bundle can load. Adding one: list it here and wire it in server.ts / tui.ts. */
-export const FEATURES = ["shell", "status", "review", "updater", "subagents", "trail", "trust"] as const
-export type Feature = (typeof FEATURES)[number]
+import { BAYS, type Bay } from "@opencode-cockpit/client/settings"
+
+/**
+ * Every feature the bundle can load: every bay. Adding one: list it in `BAYS`
+ * (`@opencode-cockpit/client/settings`) and wire it in server.ts / tui.ts.
+ */
+export const FEATURES = BAYS
+export type Feature = Bay
 
 export interface CockpitOptions {
   /** Switch features off, e.g. `{ "shell": false }`. Everything is on by default. */

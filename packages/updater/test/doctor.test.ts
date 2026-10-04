@@ -1,6 +1,8 @@
 import { describe, expect, test } from "bun:test"
+import { readFileSync } from "node:fs"
+import { join } from "node:path"
 import { memoryDisk } from "../src/core/disk.ts"
-import { ago, type Check } from "../src/doctor/checks.ts"
+import { ago, type Check, SERVER_BAYS } from "../src/doctor/checks.ts"
 import type { DoctorIo } from "../src/doctor/gather.ts"
 import { doctor } from "../src/doctor/run.ts"
 
@@ -622,5 +624,16 @@ describe("OpenCode 2's background service (it keeps the plugin code it started w
     const { out } = await run(machine({ status: "http://127.0.0.1:49374", elapsed: "6-00:00:00" }, 2 * HOUR))
     expect(out).toContain("! Service")
     expect(out).toContain("→ opencode service restart")
+  })
+})
+
+describe("the bays doctor knows", () => {
+  test("every bay it checks for an agent half publishes one", () => {
+    for (const bay of SERVER_BAYS) {
+      const manifest = JSON.parse(
+        readFileSync(join(import.meta.dir, "..", "..", bay, "package.json"), "utf8"),
+      )
+      expect(Object.keys(manifest.exports)).toContain("./server")
+    }
   })
 })

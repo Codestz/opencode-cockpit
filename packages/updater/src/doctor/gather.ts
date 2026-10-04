@@ -9,6 +9,7 @@
 import { join, resolve } from "node:path"
 import { everyNotice } from "@opencode-cockpit/client/checks"
 import { parseJsonc } from "@opencode-cockpit/client/jsonc"
+import { BUNDLE, bayOf, pluginEntries } from "@opencode-cockpit/client/plugin-entries"
 import { parseRecord } from "@opencode-cockpit/client/service"
 import { loadSettings } from "@opencode-cockpit/client/settings"
 import { globalConfigDir } from "../core/configs.ts"
@@ -16,8 +17,6 @@ import type { Disk } from "../core/disk.ts"
 import { servicePid, serviceStartedAt, serviceStatus, stateFile } from "../core/service.ts"
 import { parseSpec } from "../core/spec.ts"
 import {
-  BUNDLE,
-  bayOf,
   type DaemonFacts,
   type Entry,
   type Facts,
@@ -60,30 +59,6 @@ export function cockpitHome(io: Pick<DoctorIo, "env" | "home">): string {
   return io.env.COCKPIT_HOME ?? join(io.env.XDG_CACHE_HOME ?? join(io.home, ".cache"), "opencode-cockpit")
 }
 
-/**
- * A plugin entry in either OpenCode's spelling: v1's `"spec"` and `["spec", options]` under
- * `plugin`, v2's `"spec"` and `{ package, options }` under `plugins`.
- */
-function specsIn(value: unknown): string[] {
-  const out: string[] = []
-  const config = (value ?? {}) as { plugin?: unknown; plugins?: unknown }
-  for (const list of [config.plugin, config.plugins]) {
-    if (!Array.isArray(list)) continue
-    for (const item of list) {
-      if (typeof item === "string") out.push(item)
-      else if (Array.isArray(item) && typeof item[0] === "string") out.push(item[0])
-      else if (
-        item &&
-        typeof item === "object" &&
-        typeof (item as { package?: unknown }).package === "string"
-      ) {
-        out.push((item as { package: string }).package)
-      }
-    }
-  }
-  return out
-}
-
 /** A local entry is named by its own package.json — that is what OpenCode loads. */
 function localPath(raw: string, io: Pick<DoctorIo, "home">, base: string): string {
   const path = raw.replace(/^file:\/\//, "").replace(/^file:/, "")
@@ -112,7 +87,7 @@ function readEntries(io: DoctorIo): {
         errors.push({ path: file, message: parsed.message })
         continue
       }
-      for (const raw of specsIn(parsed.value)) {
+      for (const { name: raw } of pluginEntries(parsed.value)) {
         const spec = parseSpec(raw)
         let pkgName: string | undefined
         if (spec.kind === "npm") pkgName = spec.name

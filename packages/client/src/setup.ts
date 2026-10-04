@@ -25,8 +25,9 @@
  */
 
 export { briefAgent } from "./brief.ts"
+export { baysOfEntry } from "./plugin-entries.ts"
 export { HOST_BLOCKS, type HostFile, hostFilePaths, readHostFile } from "./setup/host-blocks.ts"
-export { baysOfEntry, type Install, opencodeConfigPaths, readInstalls } from "./setup/installs.ts"
+export { type Install, opencodeConfigPaths, readInstalls } from "./setup/installs.ts"
 export {
   CONVENTIONS_TOOL,
   SETTINGS_TOOL,

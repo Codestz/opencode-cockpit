@@ -7,9 +7,10 @@
  */
 
 import { homedir } from "node:os"
-import { basename, join } from "node:path"
+import { join } from "node:path"
 import { parseJsonc } from "../jsonc.ts"
-import { BAYS, type Bay, isBay } from "../settings.ts"
+import { baysOfEntry, pluginEntries } from "../plugin-entries.ts"
+import type { Bay } from "../settings.ts"
 
 export const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
@@ -24,34 +25,6 @@ export const opencodeDirs = (
   directory,
   join(directory, ".opencode"),
 ]
-
-/** The bundle's package, and the prefix every single bay's package carries. */
-const BUNDLE = "opencode-cockpit"
-const SCOPE = "@opencode-cockpit/"
-
-/** One plugin entry as either version writes it: `"name"`, `["name", options]`, `{ package, options }`. */
-export function pluginEntries(config: Record<string, unknown>): { name: string; options?: unknown }[] {
-  const lists = [config.plugin, config.plugins].filter(Array.isArray) as unknown[][]
-  return lists.flat().flatMap((entry) => {
-    if (typeof entry === "string") return [{ name: entry }]
-    if (Array.isArray(entry) && typeof entry[0] === "string") return [{ name: entry[0], options: entry[1] }]
-    if (isObject(entry) && typeof entry.package === "string")
-      return [{ name: entry.package, options: entry.options }]
-    return []
-  })
-}
-
-/** The bays one entry brings, by its package — a name with or without a version, or a path. */
-export function baysOfEntry(name: string): Bay[] {
-  const path = name.replaceAll("\\", "/").replace(/\/+$/, "")
-  const scoped = path.lastIndexOf(SCOPE)
-  if (scoped >= 0) {
-    const bay = path.slice(scoped + SCOPE.length).replace(/@.*$/, "")
-    return isBay(bay) ? [bay] : []
-  }
-  const last = basename(path).replace(/@[^/]*$/, "")
-  return last === BUNDLE ? [...BAYS] : []
-}
 
 /** A Cockpit plugin entry found in one of OpenCode's files. */
 export interface Install {

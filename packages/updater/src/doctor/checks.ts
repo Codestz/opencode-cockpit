@@ -7,6 +7,8 @@
  * point is not a report, it is the next step (docs/roadmap/doctor.md).
  */
 
+import { BUNDLE, bayOf } from "@opencode-cockpit/client/plugin-entries"
+import type { Bay } from "@opencode-cockpit/client/settings"
 import { RESTART_COMMAND } from "../core/service.ts"
 import { isNewer, type Spec } from "../core/spec.ts"
 
@@ -22,12 +24,8 @@ export interface Check {
   fix?: string[]
 }
 
-/** The packages Cockpit ships, and which halves each has. */
-export const BUNDLE = "opencode-cockpit"
-export const BAYS = ["shell", "review", "status", "updater", "subagents", "trail", "trust"] as const
-export type Bay = (typeof BAYS)[number]
-/** Bays with an agent half — the rest are interface only. */
-const SERVER_BAYS: readonly string[] = ["shell", "review", "subagents", "trail"]
+/** Bays whose agent half doctor checks is loaded beside the interface's (`doctor.test.ts` checks it). */
+export const SERVER_BAYS: readonly Bay[] = ["shell", "review", "subagents", "trail"]
 
 /** Where a config file sits in OpenCode's split: agent plugins or interface plugins. */
 export type Half = "server" | "tui"
@@ -116,13 +114,6 @@ export interface SettingsFacts {
   modules: { path: string; exists: boolean }[]
   /** What the settings loader would tell a bay: old names, unknown sidebar entries, wrong types. */
   notices?: { file: string; text: string }[]
-}
-
-/** The package an entry is, when it is one of ours. */
-export function bayOf(name: string | undefined): Bay | "bundle" | undefined {
-  if (name === BUNDLE) return "bundle"
-  const match = /^@opencode-cockpit\/([a-z]+)$/.exec(name ?? "")
-  return match && (BAYS as readonly string[]).includes(match[1] as string) ? (match[1] as Bay) : undefined
 }
 
 const ours = (facts: Facts) => facts.entries.filter((entry) => bayOf(entry.name))

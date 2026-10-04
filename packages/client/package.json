@@ -72,6 +72,10 @@
       "types": "./types/jsonc.d.ts",
       "default": "./dist/jsonc.js"
     },
+    "./plugin-entries": {
+      "types": "./types/plugin-entries.d.ts",
+      "default": "./dist/plugin-entries.js"
+    },
     "./checks": {
       "types": "./types/checks.d.ts",
       "default": "./dist/checks.js"
