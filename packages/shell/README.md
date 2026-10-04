@@ -22,7 +22,9 @@ drives, and that you watch and control without leaving the chat. Part of
 - **Shells outlive OpenCode.** They run in a small daemon, `cockpitd`, shared by every OpenCode
   window and upgraded automatically when the plugin updates.
 
-![A dev server running in the shells panel](https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/dock.gif)
+<img src="https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/shell.gif" width="760" alt="The Shell console: a dev server streaming, then a test run scrolling into a failure, then a build finishing">
+
+*Drawn by the bay's own renderer — the same code that runs in your terminal.*
 
 *Recorded from a real session, re-recorded on every release.*
 

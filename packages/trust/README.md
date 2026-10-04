@@ -5,6 +5,10 @@ command* a few times in a row, Trust approves it for you — and records it, eve
 the count, a dangerous command costs more approvals, and nothing you told OpenCode to always ask
 about is ever answered for you.
 
+<img src="https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/trust.gif" width="760" alt="Trust learning bun test: three approvals, then Trust answers it, and ctrl+x p shows what it answered">
+
+*Drawn by the bay's own renderer — the same code that runs in your terminal.*
+
 Part of [opencode-cockpit](https://github.com/Codestz/opencode-cockpit). Install it on its own, or
 through the bundle. Works on OpenCode 1.18+ and 2.0.15+.
 

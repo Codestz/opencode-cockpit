@@ -6,6 +6,10 @@ sidebar with what it is doing right now, opens its whole run in a pane — think
 OpenCode draws its own, the answer — lets you message it, stop it or move it to the background, and
 has the main agent continue the subagent that did the work instead of starting from nothing.
 
+<img src="https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/subagents.gif" width="760" alt="A subagent's pane: its task, the files it touched, a failed command and its thinking, while it works">
+
+*Drawn by the bay's own renderer — the same code that runs in your terminal.*
+
 Part of [opencode-cockpit](https://github.com/Codestz/opencode-cockpit). Install it on its own, or
 through the bundle. Works on OpenCode 1.18+ and 2.0.15+.
 

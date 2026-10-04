@@ -17,7 +17,6 @@
     "build": "bun scripts/build.ts",
     "smoke:tui": "bun scripts/tui-smoke.ts",
     "release": "bun scripts/release.ts",
-    "record": "bun scripts/record.ts",
     "clean:daemons": "bun scripts/clean-daemons.ts",
     "preview": "bun packages/status/src/cli/preview.ts",
     "capture": "bun scripts/capture.ts",

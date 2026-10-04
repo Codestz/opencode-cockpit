@@ -11,7 +11,7 @@ types/
 # anchored: site/src/content/docs is the published documentation and must be tracked
 /docs/
 
-# launch clips: generated from tapes/, and too heavy to keep in the repository
+# launch clips for social posts: too heavy to keep in the repository
 media/social/
 
 # tooling

@@ -16,9 +16,8 @@ without drowning in it — and gives *you* a live view of all of it, inside Open
 
 ![One OpenCode session with Cockpit: background tests failing then passing, subagents at work, the PR landing in Trail, the context filling](https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/hero.gif)
 
-*A real recording — every demo here is generated from a live OpenCode session by
-[`bun run record`](https://github.com/Codestz/opencode-cockpit/blob/main/CONTRIBUTING.md), and re-run on release, so none of them can drift from what
-ships.*
+*Drawn by Cockpit's own renderers, the same code that runs in your terminal. Every bay, live, is on
+the [site](https://codestz.github.io/opencode-cockpit/).*
 
 ## Features
 

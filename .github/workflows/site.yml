@@ -3,7 +3,7 @@ name: Site
 on:
   push:
     branches: [main]
-    paths: ["site/**", "tapes/**", "CHANGELOG.md", ".github/workflows/site.yml"]
+    paths: ["site/**", "packages/**", "CHANGELOG.md", ".github/workflows/site.yml"]
   workflow_dispatch:
 
 permissions:
