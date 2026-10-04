@@ -1,6 +1,6 @@
 {
   "name": "opencode-cockpit",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "OpenCode superpowers, all in one: installs every opencode-cockpit feature (Shell, Statusline, Review, Updater, Subagents, Trail, Trust), each can be switched off",
   "type": "module",
   "license": "MIT",

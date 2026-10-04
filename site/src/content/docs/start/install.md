@@ -11,7 +11,7 @@ you have, and what differs, is in [OpenCode 1 and 2](/opencode-cockpit/start/ope
 On **OpenCode 1**:
 
 ```sh
-opencode plugin opencode-cockpit@0.8.0 --global --force
+opencode plugin opencode-cockpit@0.9.0 --global --force
 ```
 
 This writes the plugin entry into **both** `opencode.json` and `tui.json` — the agent half and the
@@ -20,7 +20,7 @@ interface half.
 On **OpenCode 2**:
 
 ```sh
-opencode plugin add opencode-cockpit@0.8.0
+opencode plugin add opencode-cockpit@0.9.0
 ```
 
 This writes `"plugins"` in `opencode.json`, and OpenCode 2 loads both halves from there.
@@ -42,8 +42,8 @@ restarts the service for you: that would cut every open window.
 ## A single bay
 
 ```sh
-opencode plugin @opencode-cockpit/shell@0.8.0 --global --force     # OpenCode 1
-opencode plugin add @opencode-cockpit/shell@0.8.0                   # OpenCode 2
+opencode plugin @opencode-cockpit/shell@0.9.0 --global --force     # OpenCode 1
+opencode plugin add @opencode-cockpit/shell@0.9.0                   # OpenCode 2
 ```
 
 Same daemon, same config file, same interface slots. Add other bays later without changing anything
@@ -67,7 +67,7 @@ wins and Cockpit warns you which entry to remove.
 ```json title="OpenCode 2 — opencode.json"
 {
   "plugins": [
-    { "package": "opencode-cockpit@0.8.0", "options": { "features": { "shell": true } } }
+    { "package": "opencode-cockpit@0.9.0", "options": { "features": { "shell": true } } }
   ]
 }
 ```

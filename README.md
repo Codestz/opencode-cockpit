@@ -21,7 +21,7 @@ behind you. Cockpit is the instrument panel: things your agent can use, and thin
 what it is doing.
 
 ```sh
-opencode plugin opencode-cockpit@0.8.0 --global --force
+opencode plugin opencode-cockpit@0.9.0 --global --force
 ```
 
 ---
@@ -275,13 +275,13 @@ switches between the live screen and the scrollback, `?` shows details.
 **Everything**
 
 ```sh
-opencode plugin opencode-cockpit@0.8.0 --global --force
+opencode plugin opencode-cockpit@0.9.0 --global --force
 ```
 
 **Only what you want**
 
 ```sh
-opencode plugin @opencode-cockpit/shell@0.8.0 --global --force
+opencode plugin @opencode-cockpit/shell@0.9.0 --global --force
 ```
 
 The version is pinned on purpose. OpenCode resolves a plugin spec once and never again, so a
@@ -305,7 +305,7 @@ options as an object:
 
 ```json
 {
-  "plugins": [{ "package": "opencode-cockpit@0.8.0", "options": { "features": { "shell": true } } }]
+  "plugins": [{ "package": "opencode-cockpit@0.9.0", "options": { "features": { "shell": true } } }]
 }
 ```
 
@@ -504,7 +504,7 @@ off — it is OpenCode's setting, in OpenCode's file, and the name differs by ve
 
 ```jsonc
 // OpenCode 2 — ~/.config/opencode/cli.json
-{ "plugins": ["opencode-cockpit@0.8.0", "-opencode.sidebar.context"] }
+{ "plugins": ["opencode-cockpit@0.9.0", "-opencode.sidebar.context"] }
 ```
 
 The other blocks switch the same way, by these ids (an `internal:` id in OpenCode 2's `cli.json`
