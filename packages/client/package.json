@@ -68,6 +68,10 @@
       "types": "./types/brief.d.ts",
       "default": "./dist/brief.js"
     },
+    "./jsonc": {
+      "types": "./types/jsonc.d.ts",
+      "default": "./dist/jsonc.js"
+    },
     "./checks": {
       "types": "./types/checks.d.ts",
       "default": "./dist/checks.js"

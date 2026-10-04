@@ -8,11 +8,11 @@
 
 import { join, resolve } from "node:path"
 import { everyNotice } from "@opencode-cockpit/client/checks"
+import { parseJsonc } from "@opencode-cockpit/client/jsonc"
 import { parseRecord } from "@opencode-cockpit/client/service"
 import { loadSettings } from "@opencode-cockpit/client/settings"
 import { globalConfigDir } from "../core/configs.ts"
 import type { Disk } from "../core/disk.ts"
-import { parseJsonc } from "../core/jsonc.ts"
 import { servicePid, serviceStartedAt, serviceStatus, stateFile } from "../core/service.ts"
 import { parseSpec } from "../core/spec.ts"
 import {
