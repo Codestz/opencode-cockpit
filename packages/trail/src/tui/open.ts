@@ -4,31 +4,18 @@
  * (docs/opencode/trail-interface.md, spike 5). Never `spawnSync` here: a synchronous spawn on the
  * interface thread takes the renderer down with it (gotchas.md).
  *
- * A missing opener arrives later, as an `error` event rather than a throw, so it has a listener;
+ * Which program opens it is client's `openerFor`, shared with Review. Only `http(s)` is ever handed
+ * over. A missing opener arrives later, as an `error` event rather than a throw, so it has a listener;
  * either way the person is told, with the link to open by hand.
  */
 
 import { spawn } from "node:child_process"
-import { accessSync, constants } from "node:fs"
-import { openerFor } from "../core/open.ts"
-
-const runnable = (path: string): boolean => {
-  try {
-    accessSync(path, constants.X_OK)
-    return true
-  } catch {
-    return false
-  }
-}
+import { openerFor, systemOpenerWhere } from "@opencode-cockpit/client/opener"
+import { openable } from "../core/links.ts"
 
 /** Opens `url`, and calls `failed` with why if it could not be. Returns at once. */
 export function openUrl(url: string, failed: (why: string) => void): void {
-  const opener = openerFor(url, {
-    platform: process.platform,
-    exists: runnable,
-    which: (name) => Bun.which(name, { PATH: process.env.PATH ?? "" }) ?? undefined,
-    ...(process.env.COCKPIT_OPENER ? { override: process.env.COCKPIT_OPENER } : {}),
-  })
+  const opener = openable(url) ? openerFor(url, systemOpenerWhere()) : undefined
   if (!opener) {
     failed(/^https?:\/\//i.test(url) ? "no program here opens links" : "only http(s) links are opened")
     return

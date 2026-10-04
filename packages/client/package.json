@@ -76,6 +76,10 @@
       "types": "./types/plugin-entries.d.ts",
       "default": "./dist/plugin-entries.js"
     },
+    "./opener": {
+      "types": "./types/opener.d.ts",
+      "default": "./dist/opener.js"
+    },
     "./checks": {
       "types": "./types/checks.d.ts",
       "default": "./dist/checks.js"

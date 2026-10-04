@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { FileChange } from "../../src/core/model/review.ts"
-import { createViewer, type Launched, oldName, openerFor, type ViewerDeps } from "../../src/core/viewer.ts"
+import { createViewer, type Launched, oldName, type ViewerDeps } from "../../src/core/viewer.ts"
 
 /**
  * `o`, with the system stubbed out: nothing here ever launches a real viewer. The opener is "found"
@@ -31,6 +31,8 @@ const setup = (overrides: Partial<ViewerDeps> = {}) => {
       looked.push({ command, PATH: options.PATH })
       return `/shim/${command}`
     },
+    /** No `/usr/bin/open` on this fake machine: the opener comes off the PATH. */
+    exists: () => false,
     spawn: (command, args, env): Launched => {
       launched.push({ command, args, env })
       return {
@@ -136,11 +138,25 @@ describe("o opens both versions", () => {
   })
 })
 
-describe("the opener for each platform", () => {
-  test("open, xdg-open, start", () => {
-    expect(openerFor("darwin")).toEqual({ command: "open", args: [] })
-    expect(openerFor("linux")).toEqual({ command: "xdg-open", args: [] })
-    expect(openerFor("win32")).toEqual({ command: "cmd", args: ["/c", "start", ""] })
+describe("the opener for each platform (client's openerFor has the rest)", () => {
+  test("open, xdg-open, start", async () => {
+    const opened = async (platform: NodeJS.Platform) => {
+      const { viewer, launched } = setup({ platform })
+      await viewer.open("/repo", file({ after: { size: 1 } }))
+      return launched.map(({ command, args }) => [command, ...args])
+    }
+    expect(await opened("darwin")).toEqual([["/shim/open", "/repo/media/shot.png"]])
+    expect(await opened("linux")).toEqual([["/shim/xdg-open", "/repo/media/shot.png"]])
+    expect(await opened("win32")).toEqual([["/shim/cmd", "/c", "start", "", "/repo/media/shot.png"]])
+  })
+
+  test("macOS's /usr/bin/open before PATH, and COCKPIT_OPENER over both", async () => {
+    const system = setup({ exists: (path) => path === "/usr/bin/open" })
+    await system.viewer.open("/repo", file({ after: { size: 1 } }))
+    expect(system.launched[0]?.command).toBe("/usr/bin/open")
+    const stub = setup({ env: { PATH: "/shim", COCKPIT_OPENER: "/tmp/stub" } })
+    await stub.viewer.open("/repo", file({ after: { size: 1 } }))
+    expect(stub.launched[0]).toMatchObject({ command: "/tmp/stub", args: ["/repo/media/shot.png"] })
   })
 
   test("the temp name keeps the extension and says which side", () => {

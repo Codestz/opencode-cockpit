@@ -15,7 +15,7 @@ import { reviewPaths } from "../core/store/paths.ts"
 import { createPersistence } from "../core/store/persist.ts"
 import { frameBounds, VARIANTS } from "../core/view/frame.ts"
 import { FOOTER_ROWS, HEADER_ROWS } from "../core/view/geometry.ts"
-import { createViewer, systemSpawn, systemWhich } from "../core/viewer.ts"
+import { createViewer, systemExists, systemSpawn, systemWhich } from "../core/viewer.ts"
 import { createStore } from "./data/changes.ts"
 import { createActions } from "./panel/actions.ts"
 import { paneLayer } from "./panel/keys.ts"
@@ -169,6 +169,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       platform: process.platform,
       env: process.env,
       which: systemWhich,
+      exists: systemExists,
       spawn: systemSpawn,
       readOld: async (file) =>
         file.binary?.revision

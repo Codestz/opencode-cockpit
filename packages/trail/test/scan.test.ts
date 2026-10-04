@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { openerFor } from "../src/core/open.ts"
 import { findsOf, ran } from "../src/core/scan.ts"
 import { linkArgs } from "../src/core/tools.ts"
+import { openUrl } from "../src/tui/open.ts"
 
 /** Shapes as measured on 1.18.32 and 2.0.18 (docs/opencode/trail-server.md). */
 
@@ -30,43 +30,13 @@ describe("which calls count: what the agent ran", () => {
   })
 })
 
-describe("opening a link", () => {
-  const where = (platform: string, have: string[] = []) => ({
-    platform,
-    exists: (path: string) => have.includes(path),
-    which: (name: string) => (have.includes(name) ? `/somewhere/${name}` : undefined),
-  })
-
-  test("macOS: /usr/bin/open first, then PATH", () => {
-    const url = "https://github.com/a/b/pull/1"
-    expect(openerFor(url, where("darwin", ["/usr/bin/open", "open"]))).toEqual({
-      command: "/usr/bin/open",
-      args: [url],
-    })
-    expect(openerFor(url, where("darwin", ["open"]))?.command).toBe("/somewhere/open")
-    expect(openerFor(url, where("darwin"))).toBeUndefined()
-  })
-
-  test("Linux: xdg-open; Windows: start, with & kept from cmd", () => {
-    expect(openerFor("https://a.dev/x", where("linux", ["xdg-open"]))?.command).toBe("/somewhere/xdg-open")
-    expect(openerFor("https://a.dev/x", where("linux"))).toBeUndefined()
-    expect(openerFor("https://a.dev/?a=1&b=2", where("win32"))?.args).toEqual([
-      "/c",
-      "start",
-      '""',
-      "https://a.dev/?a=1^&b=2",
-    ])
-  })
-
-  test("only http(s); an override wins", () => {
-    expect(openerFor("file:///etc/passwd", where("darwin", ["/usr/bin/open"]))).toBeUndefined()
-    expect(openerFor("javascript:alert(1)", where("darwin", ["/usr/bin/open"]))).toBeUndefined()
-    expect(
-      openerFor("https://a.dev", { ...where("darwin", ["/usr/bin/open"]), override: "/tmp/stub" }),
-    ).toEqual({
-      command: "/tmp/stub",
-      args: ["https://a.dev"],
-    })
+describe("opening a link (which program: client's openerFor)", () => {
+  test("only http(s) is handed to an opener; anything else is refused, and says so", () => {
+    for (const url of ["file:///etc/passwd", "javascript:alert(1)"]) {
+      const said: string[] = []
+      openUrl(url, (why) => said.push(why))
+      expect(said).toEqual(["only http(s) links are opened"])
+    }
   })
 })
 

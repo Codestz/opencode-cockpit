@@ -6,22 +6,17 @@
  * git into a temporary file named `<name>@<revision><ext>`, so the viewer picks the right app and its
  * title bar says which side it is; the new side is the working copy itself.
  *
- * Everything that touches the system is injected, so tests never launch a real viewer.
+ * Which program opens them is client's `openerFor`, shared with Trail: `COCKPIT_OPENER` replaces it
+ * for a sandbox or a live check. Everything that touches the system is injected, so tests never launch
+ * a real viewer.
  */
 
 import { spawn as nodeSpawn } from "node:child_process"
 import { mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, extname, join } from "node:path"
+import { isRunnable, type OpenerWhere, openerFor, openerName } from "@opencode-cockpit/client/opener"
 import type { FileChange } from "./model/review.ts"
-
-/** The opener each platform has, as a command and the arguments before the file. */
-export function openerFor(platform: NodeJS.Platform): { command: string; args: string[] } {
-  if (platform === "darwin") return { command: "open", args: [] }
-  /** `start` is a shell builtin; its first quoted argument is a window title, hence the empty one. */
-  if (platform === "win32") return { command: "cmd", args: ["/c", "start", ""] }
-  return { command: "xdg-open", args: [] }
-}
 
 /** A launched process, as far as this file cares: it can fail to start, and it is not waited on. */
 export interface Launched {
@@ -38,6 +33,8 @@ export interface ViewerDeps {
    * binary was resolved like this. It is also how "no opener here" is noticed and said.
    */
   which: (command: string, options: { PATH: string }) => string | null
+  /** Whether a file exists and can be run: macOS's `/usr/bin/open` is tried before PATH. */
+  exists: (path: string) => boolean
   /** Starts the opener without waiting for it. Never `spawnSync`: on the TUI thread it takes the renderer down. */
   spawn: (command: string, args: string[], env: Record<string, string | undefined>) => Launched
   /** The old side's bytes, from git. */
@@ -53,6 +50,8 @@ export const systemSpawn: ViewerDeps["spawn"] = (command, args, env) =>
   nodeSpawn(command, args, { env, detached: true, stdio: "ignore" })
 
 export const systemWhich: ViewerDeps["which"] = (command, options) => Bun.which(command, options)
+
+export const systemExists: ViewerDeps["exists"] = isRunnable
 
 const PREFIX = "cockpit-review-"
 /** A leftover directory this old is from a pane that never closed cleanly — a crash, a kill. */
@@ -106,10 +105,18 @@ export function createViewer(deps: ViewerDeps): Viewer {
 
   return {
     async open(cwd, file) {
-      const { command, args } = openerFor(deps.platform)
       const PATH = deps.env.PATH ?? ""
-      const opener = deps.which(command, { PATH })
-      if (!opener) return { opened: 0, problem: `Nothing to open files with: ${command} is not on PATH` }
+      const where: OpenerWhere = {
+        platform: deps.platform,
+        exists: deps.exists,
+        which: (name) => deps.which(name, { PATH }) ?? undefined,
+        ...(deps.env.COCKPIT_OPENER ? { override: deps.env.COCKPIT_OPENER } : {}),
+      }
+      if (!openerFor(join(cwd, file.path), where))
+        return {
+          opened: 0,
+          problem: `Nothing to open files with: ${openerName(deps.platform)} is not on PATH`,
+        }
 
       const targets: string[] = []
       const binary = file.binary
@@ -123,7 +130,9 @@ export function createViewer(deps: ViewerDeps): Viewer {
       if (!binary || binary.after) targets.push(join(cwd, file.path))
 
       for (const target of targets) {
-        const launched = deps.spawn(opener, [...args, target], deps.env)
+        const opener = openerFor(target, where)
+        if (!opener) continue
+        const launched = deps.spawn(opener.command, opener.args, deps.env)
         launched.on("error", (error) => deps.report(`Could not open ${basename(target)}: ${error.message}`))
         launched.unref()
       }
