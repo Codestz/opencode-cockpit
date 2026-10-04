@@ -20,6 +20,7 @@ What each script is for, and what runs it. Anything here that nothing runs shoul
 | `pack-check.ts` | Packs every package and checks what would publish | `bun run pack:check`, CI, the release workflow |
 | `tui-smoke.ts` | Drives a real OpenCode in a PTY through each bay's interface | `bun run smoke:tui` |
 | `test-env.ts` | Keeps test runs' logs out of your own `cockpit.log` | `bun test` (preloaded by `bunfig.toml`) |
+| `golden.ts` | Every bay's preview in every state, in colour, snapshotted to `.golden/` — a refactor that should change nothing proves it with `--check` | by hand, around a refactor |
 | `measure-agent.ts` | What every bay's behaviour measurement shares: a real OpenCode, one model turn, what it did | `packages/<bay>/measure/agent.ts` |
 
 ## Working on Cockpit

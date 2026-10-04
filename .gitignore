@@ -28,3 +28,6 @@ media/social/
 
 # OpenCode project-local config and plugins (created by OpenCode in a session here)
 /.opencode/
+
+# preview snapshots for refactors (scripts/golden.ts)
+/.golden/
