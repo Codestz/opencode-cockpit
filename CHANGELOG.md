@@ -24,6 +24,11 @@ All notable changes to this project are documented here. The format follows
   - **In the sidebar,** on by default after Shells: each thing's name, title, system and what this
     conversation last did — history, not a status, because a PR's state belongs to GitHub. Click a
     row with `↗` to open the page; `+ N more · /trail` opens the rest.
+  - **Its time says when: `now`, `12m ago`, `2h ago`** — in the sidebar and `/trail` — because the
+    column sits under Shells' and Subagents' durations, where a bare `2h` read as two hours of work.
+    A narrow sidebar drops the "ago" before it cuts the ref.
+  - **A record with no ref gives its title the ref's column.** Its kind used to stand there, cut
+    (`Confluenc…  Release notes for…`), and `/trail` said it again beside the `Confluence` chip.
   - **`/trail`** (`ctrl+x f`): this conversation, or every conversation in the project (`tab`), with
     the conversations that touched each thing under it. `enter` opens the page, `g` goes back to the
     conversation that made it, `c` copies the link, `m` the whole trail as markdown, `x` removes,
@@ -100,7 +105,9 @@ All notable changes to this project are documented here. The format follows
 - **Review's `enabled: false` turns off its agent side too** — its tools and guidance.
 - **Behaviour, measured:** `AGENT=1` smoke runs real turns that must end in the right tool —
   `shell_start` for a dev server and no second one, `review_list`/`review_reply` for a waiting comment,
-  `trail_add` for a new PR — so a wording change that stops working cannot ship unnoticed.
+  `trail_add` for a new PR — so a wording change that stops working cannot ship unnoticed. Trail's
+  passes on two of three turns (`measure/agent.ts --runs 3 --pass 2`): a free model misses about one
+  in six.
  The setup skills run the preview that came with your install — `cockpit_settings` names it
   under Previews — never `bunx`, which fetches another release.
 - **Settings: one shape, one loader, one file for both halves.** "Configure them in one file, read by
@@ -139,8 +146,13 @@ All notable changes to this project are documented here. The format follows
   an agent side for this (`@opencode-cockpit/status/server`), included in the bundle; installed on its
   own, its install line (`opencode plugin @opencode-cockpit/status@… --global --force`) now adds the
   agent-side entry too.
-- **Every subagent says what it is.** Each row names its agent, muted — `general` too — and the agent
-  shortens before the title does; a subagent with no title is named by its task's first words.
+- **Every subagent says what it is.** Each row names its agent, muted — `general` too — and a
+  subagent with no title is named by its task's first words.
+  - **The agents are one column, so the titles line up.** As wide as the longest agent shown, five
+    cells at most (`expl…`); each row used to shorten its own, so one title started at column 9 and
+    the next at column 7.
+  - **A finished subagent says how long it ran, and nothing else** (`● gene… Plan login… 1m04s`).
+    `17 calls · 1m04s` cut its title to twelve cells; the calls and rounds are in the pane.
 - **Settings notices are drawn, not only logged.** Status, Shell, Subagents, Trail and Trust draw
   theirs as `!` rows in their blocks, wrapped to the sidebar's width so the fix is not cut off;
   Review draws its in the pane. Status also draws the ones that belong to no bay: a file that is not
