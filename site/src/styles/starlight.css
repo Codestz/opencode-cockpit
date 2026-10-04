@@ -1,8 +1,14 @@
 /**
- * Maps Starlight's own variables onto the tokens, so the docs and the landing page cannot drift.
- * Add nothing here that is not a mapping or a small correction.
+ * Maps Starlight's own variables onto the tokens, then dresses Starlight's parts in the deck's
+ * language: square corners, hairlines, mono labels, one accent used sparingly. Add nothing here that
+ * is not a mapping or a correction to a Starlight part — page content stays content.
+ *
+ * This file is unlayered, so it wins over Starlight's @layer'd styles without !important.
  */
+
+/* ── mapping ── */
 :root,
+:root[data-theme="light"],
 :root[data-theme="dark"] {
   --sl-color-accent: var(--ck-accent);
   --sl-color-accent-low: var(--ck-accent-soft);
@@ -14,41 +20,280 @@
   --sl-color-gray-4: var(--ck-fg-3);
   --sl-color-gray-5: var(--ck-line-2);
   --sl-color-gray-6: var(--ck-line);
+  --sl-color-gray-7: var(--ck-card);
   --sl-color-black: var(--ck-bg);
   --sl-color-bg: var(--ck-bg);
   --sl-color-bg-nav: var(--ck-bg);
   --sl-color-bg-sidebar: var(--ck-bg);
-  --sl-color-bg-inline-code: var(--ck-card-2);
-  /* text drawn on top of the accent — without this the current sidebar item is unreadable */
+  --sl-color-bg-inline-code: var(--ck-bg-2);
+  --sl-color-bg-accent: var(--ck-accent);
+  --sl-color-text: var(--ck-fg-2);
+  /* text drawn on top of the accent */
   --sl-color-text-invert: var(--ck-accent-ink);
   --sl-color-text-accent: var(--ck-accent);
   --sl-color-hairline: var(--ck-line);
-  --sl-color-hairline-light: var(--ck-line-2);
+  --sl-color-hairline-light: var(--ck-line);
+  --sl-color-hairline-shade: var(--ck-line);
+  --sl-color-backdrop-overlay: color-mix(in srgb, var(--ck-bg) 70%, transparent);
+  --sl-shadow-sm: none;
+  --sl-shadow-md: none;
   --sl-font: var(--ck-font);
   --sl-font-mono: var(--ck-font-mono);
+  --sl-line-height-headings: 1.15;
   --sl-content-width: 50rem;
+  --sl-search-corners: 0;
+  --pagefind-ui-border-radius: 0;
 }
 
-:root[data-theme="light"] {
-  --sl-color-accent: var(--ck-accent);
-  --sl-color-white: var(--ck-fg);
-  --sl-color-black: var(--ck-bg);
-  --sl-color-bg: var(--ck-bg);
-  --sl-color-bg-nav: var(--ck-bg);
-  --sl-color-bg-sidebar: var(--ck-bg);
-  --sl-color-gray-7: var(--ck-card);
-}
+::selection { background: color-mix(in srgb, var(--ck-accent) 28%, transparent); color: var(--ck-fg); }
+:focus-visible { outline: 2px solid var(--ck-accent); outline-offset: 2px; }
+body { -webkit-font-smoothing: antialiased; }
 
-/* Headings in the display face, like the landing page. */
-.sl-markdown-content h1,
-.sl-markdown-content h2,
-.sl-markdown-content h3,
-site-title {
-  font-family: var(--ck-font-display);
-  letter-spacing: -0.02em;
+/* ── header: the landing nav, docked ── */
+header.header {
+  background: color-mix(in srgb, var(--ck-bg) 86%, transparent);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--ck-line);
 }
-
-/* Code and terminal output should read as terminal output. */
-.sl-markdown-content code {
+site-search button[data-open-modal] {
+  border-radius: var(--ck-radius);
+  border-color: var(--ck-line-2);
+  background: transparent;
   font-family: var(--ck-font-mono);
+  font-size: 13px;
+  color: var(--ck-fg-3);
+}
+site-search button[data-open-modal]:hover { border-color: var(--ck-accent); color: var(--ck-fg); }
+site-search button[data-open-modal] > kbd {
+  border-radius: var(--ck-radius-sm);
+  border: 1px solid var(--ck-line);
+  background: var(--ck-bg-2);
+  font-family: var(--ck-font-mono);
+  color: var(--ck-fg-2);
+}
+site-search dialog { border-radius: var(--ck-radius); border-color: var(--ck-line-2); }
+.social-icons a { color: var(--ck-fg-2); }
+.social-icons a:hover { color: var(--ck-fg); }
+starlight-theme-select select { font-family: var(--ck-font-mono); font-size: 13px; }
+starlight-menu-button button,
+:root[data-theme="light"] starlight-menu-button button {
+  border-radius: var(--ck-radius);
+  border: 1px solid var(--ck-line-2);
+  background: var(--ck-bg);
+  color: var(--ck-fg);
+  box-shadow: none;
+}
+starlight-menu-button[aria-expanded="true"] button,
+:root[data-theme="light"] starlight-menu-button[aria-expanded="true"] button {
+  background: var(--ck-bg-2);
+  border-color: var(--ck-accent);
+}
+
+/* ── sidebar: mono eyebrows for groups, an accent rule for where you are ── */
+.sidebar-content summary .large,
+.sidebar-content .top-level > li > a.large {
+  font-family: var(--ck-font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: var(--ck-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--ck-fg-3);
+}
+.sidebar-content summary:hover .large,
+.sidebar-content .top-level > li > a.large:hover { color: var(--ck-fg); }
+.sidebar-content summary .caret { color: var(--ck-fg-3); }
+.sidebar-content a { border-radius: var(--ck-radius); color: var(--ck-fg-2); }
+.sidebar-content a:hover { color: var(--ck-fg); }
+.sidebar-content ul ul li { border-inline-start-color: var(--ck-line); }
+.sidebar-content a[aria-current="page"],
+.sidebar-content a[aria-current="page"]:hover,
+.sidebar-content a[aria-current="page"]:focus {
+  color: var(--ck-fg);
+  font-weight: 500;
+  background: var(--ck-accent-soft);
+  box-shadow: inset 2px 0 0 var(--ck-accent);
+}
+/* nested: the rule replaces the group's hairline on that row rather than sitting beside it */
+.sidebar-content ul ul a[aria-current="page"] {
+  margin-inline-start: calc(-1 * var(--sl-sidebar-item-padding-inline) - 1px);
+  padding-inline-start: calc(2 * var(--sl-sidebar-item-padding-inline) + 1px);
+}
+.sidebar-content .top-level > li > a.large[aria-current="page"] { color: var(--ck-fg); }
+
+/* ── on this page ── */
+starlight-toc h2,
+mobile-starlight-toc .toggle {
+  font-family: var(--ck-font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: var(--ck-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--ck-fg-3);
+}
+starlight-toc a { color: var(--ck-fg-2); }
+starlight-toc a:hover { color: var(--ck-fg); }
+starlight-toc a[aria-current="true"] { color: var(--ck-accent); }
+mobile-starlight-toc .toggle { border-radius: var(--ck-radius); border-color: var(--ck-line-2); }
+mobile-starlight-toc .dropdown { border-radius: var(--ck-radius); border-color: var(--ck-line-2); }
+
+/* ── type: Geist, light and tight, like the deck ── */
+h1#_top,
+.sl-markdown-content :is(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--ck-font);
+  letter-spacing: var(--ck-tracking-tight);
+  color: var(--ck-fg);
+  text-wrap: balance;
+}
+h1#_top { font-weight: 400; font-size: clamp(2.25rem, 4vw, 3rem); letter-spacing: -0.04em; line-height: 1.05; }
+.sl-markdown-content :is(h2, h3) { font-weight: 500; }
+.sl-markdown-content :is(h4, h5, h6) { font-weight: 500; letter-spacing: -0.01em; }
+
+/* links: the accent, underlined by a hairline that firms up on hover */
+.sl-markdown-content a:not(:where(.not-content *)) {
+  color: var(--ck-accent);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  text-decoration-color: color-mix(in srgb, var(--ck-accent) 45%, transparent);
+}
+.sl-markdown-content a:not(:where(.not-content *)):hover { text-decoration-color: currentColor; }
+
+/* ── inline code and keys: square chips in the mono face ── */
+.sl-markdown-content :not(pre) > code:not(:where(.not-content *)) {
+  font-family: var(--ck-font-mono);
+  color: var(--ck-fg);
+  background: var(--ck-bg-2);
+  border: 1px solid var(--ck-line);
+  border-radius: var(--ck-radius-sm);
+  padding: 0.05em 0.35em;
+  /* a chip that wraps stays a chip on both lines */
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+.sl-markdown-content kbd {
+  font-family: var(--ck-font-mono);
+  font-size: 0.8em;
+  color: var(--ck-fg);
+  background: var(--ck-bg-2);
+  border: 1px solid var(--ck-line-2);
+  border-radius: var(--ck-radius-sm);
+  padding: 0.1em 0.45em;
+  white-space: nowrap;
+}
+
+/* ── code blocks: a terminal window in both themes, like the deck's windows ── */
+.expressive-code {
+  --ec-brdRad: 0px;
+  --ec-brdCol: var(--ck-terminal-line);
+  --ec-codeFontFml: var(--ck-font-mono);
+  --ec-uiFontFml: var(--ck-font-mono);
+  --ec-uiFontSize: 0.75rem;
+  --ec-codeBg: var(--ck-terminal);
+  --ec-codeFg: var(--ck-terminal-fg);
+  --ec-codeSelBg: #1d3b5a;
+  --ec-gtrFg: var(--ck-terminal-muted);
+  --ec-gtrBrdCol: var(--ck-terminal-line);
+  --ec-uiSelBg: #1d3b5a;
+  --ec-uiSelFg: #ffffff;
+  --ec-focusBrd: var(--ck-terminal-accent);
+  --ec-sbThumbCol: #ffffff17;
+  --ec-sbThumbHoverCol: #ffffff47;
+  --ec-tm-markBg: #ffffff17;
+  --ec-tm-markBrdCol: #ffffff40;
+  --ec-tm-insBg: #1e571599;
+  --ec-tm-insBrdCol: #487f3bd0;
+  --ec-tm-insDiffIndCol: #79b169d0;
+  --ec-tm-delBg: #862d2799;
+  --ec-tm-delBrdCol: #b4554bd0;
+  --ec-tm-delDiffIndCol: #ed8779d0;
+  --ec-frm-shdCol: transparent;
+  --ec-frm-frameBoxShdCssVal: none;
+  --ec-frm-edTabBarBg: var(--ck-terminal);
+  --ec-frm-edTabBarBrdCol: var(--ck-terminal-line);
+  --ec-frm-edTabBarBrdBtmCol: var(--ck-terminal-line);
+  --ec-frm-edActTabBg: var(--ck-terminal-2);
+  --ec-frm-edActTabFg: var(--ck-terminal-fg);
+  --ec-frm-edActTabIndTopCol: var(--ck-terminal-accent);
+  --ec-frm-edBg: var(--ck-terminal);
+  --ec-frm-trmTtbBg: var(--ck-terminal);
+  --ec-frm-trmTtbFg: var(--ck-terminal-muted);
+  --ec-frm-trmTtbDotsFg: #1b2740;
+  --ec-frm-trmTtbDotsOpa: 1;
+  --ec-frm-trmTtbBrdBtmCol: var(--ck-terminal-line);
+  --ec-frm-trmBg: var(--ck-terminal);
+  --ec-frm-inlBtnFg: var(--ck-terminal-fg);
+  --ec-frm-inlBtnBg: var(--ck-terminal-fg);
+  --ec-frm-inlBtnBrd: var(--ck-terminal-fg);
+}
+/* the dark syntax theme in both modes, so a block never flips to paper */
+.expressive-code .ec-line span[style^="--"]:not([class]) {
+  color: var(--0, inherit);
+  background-color: var(--0bg, transparent);
+  font-style: var(--0fs, inherit);
+  font-weight: var(--0fw, inherit);
+  text-decoration: var(--0td, inherit);
+}
+.expressive-code .frame .header { font-family: var(--ck-font-mono); }
+
+/* ── callouts: a hairline box, a tone rule, a mono label ── */
+.starlight-aside {
+  --ck-tone: var(--ck-accent);
+  --sl-color-asides-text-accent: var(--ck-tone);
+  border: 1px solid var(--ck-line);
+  border-inline-start: 2px solid var(--ck-tone);
+  background: var(--ck-card);
+  color: var(--ck-fg-2);
+  padding: 0.9rem 1.1rem;
+}
+.starlight-aside--note { --ck-tone: var(--ck-accent); }
+.starlight-aside--tip { --ck-tone: var(--ck-ok); }
+.starlight-aside--caution { --ck-tone: var(--ck-warn); }
+.starlight-aside--danger { --ck-tone: var(--ck-danger); }
+.starlight-aside__title {
+  font-family: var(--ck-font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: var(--ck-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--ck-tone);
+}
+.starlight-aside__icon { font-size: 1.1em; }
+.starlight-aside__content a { color: var(--ck-accent); }
+
+/* ── tables: hairline rows under a mono header ── */
+.sl-markdown-content th:not(:where(.not-content *)) {
+  font-family: var(--ck-font-mono);
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: var(--ck-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--ck-fg-3);
+  background: var(--ck-bg-2);
+  border-bottom: 1px solid var(--ck-line-2);
+}
+.sl-markdown-content :is(th, td):not(:where(.not-content *)) { border-bottom-color: var(--ck-line); }
+.sl-markdown-content :is(th, td):not(:where(.not-content *)) { padding-inline: 0.85rem; }
+.sl-markdown-content :is(th:first-child, td:first-child):not(:where(.not-content *)) { padding-inline-start: 0.85rem; }
+
+.sl-markdown-content hr { border-color: var(--ck-line); }
+.sl-markdown-content blockquote { border-inline-start: 2px solid var(--ck-line-2); color: var(--ck-fg-2); }
+
+/* ── footer: square prev/next with mono labels ── */
+.pagination-links a {
+  border-radius: var(--ck-radius);
+  border-color: var(--ck-line);
+  box-shadow: none;
+  font-family: var(--ck-font-mono);
+  font-size: 11.5px;
+  letter-spacing: var(--ck-tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--ck-fg-3);
+}
+.pagination-links a:hover { border-color: var(--ck-accent); }
+.pagination-links .link-title {
+  font-family: var(--ck-font);
+  font-size: var(--sl-text-xl);
+  letter-spacing: -0.02em;
+  text-transform: none;
+  color: var(--ck-fg);
 }

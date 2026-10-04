@@ -1,0 +1,14 @@
+---
+/**
+ * Starlight's <head>, plus the two faces the docs set type in. The landing page loads the same
+ * families from Base.astro; without this the docs silently fall back to the system font.
+ */
+import Default from "@astrojs/starlight/components/Head.astro"
+---
+<Default />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  rel="stylesheet"
+  href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Geist:wght@300;400;500;600&display=swap"
+/>
