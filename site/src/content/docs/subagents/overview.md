@@ -16,32 +16,35 @@ Or through the bundle, where it is on by default.
 
 ## In the sidebar
 
-A **Subagents** block: every subagent of the conversation you are in, its type and task, and under
-it what it is doing now — with how many calls and how long the whole run has taken on the right.
-Working ones come first, oldest first, so a late runner never sits under a pile of finished ones.
+A **Subagents** block: every subagent of the conversation you are in, its agent and task, and under
+a working one what it is doing now — with how many calls and how long the run has taken on the
+right. Working ones come first, oldest first, so a late runner never sits under a pile of finished
+ones.
 
 ```
 Subagents    1 running · 1 needs you
+
 ⠹ explore Map the authentication fl…
   └ grep "session" sr… 6 calls · 51s
-○ Fix the failing login test
+○ general Fix the failing login test
   └ waiting for permi… 3 calls · 50s
-● Update README for t… 3 calls · 28s
+● general Update README for the… 28s
 ```
 
 A spinner is working and `○` waits on you — the two in colour, because they are the two that may
 need you; a red `●` failed. A finished subagent is a quiet `●` and one row; one you stopped says
 `stopped`, quietly too, since stopping is not failing. The heading counts every state, and keeps
-what needs you when the column is narrow. Every row names its agent, muted — `general` too — and
-the agent's name shortens before the title does; a subagent with no title is named by its task's
-first words. A subagent that launched its own has them indented under it, and subagents with the
+what needs you when the column is narrow. Every row names its agent, muted — `general` too — in one
+column as wide as the longest agent shown, eight cells at most, so the titles line up; a subagent
+with no title is named by its task's first words. A finished subagent says how long it ran and
+nothing else: its calls and rounds are in the pane. A subagent that launched its own has them indented under it, and subagents with the
 same parent, agent and task — a helper asked again and again — are one entry with a count (`×6`). A
 finished nested one leaves the sidebar after `hideNestedAfterSeconds` (30 by default); the heading
 still counts it and the pane still reaches it. Working subagents are always shown; finished ones
 fold into a count past `sidebarRows`, and leave after `hideFinishedAfterMinutes` if you set it. With
 none yet the block says so — its heading and `none yet` — unless `hideWhenEmpty` is on.
 
-The sidebar reads status, subagents, shells, trail, top to bottom — `"sidebar"` in
+The sidebar reads status, subagents, shells, trail, trust, top to bottom — `"sidebar"` in
 [Cockpit's config](/opencode-cockpit/configuration/#the-sidebar-order) reorders it.
 
 ## The pane
@@ -86,9 +89,10 @@ the run as it grows; scroll or move the cursor and it stays where you put it unt
 | `b` | Move it to the background, so the main agent carries on (OpenCode's own `ctrl+b`) |
 | `i` | Details: model, what it is denied, calls by tool, tokens, cost |
 | `w` | Half the window, or all of it (remembered) |
-| `[` `]` | Another subagent of this conversation |
+| `[` `]` · `←` `→` | Another subagent of this conversation |
 | `d` `u` · `g` `G` | Page down · up · to the start · follow the run |
-| `esc` `q` | Back to the conversation |
+| `?` | Every key the pane takes; `esc` hides them again |
+| `esc` `q` | Let go of the cursor, then back to the conversation |
 
 ## Follow-ups keep their context
 

@@ -58,12 +58,18 @@ The panel takes the keyboard while it is open, and gives it straight back when i
 | <kbd>f</kbd> | Comment on the whole file |
 | <kbd>x</kbd> | Remove the thread you are on |
 | <kbd>space</kbd> <kbd>m</kbd> | Mark read, and go to the next unread |
+| <kbd>z</kbd> | Fold |
 | <kbd>s</kbd> | Submit the review |
 | <kbd>b</kbd> | Next source: uncommitted, or what this branch changes |
+| <kbd>B</kbd> | Pick the base the branch is compared with, remembered per branch |
+| <kbd>o</kbd> | On a changed image: open both versions in your system viewer |
 | <kbd>g</kbd> | Reload the diff |
 | <kbd>w</kbd> | Right pane or full screen |
 | <kbd>p</kbd> | Show what the panel is costing |
+| <kbd>?</kbd> | Every key the panel takes; <kbd>esc</kbd> back |
 | <kbd>q</kbd> <kbd>esc</kbd> | Close |
+
+<kbd>ctrl+p</kbd> works while the review is open: it steps aside for OpenCode's palette.
 
 Submit is <kbd>s</kbd> and source is <kbd>b</kbd>, which looks arbitrary until you try it the other
 way: they were <kbd>s</kbd> and <kbd>S</kbd> for an afternoon, two meanings on one letter separated

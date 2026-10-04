@@ -30,6 +30,13 @@ tools and the interface. A single bay works the same way:
 opencode plugin add @opencode-cockpit/shell@0.8.0
 ```
 
+Then restart OpenCode's background service, which loads plugins only when it starts — after this
+install and after every update:
+
+```sh
+opencode service restart
+```
+
 Options go in the entry as an object — the v2 spelling of v1's `[name, options]` pair:
 
 ```json title="~/.config/opencode/opencode.json"
@@ -49,7 +56,7 @@ files on both.
 
 What does not carry over is **Cockpit before 0.6**: it runs on OpenCode 1 only. If OpenCode 2 lists
 Cockpit under `/plugins` as failed, change the version in your `opencode.json` entry to the newest
-release and restart. Edit that entry rather than running `opencode plugin add` beside it — `add`
+release, run `opencode service restart`, and restart OpenCode. Edit that entry rather than running `opencode plugin add` beside it — `add`
 writes a second one and leaves the old.
 
 ## Running both side by side
@@ -71,8 +78,10 @@ what you will notice:
 | --- | --- | --- |
 | **`shell_start` permission** | asks with your `bash` permission rules | runs without asking — v2 gives a plugin tool no way to ask |
 | **Tool calls in the chat** | `shell_start`, `review_list`… | `execute`, calling them in Code Mode — same tools, same results |
-| **Updating** | `/plugins-update`, or `npx opencode-cockpit@latest update` | change the version in `opencode.json`; Cockpit's updater edits OpenCode 1's files only |
-| **Statusline `lsp` segment** | language servers | empty — v2 does not expose them to plugins |
+| **Updating** | `/plugins-update`, or `npx opencode-cockpit@latest update` | change the version in `opencode.json`, then `opencode service restart`; Cockpit's updater edits OpenCode 1's files only |
+| **The agent side** | loads with each window | runs in a background service that keeps the Cockpit it started with until `opencode service restart` — a window toasts when it is older, and doctor's Service check says so |
+| **Status's `diagnostics`** | MCP servers and language servers | MCP servers only — v2 does not expose language servers to plugins |
+| **OpenCode's own sidebar blocks** | Context, MCP, LSP, Todo, Files, Footer — off in `tui.json` under `plugin_enabled` | Context, MCP, Footer — off in `cli.json` as `-opencode.sidebar.<id>` in `plugins` ([ids](/opencode-cockpit/configuration/#opencodes-own-sidebar-blocks)) |
 | **Colours** | the theme | the same theme, except the subtle border grey, one shade lighter |
 
 :::caution[The permission difference]

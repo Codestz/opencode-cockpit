@@ -80,6 +80,15 @@ It prints the same list and the same review, asks before writing anything, and r
 the same way. `--dry-run` shows the plan and writes nothing, `--only <name>` updates one plugin, and
 `--yes` does not ask.
 
+## On OpenCode 2
+
+The Updater edits OpenCode 1's files only. On OpenCode 2, `/plugins-update` says what to do instead:
+change the version in your `opencode.json` plugin entry, run `opencode service restart`, and restart
+OpenCode. The restart matters — OpenCode 2's background service loads plugins once, when it starts,
+and keeps the old agent side until it restarts. `npx opencode-cockpit@latest update` says the same
+when it finishes on a machine with OpenCode 2, and [doctor](/opencode-cockpit/help/doctor/) warns
+when the service still runs an older Cockpit.
+
 ## Where it will not reach
 
 - **A project's root `opencode.json`.** `opencode plugin` writes a project's `.opencode/` directory

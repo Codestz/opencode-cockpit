@@ -116,17 +116,18 @@ nothing: the agent loads the **`status-setup` skill** that ships with Status —
 segment, the design rules this bay learned the expensive way, and the preview to check a line with —
 reads what is written now with `cockpit_settings`, and asks what you want it to show.
 
-For another agent, Claude Code for example, the same rules ship as a skill you can copy, at
-`skills/statusline-design/` (kept for 0.9; `skills/status-setup/` from then on):
+For another agent, Claude Code for example, the same skill ships in the package, at
+`skills/status-setup/` — the design rules are in its `references/design.md`. (`skills/statusline-design/`,
+its name before 0.9, is kept for 0.9 for anyone who copied it, and removed in 0.10.)
 
 ```sh
 # Claude Code, for this project or for every project
 mkdir -p .claude/skills
-cp -r node_modules/@opencode-cockpit/status/skills/statusline-design .claude/skills/
+cp -r node_modules/@opencode-cockpit/status/skills/status-setup .claude/skills/
 ```
 
-Its `description` fires on any request that mentions the statusline, a segment, or a module
-importing `@opencode-cockpit/status/segment`. What it carries is the taste, not the api: look at the
+Its `description` fires on any request to change what the statusline or the Status table shows.
+Outside OpenCode it has no `cockpit_settings` to read, so give it the file. What it carries is the taste, not the api: look at the
 thing before shipping it, `preview --watch` instead of restarting OpenCode, the six sample states a
 design gets wrong, the glyph traps above, and the rule that a number printed twice in one column is
 the thing the eye catches on.

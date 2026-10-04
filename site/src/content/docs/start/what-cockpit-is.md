@@ -14,11 +14,15 @@ OpenCode is an excellent terminal agent flying without instruments. Cockpit is t
 | Bay | Your agent gains | You gain |
 | --- | --- | --- |
 | **[Shell](/opencode-cockpit/shell/overview/)** | Terminals that keep running — it starts them, waits for "ready", reads the part that matters | A live panel of every process, with health it reports itself |
-| **[Statusline](/opencode-cockpit/status/overview/)** | — | The session at a glance: how full the context is, where the tokens went, what changed, how long |
+| **[Statusline](/opencode-cockpit/status/overview/)** | A skill to design the line with you | The session at a glance: how full the context is, where the tokens went, what changed, how long |
 | **[Review](/opencode-cockpit/review/overview/)** | Comments it can read, answer and resolve — a resolve is checked against the file | The diff where the work happened, with notes on the lines they are about |
 | **[Updater](/opencode-cockpit/updater/overview/)** | — | Every plugin you have: what is really running, what is published, and an update checked against disk |
 | **[Subagents](/opencode-cockpit/subagents/overview/)** | Follow-ups that continue the subagent that did the work; tools to list, read and wait on its subagents | Every subagent in the sidebar with what it is doing now, its whole run in a pane, and a message away |
+| **[Trail](/opencode-cockpit/trail/overview/)** | Tools to record the PRs, tickets and pages it creates or changes, and to say which conversation made one | What a conversation made, in the sidebar, one click from the page |
 | **[Trust](/opencode-cockpit/trust/overview/)** | — | Permissions that learn: the exact same command approved three times is answered for you, and every answer is recorded |
+
+Every one of them can be set up by asking: `/cockpit-setup` has the agent read what is installed and
+write the config with you.
 
 Each is its own npm package with a switch in config. Take the suite or a single bay; either way it
 is the same daemon, the same config file and the same keys, so moving between them changes nothing

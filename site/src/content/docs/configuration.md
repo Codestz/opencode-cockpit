@@ -16,7 +16,8 @@ same section, so a bay is configured in one place, not once in `opencode.json` a
 `tui.json`. Comments and trailing commas are fine. Everything is optional: with no file at all you
 get the defaults below.
 
-:::tip[The easy way: /cockpit-setup]
+## The easy way: /cockpit-setup
+
 Type `/cockpit-setup`, or just ask — "make my sidebar quieter", "hide the shells block when it's
 empty", "move trail above subagents". The agent loads the `cockpit-setup` skill that ships with
 Cockpit and reads what is installed and written now with its `cockpit_settings` tool: every value
@@ -24,9 +25,26 @@ and where it came from, anything from before 0.9 that is no longer read, OpenCod
 blocks. It fixes the old names first, offers a starting point (everything visible, quiet, minimal,
 or Status as a line under the prompt), asks only what is left, one question at a time, writes the
 smallest file that does it, and checks it reads back with no notices. It asks before touching
-OpenCode's own files. From the home screen the command opens a conversation; while the agent is
-answering, it waits its turn. It is in the palette too (`ctrl+p`, "cockpit").
-:::
+OpenCode's own files, and never suggests turning OpenCode's Todo block off. From the home screen the
+command opens a conversation; while the agent is answering, it waits its turn (`1 queued`). It is in
+the palette too (`ctrl+p`, "cockpit").
+
+**Then, if you want it: "tune it to how you work."** With the blocks set, the agent offers a second
+phase (`cockpit_settings` with `tune: true`):
+
+- **A tour** of each bay you have on, with its real key and command as you have them set.
+- **Your project's conventions:** which commands keep running — found in `package.json` scripts, a
+  Makefile, a compose file or a Procfile — and belong in a background shell; your ticket prefix,
+  offered from your branch names and commits, so Trail groups by ticket; where PRs go; whether to
+  explore in background subagents.
+
+After you agree, the `cockpit_conventions` tool writes them as one `## Cockpit conventions` section
+in this project's `AGENTS.md` or OpenCode's global one. A rerun replaces that section in place and
+keeps every other byte of the file. It holds conventions only: how to use each bay is already in
+every request.
+
+Settings are read when OpenCode starts, so a change applies after a restart.
+
 
 ## The whole shape
 
@@ -62,6 +80,25 @@ Spelled the same in every section:
 
 Time keys carry their unit: `hideFinishedAfterMinutes`, `hideNestedAfterSeconds`.
 
+## Keys
+
+The same on OpenCode 1 and 2, and none of them one of OpenCode's own. `<leader>` is OpenCode's
+leader, `ctrl+x` unless you changed it.
+
+| Key | Command | Does |
+| --- | --- | --- |
+| `ctrl+x d` | `cockpit.subagents.open` | Subagents: the one working now |
+| `ctrl+x o` | `cockpit.shells.dock` | Shell: the panel under the chat |
+| `ctrl+x j` | `cockpit.shells.console` | Shell: the console |
+| `ctrl+x f` | `cockpit.trail.open` | Trail: `/trail` |
+| `ctrl+x p` | `cockpit.trust.ledger` | Trust: `/trust` |
+| `ctrl+x v` | `cockpit.review.open` | Review: open or close the changes |
+| `ctrl+x k` | `cockpit.review.place` | Review: the right pane or full screen |
+
+Set one in its bay's `keybinds` — `{ "subagents": { "keybinds": { "cockpit.subagents.open":
+"<leader>w" } } }` brings back the key from before 0.9 — or `"none"` to unbind it. Every command
+also has a slash name or a palette entry, so nothing depends on a key being free.
+
 ## The sidebar order
 
 One list, at the top of either file, and nowhere else:
@@ -89,7 +126,8 @@ The Status bay. The rest of it — segments, lines, modules — is under
 | --- | --- | --- |
 | `preset` | A whole line by name: `sidebar` (the table), `minimal`, `default`, `detailed` (bottom lines). Anything written beside it wins | `sidebar` |
 | `surface` | `sidebar` or `bottom`; `"sidebar": false` says the same | `sidebar` |
-| `segments` | The line's parts, built-ins or your own | the preset's |
+| `segments` | The line's parts, built-ins or your own — the whole list, replacing the preset's | the preset's |
+| `override` | Changes to the preset's segments by name, the rest kept: `false` drops one, a name swaps it, an object merges into its settings — `{ "git": { "against": "branch" } }` | none |
 | `lines` | More than one line, each with its own `surface`, `segments`, `maxRows`… | one |
 | `separator`, `stack`, `icons`, `debug`, `padding*` | How a line is laid out | per surface |
 | `commands` | Shell commands usable as segments — your Claude Code statusline script, unchanged | none |
@@ -235,7 +273,21 @@ off — it is OpenCode's setting, in OpenCode's file, and the name differs by ve
 { "plugins": ["opencode-cockpit@0.8.0", "-opencode.sidebar.context"] }
 ```
 
-Leave OpenCode's Todo block on: nothing in Cockpit replaces it.
+The other blocks switch the same way, by these ids. Hiding them is a matter of taste: Status's table
+already warns when an MCP or language server fails, and `opencode mcp list` still lists them all.
+
+| Block | OpenCode 1 (`tui.json`, `plugin_enabled`) | OpenCode 2 (`cli.json`, `plugins`) |
+| --- | --- | --- |
+| Context | `internal:sidebar-context` | `opencode.sidebar.context` |
+| MCP | `internal:sidebar-mcp` | `opencode.sidebar.mcp` |
+| Footer (path and branch) | `internal:sidebar-footer` | `opencode.sidebar.footer` |
+| LSP | `internal:sidebar-lsp` | — |
+| Files | `internal:sidebar-files` | — |
+| Todo | `internal:sidebar-todo` | — |
+
+An `internal:` id in OpenCode 2's `cli.json` does nothing, silently. Leave OpenCode's Todo block on:
+nothing in Cockpit replaces it. `/cockpit-setup` reads these files, says what each block is set to,
+and asks before changing them.
 
 ## Advanced: options on the plugin entry
 

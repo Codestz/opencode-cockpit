@@ -8,7 +8,7 @@ a switch in config. They share everything underneath.
 
 ## Shell — available
 
-Background terminals with a real PTY. Nine agent tools, 35 watch presets, three views of every
+Background terminals with a real PTY. Eight agent tools, 34 watch presets, three views of every
 shell, log search, limits and log files. See [Shell](/opencode-cockpit/shell/overview/).
 
 ```sh

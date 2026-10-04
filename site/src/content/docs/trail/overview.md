@@ -41,7 +41,22 @@ dropped before anything is stored, and only `http(s)` links are ever opened.
 ## In the sidebar
 
 On by default, after Shells. What this conversation made, grouped by the ticket it was for, newest
-work first: its name, its title, its system, what this conversation last did and when. There is no
+work first: its name, its title, its system, what this conversation last did and when — `now`,
+`12m ago`, `2h ago`. A record with no ref gives its title the ref's column.
+
+```
+Trail                                    9
+
+COM-1801
+  a1b2c3d  Bump the pr…          12m ago
+  ENG-42   Retry the s…  Linear  15m ago ↗
+COM-1736   Bundle desy…    Jira   2h ago ↗
+  PR #33   0.8: Trust,…  GitHub   1h ago ↗
+  PR #12   Landing: Tr…  GitHub   2h ago ↗
++ 4 more · /trail
+```
+
+There is no
 status — where a PR stands now belongs to GitHub, one click away; a trail that said "open" for a
 merged PR would be worse than none.
 
@@ -90,7 +105,10 @@ to say. See [Configuration](/opencode-cockpit/configuration/).
 
 ## Team conventions
 
-Optional. A few lines in your `AGENTS.md` shape what gets recorded — they do not make it happen:
+Optional. A few lines in your `AGENTS.md` shape what gets recorded — they do not make it happen.
+`/cockpit-setup`'s second phase offers your ticket prefix, read from your branch names and commits,
+and writes it there for you ([how](/opencode-cockpit/configuration/#the-easy-way-cockpit-setup)); or
+by hand:
 
 ```md
 ## Trail

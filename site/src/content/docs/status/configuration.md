@@ -71,9 +71,21 @@ A change applies to every segment of that name — `"sep": false` drops every ha
 ```
 
 Look at it before restarting: `bunx @opencode-cockpit/status preview --config <file>` reads the file
-as OpenCode will — `--config -` reads it from stdin, as the file it will become (`--as global` or
-`--as project`), so a change can be seen before it is written anywhere — and `--debug` names every row — `✓git` drew, `✗spend` drew nothing, `?gti` is no
-segment at all.
+as OpenCode will — `preset`, `sidebarRows`, `override` and the `!` rows — and stops on a file it
+cannot read or a flag it does not know. `--config -` reads it from stdin, as the file it will become
+(`--as global` or `--as project`), so a change can be seen before it is written anywhere.
+`--surface sidebar|bottom` draws there whatever the file says; the sidebar is 34 columns unless
+`--width` says otherwise. `--debug` names every row — `✓git` drew, `✗spend` drew nothing, `?gti` is
+no segment at all.
+
+```sh
+cat <<'EOF' | bunx @opencode-cockpit/status preview --config - --debug
+{ "status": { "override": { "git": { "against": "branch" } } } }
+EOF
+```
+
+The `status-setup` skill previews the same way, with the preview that came with your install —
+`cockpit_settings` names it under Previews — never `bunx`, which would fetch another release.
 
 ## Your own line
 
@@ -106,7 +118,7 @@ whole list and replaces the preset's; to change one row of a preset, `override` 
 | `model` | `claude-opus-5` | `full` |
 | `context` | how full the window is | `style`: `percent` \| `bar` \| `solid` \| `gradient` \| `split`, `width`, `warnAt`, `dangerAt` |
 | `tokens` | `78.5k tok`; `tokens 85.2k · 43%` as a table row | `format`, `style`: `parts` \| `row` |
-| `title` | `Context`, bold: a column's heading | `text` |
+| `title` | `Status`, bold: a column's heading | `text` |
 | `in` · `out` · `cache` · `write` | `cache  84.9k · 100%` — one part of the window and its share; nothing when zero | |
 | `sep` | a hairline between groups, drawn only with a row on either side | `width` |
 | `spend` · `avail` | `spend  $26.24`, `avail  $173.76 · 87% left` — a proxy's budget; nothing without one | `file` |
@@ -115,7 +127,7 @@ whole list and replaces the preset's; to change one row of a preset, `override` 
 | `todo` | `3/7 todo` | `showComplete` |
 | `session.status` | `working 1m02s` since your prompt, or a retry and its countdown; `"working": false` (the sidebar preset) keeps only the retry | |
 | `session.time` | the conversation's age, or with `of: "turn"` how long the last answer took | `of`: `session` \| `turn`, `coarse` |
-| `diagnostics` | unhealthy LSP and MCP servers | |
+| `diagnostics` | `! name` for an unhealthy MCP or language server (OpenCode 2: MCP only); nothing while all are healthy | |
 | `version` | the bay's version | |
 | `text` | literal text | `value` |
 | `command` | a shell command's output | `name`, `row` |
@@ -208,11 +220,13 @@ On OpenCode 1 the other blocks can go the same way:
 | `internal:sidebar-lsp` | language-server status |
 | `internal:sidebar-mcp` | MCP server status |
 | `internal:sidebar-footer` | the path and version at the bottom |
+| `internal:sidebar-todo` | the todo list — leave it on, nothing in Cockpit replaces it |
 | `internal:home-footer`, `internal:home-tips` | the home screen's furniture |
 
 On OpenCode 2, `-internal:sidebar-context` does nothing — the block is `opencode.sidebar.context` —
-and its sidebar has no LSP or Todo block. Leave OpenCode's Todo block on: nothing in Cockpit
-replaces it. `api.plugins.list()` prints the current set, so the list above can be checked rather
+and its sidebar has three blocks of its own: `opencode.sidebar.context`, `opencode.sidebar.mcp` and
+`opencode.sidebar.footer`, each off with a `-` before it in `cli.json`'s `plugins`. It has no LSP or
+Todo block. Leave OpenCode 1's Todo block on: nothing in Cockpit replaces it. `api.plugins.list()` prints the current set, so the list above can be checked rather
 than trusted.
 
 ## The context segment

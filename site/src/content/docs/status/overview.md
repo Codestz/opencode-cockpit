@@ -27,10 +27,11 @@ git    5f +312 -48
 The `sidebar` preset, and the default since 0.9: how full the window is as one solid bar, the tokens
 broken into named rows with their share of it, a proxy's budget, and what is uncommitted — the work
 not saved anywhere yet (`"against": "branch"` counts the whole branch instead). A retry shows under
-the bar; the turn's own clock does not, OpenCode already shows one. Every number gets a word, in a fixed column so the
-figures line up; colour is a level (calm, then the warning, then the error), never a label. A row
-with nothing to say is not drawn: `write` with no cache writes, `spend` and `avail` with no proxy
-writing a budget ([Proxies](/opencode-cockpit/status/proxies/)), `working` while nothing runs. It sits
+the bar; the turn's own clock does not, OpenCode already shows one. Every number gets a word, in a
+fixed column so the figures line up; colour is a level (calm, then the warning, then the error),
+never a label. A row with nothing to say is not drawn: `write` with no cache writes, `spend` and
+`avail` with no proxy writing a budget ([Proxies](/opencode-cockpit/status/proxies/)),
+`diagnostics` while every MCP and language server is healthy (`! name` in red when one breaks). It sits
 beside OpenCode's own Context block; to keep only one, see
 [Replacing OpenCode's own sidebar blocks](/opencode-cockpit/status/configuration/#replacing-opencodes-own-sidebar-blocks).
 

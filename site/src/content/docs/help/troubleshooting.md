@@ -126,8 +126,8 @@ npx opencode-cockpit@latest update
 
 It pins the newest version, clears the stale cache, and checks both files; then restart.
 
-On **OpenCode 2**, change the version in your `opencode.json` entry and restart — the updater above
-edits OpenCode 1's files only.
+On **OpenCode 2**, change the version in your `opencode.json` entry, run `opencode service restart`,
+and restart OpenCode — the updater above edits OpenCode 1's files only.
 
 To check which build is actually running, the newest start line says it:
 
@@ -135,14 +135,31 @@ To check which build is actually running, the newest start line says it:
 grep '"msg":"start"' ~/.cache/opencode-cockpit/cockpit.log | tail -1
 ```
 
-## A setting seems to do nothing
+## The agent has none of the new tools, on OpenCode 2
 
-Settings merge global → project → plugin entry. A `.cockpit.json` in the project wins over your
-global file, and an invalid file is ignored silently by design — check it parses:
+The windows show the new Cockpit, but the agent has no `trail_add`, no `cockpit_settings`, or answers
+`/cockpit-setup` without its skill. OpenCode 2 runs the agent side in a background service that loads
+plugins once, when it starts, and keeps running when you close OpenCode — so after an install or an
+update it still runs the old Cockpit. Restart it:
 
 ```sh
-cat .cockpit.json | python3 -m json.tool
+opencode service restart
 ```
+
+A window says so when it can tell, in one toast: `Cockpit was updated — OpenCode's background service
+still runs the old one. Run: opencode service restart`. Doctor's **Service** check says the same from a
+terminal. Cockpit never restarts the service itself: that would cut every open window.
+
+## A setting seems to do nothing
+
+Settings merge global → project → plugin entry, and a `.cockpit.json` in the project wins over your
+global file, key by key. They are read when OpenCode starts, so a change applies after a restart.
+
+A setting Cockpit cannot use is never dropped in silence: a file that does not parse, a name from
+before 0.9 (`statusline`, `ui.*`, `sidebarOrder`…), a value of the wrong kind or a top-level name
+nothing reads is a `!` row in the bay's sidebar block and a line in doctor's **Settings** check.
+Comments and trailing commas are fine. To see every value and where it came from, ask the agent —
+`/cockpit-setup`, or "why is my shells block hidden?" — which reads them with `cockpit_settings`.
 
 ## Shells are gone after a restart
 

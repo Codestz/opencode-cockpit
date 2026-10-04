@@ -35,7 +35,7 @@ Rules can be passed to `shell_start` as `watch`, or to `shell_watch` as `rule`.
 
 ## Presets
 
-About 35 ship and are picked automatically from the command: tsc, eslint, biome, prettier, mypy,
+34 ship and are picked automatically from the command: tsc, eslint, biome, prettier, mypy,
 ruff, vitest, jest, mocha, bun test, deno test, pytest, rspec, phpunit, playwright, cypress, vite,
 next, nuxt, astro, angular, webpack, esbuild, tsup, turbo, metro, storybook, cargo, go, dotnet,
 gradle, maven, docker compose and terraform.
@@ -45,15 +45,17 @@ without waiting for a release:
 
 ```json title="~/.config/opencode-cockpit/config.json"
 {
-  "watch": {
-    "presets": {
-      "e2e": { "done": "\\d+ (passed|failed)", "fail": "\\d+ failed" }
+  "shell": {
+    "watch": {
+      "presets": {
+        "e2e": { "done": "\\d+ (passed|failed)", "fail": "\\d+ failed" }
+      }
     }
   }
 }
 ```
 
 :::note[watch.auto is off by default]
-`watch: { "auto": true }` attaches a matching preset to every new shell. It stays off unless you ask
-for it — attaching rules to commands nobody opted into is a surprise, not a feature.
+`"shell": { "watch": { "auto": true } }` attaches a matching preset to every new shell. It stays
+off unless you ask for it — attaching rules to commands nobody opted into is a surprise, not a feature.
 :::

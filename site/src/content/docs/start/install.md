@@ -25,7 +25,19 @@ opencode plugin add opencode-cockpit@0.8.0
 
 This writes `"plugins"` in `opencode.json`, and OpenCode 2 loads both halves from there.
 
-Restart OpenCode afterwards.
+Restart OpenCode afterwards. **On OpenCode 2, restart its background service too**, after installing
+and after every update:
+
+```sh
+opencode service restart
+```
+
+OpenCode 2 runs the agent side in a background service that loads plugins once, when it starts, and
+keeps running when you close OpenCode. Until it restarts, the windows draw the new Cockpit while the
+agent keeps the old one's tools and skills. A window says so when it sees it — one toast, `Cockpit was
+updated — OpenCode's background service still runs the old one. Run: opencode service restart` — and
+[doctor](/opencode-cockpit/help/doctor/)'s Service check says the same from a terminal. Cockpit never
+restarts the service for you: that would cut every open window.
 
 ## A single bay
 
@@ -60,6 +72,14 @@ wins and Cockpit warns you which entry to remove.
 }
 ```
 
+## Setting it up
+
+Everything works with no configuration. To choose what shows, type `/cockpit-setup` — or just ask,
+"make my sidebar quieter". The agent reads what is installed and set now, fixes any name from before
+0.9, and writes `~/.config/opencode-cockpit/config.json` with you: which bays show, in the sidebar or
+at the bottom, in what order, quiet or present when empty. Then, if you want, it tunes Cockpit to how
+you work — see [Configuration](/opencode-cockpit/configuration/#the-easy-way-cockpit-setup).
+
 ## What happens on first run
 
 1. The plugin connects to `cockpitd`, starting it if it isn't running.
@@ -74,8 +94,8 @@ OpenCode resolves a plugin spec **once** and caches it for ever, so a bare `open
 `@latest` means the release that was newest the day you first installed it. That is why the commands
 above pin a version, and why `--force` is there: run the same line with a newer version to move.
 
-On OpenCode 2, change the version in your `opencode.json` entry — Cockpit's updater edits OpenCode 1's
-files only. On OpenCode 1 you rarely need to: once a day Cockpit checks every plugin you have — not just its own — and says so
+On OpenCode 2, change the version in your `opencode.json` entry, then run `opencode service restart`
+— Cockpit's updater edits OpenCode 1's files only. On OpenCode 1 you rarely need to: once a day Cockpit checks every plugin you have — not just its own — and says so
 when something is behind. `/plugins-update` shows what runs beside what your config says and what is
 published, and updates what you pick: it pins the new version through OpenCode's own `opencode plugin`,
 removes the stale cache, and reads every file back before calling it done.

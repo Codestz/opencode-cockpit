@@ -15,10 +15,11 @@ import Cast from "../../../components/Cast.astro"
 | <kbd>&lt;leader&gt;j</kbd> | Open the full console |
 
 OpenCode's leader is <kbd>ctrl+x</kbd> unless you have changed it, so these read as
-<kbd>ctrl+x</kbd> <kbd>o</kbd> and <kbd>ctrl+x</kbd> <kbd>j</kbd>. Both are rebindable:
+<kbd>ctrl+x</kbd> <kbd>o</kbd> and <kbd>ctrl+x</kbd> <kbd>j</kbd>. Both are rebindable, in the
+`shell` section — pick a key OpenCode does not already use:
 
 ```json title="~/.config/opencode-cockpit/config.json"
-{ "ui": { "keybinds": { "cockpit.shells.console": "<leader>t" } } }
+{ "shell": { "keybinds": { "cockpit.shells.console": "<leader>z" } } }
 ```
 
 Every command below also has a slash name, so nothing here depends on a key being free.
@@ -97,6 +98,7 @@ the console's; `--help` lists the states. Plain text under `NO_COLOR` or into a 
 ## Commands
 
 `/shells-stop` stops the shells you are looking at; `/shells-stop-all` stops every shell in the
-project and asks first when that includes conversations you cannot see. `/shells` toggles the panel, `/shell` opens the console, `/shell-new` starts one,
+project and asks first when that includes conversations you cannot see. `/shells-dock` toggles the
+panel, `/shell` opens the console, `/shells` picks a shell (or "New shell"), `/shell-new` starts one,
 `/shells-clear` forgets finished shells, `/shells-restart-daemon` replaces a daemon running older
 code. Rebind them under `shell.keybinds`.
