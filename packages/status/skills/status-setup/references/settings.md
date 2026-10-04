@@ -59,7 +59,7 @@ A preset fills in what is not written; anything written beside it wins.
 | `minimal` | bottom | how full the context is, and what changed | `context` `git.diff` `session.status` `diagnostics` |
 | `default` | bottom | the capacity bar, where the tokens went, what changed, how long | `context` `tokens` `tokens` `tokens` `tokens` `git.diff` `session.time` `todo` `session.status` `diagnostics` |
 | `detailed` | bottom | everything the built-ins know, for a wide window | `context` `tokens` `model` `cost` `git.diff` `todo` `session.time` `session.status` `diagnostics` |
-| `sidebar` | sidebar (the default) | a table: the window, where the tokens went, a proxy's budget, the branch's diff | `title` `context` `session.status` `tokens` `in` `out` `cache` `write` `sep` `spend` `avail` `sep` `git` |
+| `sidebar` | sidebar (the default) | a table: the window, where the tokens went, a proxy's budget, the branch's diff | `title` `context` `session.status` `diagnostics` `tokens` `in` `out` `cache` `write` `sep` `spend` `avail` `sep` `git` |
 
 ## Built-in segments
 

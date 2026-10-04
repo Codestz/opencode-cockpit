@@ -395,6 +395,11 @@ export const SIDEBAR_SEGMENTS: (string | SegmentConfig)[] = [
    * rather than above it, so a row that comes and goes does not move the bar about.
    */
   { type: "session.status", priority: 95, icon: "", working: false },
+  /**
+   * A broken MCP or language server — `! github, linear +2` in red — and nothing while every one is
+   * healthy. The table is the default now, so it is where most people would ever learn one failed.
+   */
+  "diagnostics",
   { type: "tokens", style: "row", icon: "" },
   "in",
   "out",

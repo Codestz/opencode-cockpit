@@ -6,6 +6,7 @@ import {
   lastTurn,
   type SessionSnapshot,
   type StatusContext,
+  serviceStatus,
   type TimedMessage,
   type TokenCounts,
   type Turn,
@@ -241,16 +242,21 @@ export function buildContext(
             : sessionSnapshotV2(api.v2 as V2Context, sessionID, options.now, options.diff ?? NOTHING),
         }
       : {}),
-    /** v2 runs no language servers; its MCP servers carry a name and a status as v1's did. */
-    lsp: api.v1 ? api.v1.state.lsp().map((item) => ({ name: item.id, status: String(item.status) })) : [],
+    /**
+     * v2 runs no language servers. Its MCP servers carry a name and a status — but the status is a
+     * tagged object, not v1's word, so both go through `serviceStatus` (#34).
+     */
+    lsp: api.v1
+      ? api.v1.state.lsp().map((item) => ({ name: item.id, status: serviceStatus(item.status) }))
+      : [],
     mcp: api.v1
-      ? api.v1.state.mcp().map((item) => ({ name: item.name, status: String(item.status) }))
+      ? api.v1.state.mcp().map((item) => ({ name: item.name, status: serviceStatus(item.status) }))
       : (
           (api.v2?.data.location.mcp?.server.list(api.v2.location) ?? []) as {
             name?: string
             status?: unknown
           }[]
-        ).map((item) => ({ name: item.name ?? "", status: String(item.status ?? "") })),
+        ).map((item) => ({ name: item.name ?? "", status: serviceStatus(item.status) })),
     commands: options.commands,
     width: options.width,
   }

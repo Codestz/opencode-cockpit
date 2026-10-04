@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { SessionSnapshot, StatusContext } from "../src/core/context.ts"
+import { type SessionSnapshot, type StatusContext, serviceStatus } from "../src/core/context.ts"
 import { buildSegments, findSegment, type Segment, segmentText } from "../src/core/segments.ts"
 
 const session = (over: Partial<SessionSnapshot> = {}): SessionSnapshot => ({
@@ -281,6 +281,36 @@ describe("the rest of the built-ins", () => {
     })
     expect(render("diagnostics", broken)?.text).toBe("! tsserver, github +1")
     expect(render("diagnostics", broken)?.tone).toBe("error")
+  })
+
+  /** Issue #34: OpenCode 2's MCP status is a tagged object, and every connected server read as broken. */
+  test("OpenCode 2's tagged MCP status reads as its word, for every state it has", () => {
+    const v2 = [
+      { status: "connected" },
+      { status: "disabled" },
+      { status: "pending" },
+      { status: "failed", error: "spawn ENOENT" },
+      { status: "needs_auth" },
+      { status: "needs_client_registration", error: "no client id" },
+    ]
+    expect(v2.map(serviceStatus)).toEqual([
+      "connected",
+      "disabled",
+      "pending",
+      "failed",
+      "needs_auth",
+      "needs_client_registration",
+    ])
+    expect(serviceStatus("connected")).toBe("connected")
+    expect(serviceStatus({})).toBe("")
+    expect(serviceStatus(undefined)).toBe("")
+    const mcp = v2.map((raw, i) => ({ name: `s${i}`, status: serviceStatus(raw) }))
+    expect(render("diagnostics", ctx({ mcp }))?.text).toBe("! s3, s4 +1")
+  })
+
+  test("connected, turned off, still connecting or unknown is not an alarm", () => {
+    const quiet = ["connected", "disabled", "pending", ""].map((status, i) => ({ name: `s${i}`, status }))
+    expect(render("diagnostics", ctx({ mcp: quiet }))).toBeUndefined()
   })
 
   test("a command segment shows whatever the command last returned", () => {
