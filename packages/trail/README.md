@@ -25,8 +25,8 @@ trail, and Trail keeps it. It has no GitHub or Jira client and stores no credent
   an MCP call — holds a PR or issue link it has not recorded, its next request says so, as a choice:
   *seen in output — record it if you created or changed it*. Links in files it read or pages it
   fetched are ignored. Nothing is ever added without the agent or you.
-- **You add one** with `/link <url> [note]` (the palette's "Add a link to this conversation's
-  trail"), or with `a` on a link `/trail` found in what the conversation ran.
+- **You add one** with `/link` (the palette's "Add a link to this conversation's trail"), then
+  paste the link, and a note if you like.
 
 The system comes from the link, not from a list: github.com is GitHub, `…atlassian.net/browse` is
 Jira, `…/wiki` Confluence, claude.ai Claude, linear.app Linear, anything else its domain. Query
@@ -64,7 +64,6 @@ PR's state belongs to GitHub, and a trail that said "open" for a merged PR would
 | `enter` | open the page |
 | `g` | go to the conversation that made it (its root, naming the subagent that did) |
 | `c` | copy the link |
-| `a` | add a link the conversation printed but never recorded |
 | `x` | remove it from the trail |
 | `m` | copy the trail as a markdown list — for a PR description, a standup, a ticket |
 | `/` | search title, ref, kind and system (`jira`, `COM-1736`) |

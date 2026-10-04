@@ -42,7 +42,7 @@ export const TRAIL_PACKAGE = "@opencode-cockpit/trail"
 /**
  * How long a link seen in output is put to the agent. Long enough for the turn that printed it and
  * the next one; not forever, or a link it rightly declined (one it only echoed) would ride along on
- * every request for the rest of the conversation. `/trail` keeps offering it to the person.
+ * every request for the rest of the conversation.
  */
 export const SEEN_FOR_MS = 60 * 60_000
 

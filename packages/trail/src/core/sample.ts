@@ -1,7 +1,8 @@
 /**
  * Sample trails for the preview and the tests: the states a design gets wrong (testing.md) — none,
  * one, a busy conversation grouped by ticket, titles too long for any column, a project of several
- * conversations with one deleted, and links the agent printed but never recorded.
+ * conversations with one deleted — and, for the reminder line, links the agent printed but never
+ * recorded.
  *
  * Built through `runAdd`, the tool's own path, so a sample cannot hold a record the tool would not
  * have made.
@@ -20,7 +21,8 @@ const HOUR = 60 * MIN
 export interface Sample {
   state: State
   session: string
-  found: Found[]
+  /** PR and issue links seen in what the conversation ran: what the reminder line is built from. */
+  seen: Found[]
 }
 
 interface Add {
@@ -32,7 +34,7 @@ interface Add {
   by?: "agent" | "you"
 }
 
-function build(adds: readonly Add[], found: Found[] = []): Sample {
+function build(adds: readonly Add[], seen: Found[] = []): Sample {
   const state = emptyState()
   /** Ids by position, so a sample is the same trail every time it is built. */
   let counter = 0
@@ -49,7 +51,7 @@ function build(adds: readonly Add[], found: Found[] = []): Sample {
     })
     if (!out.ok) throw new Error(`sample: ${out.text}`)
   }
-  return { state, session: SAMPLE_SESSION, found }
+  return { state, session: SAMPLE_SESSION, seen }
 }
 
 const PR33 = "https://github.com/Codestz/opencode-cockpit/pull/33"
@@ -113,7 +115,7 @@ const busy: Add[] = [
 ]
 
 /** Printed by a command and never recorded: one PR the agent opened, one it only looked at. */
-const FOUND: Found[] = [
+const SEEN: Found[] = [
   ...foundIn(
     "Created pull request: https://github.com/acme/web/pull/40\nSee also https://acme.atlassian.net/browse/COM-1800.",
     SAMPLE_NOW - 3 * MIN,
@@ -169,7 +171,7 @@ function project(): Sample {
 export const SAMPLES: { [name: string]: () => Sample } = {
   empty: () => build([]),
   one: () => build([{ args: { title: "0.8: Trust, one design system", url: PR33 }, ago: 4 * MIN }]),
-  busy: () => build(busy, FOUND),
+  busy: () => build(busy, SEEN),
   long: () =>
     build([
       { args: { title: LONG, url: PR33, for: "COM-1736-WITH-A-VERY-LONG-KEY" }, ago: 50 * MIN },

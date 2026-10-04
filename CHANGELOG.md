@@ -32,8 +32,9 @@ All notable changes to this project are documented here. The format follows
   - **`/trail`** (`ctrl+x f`): this conversation, or every conversation in the project (`tab`), with
     the conversations that touched each thing under it. `enter` opens the page, `g` goes back to the
     conversation that made it, `c` copies the link, `m` the whole trail as markdown, `x` removes,
-    `/` searches, `a` adds a link the conversation printed but never recorded.
-  - **`/link <url> [note]`** adds one yourself; a link you add shows in the sidebar at once.
+    `/` searches.
+  - **`/link`** adds one yourself: it asks for the link, and a note if you like. A link you add
+    shows in the sidebar at once.
   - The system comes from the link (GitHub, Jira, Confluence, Linear, Claude, else the domain);
     query parameters that look like secrets are dropped before anything is stored, and only
     `http(s)` links are opened. A deleted conversation keeps its records, under the title it had.

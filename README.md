@@ -149,8 +149,8 @@ deploy    staging · web-portal  25m
 No setup: no account, no token, no list of tools. The agent already knows what it just did with
 whatever it uses — `gh`, an MCP server, a company CLI — so the agent writes the trail and Trail keeps
 it. When something it ran printed a PR link it never recorded, its next request says so, as a
-choice; nothing is added without the agent or you. `/link <url>` adds one yourself, and `m` copies
-the trail as markdown for a PR description or a standup.
+choice; nothing is added without the agent or you. To add one yourself, `/link`, then paste the
+link (and a note); `m` copies the trail as markdown for a PR description or a standup.
 
 **Sidebar + `/trail` · 2 agent tools · no setup · OpenCode 1 and 2 · [docs](https://codestz.github.io/opencode-cockpit/trail/overview/) · [`@opencode-cockpit/trail`](packages/trail)**
 
@@ -252,7 +252,7 @@ keeping line numbers and highlighting matches — and output keeps the colours t
 | `/cockpit-setup` | The agent sets Cockpit up with you: which bays show, in the sidebar or at the bottom, in what order, quiet or present when empty — and fixes any setting from before 0.9 |
 | `/status-setup` | The agent designs the Status line with you: a preset, its segments, the sidebar or the bottom (`/statusline` until 0.9; the old name still works for one release and says the new one) |
 | `ctrl+x f` · `/trail` | What this conversation made, or every conversation in the project (`tab`) |
-| `/link <url> [note]` | Add a link to this conversation's trail yourself |
+| `/link` | Add a link to this conversation's trail yourself: paste the link, and a note if you like |
 
 A shell's status reads the same everywhere — `RUN` (with a spinner), `FAIL`, `STOP`, `DONE` — running shells
 and recent failures stay in view, the rest folds behind `▸ N more`. In the console: `i` types

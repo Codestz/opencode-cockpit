@@ -134,7 +134,7 @@ describe("All conversations", () => {
   })
 })
 
-describe("found, not recorded", () => {
+describe("seen in output, not recorded", () => {
   test("links in output minus what this conversation recorded, by link or derived ref", () => {
     const state = trail([
       { title: "Recorded", url: "https://github.com/a/b/pull/1" },
@@ -151,15 +151,9 @@ describe("found, not recorded", () => {
     expect(notRecorded(state, "s9", seen)).toHaveLength(3)
   })
 
-  test("a find knows how to be named and where it lives", () => {
+  test("a find knows its link and the ref it derives", () => {
     expect(foundIn("https://acme.atlassian.net/browse/COM-9", SAMPLE_NOW)).toEqual([
-      {
-        url: "https://acme.atlassian.net/browse/COM-9",
-        ref: "COM-9",
-        label: "COM-9",
-        system: "Jira",
-        at: SAMPLE_NOW,
-      },
+      { url: "https://acme.atlassian.net/browse/COM-9", ref: "COM-9", at: SAMPLE_NOW },
     ])
     expect(SAMPLE_SESSION).toBe("ses_main")
   })

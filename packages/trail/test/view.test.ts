@@ -15,14 +15,13 @@ const sidebarOf = (name: string, width: number, limit = 6) => {
   return sidebarRows({ width, arranged: arrange(conversationThings(state, session)), now: SAMPLE_NOW, limit })
 }
 const dialogOf = (name: string, extra: Partial<DialogInput> = {}) => {
-  const { state, session, found } = sample(name)
+  const { state, session } = sample(name)
   return dialogRows({
     width: 100,
     height: 24,
     tab: "this",
     state,
     session,
-    found,
     now: SAMPLE_NOW,
     project: "opencode-cockpit",
     ...extra,
@@ -202,20 +201,15 @@ describe("/trail", () => {
   test("the footer: the keys in the agreed order, esc last", () => {
     const footer = texts(dialogOf("busy", { width: 116 }).rows).at(-1)
     expect(footer).toBe(
-      " [enter] Open   [g] Go   [c] Copy   [a] Add   [x] Remove   [/] Search   [m] Markdown   [esc] Close",
+      " [enter] Open   [g] Go   [c] Copy   [x] Remove   [/] Search   [m] Markdown   [esc] Close",
     )
     expect(texts(dialogOf("busy", { width: 40 }).rows).at(-1)).toMatch(/… {3}\[esc\] Close$/)
   })
 
-  test("keys follow the cursor: a record without a page cannot open; a find can be added", () => {
+  test("keys follow the cursor: a record without a page cannot open", () => {
     const commit = dialogOf("busy")
     expect(commit.item?.kind).toBe("thing")
     expect(commit.target).toEqual({ copy: "a1b2c3d", remove: "ev_9" })
-    const find = commit.items.find((item) => item.kind === "found")
-    const onFind = dialogOf("busy", { selected: find?.key })
-    expect(onFind.target.add?.url).toBe("https://github.com/acme/web/pull/40")
-    const row = texts(onFind.rows).find((text) => text.includes("acme/web/pull/40"))
-    expect(row).toMatch(/^▌PR #40 .*GitHub {3}seen 3m ago {2}\[a\] Add$/)
   })
 
   test("with no ref, the title starts in the ref's column, and the kind is not said beside the chip", () => {
@@ -227,11 +221,10 @@ describe("/trail", () => {
     expect(rows.find((row) => row.includes("Bundle desync"))).toMatch(/^ COM-1736 +Bundle desync /)
   })
 
-  test("found-not-recorded rows: only what this conversation has not recorded, and only on This conversation", () => {
-    const rows = texts(dialogOf("busy").rows)
-    expect(rows).toContain(" FOUND, NOT RECORDED  seen in output — add what this conversation made")
-    expect(rows.filter((row) => /seen \d+m ago {2}\[a\] Add$/.test(row))).toHaveLength(2)
-    expect(texts(dialogOf("busy", { tab: "all", height: 60 }).rows).join("\n")).not.toContain("FOUND")
+  test("only what was recorded: links seen in output are put to the agent, never listed here", () => {
+    const view = dialogOf("busy", { height: 60 })
+    expect(view.items.every((item) => item.kind === "thing")).toBe(true)
+    expect(texts(view.rows).join("\n")).not.toContain("acme/web/pull/40")
   })
 
   test("All conversations: each conversation under what it touched; g goes there; a deleted one is marked", () => {
@@ -256,7 +249,7 @@ describe("/trail", () => {
     const last = all.at(-1)
     const view = dialogOf("busy", { height: 10, selected: last?.key })
     const rows = texts(view.rows)
-    expect(rows.find((row) => row.startsWith("▌"))).toContain("COM-1800")
+    expect(rows.find((row) => row.startsWith("▌"))).toContain("Release notes for 0.8")
     expect(rows.some((row) => /^ ↑ \d+ more$/.test(row))).toBe(true)
     const top = texts(dialogOf("busy", { height: 10 }).rows)
     expect(top.some((row) => /^ ↓ \d+ more$/.test(row))).toBe(true)
@@ -300,7 +293,7 @@ describe("/trail", () => {
       )
     add("s1")
     add("s2")
-    const input = { width: 100, height: 20, state, session: "s1", found: [], now: SAMPLE_NOW, project: "p" }
+    const input = { width: 100, height: 20, state, session: "s1", now: SAMPLE_NOW, project: "p" }
     expect(dialogRows({ ...input, tab: "this" }).target.remove).toBeDefined()
     expect(dialogRows({ ...input, tab: "all" }).target.remove).toBeUndefined()
   })

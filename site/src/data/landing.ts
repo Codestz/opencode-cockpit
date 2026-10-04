@@ -303,7 +303,7 @@ export const bays = {
         "Grouped by the work — a ticket heads its PRs",
         "Click a row: the page opens in your browser",
         "Which conversation made it, and a jump back into it",
-        "Links it printed and never recorded are offered, never added",
+        "A link it printed and never recorded is put back to it, as a choice",
         "Copy a conversation's trail as markdown, for the PR or the standup",
       ],
       foot: ["sidebar · /trail · /link", "trail_add · trail_list", "@opencode-cockpit/trail"],
@@ -311,7 +311,7 @@ export const bays = {
       media: {
         kind: "image" as const,
         src: "/media/trail.png",
-        alt: "Trail in the sidebar — a conversation's PRs, tickets, pages and deploys grouped under the tickets they were for — and the /trail dialog with the same records, their systems, what was done and when, and two links found in command output but not recorded",
+        alt: "Trail in the sidebar — a conversation's PRs, tickets, pages and deploys grouped under the tickets they were for — and the /trail dialog with the same records, their systems, what was done and when",
         caption: "bunx @opencode-cockpit/trail preview · the rows OpenCode draws, from a sample conversation",
       },
     },

@@ -5,9 +5,8 @@
  * `/trail`, and `/link` for a person to add one by hand.
  *
  * Everything that decides is in `core/`; this file wires it to the host: the trail file read (every
- * window, and the agent half, append to it) and appended (`a`, `x`, `/link`), the conversation on
- * screen found, its stored history read for links it printed and never recorded, and the two surfaces
- * drawn from the same `arrange` as `trail_list`.
+ * window, and the agent half, append to it) and appended (`x`, `/link`), the conversation on
+ * screen found, and the two surfaces drawn from the same `arrange` as `trail_list`.
  */
 
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
@@ -16,7 +15,7 @@ import type { BoxRenderable } from "@opentui/core"
 import { createSignal } from "solid-js"
 import { loadTrail } from "../core/config.ts"
 import { createJournal } from "../core/journal.ts"
-import { arrange, conversationThings, type Found } from "../core/model.ts"
+import { arrange, conversationThings } from "../core/model.ts"
 import { trailPaths } from "../core/paths.ts"
 import { type Event, emptyState, type State } from "../core/store.ts"
 import { markdownOf } from "../core/text.ts"
@@ -76,8 +75,6 @@ export function createTrailTui({ source = TRAIL_PACKAGE }: { source?: string } =
     let trouble: string | undefined
     /** Live conversation titles from the host's list, over the ones written down when recording. */
     const titles = new Map<string, string>()
-    /** Links each conversation's stored history printed, by root session: offered, never added. */
-    const finds = new Map<string, Found[]>()
 
     // --- the conversation on screen ----------------------------------------------------------------
 
@@ -181,7 +178,6 @@ export function createTrailTui({ source = TRAIL_PACKAGE }: { source?: string } =
           tab: dialog.tab,
           state,
           session: root ?? "",
-          found: root ? (finds.get(root) ?? []) : [],
           now,
           project,
           ...(dialog.selected !== undefined ? { selected: dialog.selected } : {}),
@@ -267,7 +263,7 @@ export function createTrailTui({ source = TRAIL_PACKAGE }: { source?: string } =
       else toast(`This terminal refused the clipboard. ${what}: ${text}`, "warning")
     }
 
-    /** Recorded by you — a find you accepted, or `/link` — through the agent's own door, `runAdd`. */
+    /** Recorded by you, with `/link`, through the agent's own door, `runAdd`. */
     const addByYou = async (args: { title: string; url: string }): Promise<string | undefined> => {
       if (!root) {
         toast("Open a conversation first: a link belongs to the conversation it was made in.", "warning")
@@ -312,17 +308,6 @@ export function createTrailTui({ source = TRAIL_PACKAGE }: { source?: string } =
     }
 
     // --- /trail ------------------------------------------------------------------------------------
-
-    /** The conversation's history, read for what it printed and never recorded — offered by `a`. */
-    const scan = (at: string) =>
-      sessions
-        .finds(at)
-        .then((found) => {
-          finds.set(at, found)
-          log.debug("finds", { session: at, count: found.length })
-          draw()
-        })
-        .catch((error) => log.warn("history unreadable", { session: at, error }))
 
     /** Live titles for All conversations: written-down titles can be a conversation's first, placeholder one. */
     const listTitles = () =>
@@ -378,23 +363,6 @@ export function createTrailTui({ source = TRAIL_PACKAGE }: { source?: string } =
       if (ok) toast(`Removed "${record.title}" from the trail.`, "success")
     }
 
-    const accept = async () => {
-      const found = target().add
-      if (!found) return
-      const reopen = { ...dialog }
-      const title = await api.ui.prompt({
-        title: `Add ${found.label} to this conversation's trail`,
-        description: "Its own title reads best — the PR's, the issue's.",
-        value: found.ref,
-      })
-      if (title?.trim()) {
-        const key = await addByYou({ title: title.trim(), url: found.url })
-        if (key) reopen.selected = key
-      }
-      /** The prompt took the dialog's place; put it back where it was. */
-      openDialog(reopen)
-    }
-
     const markdown = () => {
       const arranged = shown?.arranged
       if (!arranged || arranged.total === 0) return toast("Nothing to copy yet: the trail is empty.", "info")
@@ -435,7 +403,6 @@ export function createTrailTui({ source = TRAIL_PACKAGE }: { source?: string } =
           title: "Copy the link",
           run: run(() => target().copy && copy(target().copy as string, "the link")),
         },
-        { name: "cockpit.trail.add", title: "Add what was found", run: run(() => accept()) },
         { name: "cockpit.trail.remove", title: "Remove from the trail", run: run(() => remove()) },
         { name: "cockpit.trail.markdown", title: "Copy as markdown", run: run(() => markdown()) },
         {
@@ -455,7 +422,6 @@ export function createTrailTui({ source = TRAIL_PACKAGE }: { source?: string } =
         { key: "return", cmd: "cockpit.trail.enter" },
         { key: "g", cmd: "cockpit.trail.go" },
         { key: "c", cmd: "cockpit.trail.copyLink" },
-        { key: "a", cmd: "cockpit.trail.add" },
         { key: "x", cmd: "cockpit.trail.remove" },
         { key: "m", cmd: "cockpit.trail.markdown" },
         { key: "/", cmd: "cockpit.trail.search" },
@@ -505,7 +471,6 @@ export function createTrailTui({ source = TRAIL_PACKAGE }: { source?: string } =
         searching: false,
       })
       void sync()
-      if (root) void scan(root)
       if (dialog.tab === "all") void listTitles()
       paint()
       api.ui.dialog.replace(

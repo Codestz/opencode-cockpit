@@ -20,7 +20,7 @@ server, a company CLI — and the agent always knows what it just did. So the ag
 and Cockpit keeps, orders and shows it. Trail has no GitHub or Jira client and stores no
 credentials.
 
-![Trail in the sidebar, grouped by the tickets the work was for, and the /trail dialog with the same records and two links found in command output but never recorded](/opencode-cockpit/media/trail.png)
+![Trail in the sidebar, grouped by the tickets the work was for, and the /trail dialog with the same records](/opencode-cockpit/media/trail.png)
 
 ## How things get into it
 
@@ -31,8 +31,7 @@ credentials.
   a shell command, an MCP call — that it has not recorded is put to it on its next request as a
   choice: *seen in output — record it if you created or changed it*. Links in files it read or pages
   it fetched never count. Nothing is added without the agent or you.
-- **You add one** with `/link <url> [note]`, or with `a` on a link `/trail` found in what the
-  conversation ran.
+- **You add one** with `/link`, then paste the link, and a note if you like.
 
 The same link again updates its record — the actions become a history, `created → updated` — and a
 better title replaces the old one. Which system a thing belongs to comes from its link: GitHub,
@@ -61,7 +60,6 @@ touched, each one is listed — a deleted conversation keeps its records, marked
 | `enter` | open the page |
 | `g` | go to the conversation that made it |
 | `c` | copy the link |
-| `a` | add a link the conversation printed but never recorded |
 | `x` | remove it from the trail |
 | `m` | copy the trail as a markdown list |
 | `/` | search title, ref, kind and system |

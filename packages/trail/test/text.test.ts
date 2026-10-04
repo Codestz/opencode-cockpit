@@ -94,7 +94,7 @@ describe("trail_list answers", () => {
   })
 
   test("the same facts, in the same order, as the dialog draws (one truth)", () => {
-    const { state, session, found } = sample("busy")
+    const { state, session } = sample("busy")
     const text = listText({ state, session, all: false, query: "", now: SAMPLE_NOW })
     const view = dialogRows({
       width: 200,
@@ -102,7 +102,6 @@ describe("trail_list answers", () => {
       tab: "this",
       state,
       session,
-      found,
       now: SAMPLE_NOW,
       project: "p",
     })
@@ -149,8 +148,8 @@ describe("the lines on every request", () => {
   })
 
   test("seen: worded as a choice, recorded links left out", () => {
-    const { state, session, found } = sample("busy")
-    const line = seenLine(notRecorded(state, session, found)) as string
+    const { state, session, seen } = sample("busy")
+    const line = seenLine(notRecorded(state, session, seen)) as string
     expect(line).toBe(
       "Seen in output — record it with tools.trail_add if you created or changed it: https://github.com/acme/web/pull/40, https://acme.atlassian.net/browse/COM-1800",
     )

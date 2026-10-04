@@ -133,7 +133,7 @@ for (const name of names) {
     }
     continue
   }
-  const { state, session, found } = make()
+  const { state, session, seen } = make()
   out.push("", `── ${name} ──`)
   const mine = arrange(conversationThings(state, session))
   out.push("", `Sidebar (${sidebarWidth} columns)`, "")
@@ -170,7 +170,6 @@ for (const name of names) {
       tab,
       state,
       session,
-      found,
       now: SAMPLE_NOW,
       project: SAMPLE_PROJECT,
       ...extra,
@@ -179,9 +178,7 @@ for (const name of names) {
     out.push(...frame(view.rows))
     return view
   }
-  const first = dialog("/trail — This conversation", "this")
-  const remaining = first.items.find((item) => item.kind === "found")
-  if (remaining) dialog("/trail — on a find", "this", { selected: remaining.key })
+  dialog("/trail — This conversation", "this")
   dialog("/trail — All conversations", "all")
   if (mine.total > 1) dialog("/trail — searching", "this", { query: "github", searching: true })
 
@@ -192,7 +189,7 @@ for (const name of names) {
     out.push(listText({ state, session, all: true, query: "", now: SAMPLE_NOW }))
     out.push("", "Per-request lines", "")
     out.push(producedLine(state, session) ?? "(none)")
-    out.push(seenLine(notRecorded(state, session, found)) ?? "(none)")
+    out.push(seenLine(notRecorded(state, session, seen)) ?? "(none)")
     out.push("", "Copied as markdown", "")
     out.push(markdownOf(mine) || "(empty)")
     out.push("", "All conversations, as markdown", "")

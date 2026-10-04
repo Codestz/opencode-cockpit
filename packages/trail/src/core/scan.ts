@@ -1,12 +1,11 @@
 /**
  * The safety net's eyes: PR and issue links in the output of something the agent *ran* — a shell
  * command, an MCP call — and never in a file it read or a page it fetched, which measured as mostly
- * noise (docs/roadmap/v0.9/trail.md, "A safety net, never automatic"). What is found is offered; it is
- * never recorded here.
+ * noise (docs/roadmap/v0.9/trail.md, "A safety net, never automatic"). What is found is never
+ * recorded here.
  *
- * Live, the agent half hears every finished call (`toolAfter`); for an older conversation — or one
- * from before OpenCode started — the interface reads the stored history the same way. Both pass
- * through `ran`, so they agree on which calls count.
+ * The agent half hears every finished call (`toolAfter`) and puts what it found to the agent on the
+ * next request, as a choice: record it if you created or changed it.
  */
 
 import { type Found, foundIn } from "./model.ts"
@@ -76,74 +75,4 @@ export function addFinds(list: Found[], more: readonly Found[]): boolean {
       added = true
     }
   return added
-}
-
-/* ─── history ────────────────────────────────────────────────────────────────────────────────── */
-
-const isObject = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null
-
-const texts = (content: unknown): string =>
-  Array.isArray(content)
-    ? content
-        .flatMap((part) => (isObject(part) && typeof part.text === "string" ? [part.text] : []))
-        .join("\n")
-    : ""
-
-const number = (value: unknown): number | undefined =>
-  typeof value === "number" && Number.isFinite(value) ? value : undefined
-
-/**
- * OpenCode 1's stored messages (`session.messages` → `[{ info, parts }]`): every tool part that
- * completed, its output a string even for MCP. Only tool parts — a link in the person's own prompt
- * is not something the agent ran (docs/opencode/trail-server.md).
- */
-export function findsInV1(messages: readonly unknown[]): Found[] {
-  const out: Found[] = []
-  for (const message of messages) {
-    const parts = isObject(message) && Array.isArray(message.parts) ? message.parts : []
-    for (const part of parts) {
-      if (!isObject(part) || part.type !== "tool" || typeof part.tool !== "string") continue
-      const state = isObject(part.state) ? part.state : {}
-      if (state.status !== "completed") continue
-      const output = typeof state.output === "string" ? state.output : texts(state.content)
-      const time = isObject(state.time) ? state.time : {}
-      addFinds(out, findsOf({ tool: part.tool, output }, number(time.end) ?? number(time.start) ?? 0))
-    }
-  }
-  return out
-}
-
-/**
- * OpenCode 2's messages (`session.message.list`, or `session.context`): an assistant's
- * `content: [{ type: "tool", name, state: { status, content: [{ text }], metadata } }]`. A plugin or
- * MCP call is an `execute` part there, its inner calls named only in `metadata.toolCalls` and its
- * output merged — so an `execute` counts when one of its calls is MCP (`server.tool`, with a dot) or
- * a shell, and none of them is `search` (the catalog, full of links).
- */
-export function findsInV2(messages: readonly unknown[]): Found[] {
-  const out: Found[] = []
-  for (const message of messages) {
-    const content = isObject(message) && Array.isArray(message.content) ? message.content : []
-    const created = isObject(message) && isObject(message.time) ? number(message.time.created) : undefined
-    for (const part of content) {
-      if (!isObject(part) || part.type !== "tool" || typeof part.name !== "string") continue
-      const state = isObject(part.state) ? part.state : {}
-      if (state.status !== "completed") continue
-      const time = isObject(part.time) ? part.time : {}
-      const at = number(time.completed) ?? number(time.created) ?? created ?? 0
-      const output = texts(state.content)
-      if (part.name !== "execute") {
-        addFinds(out, findsOf({ tool: part.name, output }, at))
-        continue
-      }
-      const metadata = isObject(state.metadata) ? state.metadata : {}
-      const calls = (Array.isArray(metadata.toolCalls) ? metadata.toolCalls : []).flatMap((call) =>
-        isObject(call) && typeof call.tool === "string" ? [call.tool] : [],
-      )
-      const counts = calls.some((tool) => tool.includes(".") || tool.startsWith("shell"))
-      if (counts && !calls.includes("search")) addFinds(out, foundIn(output, at))
-    }
-  }
-  return out
 }

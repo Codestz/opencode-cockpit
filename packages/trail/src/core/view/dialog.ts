@@ -7,9 +7,6 @@
  *      PR #33    0.8: Trust, one design s…    GitHub   created → updated   1h ago ↗
  *    Rollout checklist · docs                 Claude   created            30m ago ↗
  *
- *    FOUND, NOT RECORDED  seen in output — add what this conversation made
- *    PR #40      https://github.com/acme/web/pull/40  GitHub   seen 3m ago  [a] Add
- *
  * A record with no ref gives its title the ref's column (`refOf`), and the time is when, said so
  * (`since`), as in the sidebar.
  *
@@ -20,8 +17,6 @@
  * a row of its own, so `g` on it goes there (to the root: a subagent's view has no sidebar,
  * docs/opencode/trail-interface.md). A conversation since deleted keeps its row, marked.
  *
- * Found-not-recorded rows are offered, never added: `a` records one, as you.
- *
  * Keys with nothing to act on under the cursor are dimmed, not removed (design-system.md); narrow,
  * a dimmed key gives way a little before a live one of the same rank.
  */
@@ -31,10 +26,8 @@ import {
   type Arranged,
   arrange,
   conversationThings,
-  type Found,
   lastOf,
   linesOf,
-  notRecorded,
   projectThings,
   type Thing,
   type Touch,
@@ -56,8 +49,6 @@ export interface DialogInput {
   state: State
   /** The conversation on screen (its root session). */
   session: string
-  /** PR and issue links seen in this conversation's tool output. */
-  found: readonly Found[]
   now: number
   /** The project's folder name, for the header. */
   project: string
@@ -73,7 +64,6 @@ export type Item =
   | { kind: "thing"; key: string; thing: Thing }
   /** One conversation's part in a thing, under it in All conversations. */
   | { kind: "touch"; key: string; thing: Thing; touch: Touch }
-  | { kind: "found"; key: string; found: Found }
 
 /** What the keys do to the item under the cursor. Absent: nothing to do, and the key is dimmed. */
 export interface Target {
@@ -83,8 +73,6 @@ export interface Target {
   go?: string
   /** `c`: what to copy — the link, else the ref. */
   copy?: string
-  /** `a`: the find to record. */
-  add?: Found
   /** `x`: the record to remove. */
   remove?: string
 }
@@ -97,7 +85,6 @@ export interface DialogView {
   /** The rows a click selects. */
   hits: { y: number; key: string }[]
   arranged: Arranged
-  found: Found[]
 }
 
 /** The fewest rows the dialog is drawn in: header, a row of air, a few rows, air, keys. */
@@ -119,7 +106,6 @@ const cell = (text: string, room: number) => pad(cut(text, room), room)
 
 export function targetOf(item: Item | undefined, tab: Tab, session: string): Target {
   if (!item) return {}
-  if (item.kind === "found") return { open: item.found.url, copy: item.found.url, add: item.found }
   const { thing } = item
   const copy = thing.url ?? thing.ref ?? thing.title
   const open = thing.openable ? thing.url : undefined
@@ -153,7 +139,6 @@ function hintsFor(target: Target, searching: boolean): Hint[] {
     hint("enter", "Open", 9, target.open),
     hint("g", "Go", 6, target.go),
     hint("c", "Copy", 7, target.copy),
-    hint("a", "Add", 5, target.add),
     hint("x", "Remove", 4, target.remove),
     hint("/", "Search", 8, true),
     hint("m", "Markdown", 1, true),
@@ -306,25 +291,6 @@ function touchRow(touch: Touch, depth: number, input: DialogInput, columns: Colu
   )
 }
 
-function foundRow(found: Found, columns: Columns, width: number, now: number): Row {
-  return spread(
-    [
-      { text: " " },
-      ...(columns.label ? [muted(cell(found.label, columns.label)), { text: "  " }] : []),
-      { text: found.url, tone: "text" },
-    ],
-    [
-      { text: " ".repeat(Math.max(0, columns.system - (found.system ? widthOf(found.system) + 2 : 0))) },
-      ...(found.system ? [chip(found.system)] : []),
-      ...(columns.system ? [{ text: "  " }] : []),
-      muted(`seen ${since(now - found.at).padStart(columns.age)}  `),
-      keyRun("a"),
-      muted(" Add "),
-    ],
-    width,
-  )
-}
-
 /** Wrapped muted prose, a cell of margin each side: what an empty tab says. */
 function prose(text: string, width: number): Row[] {
   const room = Math.max(8, width - 4)
@@ -348,25 +314,11 @@ export function dialogRows(input: DialogInput): DialogView {
     input.tab === "all" ? projectThings(input.state) : conversationThings(input.state, input.session)
   const arranged = arrange(things, query)
   const lines = linesOf(arranged)
-  const found = input.tab === "this" ? notRecorded(input.state, input.session, input.found) : []
 
   /** The body, each row with the item it selects. */
   const body: { row: Row; item?: Item }[] = []
   const placed = lines.flatMap((line) => (line.kind === "thing" ? [line] : []))
   const columns = columnsFor(placed, input, width)
-  /** Finds line up with the records above them on the left, and with each other on the right. */
-  const foundColumns: Columns = {
-    label: Math.max(
-      columns.label,
-      Math.min(LABEL_NARROW, Math.max(0, ...found.map((each) => widthOf(each.label)))),
-    ),
-    system: Math.min(
-      SYSTEM_MAX,
-      Math.max(0, ...found.map((each) => (each.system ? widthOf(each.system) + 2 : 0))),
-    ),
-    history: 0,
-    age: Math.max(0, ...found.map((each) => widthOf(since(input.now - each.at)))),
-  }
 
   if (arranged.total === 0)
     body.push(
@@ -385,7 +337,7 @@ export function dialogRows(input: DialogInput): DialogView {
         ),
       },
       ...prose(
-        "The agent records what it creates or changes outside the repository — a PR, a ticket, a page, a deploy — with trail_add. Add one yourself with /link <url>.",
+        "The agent records what it creates or changes outside the repository — a PR, a ticket, a page, a deploy — with trail_add. Add one yourself: /link, then paste the link (and a note).",
         width,
       ).map((row) => ({ row })),
     )
@@ -415,24 +367,6 @@ export function dialogRows(input: DialogInput): DialogView {
           row: touchRow(touch, depth, input, columns, width),
           item: { kind: "touch", key: `${thing.key}\n${touch.session}`, thing, touch },
         })
-  }
-
-  if (found.length > 0) {
-    if (body.length > 0) body.push({ row: fit([], width) })
-    body.push({
-      row: fit(
-        [
-          { text: " FOUND, NOT RECORDED", tone: "text", bold: true },
-          muted("  seen in output — add what this conversation made"),
-        ],
-        width,
-      ),
-    })
-    for (const each of found)
-      body.push({
-        row: foundRow(each, foundColumns, width, input.now),
-        item: { kind: "found", key: `found:${each.url}`, found: each },
-      })
   }
 
   const items = body.flatMap((entry) => (entry.item ? [entry.item] : []))
@@ -486,5 +420,5 @@ export function dialogRows(input: DialogInput): DialogView {
   const fitted = fitHints(hintsFor(target, input.searching === true), Math.max(0, width - 2))
   rows.push(fit([{ text: " " }, ...fitted.runs], width))
 
-  return { rows, items, ...(item ? { item } : {}), target, hits, arranged, found }
+  return { rows, items, ...(item ? { item } : {}), target, hits, arranged }
 }

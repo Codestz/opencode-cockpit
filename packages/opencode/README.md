@@ -101,7 +101,7 @@ keeping line numbers and highlighting matches — and output keeps the colours t
 | `/plugins-update` | Every plugin you have installed: what runs, what is published, and an update checked against disk |
 | `/cockpit-setup` | Briefs the agent to set Cockpit up with you: which bays show, where, in what order |
 | `/status-setup` | Briefs the agent to set up the Status bay with you (was `/statusline`) |
-| `ctrl+x f` · `/trail` | What this conversation made; `/link <url>` adds one yourself |
+| `ctrl+x f` · `/trail` | What this conversation made; `/link`, then paste the link, adds one yourself |
 
 Status reads the same everywhere — `RUN` (with a spinner), `FAIL`, `STOP`, `DONE` — running shells
 and recent failures stay in view, the rest folds behind `▸ N more`. In the console: `i` types

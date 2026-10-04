@@ -265,29 +265,24 @@ export function linesOf(arranged: Arranged): Line[] {
   return lines
 }
 
-/* ─── found, not recorded ────────────────────────────────────────────────────────────────────── */
+/* ─── seen in output, not recorded ───────────────────────────────────────────────────────────── */
 
 /** A PR or issue link seen in the output of something the agent ran. */
 export interface Found {
   url: string
   ref: string
-  label: string
-  system?: string
   /** When it was first seen. */
   at: number
 }
 
 /** The PRs and issues in a command's output, as finds. */
 export function foundIn(text: string, at: number): Found[] {
-  return workIn(text).map((work) => {
-    const system = systemOf(work.url)
-    return { url: work.url, ref: work.ref, label: work.label, ...(system ? { system } : {}), at }
-  })
+  return workIn(text).map((work) => ({ url: work.url, ref: work.ref, at }))
 }
 
 /**
- * The finds this conversation has not recorded, newest first, once each — the safety net's whole
- * output. A record matches by link, or by the ref the link derives (`owner/repo#33`).
+ * The finds this conversation has not recorded, newest first, once each — what the reminder line
+ * puts to the agent. A record matches by link, or by the ref the link derives (`owner/repo#33`).
  */
 export function notRecorded(state: State, session: string, seen: readonly Found[]): Found[] {
   const records = [...state.records.values()].filter((record) => record.session === session)
