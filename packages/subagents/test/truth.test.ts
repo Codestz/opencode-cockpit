@@ -216,8 +216,8 @@ describe("a subagent continued the next day (two rounds, a day apart)", () => {
         .map((line) => rowText(line.row))
         .find((text) => text.includes("Review"))
         ?.trimEnd()
-    expect(row(60)).toMatch(/^● gene… Review the export query +4m00s$/)
-    expect(row(30)).toBe("● gene… Review the expo… 4m00s")
+    expect(row(60)).toMatch(/^● general Review the export query +4m00s$/)
+    expect(row(30)).toBe("● general Review the ex… 4m00s")
     for (const width of [30, 40, 60]) expect(row(width)).not.toContain("24h")
   })
 

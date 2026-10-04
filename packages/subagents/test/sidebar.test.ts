@@ -57,7 +57,7 @@ describe("order", () => {
     ])
     const lines = text({ nodes: subagentsOf(m, LATE_ROOT), width: 40, now: SAMPLE_NOW, frame: 0 })
     expect(lines[2]).toContain("Document the middleware")
-    expect(lines[4]).toMatch(/^ {2}\S expl… Collect examples/)
+    expect(lines[4]).toMatch(/^ {2}\S explore Collect examples/)
     expect(lines[6]).toContain("Fix the flaky refresh test")
   })
 
@@ -115,8 +115,8 @@ describe("an advisor asked again and again", () => {
     /** The newest one still at it is the one described, and the one a click opens. */
     expect(advisor?.lead.id).toBe("ses_advisor6")
     const lines = sidebarLines({ nodes, width: 40, now: SAMPLE_NOW, frame: 0 })
-    const row = lines.findIndex((line) => rowText(line.row).includes("advi… "))
-    expect(rowText(lines[row]?.row ?? []).trimEnd()).toMatch(/advi… Review the migration.* ×6$/)
+    const row = lines.findIndex((line) => rowText(line.row).includes("advisor "))
+    expect(rowText(lines[row]?.row ?? []).trimEnd()).toMatch(/advisor Review the migration.* ×6$/)
     expect(rowText(lines[row + 1]?.row ?? [])).toContain("└ 2 running · read")
     expect(lines[row]?.id).toBe("ses_advisor6")
     expect(lines[row + 1]?.id).toBe("ses_advisor6")
@@ -137,7 +137,7 @@ describe("an advisor asked again and again", () => {
     ])
     const lines = sidebarLines({ nodes: subagentsOf(done, "p"), width: 40, now: 8, frame: 0 })
     /** Finished: one row, how long the latest took, then the count. */
-    expect(rowText(lines[4]?.row ?? []).trimEnd()).toMatch(/● advi… Check +0s {2}×3$/)
+    expect(rowText(lines[4]?.row ?? []).trimEnd()).toMatch(/● advisor Check +0s {2}×3$/)
     expect(lines[4]?.id).toBe("v3")
   })
 
@@ -183,7 +183,7 @@ describe("finished nested subagents leave the sidebar", () => {
     frame: 0,
     ...(fadeAfter !== undefined ? { fadeAfter } : {}),
   })
-  const shows = (input: SidebarInput) => text(input).some((line) => line.includes("advi… Help"))
+  const shows = (input: SidebarInput) => text(input).some((line) => line.includes("advisor Help"))
 
   test("after the delay, not before", () => {
     expect(shows(at(10_000 + 29_999, 30_000))).toBe(true)
@@ -367,7 +367,7 @@ describe("everything ended (the screenshots)", () => {
     const entries = lines.filter((line) => line.id && !rowText(line.row).includes("└"))
     expect(entries.length).toBeGreaterThan(0)
     for (const line of entries) {
-      const agent = line.row.find((run) => /^(gene|orch)… $/.test(run.text))
+      const agent = line.row.find((run) => /^(general|orchest…) +$/.test(run.text))
       expect(agent?.tone).toBe("muted")
       const at = line.row.indexOf(agent as (typeof line.row)[number])
       expect(line.row[at + 1]?.tone).toBe("text")
@@ -401,21 +401,23 @@ describe("names", () => {
       ).toBeLessThanOrEqual(room)
   })
 
-  test("the column is the longest agent shown, at most five cells, and none when titles would starve", () => {
+  test("the column is the longest agent shown, at most eight cells, and none when titles would starve", () => {
     expect(agentColumn(["qa", "plan"], 34)).toBe(4)
-    expect(agentColumn(["qa", "explore"], 34)).toBe(5)
-    expect(agentColumn(["explore"], 12)).toBe(5)
-    expect(agentColumn(["explore"], 11)).toBe(0)
+    expect(agentColumn(["qa", "explore"], 34)).toBe(7)
+    expect(agentColumn(["general", "security-reviewer"], 34)).toBe(8)
+    expect(agentColumn(["explore"], 14)).toBe(7)
+    expect(agentColumn(["explore"], 13)).toBe(0)
   })
 
   /** Live at 36 columns, one title began at column 9 and the next at column 7. */
   test("every top-level title starts in the same column, at every width", () => {
+    /** Each block's column: `security-reviewer` and `orchestrator` cut to eight, `general` whole. */
     const fixtures = [
-      subagentsOf(applyAll(emptyModel(), namesSample()), NAMES_ROOT),
-      subagentsOf(applyAll(emptyModel(), finishedSample()), FINISHED_ROOT),
-      subagentsOf(applyAll(emptyModel(), advisorSample()), ADVISOR_ROOT),
-    ]
-    for (const fixtureNodes of fixtures) {
+      [subagentsOf(applyAll(emptyModel(), namesSample()), NAMES_ROOT), 11],
+      [subagentsOf(applyAll(emptyModel(), finishedSample()), FINISHED_ROOT), 11],
+      [subagentsOf(applyAll(emptyModel(), advisorSample()), ADVISOR_ROOT), 10],
+    ] as const
+    for (const [fixtureNodes, column] of fixtures) {
       for (const width of [24, 30, 36, 50, 80]) {
         const starts = sidebarLines({ nodes: fixtureNodes, width, now: SAMPLE_NOW, frame: 0 })
           .filter((line) => line.id && !rowText(line.row).includes("└") && !rowText(line.row).startsWith(" "))
@@ -425,7 +427,7 @@ describe("names", () => {
           })
         expect(starts.length).toBeGreaterThan(1)
         expect(new Set(starts).size).toBe(1)
-        expect(starts[0]).toBe(8)
+        expect(starts[0]).toBe(column)
       }
     }
   })
@@ -437,17 +439,17 @@ describe("names", () => {
       expect(plan).toMatch(/ 2m15s$/)
       expect(plan).not.toContain("call")
     }
-    expect(rows(36).find((row) => row.includes("Write"))).toBe("● gene… Write a long plan for… 2m15s")
+    expect(rows(36).find((row) => row.includes("Write"))).toBe("● general  Write a long plan … 2m15s")
     /** A running row keeps its calls, on its second row. */
     expect(rows(36).join("\n")).toContain("4 calls · 4m50s")
   })
 
   test("a subagent with no title is named by its task's first words, never by nothing", () => {
     const bare = rows(50).find((row) => row.includes("Find every"))
-    expect(bare).toContain("gene… Find every caller of exportCsv")
+    expect(bare).toContain("general  Find every caller of exportCsv")
     /** OpenCode's placeholder is no title either. */
     const auto = rows(80).find((row) => row.includes("Check the export"))
-    expect(auto).toContain("expl… Check the export's tests for flakiness across the…")
+    expect(auto).toContain("explore  Check the export's tests for flakiness across the…")
     expect(rows(80).join("\n")).not.toContain("Child session")
   })
 })

@@ -168,7 +168,7 @@ const under = (text: string, heading: string): string | undefined => {
 }
 /**
  * A subagent's row in the sidebar: its status glyph, then the agent's name in the block's agent column,
- * five cells at most: `expl…` (the old `explore`/`exp…` still read, for an older build).
+ * eight cells at most, so `explore` whole (the old `expl…`/`exp…` still read, for an older build).
  */
 const EXPLORE_ROW = /[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] exp(lore|l?o?…) /
 /** The Status table's token row, which only a conversation with a reply in it fills. */

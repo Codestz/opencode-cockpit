@@ -155,10 +155,10 @@ All notable changes to this project are documented here. The format follows
   agent-side entry too.
 - **Every subagent says what it is.** Each row names its agent, muted — `general` too — and a
   subagent with no title is named by its task's first words.
-  - **The agents are one column, so the titles line up.** As wide as the longest agent shown, five
-    cells at most (`expl…`); each row used to shorten its own, so one title started at column 9 and
+  - **The agents are one column, so the titles line up.** As wide as the longest agent shown, eight
+    cells at most, so `general`, `explore` and `build` read whole; each row used to shorten its own, so one title started at column 9 and
     the next at column 7.
-  - **A finished subagent says how long it ran, and nothing else** (`● gene… Plan login… 1m04s`).
+  - **A finished subagent says how long it ran, and nothing else** (`● general Plan login… 1m04s`).
     `17 calls · 1m04s` cut its title to twelve cells; the calls and rounds are in the pane.
 - **Settings notices are drawn, not only logged.** Status, Shell, Subagents, Trail and Trust draw
   theirs as `!` rows in their blocks, wrapped to the sidebar's width so the fix is not cut off;

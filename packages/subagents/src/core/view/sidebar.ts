@@ -6,15 +6,15 @@
  * its width, and an entry's lines stay two however long its task or target is.
  *
  *   Subagents         2 running · 1 done
- *   ⠙ expl… Map the auth flow
+ *   ⠙ explore Map the auth flow
  *     └ grep "session"  9 calls · 51s
- *     ⠙ advi… Review the plan        ×6
+ *     ⠙ advisor Review the plan      ×6
  *       └ 2 running · thinking    3s
- *   ● gene… Update README          28s
+ *   ● general Update README        28s
  *
  * Every row names its agent, muted, before its title, in one column as wide as the longest agent
- * shown (at most five cells, `expl…`), so every title at one depth starts in the same column. A
- * finished row says only how long it ran; the calls are the pane's. With nothing to list the block
+ * shown (at most eight cells: `general` and `explore` whole, `orchest…`), so every title at one depth
+ * starts in the same column. A finished row says only how long it ran; the calls are the pane's. With nothing to list the block
  * still says it exists: the heading and `none yet` in the row the first entry will take
  * (client/design `emptyBlock`).
  *
@@ -158,8 +158,8 @@ function doing(activity: Activity): Row {
   }
 }
 
-/** The agent column is never wider than this: `explore` is `expl…`, `build` stays whole. */
-export const AGENT_COLUMN = 5
+/** The agent column is never wider than this: `general`, `explore` and `build` stay whole. */
+export const AGENT_COLUMN = 8
 
 /** Title cells the agent column must leave; narrower than that, the block draws titles alone. */
 const TITLE_FLOOR = 6
