@@ -19,7 +19,7 @@
 
 import { type ToolDefinition, tool } from "@opencode-ai/plugin"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
-import { dualServer, type ServerHost, type ServerStart } from "@opencode-cockpit/client/server"
+import { dualServer, openText, type ServerHost, type ServerStart } from "@opencode-cockpit/client/server"
 import { loadTrail } from "../core/config.ts"
 import { createJournal } from "../core/journal.ts"
 import { type Found, notRecorded } from "../core/model.ts"
@@ -166,6 +166,14 @@ export function createTrailServer({ source = TRAIL_PACKAGE }: TrailServerOptions
 
     return {
       tools: { trail_add: add, trail_list: list },
+      /** For the Cockpit-wide line: the trail is in the sidebar, or only behind `/trail`. */
+      surfaces: [
+        {
+          what: "this conversation's trail",
+          ...(settings.sidebar ? {} : { where: "the trail view" }),
+          open: openText("trail", "cockpit.trail.open", settings.keybinds, "trail"),
+        },
+      ],
       /** Before every model request, the subagents' too: the guidance, and the two lines for this conversation. */
       system: async (sessionID) => {
         if (!sessionID) return [GUIDANCE]

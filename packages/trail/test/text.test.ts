@@ -33,6 +33,12 @@ describe("what the model is told", () => {
     expect(GUIDANCE.match(/tools\.trail_add\(\{ title: /g)).toHaveLength(2)
     expect(GUIDANCE).toContain("Not for files in this repository")
   })
+
+  test("the rule itself says to group with for, to list before answering, and who records a subagent's work", () => {
+    expect(GUIDANCE).toContain("put its key in `for` so the record groups under it")
+    expect(GUIDANCE).toContain("Before saying what this work produced, call trail_list")
+    expect(GUIDANCE).toContain("A subagent records what it makes itself")
+  })
 })
 
 describe("trail_add answers", () => {

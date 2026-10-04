@@ -45,7 +45,12 @@ export const DEFAULTS = {
 }
 
 export interface LoadedSubagents {
-  config: SubagentsConfig & { sidebarRows: number; hideWhenEmpty: boolean; enabled: boolean }
+  config: SubagentsConfig & {
+    sidebar: boolean
+    sidebarRows: number
+    hideWhenEmpty: boolean
+    enabled: boolean
+  }
   /** The block's place, from the top-level `sidebar` list. */
   order: number
   /** Settings to fix, for a `!` row in the block. */

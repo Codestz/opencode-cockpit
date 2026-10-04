@@ -100,6 +100,15 @@ describe("the tools", () => {
   })
 })
 
+describe("the Cockpit-wide line", () => {
+  test("the trail is in the sidebar, or only behind its key when the block is off", async () => {
+    expect((await start()).surfaces).toEqual([{ what: "this conversation's trail", open: "ctrl+x f" }])
+    expect((await start({ sidebar: false }, host())).surfaces).toEqual([
+      { what: "this conversation's trail", where: "the trail view", open: "ctrl+x f" },
+    ])
+  })
+})
+
 describe("every request", () => {
   test("the guidance, always — subagents and unknown sessions too", async () => {
     const parts = await start()

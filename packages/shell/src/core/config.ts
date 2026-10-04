@@ -64,6 +64,8 @@ export interface ShellConfig {
   dockHeight?: number
   /** Whether the panel starts open; unset, it starts as you last left it. */
   dockOpen?: boolean
+  /** Draw the Shells block in the sidebar; the dock and console stay either way. */
+  sidebar?: boolean
   /** Shells in the sidebar before the rest fold into `+ N more`. */
   sidebarRows?: number
   /** Draw no Shells block at all while there are none. Default false: the heading and `none yet`. */

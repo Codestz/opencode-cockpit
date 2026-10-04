@@ -54,10 +54,10 @@ export const LIST_ARGS = {
 
 /** The system-prompt guidance: always loaded, subagents included. */
 export const GUIDANCE = `## Trail (opencode-cockpit)
-When you create or change something outside this repository's files — a pull request, a ticket, a doc page, an artifact, a deploy — record it right away with trail_add (in Code Mode: \`await tools.trail_add({...})\`). Use the thing's own title and its link; it is how the user finds later what this conversation made.
+When you create or change something outside this repository's files — a pull request, a ticket, a doc page, an artifact, a deploy — record it right away with trail_add (in Code Mode: \`await tools.trail_add({...})\`). Use the thing's own title and its link; when the work is for a ticket or epic, put its key in \`for\` so the record groups under it. A subagent records what it makes itself.
   tools.trail_add({ title: "Fix bundle desync on reconnect", url: "https://github.com/acme/web/pull/33", action: "created", for: "COM-1736" })
   tools.trail_add({ title: "Release notes for 0.8", url: "https://acme.atlassian.net/wiki/x/AbC123", kind: "Confluence page", action: "updated" })
-Not for files in this repository, or for links you only read or printed. trail_list (all, query) answers "what did we make for COM-1736?".`
+Not for files in this repository, or for links you only read or printed. Before saying what this work produced, call trail_list (all, query) — don't answer from memory.`
 
 /* ─── naming a thing ─────────────────────────────────────────────────────────────────────────── */
 

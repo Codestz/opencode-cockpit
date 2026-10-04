@@ -42,11 +42,19 @@ export function continueHow(version: 1 | 2): string {
     : "call the subagent tool with its id as sessionID"
 }
 
+/**
+ * A plugin tool as the model calls it: directly on OpenCode 1, through Code Mode's `tools.` on
+ * OpenCode 2, whose catalog may not list it (docs/opencode/trail-server.md). `task` and `subagent`
+ * are built-ins, called directly on both.
+ */
+const call = (version: 1 | 2, name: string) => (version === 2 ? `tools.${name}` : name)
+
 export function subagentsGuidance({ version, background }: { version: 1 | 2; background: boolean }): string {
+  const t = (name: string) => call(version, name)
   const launch = background
     ? [
         `When you delegate independent work to a subagent, launch it in the background — background: true, a boolean — so this conversation continues while it works; you are notified when it finishes. Work on something else meanwhile, or tell the user what you launched.`,
-        `If you have nothing else to do and need a background subagent's result, call subagents_wait instead of sleeping or polling.`,
+        `If you have nothing else to do and need a background subagent's result, call ${t("subagents_wait")} instead of sleeping or polling.`,
       ]
     : [
         `Your task tool has no background option in this OpenCode (OpenCode 1 offers it only when started with OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true), so never pass background: each task call returns when its subagent answers. To run independent subagents at the same time, call the task tool for each of them in the same message — they run in parallel, and you continue when the last one answers.`,
@@ -54,8 +62,8 @@ export function subagentsGuidance({ version, background }: { version: 1 | 2; bac
   return [
     "## Subagents (opencode-cockpit)",
     ...launch,
-    `When the user asks for a fix or follow-up on work a subagent already did, continue that same subagent (${continueHow(version)}) rather than launching a new one — it keeps its context. subagents_list gives each subagent's id, task, state and last answer; subagents_read gives one subagent's full answer and what it did.`,
-    `A subagent that was cancelled or failed can be continued the same way, and keeps what it did. A "Task cancelled" or "aborted" result usually means it was stopped from outside — the user interrupted, or your own turn was stopped — not that it cannot run: read it with subagents_read before deciding to continue it or start over, and never retry with another subagent's id.`,
+    `When the user asks for a fix or follow-up on work a subagent already did, continue that same subagent (${continueHow(version)}) rather than launching a new one — it keeps its context. ${t("subagents_list")} gives each subagent's id, task, state and last answer; ${t("subagents_read")} gives one subagent's full answer and what it did.`,
+    `A subagent that was cancelled or failed can be continued the same way, and keeps what it did. A "Task cancelled" or "aborted" result usually means it was stopped from outside — the user interrupted, or your own turn was stopped — not that it cannot run: read it with ${t("subagents_read")} before deciding to continue it or start over, and never retry with another subagent's id.`,
     "The user can watch each subagent and message it directly; when they do, a note in this conversation tells you what they asked and what it answered.",
   ].join("\n")
 }

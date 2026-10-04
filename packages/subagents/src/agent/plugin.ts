@@ -1,6 +1,6 @@
 import { type ToolContext, type ToolDefinition, tool } from "@opencode-ai/plugin"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
-import { dualServer, type ServerHost, type ServerStart } from "@opencode-cockpit/client/server"
+import { dualServer, openText, type ServerHost, type ServerStart } from "@opencode-cockpit/client/server"
 import { createdSession } from "../core/adapt/created.ts"
 import { endOf, finishedAt } from "../core/adapt/ends.ts"
 import { createV1Translator } from "../core/adapt/v1.ts"
@@ -164,7 +164,19 @@ export function createSubagentsServer({
     })
 
     return {
-      ...(options.guidance === false ? {} : { system: async () => [guidance] }),
+      ...(options.guidance === false
+        ? {}
+        : {
+            system: async () => [guidance],
+            /** For the Cockpit-wide line: subagents in the sidebar, or only behind their key. */
+            surfaces: [
+              {
+                what: "subagents",
+                ...(options.sidebar ? {} : { where: "the subagents view" }),
+                open: openText("subagents", "cockpit.subagents.open", options.keybinds, "subagents"),
+              },
+            ],
+          }),
       tools: { subagents_list: list, subagents_read: read, subagents_wait: wait },
       event: (event) => {
         try {

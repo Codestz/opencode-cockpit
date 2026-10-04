@@ -1,6 +1,7 @@
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client"
 import {
   dualServer,
+  openText,
   type ServerHost,
   type ServerParts,
   type ServerStart,
@@ -24,11 +25,20 @@ import {
 } from "../core/notice.ts"
 import { createTools } from "./tools/index.ts"
 
-const GUIDANCE = `## Background shells (opencode-cockpit)
-Long-running or interactive commands (dev servers, watchers, slow builds/tests, REPLs) go in shell_start, not bash with "&".
-Block with shell_wait (pattern, port, idle, exit) instead of sleeping; follow output with shell_read(after=cursor).
-You are messaged when a shell you started exits, and — once that subagent finishes — when a shell one of your subagents started failed; shell_list says which subagent started each shell.
-For processes that never exit (tsc --watch, vitest --watch, dev servers), shell_watch reports only when their health changes — use it instead of re-reading their logs.`
+/**
+ * What the agent is told about shells, before every request. Tools are named as the model calls
+ * them: directly on OpenCode 1, `tools.shell_start` on OpenCode 2, whose Code Mode lists plugin tools
+ * in a catalog that cuts each description at ~115 characters (docs/opencode/trail-server.md).
+ */
+function guidance(version: 1 | 2): string {
+  const t = (name: string) => (version === 2 ? `tools.${name}` : name)
+  return `## Background shells (opencode-cockpit)
+Dev servers, watchers, slow builds/tests and REPLs go in ${t("shell_start")}, never bash with "&". Before starting one, call ${t("shell_list")}: if this project's dev server or watcher is already running, use it — never start a second.
+Give each shell a short name the user knows (description: "dev", "test", "build"); they see shells in the sidebar and dock, so tell them what you started.
+Block with ${t("shell_wait")} (pattern, port, idle, exit) instead of sleeping; follow output with ${t("shell_read")}(after=cursor).
+You are messaged when a shell you started exits, and — once that subagent finishes — when a shell one of your subagents started failed; ${t("shell_list")} says which subagent started each shell.
+For processes that never exit (tsc --watch, vitest --watch, dev servers), ${t("shell_watch")} reports only when their health changes — use it instead of re-reading their logs.`
+}
 
 /**
  * What a subagent is told on OpenCode 1, where it is never messaged while it works (core/notice.ts:
@@ -39,7 +49,7 @@ const SUBAGENT_V1 =
 
 /** The guidance for one session: a subagent on OpenCode 1 is told it hears nothing while it works. */
 export function shellGuidance(version: 1 | 2, subagent: boolean): string {
-  return version === 1 && subagent ? `${GUIDANCE}\n${SUBAGENT_V1}` : GUIDANCE
+  return version === 1 && subagent ? `${guidance(1)}\n${SUBAGENT_V1}` : guidance(version)
 }
 
 export const SHELL_PACKAGE = "@opencode-cockpit/shell"
@@ -230,6 +240,18 @@ async function shellParts(host: ServerHost, options?: unknown): Promise<ServerPa
   })
 
   return {
+    /** For the Cockpit-wide line: the shells are in the sidebar, or only in the dock. */
+    ...(config.guidance !== false
+      ? {
+          surfaces: [
+            {
+              what: "your background shells",
+              ...(config.sidebar === false ? { where: "the shells dock" } : {}),
+              open: openText("shell", "cockpit.shells.dock", config.keybinds, "shells-dock"),
+            },
+          ],
+        }
+      : {}),
     tools: createTools({
       client: cockpit,
       instance,
