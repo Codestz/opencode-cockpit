@@ -12,24 +12,14 @@
  */
 
 import type { TuiThemeCurrent } from "@opencode-ai/plugin/tui"
-import {
-  emptyBlock,
-  FEWER_TEXT,
-  HEADING_GAP,
-  moreText,
-  type State as Shared,
-  summaryRuns,
-  warnRows,
-} from "@opencode-cockpit/client/design"
 import type { ScreenResult, ShellInfo } from "@opencode-cockpit/protocol/shell"
 import { type ConsoleInput, consoleRows, type Row, type Run } from "../tui/lib/console.ts"
-import { fold, sidebarRow } from "../tui/lib/sidebar.ts"
+import { sidebarBlock } from "../tui/lib/sidebar.ts"
 import {
   badgeText,
   displayCommand,
   kindColor,
   kindOf,
-  STATE,
   statusDetail,
   tailRuns,
   truncate,
@@ -112,66 +102,9 @@ interface SidebarState {
   notices?: readonly string[]
 }
 
-function sidebar(list: readonly ShellInfo[], width: number, state: SidebarState = {}): Row[] {
-  /** As `components/sidebar.tsx` draws them: the design module's rows for an empty block and a notice. */
-  const warnings = (state.notices ?? []).flatMap((text) => warnRows(text, width).map((row) => row as Row))
-  if (list.length === 0)
-    return [
-      ...emptyBlock("Shells", width, state.hideWhenEmpty === true && warnings.length === 0).map(
-        (row) => row as Row,
-      ),
-      ...warnings,
-    ]
-  const folding = fold({
-    all: list,
-    folded: list.filter((shell) => kindOf(shell) === "run" || kindOf(shell) === "fail"),
-    showAll: state.showAll === true,
-    rows: 5,
-    expandedRows: 12,
-  })
-  const toggle: Row[] = !folding.toggle
-    ? []
-    : [
-        fitRow(
-          [
-            {
-              text: `  ${folding.toggle === "fewer" ? FEWER_TEXT : moreText(folding.more)}`,
-              tone: "muted",
-            },
-          ],
-          width,
-        ),
-      ]
-  return [...blockRows(folding.shown, list, width), ...toggle, ...warnings]
-}
-
-function blockRows(shown: readonly ShellInfo[], list: readonly ShellInfo[], width: number): Row[] {
-  /** As `components/sidebar.tsx` draws it: the name left, every count flush right, no row of air. */
-  const tally: Partial<Record<Shared, number>> = {}
-  for (const shell of list) tally[STATE[kindOf(shell)]] = (tally[STATE[kindOf(shell)]] ?? 0) + 1
-  const counts = summaryRuns(tally, Math.max(8, width - "Shells ".length))
-  const used = "Shells".length + counts.reduce((n, part) => n + part.text.length, 0)
-  const heading: Row = [
-    { text: "Shells", bold: true },
-    { text: " ".repeat(Math.max(1, width - used)) },
-    ...counts.map((part): Run => ({ text: part.text, tone: part.tone ?? "muted" })),
-  ]
-  return [
-    fitRow(heading, width),
-    ...Array.from({ length: HEADING_GAP }, () => fitRow([], width)),
-    ...shown.map((shell): Row => {
-      const row = sidebarRow(shell, SAMPLE_NOW, 2, width)
-      const kind = hex(kindColor(theme, kindOf(shell)))
-      return [
-        { text: row.rule, fg: kind },
-        { text: row.label, fg: kind, bold: true },
-        { text: row.title },
-        { text: row.watch, fg: hex(watchColor(theme, shell)) },
-        { text: row.detail, tone: "muted" },
-      ]
-    }),
-  ]
-}
+/** The block as `components/sidebar.tsx` draws it: the shared builder, at the sample's moment. */
+const sidebar = (list: readonly ShellInfo[], width: number, state: SidebarState = {}): Row[] =>
+  sidebarBlock({ list, now: SAMPLE_NOW, frame: 2, width, ...state })
 
 // --- the dock ------------------------------------------------------------------------------------
 

@@ -145,19 +145,22 @@ export function watchLabel(s: ShellInfo): string {
   return `${name} ${mark}`
 }
 
-export function watchColor(theme: TuiThemeCurrent, s: ShellInfo) {
+/** A watcher's health as a tone: what it says, before any theme decides how that looks. */
+export function watchTone(s: ShellInfo): "success" | "error" | "accent" | "muted" {
   switch (s.watch?.status) {
     case "ok":
-      return theme.success
+      return "success"
     case "fail":
-      return theme.error
+      return "error"
     /** Pending: still unmistakably a watcher, in the colour the console uses for what is live. */
     case "pending":
-      return theme.accent
+      return "accent"
     default:
-      return theme.textMuted
+      return "muted"
   }
 }
+
+export const watchColor = (theme: TuiThemeCurrent, s: ShellInfo) => toneColor(theme, watchTone(s))
 
 /**
  * Compact detail for narrow lists: how long it ran, in the sidebar's one kind of time — or, for a
