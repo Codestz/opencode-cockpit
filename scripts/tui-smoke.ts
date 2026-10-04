@@ -184,6 +184,28 @@ const STATUS_SKILL_USED = [
 ]
 /** A prompt sent while the agent answers, waiting its turn: OpenCode 1's tag, OpenCode 2's line. */
 const QUEUED = /QUEUED|1 queued · Use the cockpit-setup skill/
+/** A minimal stdio MCP server: answers initialize, lists one tool, runs it. Run with Bun. */
+const OK_MCP = `import { createInterface } from "node:readline"
+const send = (msg) => process.stdout.write(JSON.stringify(msg) + "\\n")
+createInterface({ input: process.stdin }).on("line", (line) => {
+  let req
+  try { req = JSON.parse(line) } catch { return }
+  if (req.id === undefined) return
+  if (req.method === "initialize")
+    return send({ jsonrpc: "2.0", id: req.id, result: {
+      protocolVersion: req.params?.protocolVersion ?? "2024-11-05",
+      capabilities: { tools: {} },
+      serverInfo: { name: "ok-test", version: "1.0.0" },
+    } })
+  if (req.method === "tools/list")
+    return send({ jsonrpc: "2.0", id: req.id, result: { tools: [{
+      name: "ping", description: "Answers pong.", inputSchema: { type: "object", properties: {} },
+    }] } })
+  if (req.method === "tools/call")
+    return send({ jsonrpc: "2.0", id: req.id, result: { content: [{ type: "text", text: "pong" }] } })
+  send({ jsonrpc: "2.0", id: req.id, result: {} })
+})
+`
 
 try {
   run(["bun", "run", "build"], root)
@@ -633,6 +655,41 @@ try {
     return { opened, used, queued, drawn: TOKENS_ROW.test(rightHalf(settled)) ? settled : drawn }
   }
   const fresh = process.env.AGENT ? await presence() : undefined
+
+  /**
+   * Status's `diagnostics` row in the sidebar table, on both versions (#34: OpenCode 2 hands a
+   * server's status as `{ status: "connected" }`, and every healthy server was flagged). A project
+   * with two MCP servers: a small stdio server that answers, and one whose command does not exist.
+   * The table — the default surface, nothing configures it here — draws in a conversation, so one
+   * short turn is sent (a free model; the only turn outside AGENT=1). Then, with the servers given
+   * time to connect or fail: no `! ok-test`, and `! broken-test` drawn, which proves the row was live.
+   * One `opencode.json` for both: 2.0 reads `mcp.servers`, 1.18 the flat keys (2.0 ignored a .jsonc).
+   */
+  const mcpStatus = async () => {
+    const at = join(work, "mcp")
+    const okMcp = join(work, "ok-mcp.ts")
+    await Bun.write(okMcp, OK_MCP)
+    const servers = {
+      "ok-test": { type: "local", command: [process.execPath, okMcp] },
+      "broken-test": { type: "local", command: ["cockpit-does-not-exist"] },
+    }
+    await Bun.write(
+      join(at, "opencode.json"),
+      JSON.stringify({ model: "opencode/space-bunny-free", mcp: { servers, ...servers } }),
+    )
+    await Bun.write(join(at, "README.md"), "mcp\n")
+    proc = launch(at)
+    await Bun.sleep(14_000)
+    await type("Reply with just the word hi.", 400)
+    await type("\r", 1000)
+    const drawn = await until(90_000, (text) => /! broken-test/.test(rightHalf(text)))
+    /** A healthy server that is flagged at all may be flagged only once it has connected. */
+    await Bun.sleep(8000)
+    const settled = await screen()
+    proc.kill("SIGKILL")
+    return { drawn, settled }
+  }
+  const mcp = await mcpStatus()
   // `SMOKE_SHOW=1 bun run smoke:tui` prints the updater's frame: a marker proves it drew, not how.
   if (process.env.SMOKE_SHOW) console.log(updater)
 
@@ -743,6 +800,7 @@ try {
     ...Object.values(ran),
     ...Object.values(popups),
     ...(fresh ? [fresh.drawn] : []),
+    mcp.settled,
   ]) {
     if (/plugins? failed/.test(text)) throw new Error(`OpenCode could not load a plugin:\n${text}`)
   }
@@ -755,6 +813,12 @@ try {
     throw new Error(
       `the panel froze: still at tick ${firstMax} after 4s (published JSX not Solid-compiled?)\n${second}`,
     )
+  }
+  if (process.env.SMOKE_SHOW) console.log(mcp.settled)
+  if (!/! broken-test/.test(rightHalf(mcp.drawn)) || !/! broken-test/.test(rightHalf(mcp.settled)))
+    throw new Error(`the Status table never flagged the broken MCP server:\n${mcp.settled}`)
+  for (const text of [mcp.drawn, mcp.settled]) {
+    if (/!\s+ok-test/.test(text)) throw new Error(`the Status table flagged a healthy MCP server:\n${text}`)
   }
   if (fresh) {
     const { opened, used, queued, drawn } = fresh
@@ -778,27 +842,36 @@ try {
   }
   if (process.env.AGENT) agentTurn(env)
   /**
-   * AGENT=1: Trail's measurement against the installed server half — a turn that opens a PR (with a
-   * fake `gh`) must end with the agent having recorded it, without being told to.
+   * AGENT=1: each bay's measurement against its installed server half — the guidance has to change
+   * what a real turn does, without the prompt naming the bay. Trail: a turn that opens a PR (with a
+   * fake `gh`) records it. Shell: "start the dev server" goes in shell_start, and a second
+   * conversation reuses it rather than starting another. Review: a waiting comment is read with
+   * review_list and answered with review_reply.
    */
   if (process.env.AGENT) {
-    const measured = Bun.spawnSync(
-      ["bun", join(root, "packages/trail/measure/agent.ts"), "--plugin", bay("trail"), "--runs", "1"],
-      {
-        cwd: root,
-        env: { ...process.env, OPENCODE: opencode },
-        stdin: "ignore",
-        stdout: "pipe",
-        stderr: "pipe",
-        /** Three attempts of five minutes each, inside the measurement. */
-        timeout: 1_000_000,
-      },
-    )
-    if (measured.exitCode !== 0)
-      throw new Error(`Trail's measurement failed:\n${measured.stdout}\n${measured.stderr}`.slice(-3000))
+    for (const [name, what] of [
+      ["trail", "Trail's"],
+      ["shell", "Shell's"],
+      ["review", "Review's"],
+    ] as const) {
+      const measured = Bun.spawnSync(
+        ["bun", join(root, `packages/${name}/measure/agent.ts`), "--plugin", bay(name), "--runs", "1"],
+        {
+          cwd: root,
+          env: { ...process.env, OPENCODE: opencode },
+          stdin: "ignore",
+          stdout: "pipe",
+          stderr: "pipe",
+          /** Three attempts, of up to two five-minute turns each, inside the measurement. */
+          timeout: 2_000_000,
+        },
+      )
+      if (measured.exitCode !== 0)
+        throw new Error(`${what} measurement failed:\n${measured.stdout}\n${measured.stderr}`.slice(-3000))
+    }
   }
   console.log(
-    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; console and its keys drew; full screen drew; statusline drew and named its old section; review drew its diff and named its old setting; updater answered its slash name; trail opened empty; every bay and /cockpit-setup found under "cockpit" in the palette, and the commands ran from there; /cockpit-setup and /status-setup offered once each as they were typed${subagents ? "; a subagent showed in the sidebar and opened full screen, by click and by /subagents, with its keys; /statusline ran the status-setup skill, saying its new name" : ""}${fresh ? "; /cockpit-setup from home opened a conversation whose agent loaded the cockpit-setup skill and called cockpit_settings, and queued behind the reply; an empty sidebar said none yet in every block, under the Status table" : ""}${process.env.AGENT ? "; an agent called the bays' tools and was told about them; Trail's measurement recorded the PR" : ""}`,
+    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; console and its keys drew; full screen drew; statusline drew and named its old section; review drew its diff and named its old setting; updater answered its slash name; trail opened empty; every bay and /cockpit-setup found under "cockpit" in the palette, and the commands ran from there; /cockpit-setup and /status-setup offered once each as they were typed${subagents ? "; a subagent showed in the sidebar and opened full screen, by click and by /subagents, with its keys; /statusline ran the status-setup skill, saying its new name" : ""}${fresh ? "; /cockpit-setup from home opened a conversation whose agent loaded the cockpit-setup skill and called cockpit_settings, and queued behind the reply; an empty sidebar said none yet in every block, under the Status table" : ""}; the Status table flagged the broken MCP server and not the healthy one${process.env.AGENT ? "; an agent called the bays' tools and was told about them; Trail's, Shell's and Review's measurements passed" : ""}`,
   )
 } finally {
   /** KEEP=1 leaves the install and project behind, to inspect what a run actually loaded. */
