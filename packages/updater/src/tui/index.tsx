@@ -122,7 +122,7 @@ export function createUpdaterTui({ source = UPDATER_PACKAGE }: { source?: string
           host.ui.toast({
             title: "Plugins",
             message:
-              "On OpenCode 2, change the version in your opencode.json plugin entry, then restart OpenCode.",
+              "On OpenCode 2, change the version in your opencode.json plugin entry, then run `opencode service restart` and restart OpenCode.",
             duration: 10_000,
           })
 

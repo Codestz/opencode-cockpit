@@ -8,7 +8,7 @@
  */
 
 import { spawnSync } from "node:child_process"
-import { accessSync, constants, existsSync, mkdirSync, rmSync } from "node:fs"
+import { accessSync, constants, existsSync, mkdirSync, rmSync, statSync } from "node:fs"
 import { homedir } from "node:os"
 import { createInterface } from "node:readline/promises"
 import { nodeDisk } from "../core/disk.ts"
@@ -45,6 +45,13 @@ export function main(argv: readonly string[]): Promise<number> {
         } catch (error) {
           // EPERM: it exists, and belongs to someone else — running, not gone.
           return (error as NodeJS.ErrnoException).code === "EPERM"
+        }
+      },
+      modified(path) {
+        try {
+          return statSync(path).mtimeMs
+        } catch {
+          return undefined
         }
       },
       writable(dir) {

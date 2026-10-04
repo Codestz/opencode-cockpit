@@ -7,6 +7,7 @@
  * point is not a report, it is the next step (docs/roadmap/doctor.md).
  */
 
+import { RESTART_COMMAND } from "../core/service.ts"
 import { isNewer, type Spec } from "../core/spec.ts"
 
 export type State = "ok" | "info" | "warn" | "fail"
@@ -64,6 +65,8 @@ export interface Facts {
     backgroundSubagents?: boolean
   }
   settings: SettingsFacts
+  /** OpenCode 2's background service; unset on OpenCode 1. */
+  service?: ServiceFacts
   /** When doctor ran, so a log line's time reads as `7h ago`. Unset prints the time as logged. */
   now?: number
 }
@@ -90,6 +93,16 @@ export interface DaemonFacts {
   pid?: number
   build?: string
   errors: { t: string; msg: string }[]
+}
+
+export interface ServiceFacts {
+  state: "running" | "stopped" | "unknown"
+  url?: string
+  /** When it started, ms since the epoch. */
+  startedAt?: number
+  /** When the newest Cockpit install it loads last changed, and which entry that is. */
+  installedAt?: number
+  installed?: string
 }
 
 export interface SettingsFacts {
@@ -437,14 +450,71 @@ export function checkSubagents(facts: Facts): Check | undefined {
   }
 }
 
+/**
+ * OpenCode 2's background service loads plugins once, when it starts. Started before Cockpit was last
+ * installed, it still runs the old agent side — the windows draw the new interface, the agent has the
+ * old tools and skills — until it restarts.
+ */
+export function checkService(facts: Facts): Check | undefined {
+  const { service } = facts
+  if (!service) return undefined
+  const title = "Service"
+  if (service.state === "stopped")
+    return {
+      title,
+      state: "ok",
+      summary: "OpenCode 2's background service is not running; a window starts it",
+    }
+  if (service.state === "unknown")
+    return {
+      title,
+      state: "info",
+      summary: "could not ask OpenCode 2 about its background service",
+      detail: ["After updating Cockpit, restart it so it loads the new agent side."],
+      fix: [RESTART_COMMAND],
+    }
+  const when = (at: number) => ago(new Date(at).toISOString(), facts.now)
+  const { startedAt, installedAt } = service
+  if (startedAt === undefined || installedAt === undefined)
+    return {
+      title,
+      state: "info",
+      summary: `OpenCode 2's background service is running${service.url ? ` (${service.url})` : ""}`,
+      detail: [
+        startedAt === undefined ? "Could not tell when it started." : `Started ${when(startedAt)}.`,
+        "It loads plugins when it starts: after updating Cockpit, restart it.",
+      ],
+      fix: [RESTART_COMMAND],
+    }
+  // A second of slack: an install and a start in the same moment are the same moment.
+  if (startedAt + 1000 < installedAt)
+    return {
+      title,
+      state: "warn",
+      summary: "OpenCode 2's background service has the old Cockpit: it started before the install",
+      detail: [
+        `Started ${when(startedAt)}; ${service.installed ?? "Cockpit"} was installed ${when(installedAt)}.`,
+        "It loads plugins once, when it starts: the agent keeps the old tools and skills until it restarts.",
+      ],
+      fix: [RESTART_COMMAND],
+    }
+  return {
+    title,
+    state: "ok",
+    summary: `OpenCode 2's background service started ${when(startedAt)}, after the install`,
+  }
+}
+
 export function allChecks(facts: Facts): Check[] {
   const subagents = checkSubagents(facts)
+  const service = checkService(facts)
   return [
     checkOpencode(facts),
     checkConfig(facts),
     checkRunning(facts),
     checkErrors(facts),
     checkDaemon(facts),
+    ...(service ? [service] : []),
     checkEnvironment(facts),
     ...(subagents ? [subagents] : []),
     checkSettings(facts),

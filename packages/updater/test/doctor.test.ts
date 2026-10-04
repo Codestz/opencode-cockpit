@@ -22,6 +22,10 @@ interface Machine {
   alive?: number[]
   git?: boolean
   env?: Record<string, string>
+  /** OpenCode 2's service: what `opencode service status` prints, and `ps -o etime=` for its pid. */
+  service?: { status: string; elapsed?: string }
+  /** A file's last change, ms since the epoch. */
+  mtimes?: Record<string, number>
 }
 
 async function run(machine: Machine, args: string[] = []) {
@@ -34,13 +38,20 @@ async function run(machine: Machine, args: string[] = []) {
     worktree: "/work/project",
     disk: memoryDisk(files),
     exists: (path) => path in files || (machine.exists ?? []).includes(path),
-    run(command) {
-      if (command === "opencode")
+    run(command, args) {
+      if (command === "opencode" && args[0] === "--version")
         return machine.opencode ? { status: 0, stdout: `${machine.opencode}\n` } : undefined
       if (command === "git") return machine.git === false ? undefined : { status: 0, stdout: "git version 2" }
+      if (command === "opencode" && args[0] === "service")
+        return machine.service ? { status: 0, stdout: `${machine.service.status}\n` } : undefined
+      if (command === "ps" && args[0] === "-o" && args[1] === "etime=")
+        return machine.service?.elapsed
+          ? { status: 0, stdout: ` ${machine.service.elapsed}\n` }
+          : { status: 1, stdout: "" }
       return { status: 0, stdout: "" }
     },
     alive: (pid) => (machine.alive ?? []).includes(pid),
+    modified: (path) => machine.mtimes?.[path],
     writable: () => true,
     fetchLatest: async (names) => new Map(names.map((name) => [name, machine.latest?.[name]])),
     now: Date.parse("2026-09-24T12:00:00Z"),
@@ -493,5 +504,61 @@ describe("a logged time reads as how long ago", () => {
   test("a time it cannot read, or no clock, is printed as logged", () => {
     expect(ago("yesterday", now)).toBe("yesterday")
     expect(ago("2026-09-30T11:00:00Z", undefined)).toBe("2026-09-30T11:00:00Z")
+  })
+})
+
+describe("OpenCode 2's background service (it keeps the plugin code it started with)", () => {
+  const NOW = Date.parse("2026-09-24T12:00:00Z")
+  const DEV = "/home/me/.cockpit-dev/node_modules/opencode-cockpit"
+  const machine = (service: Machine["service"], installedAgo?: number): Machine => ({
+    opencode: "2.0.18",
+    files: {
+      [`${CONFIG}/opencode.json`]: json({ plugins: [DEV] }),
+      [`${DEV}/package.json`]: json({ name: "opencode-cockpit", version: "0.9.0" }),
+      [`${HOME}/.local/state/opencode/service.json`]: json({
+        pid: 4242,
+        url: "http://127.0.0.1:49374",
+        password: "x",
+      }),
+    },
+    alive: [4242],
+    service,
+    ...(installedAgo !== undefined ? { mtimes: { [`${DEV}/package.json`]: NOW - installedAgo } } : {}),
+  })
+  const HOUR = 3600_000
+
+  test("started before the install: warns, and the fix is the restart", async () => {
+    // Started 6 days ago (the measured Sep 27 service); Cockpit installed 2 hours ago.
+    const found = await checks(machine({ status: "http://127.0.0.1:49374", elapsed: "6-00:00:00" }, 2 * HOUR))
+    expect(found.Service?.state).toBe("warn")
+    expect(found.Service?.summary).toContain("started before the install")
+    expect(found.Service?.detail?.[0]).toBe(`Started 6d ago; ${DEV} was installed 2h ago.`)
+    expect(found.Service?.fix).toEqual(["opencode service restart"])
+  })
+
+  test("started after the install: fine", async () => {
+    const found = await checks(machine({ status: "http://127.0.0.1:49374", elapsed: "10:00" }, 2 * HOUR))
+    expect(found.Service?.state).toBe("ok")
+    expect(found.Service?.summary).toContain("10m ago, after the install")
+  })
+
+  test("not running: nothing to restart", async () => {
+    expect((await checks(machine({ status: "stopped" }, HOUR))).Service?.state).toBe("ok")
+  })
+
+  test("running, but when it started or what it loads is not known: the restart, as advice", async () => {
+    const found = await checks(machine({ status: "http://127.0.0.1:49374" }))
+    expect(found.Service?.state).toBe("info")
+    expect(found.Service?.fix).toEqual(["opencode service restart"])
+  })
+
+  test("OpenCode 1 has no service to talk about", async () => {
+    expect((await checks({ ...machine({ status: "stopped" }), opencode: "1.18.32" })).Service).toBeUndefined()
+  })
+
+  test("as a person reads it", async () => {
+    const { out } = await run(machine({ status: "http://127.0.0.1:49374", elapsed: "6-00:00:00" }, 2 * HOUR))
+    expect(out).toContain("! Service")
+    expect(out).toContain("→ opencode service restart")
   })
 })

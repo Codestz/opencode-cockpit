@@ -11,6 +11,7 @@ import { loadSettings } from "@opencode-cockpit/client/settings"
 import { globalConfigDir } from "../core/configs.ts"
 import type { Disk } from "../core/disk.ts"
 import { parseJsonc } from "../core/jsonc.ts"
+import { servicePid, serviceStartedAt, serviceStatus, stateFile } from "../core/service.ts"
 import { parseSpec } from "../core/spec.ts"
 import {
   BUNDLE,
@@ -20,6 +21,8 @@ import {
   type Facts,
   type Half,
   type LogFacts,
+  readBy,
+  type ServiceFacts,
 } from "./checks.ts"
 
 export interface DoctorIo {
@@ -33,6 +36,8 @@ export interface DoctorIo {
   /** Runs a program; undefined when it could not start. */
   run(command: string, args: readonly string[]): { status: number; stdout: string } | undefined
   alive(pid: number): boolean
+  /** A file's last change, in ms since the epoch; undefined when it is not there or not known. */
+  modified?(path: string): number | undefined
   writable(dir: string): boolean
   fetchLatest(names: readonly string[]): Promise<Map<string, string | undefined>>
   now: number
@@ -255,6 +260,40 @@ export function backgroundSubagents(env: DoctorIo["env"]): boolean {
   return flag(env.OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS) ?? flag(env.OPENCODE_EXPERIMENTAL) ?? false
 }
 
+/** A local entry's directory, as `readEntries` resolved it to find its package.json. */
+function entryDir(entry: Entry, io: DoctorIo): string | undefined {
+  if (entry.spec.kind === "npm") return undefined
+  const base = entry.file.slice(0, entry.file.lastIndexOf("/"))
+  return localPath(entry.spec.raw, io, base)
+}
+
+/**
+ * OpenCode 2's background service against the Cockpit it should be running: when it started, and
+ * when the installed Cockpit's files last changed. Local installs only — an npm entry's files are
+ * wherever OpenCode 2 put them, which was not measured.
+ */
+function readService(io: DoctorIo, entries: Entry[]): ServiceFacts | undefined {
+  const status = serviceStatus(io.run)
+  if (status.state === "unknown") return { state: "unknown" }
+  if (status.state === "stopped") return { state: "stopped" }
+  const pid = servicePid(io.disk.read(stateFile(io.env, io.home)))
+  const startedAt = serviceStartedAt(io.run, pid !== undefined && io.alive(pid) ? pid : undefined, io.now)
+  const installed = entries
+    .filter((entry) => bayOf(entry.name) && readBy(entry, true))
+    .flatMap((entry) => {
+      const dir = entryDir(entry, io)
+      const at = dir ? io.modified?.(join(dir, "package.json")) : undefined
+      return at === undefined ? [] : [{ at, raw: entry.raw }]
+    })
+    .sort((a, b) => b.at - a.at)[0]
+  return {
+    state: "running",
+    url: status.url,
+    ...(startedAt !== undefined ? { startedAt } : {}),
+    ...(installed ? { installedAt: installed.at, installed: installed.raw } : {}),
+  }
+}
+
 export async function gatherFacts(io: DoctorIo): Promise<Facts> {
   const home = cockpitHome(io)
   const versionOut = io.run("opencode", ["--version"])
@@ -269,6 +308,8 @@ export async function gatherFacts(io: DoctorIo): Promise<Facts> {
     ]),
   ]
   const latest = await io.fetchLatest(names).catch(() => new Map<string, string | undefined>())
+  const major = version ? Number(version.split(".")[0]) : undefined
+  const service = major !== undefined && major >= 2 ? readService(io, entries) : undefined
   return {
     opencode: { version, major: version ? Number(version.split(".")[0]) : undefined },
     entries,
@@ -286,5 +327,6 @@ export async function gatherFacts(io: DoctorIo): Promise<Facts> {
       backgroundSubagents: backgroundSubagents(io.env),
     },
     settings: readSettings(io),
+    ...(service ? { service } : {}),
   }
 }
