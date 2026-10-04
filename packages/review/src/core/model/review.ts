@@ -6,6 +6,7 @@
  * own; it renders one of these and calls one of these functions.
  */
 
+import type { ImageInfo } from "../image/sniff.ts"
 import {
   type Anchor,
   type Author,
@@ -37,6 +38,31 @@ export interface FileChange {
   change?: "added" | "deleted" | "renamed"
   /** Where a renamed file was. Its "before" is read from here, so the diff shows the edit and not a copy. */
   from?: string
+  /**
+   * Set when either side is binary — git's rule, a NUL in the first 8000 bytes. `before` and `after`
+   * are then empty and the counts zero: a binary has no lines, and drawing its bytes as UTF-8 was a
+   * diff of four hundred lines of U+FFFD that said nothing true about the file.
+   */
+  binary?: BinaryChange
+}
+
+/** One side of a binary file: how big it is and, for an image, what its header says. */
+export interface BinarySide {
+  /** Bytes. */
+  size: number
+  image?: ImageInfo
+}
+
+export interface BinaryChange {
+  /** Absent for a file that was added. */
+  before?: BinarySide
+  /** Absent for a file that was deleted. */
+  after?: BinarySide
+  /**
+   * The revision the old side was read at — `HEAD` for uncommitted work, the fork point for a branch —
+   * so it can be read again as bytes: to open it in a viewer, or to decode it for a pixel diff.
+   */
+  revision?: string
 }
 
 export interface ChangeSet {

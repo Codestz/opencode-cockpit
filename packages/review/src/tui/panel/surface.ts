@@ -26,6 +26,13 @@ export interface Surface {
   variant: Variant
   /** Whether the footer is showing the numbers instead of the keys. */
   showStats: boolean
+  /**
+   * Open, but stepped aside for the host's palette: hidden, keys given up, back when it closes.
+   * Separate from `open` so a palette command that toggles the review still sees it open.
+   */
+  yielded: boolean
+  /** Something to say in the footer for a while — what `o` could not do, say. */
+  said?: { text: string; at: number }
 }
 
 export function createSurface(variant: Variant): Surface {
@@ -36,5 +43,6 @@ export function createSurface(variant: Variant): Surface {
     open: false,
     variant,
     showStats: false,
+    yielded: false,
   }
 }

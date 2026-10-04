@@ -8,7 +8,7 @@ a switch in config. They share everything underneath.
 
 ## Shell — available
 
-Background terminals with a real PTY. Nine agent tools, 35 watch presets, three views of every
+Background terminals with a real PTY. Eight agent tools, 34 watch presets, three views of every
 shell, log search, limits and log files. See [Shell](/opencode-cockpit/shell/overview/).
 
 ```sh
@@ -17,7 +17,7 @@ opencode plugin @opencode-cockpit/shell@0.8.0 --global --force
 
 ## Statusline — available
 
-A line of live session state under the conversation, or a column of it in the sidebar. Fourteen
+A table of live session state in the sidebar, or a line of it under the conversation. Twenty-three
 segments, two surfaces, and three ways to configure it — including running the statusline script you
 already wrote for Claude Code, colours and all. See
 [Statusline](/opencode-cockpit/status/overview/).
@@ -57,6 +57,17 @@ instead of starting a new one, and the main agent can list, read and wait on its
 
 ```sh
 opencode plugin @opencode-cockpit/subagents@0.8.0 --global --force
+```
+
+## Trail — available
+
+What a conversation made: the pull requests, tickets, pages and deploys the agent created or changed,
+recorded by the agent with `trail_add`, kept per conversation, grouped by the ticket they were for,
+and one click from the page. `/trail` says which conversation made what, across the project. No
+setup. See [Trail](/opencode-cockpit/trail/overview/).
+
+```sh
+opencode plugin @opencode-cockpit/trail@0.8.0 --global --force
 ```
 
 ## Trust — available

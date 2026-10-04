@@ -23,7 +23,15 @@
  * the body scrolls. Pure, like everything in `core/`.
  */
 
-import { closeHint, fitHints, type Hint, hintRuns, stateMark, toneOf } from "@opencode-cockpit/client/design"
+import {
+  closeHint,
+  fitHints,
+  type Hint,
+  hintRuns,
+  keyName,
+  stateMark,
+  toneOf,
+} from "@opencode-cockpit/client/design"
 import { callsOf, type Entry, type Node, type Session, titleOf } from "../model/model.ts"
 import { ARG_PREVIEW, argumentRows, large } from "./args.ts"
 import { markdownRows, plain } from "./markdown.ts"
@@ -70,6 +78,8 @@ export interface ScreenInput {
   thinking: boolean
   /** The details view in place of the timeline. */
   details: boolean
+  /** `?`: every key the pane takes, in the body's place. */
+  keys?: boolean
   /** A message being typed at the bottom of the pane. */
   input?: { draft: string; busy: boolean }
   /** A line under the keys: what just happened. */
@@ -744,7 +754,7 @@ function header(input: ScreenInput, width: number): Row[] {
     const each = Math.max(12, Math.floor((width - 14) / nodes.length) - 3)
     for (const node of nodes) {
       const current = node.session.id === session.id
-      const label = cut(`${node.session.agent} ${node.session.title}`, each)
+      const label = cut(`${node.session.agent} ${titleOf(node.session)}`, each)
       runs.push(
         { text: label, tone: current ? "accent" : "muted", bold: current, fill: "band" },
         { text: "   ", fill: "band" },
@@ -783,10 +793,16 @@ function footer(input: ScreenInput, width: number): Row[] {
       ),
     ]
   }
+  /** On the keys screen the only key worth a row is the way back to the run (Review's, Trust's). */
+  if (input.keys) {
+    const back: Run[] = [{ text: PAD }, ...fitHints([closeHint("Hide Keys")], width - PAD.length).runs]
+    return [fit(back, width), fit([], width)]
+  }
   /**
    * In the order drawn, each with its rank: at half width the lowest-ranked go first, and the way out
    * never does — it used to be the lowest, so the first key a narrow pane lost was how to leave it.
-   * The cutting, the `…` and the shape are the ones every bay shares (client/design).
+   * The cutting, the `…` and the shape are the ones every bay shares (client/design). `[?] Keys`
+   * gives way late: it is where every key the row dropped can still be found.
    */
   const all: Hint[] = [
     { key: "j/k", label: "Select", priority: 5 },
@@ -797,6 +813,7 @@ function footer(input: ScreenInput, width: number): Row[] {
     { key: "t", label: input.thinking ? "Hide Thinking" : "Show Thinking", priority: 3 },
     { key: "i", label: input.details ? "Timeline" : "Details", priority: 6 },
     { key: "w", label: "Width", priority: 4 },
+    { key: "?", label: "Keys", priority: 8.5 },
     closeHint("Back"),
   ]
   const keys: Run[] = [{ text: PAD }, ...fitHints(all, width - PAD.length).runs]
@@ -804,6 +821,71 @@ function footer(input: ScreenInput, width: number): Row[] {
     input.notice ??
     (session.status === "done" ? "Finished — message it; the main agent hears the answer." : "")
   return [fit(keys, width), fit([{ text: `${PAD}${note}`, tone: "muted" }], width)]
+}
+
+export interface KeyLine {
+  keys: string[]
+  does: string
+}
+
+/**
+ * `[?] Keys`: every key the pane takes, in the order a run is read — move, open, act on the
+ * subagent, the view — then the way out. The footer has room for the ones used constantly and says
+ * `…` for the rest; this is the rest, the same screen Review and Trust have.
+ */
+export const SUBAGENT_KEYS: readonly KeyLine[] = [
+  { keys: ["j/k", "↑/↓"], does: "Move the cursor through the run: calls, thinking, your messages" },
+  {
+    keys: ["enter", "space"],
+    does: "Open or fold the item under the cursor; on a task call, go into that subagent",
+  },
+  { keys: ["a"], does: "A call's whole output, or back to its first lines" },
+  { keys: ["e"], does: "Open every call, or fold them all" },
+  { keys: ["←/→"], does: "Previous or next subagent of this conversation (also [ and ])" },
+  { keys: ["m"], does: "Message this subagent; finished, its answer is passed on to the main agent" },
+  { keys: ["x"], does: "Stop it (press twice), or once it has ended, take it off the list" },
+  { keys: ["X"], does: "Take every finished subagent off the list" },
+  { keys: ["b"], does: "Move it to the background: the main agent stops waiting for it" },
+  { keys: ["t"], does: "Show or hide thinking" },
+  { keys: ["i"], does: "Details: model, tokens, cost, the session id — or back to the timeline" },
+  { keys: ["w"], does: "Half the window, or all of it" },
+  { keys: ["d", "u"], does: "Scroll down or up (also pgdn, pgup)" },
+  { keys: ["g", "G"], does: "The start of the run, or follow it as it grows (also home, end)" },
+  { keys: ["?", "esc"], does: "Hide these keys; on the run, esc lets go of the cursor, then closes" },
+]
+
+/** The keys in the body's place: each line's keys in a column, what it does wrapped beside them. */
+function keyLines(width: number): Line[] {
+  const column = Math.max(
+    ...SUBAGENT_KEYS.map((line) => widthOf(line.keys.map((name) => `[${keyName(name)}]`).join(" "))),
+  )
+  const indent = PAD.length + column + 3
+  const lines: Line[] = [
+    { row: fit([{ text: `${PAD}KEYS`, tone: "text", bold: true }], width) },
+    { row: fit([], width) },
+  ]
+  for (const line of SUBAGENT_KEYS) {
+    const keys: Run[] = line.keys.flatMap((name, at): Run[] => [
+      ...(at > 0 ? [{ text: " " }] : []),
+      { text: `[${keyName(name)}]`, tone: "accent", bold: true },
+    ])
+    const used = widthOf(rowText(keys))
+    wrap(line.does, Math.max(1, width - indent - PAD.length)).forEach((text, at) => {
+      lines.push({
+        row: fit(
+          [
+            { text: PAD },
+            ...(at === 0
+              ? [...keys, { text: " ".repeat(column - used + 3) }]
+              : [{ text: " ".repeat(column + 3) }]),
+            { text, tone: "muted" },
+          ],
+          width,
+        ),
+      })
+    })
+  }
+  return lines
 }
 
 /** The selected item's rows, marked: a coloured edge and the selection fill. */
@@ -839,14 +921,18 @@ export function screenRows(input: ScreenInput): Screen {
   const room = Math.max(1, height - top.length - bottom.length - 2)
   const opened: string[] = []
   const links = new Map<string, string>()
-  const body = input.details
-    ? detailLines(input, width)
-    : mark(bodyLines(input, width, opened, links), input.selected, width)
-  const keys = input.details
-    ? []
-    : [...new Set(body.map((line) => line.item).filter((item): item is string => Boolean(item)))]
+  const body = input.keys
+    ? keyLines(width)
+    : input.details
+      ? detailLines(input, width)
+      : mark(bodyLines(input, width, opened, links), input.selected, width)
+  const keys =
+    input.details || input.keys
+      ? []
+      : [...new Set(body.map((line) => line.item).filter((item): item is string => Boolean(item)))]
   const most = Math.max(0, body.length - room)
-  let first = input.top === undefined ? most : Math.min(Math.max(0, input.top), most)
+  /** Following the run means its end; the keys are read from their first line (and scroll as the run does). */
+  let first = input.top === undefined ? (input.keys ? 0 : most) : Math.min(Math.max(0, input.top), most)
   /**
    * The cursor moved onto an item: bring it into view. Only then — pinned on every paint, a selected
    * item longer than the pane snapped back to its first line whenever you scrolled into it.
@@ -857,6 +943,17 @@ export function screenRows(input: ScreenInput): Screen {
     if (at >= first + room) first = Math.min(most, at - room + 3)
   }
   const shown = body.slice(first, first + room)
+  /** A key list cut short says so, and how to reach the rest, as Review's and Trust's do. */
+  const below = body.length - (first + room)
+  if (input.keys && below > 0 && shown.length > 1) {
+    const left = below + 1
+    shown[shown.length - 1] = {
+      row: fit(
+        [{ text: `${PAD}↓ ${left} more line${left === 1 ? "" : "s"} — [d] scrolls`, tone: "muted" }],
+        width,
+      ),
+    }
+  }
   while (shown.length < room) shown.push({ row: fit([], width) })
   const blank = fit([], width)
   return {

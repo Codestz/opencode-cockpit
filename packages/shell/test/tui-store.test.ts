@@ -3,6 +3,7 @@ import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import type { CockpitClient } from "@opencode-cockpit/client"
 import type { ShellInfo } from "@opencode-cockpit/protocol/shell"
 import { createMemo, createRoot, createSignal } from "solid-js"
+import { fold } from "../src/tui/lib/sidebar.ts"
 import { createShellStore, type ShellStore, useScreen } from "../src/tui/state/store.ts"
 
 /**
@@ -232,7 +233,46 @@ describe("folding", () => {
     expect(live.store.showAll()).toBe(true)
     expect(live.store.visible()).toHaveLength(2)
     expect(live.store.hidden()).toHaveLength(0)
-    expect(live.kv.get("cockpit.shells.showAll")).toBe(true)
+    /** What folding keeps is known while expanded too: it is what says whether there is anything to fold. */
+    expect(live.store.folded().map((s) => s.id)).toEqual([running.id])
+    /** For this window only: a list expanded for six shells came back expanded over one. */
+    expect(live.kv.has("cockpit.shells.showAll")).toBe(false)
+    live.store.foldAll()
+    expect(live.store.showAll()).toBe(false)
+  })
+
+  /**
+   * The roadmap's bug: expanded at six, down to one, the block still offered `− fewer` for a list
+   * nothing could fold. The toggle is there only while folding hides something, and the expansion
+   * is stale — the sidebar folds it back — once it does not.
+   */
+  test("one shell offers no toggle, and an expansion it outlived is stale", async () => {
+    const six = Array.from({ length: 6 }, (_, at) => shell({ session: "ses_a", startedAt: 100 + at }))
+    live = harness([], { historyMinutes: 1 })
+    await live.setList(six)
+    const folding = () =>
+      fold({
+        all: live?.store.shells() ?? [],
+        folded: live?.store.folded() ?? [],
+        showAll: live?.store.showAll() ?? false,
+        rows: 5,
+        expandedRows: 12,
+      })
+    expect(folding()).toMatchObject({ more: 1, toggle: "more", stale: false })
+    live.store.toggleAll()
+    expect(folding()).toMatchObject({ more: 0, toggle: "fewer", stale: false })
+    expect(folding().shown).toHaveLength(6)
+
+    await live.setList(six.slice(0, 1))
+    expect(folding().toggle).toBeUndefined()
+    expect(folding().stale).toBe(true)
+    live.store.foldAll()
+    expect(folding()).toMatchObject({ more: 0, stale: false })
+    expect(folding().toggle).toBeUndefined()
+
+    /** Back to six: it starts folded again, not expanded from before. */
+    await live.setList(six)
+    expect(folding()).toMatchObject({ more: 1, toggle: "more" })
   })
 
   // Folding is a display convenience; it must never hide the shell the console is showing.

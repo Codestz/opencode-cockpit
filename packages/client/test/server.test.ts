@@ -1,15 +1,24 @@
 import { describe, expect, test } from "bun:test"
+import { mkdtempSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { tool } from "@opencode-ai/plugin"
 import { silentLog } from "../src/log.ts"
 import {
+  addToV1Config,
+  commandText,
   composeParts,
   dualServer,
   follow,
   partsToV1Hooks,
+  readSkill,
   type ServerParts,
   serverFromV1,
   serverFromV2,
+  type ToolCall,
   toolToV2,
+  v1ToolText,
+  v2ToolCall,
 } from "../src/server.ts"
 
 /**
@@ -55,6 +64,65 @@ describe("several features as one", () => {
   test("no features means no hooks", () => {
     expect(composeParts([])).toEqual({})
     expect(partsToV1Hooks(composeParts([{}]))).toEqual({})
+  })
+
+  test("skills are listed once, and a command name registered twice throws", () => {
+    const command = { name: "same", description: "", prompt: "p" }
+    expect(composeParts([{ skills: [{ dir: "/s" }] }, { skills: [{ dir: "/s" }] }]).skills).toEqual([
+      { dir: "/s" },
+    ])
+    expect(() => composeParts([{ commands: [command] }, { commands: [command] }])).toThrow(
+      'command "/same" is registered by more than one cockpit feature',
+    )
+  })
+})
+
+describe("skills and commands", () => {
+  const command = { name: "cockpit-setup", description: "set up", prompt: "Use the cockpit-setup skill." }
+
+  test("OpenCode 1: into its config, beneath what the user wrote, each folder once", async () => {
+    const hooks = partsToV1Hooks({ skills: [{ dir: "/pkg/skills/a" }], commands: [command] })
+    const config = {
+      command: { other: { template: "x" } },
+      skills: { paths: ["/mine", "/pkg/skills/a"] },
+    } as Record<string, unknown>
+    await (hooks as { config?: (config: unknown) => Promise<void> }).config?.(config)
+    expect(config).toEqual({
+      command: {
+        other: { template: "x" },
+        "cockpit-setup": { template: "Use the cockpit-setup skill.", description: "set up" },
+      },
+      skills: { paths: ["/mine", "/pkg/skills/a"] },
+    })
+    const mine = { command: { "cockpit-setup": { template: "my own" } } } as Record<string, unknown>
+    addToV1Config(mine as never, { commands: [command], skills: [{ dir: "/b" }] })
+    expect(mine).toEqual({
+      command: { "cockpit-setup": { template: "my own", description: "set up" } },
+      skills: { paths: ["/b"] },
+    })
+  })
+
+  test("a skill's folder read for OpenCode 2: frontmatter names it, the body is the content", () => {
+    const dir = mkdtempSync(join(tmpdir(), "ck-skill-"))
+    writeFileSync(
+      join(dir, "SKILL.md"),
+      '---\nname: probe\ndescription: "Does a thing: well"\n---\n\n# Probe\nbody\n',
+    )
+    expect(readSkill({ dir })).toEqual({
+      id: "probe",
+      name: "probe",
+      description: "Does a thing: well",
+      path: join(dir, "SKILL.md"),
+      content: "\n# Probe\nbody\n",
+    })
+    expect(readSkill({ dir: join(dir, "missing") })).toBeUndefined()
+  })
+
+  test("a command's line, then whatever was typed after its name", () => {
+    expect(commandText(command, { sessionID: "s", prompt: { text: "" } })).toBe(command.prompt)
+    expect(commandText(command, { sessionID: "s", prompt: { text: " hide shells " } })).toBe(
+      `${command.prompt}\n\nhide shells`,
+    )
   })
 })
 
@@ -105,21 +173,38 @@ describe("a v1 tool, as v2 registers it", () => {
 })
 
 /** Enough of a v2 server context to watch what gets registered. */
-function fakeV2(events: { type: string; data?: { sessionID?: string } }[] = []) {
+function fakeV2(events: { type: string; data?: { sessionID?: string } }[] = [], directory = "/work/project") {
   const added: string[] = []
   const hooks: string[] = []
+  const skills: { id: string; path: string }[] = []
+  const commands: { name: string; execute(input: unknown): Promise<void> }[] = []
+  const prompts: unknown[] = []
   let context: ((event: { sessionID: string; system: unknown[] }) => unknown) | undefined
   const ctx = {
     options: {},
-    location: { directory: "/work/project" },
+    location: { directory },
     tool: {
       transform: async (edit: (editor: { add: (tool: { name: string }) => void }) => void) => {
         edit({ add: (tool) => added.push(tool.name) })
       },
     },
+    skill: {
+      transform: async (edit: (editor: unknown) => void) => {
+        edit({
+          get: (id: string) => skills.find((skill) => skill.id === id),
+          add: (skill: { id: string; path: string }) => skills.push(skill),
+        })
+      },
+    },
+    command: {
+      transform: async (edit: (editor: unknown) => void) => {
+        edit({ add: (command: (typeof commands)[number]) => commands.push(command) })
+      },
+    },
     session: {
       get: async () => undefined,
       synthetic: async () => undefined,
+      prompt: async (input: unknown) => void prompts.push(input),
       hook: async (name: string, run: typeof context) => {
         hooks.push(name)
         context = run
@@ -131,7 +216,7 @@ function fakeV2(events: { type: string; data?: { sessionID?: string } }[] = []) 
       },
     },
   }
-  return { ctx, added, hooks, system: () => context }
+  return { ctx, added, hooks, skills, commands, prompts, system: () => context }
 }
 
 describe("one entry for both", () => {
@@ -163,7 +248,7 @@ describe("one entry for both", () => {
       }
     })
     const cleanup = await entry.setup(fake.ctx as never)
-    expect(fake.added).toEqual(["echo"])
+    expect(fake.added).toContain("echo")
     expect(fake.hooks).toEqual(["context"])
     const event = { sessionID: "ses_1", system: [] as unknown[] }
     await fake.system()?.(event)
@@ -172,6 +257,29 @@ describe("one entry for both", () => {
     expect(deleted).toEqual(["ses_9"])
     await cleanup?.()
     expect(disposed).toBe(true)
+  })
+
+  test("v2's setup adds the setup tool, skill and command once, and a command prompts queued", async () => {
+    const one = fakeV2([], "/work/setup-v2")
+    const two = fakeV2([], "/work/setup-v2")
+    const entry = dualServer("cockpit.test", async () => ({}))
+    const cleanup = await entry.setup(one.ctx as never)
+    await entry.setup(two.ctx as never)
+    expect(one.added).toEqual(["cockpit_settings", "cockpit_conventions"])
+    expect(one.skills.map((skill) => skill.id)).toEqual(["cockpit-setup"])
+    expect(one.skills[0]?.path).toEndWith("skills/cockpit-setup/SKILL.md")
+    expect(one.commands.map((command) => command.name)).toEqual(["cockpit-setup"])
+    expect(two.added).toEqual([])
+    /** v2 hands a command `steer` even when idle; it is sent queued, which starts at once when idle. */
+    await one.commands[0]?.execute({ sessionID: "ses_1", prompt: { text: "" }, delivery: "steer" })
+    expect(one.prompts).toEqual([
+      {
+        sessionID: "ses_1",
+        text: "Use the cockpit-setup skill to help me set up Cockpit.",
+        delivery: "queue",
+      },
+    ])
+    await cleanup?.()
   })
 
   test("two copies in one OpenCode 2 share a claim scope, so a feature loads once", async () => {
@@ -259,5 +367,130 @@ describe("messaging a session that may be busy", () => {
       { sessionID: "ses_sub", text: "hi", delivery: "steer" },
       { sessionID: "ses_root", text: "hello" },
     ])
+  })
+})
+
+/**
+ * A finished tool call, heard the same on both versions (docs/opencode/trail-server.md): v1's MCP
+ * output sits in another field, and v2 fires twice for a Code Mode call — only the inner one counts.
+ */
+describe("toolAfter", () => {
+  test("v1: a built-in's output, and an MCP tool's content, both arrive as text", async () => {
+    const calls: ToolCall[] = []
+    const hooks = partsToV1Hooks({ toolAfter: (call) => void calls.push(call) })
+    const after = hooks["tool.execute.after"]
+    const input = { tool: "bash", sessionID: "ses_1", callID: "call_1", args: { command: "gh pr create" } }
+    await after?.(input, { title: "", output: "https://github.com/a/b/pull/33\n", metadata: {} })
+    await after?.({ ...input, tool: "spike_open_pr", callID: "call_2", args: {} }, {
+      content: [{ type: "text", text: "Created pull request: x/77" }, { type: "image" }],
+    } as never)
+    expect(calls).toEqual([
+      {
+        sessionID: "ses_1",
+        tool: "bash",
+        callID: "call_1",
+        args: input.args,
+        output: "https://github.com/a/b/pull/33\n",
+      },
+      {
+        sessionID: "ses_1",
+        tool: "spike_open_pr",
+        callID: "call_2",
+        args: {},
+        output: "Created pull request: x/77",
+      },
+    ])
+  })
+
+  test("v1 text, whichever field it is in", () => {
+    expect(v1ToolText({ output: "a" })).toBe("a")
+    expect(
+      v1ToolText({
+        content: [
+          { type: "text", text: "a" },
+          { type: "text", text: "b" },
+        ],
+      }),
+    ).toBe("a\nb")
+    expect(v1ToolText(undefined)).toBe("")
+  })
+
+  test("v2: the inner call is delivered, Code Mode's outer `execute` and failures are not", () => {
+    const inner = {
+      tool: "spike_open_pr",
+      sessionID: "ses_1",
+      agent: "general",
+      id: "call_9",
+      input: { title: "x" },
+      status: "completed",
+      result: {
+        output: "Created pull request: x/77",
+        content: [{ type: "text", text: "Created pull request: x/77" }],
+      },
+    }
+    expect(v2ToolCall(inner)).toEqual({
+      sessionID: "ses_1",
+      tool: "spike_open_pr",
+      callID: "call_9",
+      args: { title: "x" },
+      output: "Created pull request: x/77",
+      agent: "general",
+    })
+    expect(v2ToolCall({ ...inner, tool: "execute" })).toBeUndefined()
+    expect(v2ToolCall({ ...inner, status: "error", error: "boom" })).toBeUndefined()
+    /** `shell`'s `output` is an object; `content` carries its text. */
+    const shell = {
+      ...inner,
+      tool: "shell",
+      result: { output: { exit: 0 }, content: [{ type: "text", text: "ok" }] },
+    }
+    expect(v2ToolCall(shell)?.output).toBe("ok")
+    expect(v2ToolCall({ ...inner, result: { output: "only output" } })?.output).toBe("only output")
+  })
+
+  test("v2's setup registers execute.after, and a feature's failure never reaches the call", async () => {
+    const seen: string[] = []
+    let run: ((event: unknown) => unknown) | undefined
+    const fake = fakeV2()
+    const ctx = {
+      ...fake.ctx,
+      tool: {
+        ...fake.ctx.tool,
+        hook: async (name: string, handler: (event: unknown) => unknown) => {
+          seen.push(name)
+          run = handler
+        },
+      },
+    }
+    const calls: string[] = []
+    const entry = dualServer("cockpit.test", async () => ({
+      toolAfter: (call) => {
+        calls.push(call.tool)
+        if (call.tool === "bad") throw new Error("listener broke")
+      },
+    }))
+    await entry.setup(ctx as never)
+    expect(seen).toEqual(["execute.after"])
+    const event = (tool: string) => ({ tool, sessionID: "s", id: "c", result: { content: [] } })
+    await run?.(event("spike_open_pr"))
+    await run?.(event("execute"))
+    await run?.(event("bad"))
+    expect(calls).toEqual(["spike_open_pr", "bad"])
+  })
+
+  test("composed: every feature hears the call, even after one fails", async () => {
+    const heard: string[] = []
+    const parts = composeParts([
+      {
+        toolAfter: () => {
+          heard.push("a")
+          throw new Error("a broke")
+        },
+      },
+      { toolAfter: () => void heard.push("b") },
+    ])
+    const call = { sessionID: "s", tool: "t", callID: "c", args: {}, output: "" }
+    await expect(parts.toolAfter?.(call) ?? Promise.resolve()).rejects.toThrow("a broke")
+    expect(heard).toEqual(["a", "b"])
   })
 })

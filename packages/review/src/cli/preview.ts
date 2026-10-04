@@ -30,6 +30,9 @@ if (args.includes("--help")) {
     --file <path>     which file to show the diff of (default: the second one)
     --width <n>       columns (default: this terminal)
     --height <n>      rows (default: this terminal)
+    --diff            the cursor in the diff pane rather than the file list
+    --keys            the [?] Keys screen
+    --settings <n>    n settings notices: the ! row under the header (1 or 2)
 `)
   process.exit(0)
 }
@@ -81,12 +84,17 @@ const BG: Record<Fill, string> = {
 
 const DIM = `${ESC}[2m`
 
+/** A packed `0xRRGGBB` as an SGR colour: 38 for ink, 48 for background. */
+const exact = (layer: 38 | 48, colour: number) =>
+  `${ESC}[${layer};2;${(colour >> 16) & 255};${(colour >> 8) & 255};${colour & 255}m`
+
 const paint = (row: Row): string =>
   row.runs
-    .map(
-      (run) =>
-        `${BG[run.fill ?? "none"]}${FG[run.tone ?? "text"]}${run.bold ? BOLD : ""}${run.faint ? DIM : ""}${run.text}${RESET}`,
-    )
+    .map((run) => {
+      const bg = typeof run.background === "number" ? exact(48, run.background) : BG[run.fill ?? "none"]
+      const fg = typeof run.color === "number" ? exact(38, run.color) : FG[run.tone ?? "text"]
+      return `${bg}${fg}${run.bold ? BOLD : ""}${run.faint ? DIM : ""}${run.text}${RESET}`
+    })
     .join("")
 
 const width = Number(flag("width") ?? process.stdout.columns ?? 120)
@@ -116,7 +124,28 @@ const file = flag("file") ?? changes.files[1]?.path ?? changes.files[0]?.path
 
 /** What the pane passes too: without it the footer offered `[s] Submit` dimmed with notes waiting. */
 const waiting = waitingOnAgent(review).length
-const rows = layout(changes, review, { file, cursor: file, context: 3, waiting }, { width, height })
+const rows = layout(
+  changes,
+  review,
+  {
+    file,
+    cursor: file,
+    context: 3,
+    waiting,
+    ...(fixture.looks ? { looks: fixture.looks } : {}),
+    ...(args.includes("--keys") ? { keys: true } : {}),
+    ...(args.includes("--settings")
+      ? {
+          settings: [
+            'settings: "review.sidebarOrder" is no longer read — run /cockpit-setup',
+            'settings: "review.source" should be a string; the default is used',
+          ].slice(0, Number(flag("settings")) || 1),
+        }
+      : {}),
+    ...(args.includes("--diff") ? { pane: "diff" as const } : {}),
+  },
+  { width, height },
+)
 
 console.log(`\n${BOLD}${name}${RESET} — ${fixture.about}  ${FG.muted}${width}×${height}${RESET}`)
 console.log(`${FG.border}┌${"─".repeat(width - 2)}┐${RESET}`)

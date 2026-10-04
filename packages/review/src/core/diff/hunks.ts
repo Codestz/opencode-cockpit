@@ -91,8 +91,8 @@ function common(before: string[], after: string[]): { a: number; b: number }[] {
  *
  * The table below is `(n+1)×(m+1)` 32-bit entries, so the cost is the *product*: two 5,000-line files
  * would allocate ~100 MB inside the TUI's worker thread, which is not a price a diff view gets to
- * charge. The trim above means this is reached only by two genuinely different large files — a
- * wholesale rewrite — and those are shown as all-out-then-all-in, which is what they are.
+ * charge. A stretch past it is split on its unique lines first (`align`); only one with none left —
+ * a wholesale rewrite — is shown as all-out-then-all-in, which is what it is.
  */
 const LIMIT = 2000
 
@@ -166,39 +166,7 @@ function diffUncached(before: string, after: string): Line[] {
     lines.push({ kind: "context", before: index + 1, after: index + 1, text: old[index] as string })
   }
 
-  const oldMid = old.slice(head, old.length - tail)
-  const nowMid = now.slice(head, now.length - tail)
-
-  /**
-   * Only a genuine rewrite reaches the cap now, and a rewrite really is "all of it out, all of it in"
-   * — aligning two unrelated files line by line produces noise, slowly.
-   */
-  if (oldMid.length > LIMIT || nowMid.length > LIMIT) {
-    lines.push(...replaced(oldMid, nowMid, head, head))
-  } else {
-    let a = 0
-    let b = 0
-    for (const pair of [...common(oldMid, nowMid), { a: oldMid.length, b: nowMid.length }]) {
-      while (a < pair.a) {
-        lines.push({ kind: "remove", before: head + a + 1, text: oldMid[a] as string })
-        a++
-      }
-      while (b < pair.b) {
-        lines.push({ kind: "add", after: head + b + 1, text: nowMid[b] as string })
-        b++
-      }
-      if (pair.a < oldMid.length) {
-        lines.push({
-          kind: "context",
-          before: head + a + 1,
-          after: head + b + 1,
-          text: oldMid[pair.a] as string,
-        })
-        a++
-        b++
-      }
-    }
-  }
+  align(old.slice(head, old.length - tail), now.slice(head, now.length - tail), head, head, lines)
 
   for (let index = 0; index < tail; index++) {
     const beforeAt = old.length - tail + index
@@ -211,6 +179,143 @@ function diffUncached(before: string, after: string): Line[] {
     })
   }
   return lines
+}
+
+/**
+ * Two stretches of the files, aligned line by line, onto `out`. `beforeAt` and `afterAt` are where
+ * each stretch starts in its file, so the numbers point at the real lines.
+ *
+ * Small enough, it is the table above. Too large for the table, it is split first — which is what
+ * makes two edits far apart a diff of two edits. The trim in `diffUncached` only removes what is
+ * identical at the very ends, so an edit at line 40 and another at line 2,900 left a 2,860-line
+ * middle; past the cap that was drawn as every line out and every line back in, a rewrite of a file
+ * that had two lines changed.
+ *
+ * The split is patience diff's: lines that occur exactly once on each side are almost always the
+ * same line, so the longest run of them in order is a set of fixed points, and the stretches between
+ * them are aligned on their own — each far smaller, and each split again if it is still too large.
+ * Only a stretch with no such line left is a genuine rewrite, and drawn as one.
+ */
+function align(old: string[], now: string[], beforeAt: number, afterAt: number, out: Line[]): void {
+  /** Identical ends of the stretch are context, and cost nothing to take off first. */
+  let head = 0
+  while (head < old.length && head < now.length && old[head] === now[head]) {
+    out.push({
+      kind: "context",
+      before: beforeAt + head + 1,
+      after: afterAt + head + 1,
+      text: old[head] as string,
+    })
+    head++
+  }
+  let tail = 0
+  while (
+    tail < old.length - head &&
+    tail < now.length - head &&
+    old[old.length - 1 - tail] === now[now.length - 1 - tail]
+  )
+    tail++
+  const oldMid = head === 0 && tail === 0 ? old : old.slice(head, old.length - tail)
+  const nowMid = head === 0 && tail === 0 ? now : now.slice(head, now.length - tail)
+  const at = { before: beforeAt + head, after: afterAt + head }
+
+  if (oldMid.length === 0 || nowMid.length === 0) out.push(...replaced(oldMid, nowMid, at.before, at.after))
+  else if (oldMid.length <= LIMIT && nowMid.length <= LIMIT) aligned(oldMid, nowMid, at.before, at.after, out)
+  else {
+    const anchors = uniqueAnchors(oldMid, nowMid)
+    /** Nothing in common to hold on to: a rewrite, honestly drawn as one. */
+    if (anchors.length === 0) out.push(...replaced(oldMid, nowMid, at.before, at.after))
+    else {
+      let a = 0
+      let b = 0
+      for (const anchor of anchors) {
+        align(oldMid.slice(a, anchor.a), nowMid.slice(b, anchor.b), at.before + a, at.after + b, out)
+        out.push({
+          kind: "context",
+          before: at.before + anchor.a + 1,
+          after: at.after + anchor.b + 1,
+          text: oldMid[anchor.a] as string,
+        })
+        a = anchor.a + 1
+        b = anchor.b + 1
+      }
+      align(oldMid.slice(a), nowMid.slice(b), at.before + a, at.after + b, out)
+    }
+  }
+
+  for (let index = 0; index < tail; index++) {
+    const a = old.length - tail + index
+    const b = now.length - tail + index
+    out.push({ kind: "context", before: beforeAt + a + 1, after: afterAt + b + 1, text: old[a] as string })
+  }
+}
+
+/** A stretch within the table's cap, aligned by the common subsequence. */
+function aligned(old: string[], now: string[], beforeAt: number, afterAt: number, out: Line[]): void {
+  let a = 0
+  let b = 0
+  for (const pair of [...common(old, now), { a: old.length, b: now.length }]) {
+    while (a < pair.a) {
+      out.push({ kind: "remove", before: beforeAt + a + 1, text: old[a] as string })
+      a++
+    }
+    while (b < pair.b) {
+      out.push({ kind: "add", after: afterAt + b + 1, text: now[b] as string })
+      b++
+    }
+    if (pair.a < old.length) {
+      out.push({
+        kind: "context",
+        before: beforeAt + a + 1,
+        after: afterAt + b + 1,
+        text: old[pair.a] as string,
+      })
+      a++
+      b++
+    }
+  }
+}
+
+/**
+ * Lines that occur exactly once in each stretch, paired, and cut down to the longest run that is in
+ * order on both sides — patience sorting, `n log n`. These are the fixed points the stretch is split on.
+ */
+function uniqueAnchors(old: readonly string[], now: readonly string[]): { a: number; b: number }[] {
+  const once = (lines: readonly string[]) => {
+    const seen = new Map<string, number>()
+    lines.forEach((line, index) => {
+      seen.set(line, seen.has(line) ? -1 : index)
+    })
+    return seen
+  }
+  const inOld = once(old)
+  const inNow = once(now)
+  const pairs: { a: number; b: number }[] = []
+  for (const [line, a] of inOld) {
+    const b = inNow.get(line)
+    if (a >= 0 && b !== undefined && b >= 0) pairs.push({ a, b })
+  }
+  pairs.sort((x, y) => x.a - y.a)
+
+  /** Longest increasing run of `b`: piles of their smallest tops, each card linked to the one before. */
+  const tops: number[] = []
+  const previous = new Int32Array(pairs.length).fill(-1)
+  for (let index = 0; index < pairs.length; index++) {
+    const b = (pairs[index] as { b: number }).b
+    let low = 0
+    let high = tops.length
+    while (low < high) {
+      const mid = (low + high) >> 1
+      if ((pairs[tops[mid] as number] as { b: number }).b < b) low = mid + 1
+      else high = mid
+    }
+    if (low > 0) previous[index] = tops[low - 1] as number
+    tops[low] = index
+  }
+  const run: { a: number; b: number }[] = []
+  for (let at = tops.at(-1) ?? -1; at >= 0; at = previous[at] as number)
+    run.push(pairs[at] as { a: number; b: number })
+  return run.reverse()
 }
 
 /**

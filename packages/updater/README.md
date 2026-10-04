@@ -17,7 +17,9 @@ A plugin cannot fix that for itself. Its fix only reaches people who already upd
 
 ## From a shell — works on any version, including a stuck one
 
-**OpenCode 1 only.** On OpenCode 2, change the version in your `opencode.json` entry and restart.
+**OpenCode 1 only.** On OpenCode 2, change the version in your `opencode.json` entry, run
+`opencode service restart` — its background service keeps the old plugin code until it restarts —
+and restart OpenCode.
 
 ```sh
 npx opencode-cockpit@latest update
@@ -51,8 +53,10 @@ Update 2 plugins? [Y/n]
 shows exactly what will change, and `enter` again does it.
 
 Once a day it checks the registry and, if something is behind, says so once:
-`2 plugin updates available. Run /plugins-update.` Turn that off with `"updateCheck": false` under
-`updater` (or Shell's old `ui`) in `~/.config/opencode-cockpit/config.json`.
+`2 plugin updates available. Run /plugins-update.` Turn that off with
+`{ "updater": { "updateCheck": false } }` in `~/.config/opencode-cockpit/config.json`. Shell's old
+`ui.updateCheck` is no longer read: a file that still has it gets a doctor line naming
+`updater.updateCheck`, and `/cockpit-setup` moves it.
 
 ## What an update does
 
@@ -71,9 +75,12 @@ never "current".
 
 ## Settings
 
+In the `updater` section of `~/.config/opencode-cockpit/config.json`:
+
 | key | |
 | --- | --- |
 | `updateCheck` | `false` stops the daily check. Default `true`. |
+| `enabled` | `false` turns the Updater off. Default `true`. |
 
 ## Troubleshooting
 

@@ -12,20 +12,58 @@ get it with every other bay through the `opencode-cockpit` bundle.
 
 ## Install
 
-```jsonc
-// ~/.config/opencode/tui.json
-{ "plugin": ["@opencode-cockpit/status"] }
+```sh
+opencode plugin @opencode-cockpit/status@0.8.0 --global --force     # OpenCode 1
+opencode plugin add @opencode-cockpit/status@0.8.0                   # OpenCode 2
 ```
 
-That's enough. Without any configuration you get a line under the conversation carrying what
-OpenCode does not already tell you.
+On OpenCode 1 that writes both entries — the table in `tui.json`, and in `opencode.json` the agent
+side that `/status-setup` needs. On OpenCode 2, run `opencode service restart` after installing or
+updating: its background service loads plugins only when it starts.
+
+That's enough. Without any configuration you get a table at the top of the sidebar carrying what
+OpenCode's own Context block says, better. `/status-setup` has the agent change it with you.
 
 ## What it shows by default, and why
 
-OpenCode's own furniture already carries a lot: its footer has the path, the branch and the token
-count; its sidebar has the context percentage and the spend; its prompt has the agent and the model.
+```
+Status
+████████████████
+tokens 85.2k · 43%
+in     265 · 0%
+out    60 · 0%
+cache  84.9k · 100%
+──────────────
+spend  $26.24
+avail  $173.76 · 87% left
+──────────────
+git    5f +312 -48
+```
 
-The default line repeats one of those on purpose — the token count and the percentage — because it
+The `sidebar` preset, and the default since 0.9: how full the window is as one solid bar, the tokens
+broken into named rows with their share of it, a proxy's budget, and what is uncommitted — the work
+not saved anywhere yet (`"against": "branch"` counts the whole branch instead). A retry shows under
+the bar; the turn's own clock does not, OpenCode already shows one. Every number gets a word, in a fixed column so the
+figures line up; colour is a level (calm, then the warning, then the error), never a label.
+
+A row with nothing to say is not drawn: `write` with no cache writes, `spend` and `avail` with no
+proxy writing a budget (see [Proxies](#proxies-litellm-and-friends)), `diagnostics` while every MCP
+and language server is healthy (`! name` in red when one breaks), and a hairline with nothing on one
+side of it. The rows are built-ins — `title`, `context` with `"style": "solid"`, `session.status`,
+`diagnostics`, `tokens` with `"style": "row"`, `in`, `out`, `cache`, `write`, `sep`, `spend`,
+`avail`, `git` — so nothing is installed beside it.
+
+It sits beside OpenCode's own Context block; to keep only one, see
+[Replacing OpenCode's own sidebar blocks](#replacing-opencodes-own-sidebar-blocks).
+
+### At the bottom instead
+
+`{ "status": { "sidebar": false } }` — or `"surface": "bottom"` — draws the `default` line under
+the conversation. OpenCode's own furniture already carries a lot: its footer has the path, the
+branch and the token count; its sidebar has the context percentage and the spend; its prompt has the
+agent and the model.
+
+The bottom line repeats one of those on purpose — the token count and the percentage — because it
 says them better: a bar you read without looking, with the total's parts beside it, is a different
 instrument from `78.5K (39%)` in a corner. What stays out are the facts a second copy adds nothing
 to: the path, the branch, the model, the spend.
@@ -49,25 +87,90 @@ in both places.
 
 ## A whole line by name
 
-Composing fourteen segments is a design exercise; most people want a good line. A preset is
+Composing twenty-three segments is a design exercise; most people want a good line. A preset is
 built-ins only — nothing to install, nothing to write:
 
 ```jsonc
-{ "statusline": { "preset": "default" } }
+{ "status": { "preset": "default" } }
 ```
 
-`minimal` · `default` · `detailed` · `sidebar`. Anything you write beside one wins, so it is a
-starting point and not a mode. See [`examples/`](./examples) for the modules to reach for when a
-preset is not enough.
+| Preset | Surface | What you get |
+| --- | --- | --- |
+| `sidebar` | sidebar | the table above — the default |
+| `minimal` | bottom | how full the context is, and what changed |
+| `default` | bottom | the bar, where the tokens went, what changed, how long |
+| `detailed` | bottom | everything the built-ins know, for a wide window |
 
-## Configuration
+Anything you write beside one wins, so it is a starting point and not a mode. A name that is not a
+preset draws the surface's own line, with a `!` row above it naming the presets there are. See
+[`examples/`](./examples) for the modules to reach for when a preset is not enough.
 
-`~/.config/opencode-cockpit/config.json` for every project, `<project>/.cockpit.json` for one, and
-the plugin entry itself beats both.
+### Changing a row or two
+
+`override` changes the preset's segments by name and keeps every other row, so the line goes on
+following the preset. `false` drops a segment, a name swaps it in the same place, an object merges
+into its settings:
 
 ```jsonc
 {
-  "statusline": {
+  "status": {
+    "override": {
+      "git": { "against": "branch" },        // the branch's whole diff, not what is uncommitted
+      "write": false,                         // no cache-write row
+      "session.status": { "working": true }   // the turn's clock as well as a retry
+    }
+  }
+}
+```
+
+A change applies to every segment of that name (`"sep": false` drops every hairline). `segments` is
+still the whole list, replacing the preset's — write it only to build a different line; with both,
+the override applies to `segments`. A line in `lines` takes its own `override`. A name that matches no
+segment is a `!` row: `override "gti" matches no segment in the sidebar preset — did you mean "git"?`
+
+## `/status-setup`
+
+Type it, or just ask ("put the statusline at the bottom"), and the agent sets the line up with you
+through the `status-setup` skill shipped in this package (`skills/status-setup/`): it reads what is
+written now with `cockpit_settings`, fixes old names first, offers a preset to start from, asks what
+you want, writes only what differs from the defaults, and checks the line in the preview that came
+with your install — `cockpit_settings` names it under Previews — never `bunx`, which fetches another
+release. `/statusline`, its name until 0.9, still works for one release and says the new
+name. Both come from Status's agent side (`@opencode-cockpit/status/server`), which the bundle
+includes and the package's install line adds.
+
+## Looking at it before a restart
+
+```sh
+bunx @opencode-cockpit/status preview --config ./status.json   # this file, read as OpenCode reads it
+bunx @opencode-cockpit/status preview --surface sidebar        # draw there, whatever the file says
+bunx @opencode-cockpit/status preview --debug --state fresh    # ✓name drew · ✗name drew nothing · ?name no such segment
+```
+
+`--config` reads the file through the same loader as the plugin — `preset`, `sidebarRows`,
+`override`, the `!` rows and all — in place of your global config. `--config -` reads a candidate on
+stdin as the file it is meant to become (`--as global`, the default, or `--as project`), with the
+other file read beside it — how the `status-setup` skill looks at a change before writing it,
+without a temporary file:
+
+```sh
+cat <<'EOF' | bunx @opencode-cockpit/status preview --config - --debug
+{ "status": { "override": { "write": false } } }
+EOF
+```
+
+The first line says what was read: `config: (stdin, as ~/.config/opencode-cockpit/config.json)`. The
+sidebar is drawn 34 columns wide unless `--width` says otherwise; `--watch` redraws on every save.
+
+## Configuration
+
+The `status` section of `~/.config/opencode-cockpit/config.json` for every project, of
+`<project>/.cockpit.json` for one, and the plugin entry itself beats both. Comments and trailing
+commas are fine.
+
+```jsonc
+{
+  "status": {
     "surface": "bottom",
     "separator": " │ ",
     "segments": [
@@ -83,20 +186,32 @@ the plugin entry itself beats both.
 A segment is a built-in's name, or that name with settings. Unknown names are skipped rather than
 fatal, so a config written against a newer version costs you a segment and not the line.
 
+The keys every bay shares work here too: `enabled`, `sidebar` (`false` draws at the bottom),
+`sidebarRows` (rows the column draws before the lowest-priority ones give way; the table's own is
+14, any other column's 8). Where the block sits among the others is the top-level `sidebar` list —
+`["status", "subagents", "shell", "trail", "trust"]` — and nowhere else.
+
+**What is not read says so.** `"statusline"` (the section's name before 0.9), Status's keys at the
+file's root, a bay-level `maxRows` (now `sidebarRows`) and `sidebarOrder` are no longer read; each is
+a `!` row at the top of the column, `! settings: "statusline" is no longer read — run
+/cockpit-setup`, until the file is fixed. So are a file that is not valid JSON, a top-level name
+nothing reads, an entry in the `sidebar` list that is not a bay, a value of the wrong kind, and a
+module that would not load.
+
 ### Surfaces
 
 Two, each with a job.
 
 | `surface` | Where | Good for |
 | --- | --- | --- |
+| `sidebar` | the sidebar, stacked vertically — the default | a table: every figure with its word |
 | `bottom` | full-width line under the conversation | everything, when no sidebar is open |
-| `sidebar` | the sidebar, stacked vertically by default | the time dimension: trends, composition |
 
 Use `lines` for more than one at once:
 
 ```jsonc
 {
-  "statusline": {
+  "status": {
     "lines": [
       { "surface": "bottom", "segments": ["git.diff", "todo", "session.time"] },
       { "surface": "sidebar", "segments": ["context", "cost"] }
@@ -113,7 +228,8 @@ surface up with OpenCode's own content.
 
 Segments carry a priority, and a line too wide for its surface drops the lowest-priority ones until
 it fits. How full the context is survives a 60-column window; the version string does not. Set
-`priority` on any segment to change what goes first. A vertical line drops by `maxRows` instead.
+`priority` on any segment to change what goes first. A column drops by `sidebarRows` (a line's own
+`maxRows`) instead, and says how many with a `↳ N more` row.
 
 ## Built-in segments
 
@@ -123,13 +239,18 @@ it fits. How full the context is survives a 60-column window; the version string
 | `git.branch` | current branch, dimmed on the default branch | |
 | `git.diff` | `+150 / -30` — what is uncommitted: `git diff --shortstat HEAD` | |
 | `model` | `claude-opus-5` | `full` |
-| `context` | how full the window is | `style`: `percent` \| `bar` \| `gradient` \| `split`, `width`, `warnAt`, `dangerAt` |
-| `tokens` | `78.5k tok` | |
+| `context` | how full the window is | `style`: `percent` \| `bar` \| `solid` \| `gradient` \| `split`, `width`, `warnAt`, `dangerAt` |
+| `tokens` | `78.5k tok`; `tokens 85.2k · 43%` as a table row | `format`, `style`: `parts` \| `row` |
+| `title` | `Status`, bold: a column's heading | `text` |
+| `in` · `out` · `cache` · `write` | `cache  84.9k · 100%` — one part of the window and its share; nothing when zero | |
+| `sep` | a hairline between groups, drawn only with a row on either side | `width` |
+| `spend` · `avail` | `spend  $26.24`, `avail  $173.76 · 87% left` — a proxy's budget; nothing without one | `file` |
+| `git` | `git    5f +312 -48` — what is uncommitted; `"against": "branch"` counts the branch against where it forked (`… vs main`) | |
 | `cost` | session spend | `currency`, `showZero` |
 | `todo` | `3/7 todo` | `showComplete` |
-| `session.status` | `working 1m02s` since the prompt, or a retry and its countdown | |
+| `session.status` | `working 1m02s` since the prompt, or a retry and its countdown; `"working": false` (the sidebar preset) keeps only the retry | |
 | `session.time` | the session's age, or with `of: "turn"` how long the last answer took | `of`: `session` \| `turn`, `coarse` |
-| `diagnostics` | unhealthy LSP and MCP servers | |
+| `diagnostics` | `! name` for an unhealthy MCP or language server (OpenCode 2: MCP only); nothing while all are healthy | |
 | `version` | this bay's version | |
 | `text` | literal text | `value` |
 | `command` | the output of a shell command | `name`, `row` |
@@ -169,20 +290,29 @@ behind a proxy — see [Proxies](#proxies-litellm-and-friends).
 
 ## Replacing OpenCode's own sidebar blocks
 
-Each block of OpenCode's sidebar is an internal plugin, and `tui.json` can switch one off:
+Each block of OpenCode's sidebar is an internal plugin that its config can switch off. The names
+differ by version:
 
 ```jsonc
-// ~/.config/opencode/tui.json
+// OpenCode 1 — ~/.config/opencode/tui.json
 {
   "plugin": ["@opencode-cockpit/status"],
   "plugin_enabled": { "internal:sidebar-context": false }
 }
 ```
 
-That removes the host's own `Context / tokens / % used / spent` block, leaving the space to a
-`sidebar` line of your own — the honest way to avoid reading the same figure twice. The same works
-for `internal:sidebar-files`, `-todo`, `-lsp`, `-mcp`, `-footer`, and the home screen's
-`internal:home-footer` and `internal:home-tips`.
+```jsonc
+// OpenCode 2 — ~/.config/opencode/cli.json
+{ "plugins": ["@opencode-cockpit/status", "-opencode.sidebar.context"] }
+```
+
+That removes the host's own `Context / tokens / % used / spent` block, leaving the space to the
+table — the honest way to avoid reading the same figure twice. `/cockpit-setup` offers it when Status
+draws in the sidebar. On OpenCode 1 the same works for `internal:sidebar-files`, `-lsp`, `-mcp`,
+`-footer`, `-todo`, and the home screen's `internal:home-footer` and `internal:home-tips`. OpenCode 2's
+sidebar has three blocks of its own — `opencode.sidebar.context`, `opencode.sidebar.mcp`,
+`opencode.sidebar.footer` — and no LSP or Todo block; an `internal:` id there does nothing. Leave the
+Todo block on: nothing in Cockpit replaces it.
 
 ## What you can draw
 
@@ -224,7 +354,7 @@ export default {
 
 ```jsonc
 {
-  "statusline": {
+  "status": {
     "modules": ["~/.config/opencode-cockpit/statusline.ts"],
     "segments": ["burn", "git.diff"]
   }
@@ -244,13 +374,12 @@ custom segment exactly as testable as a built-in. It is loaded once and its segm
 every repaint, so it can keep history — which is how a sparkline or a rate is possible at all.
 
 Returning `undefined` hides the segment. A segment that throws loses only its own place on the line.
-A module that will not load raises a toast naming the file, rather than silently dropping segments.
+A module that will not load raises a toast naming the file and keeps a `!` row above the line,
+rather than silently dropping segments.
 
 **Worked examples** live in [`examples/`](./examples): `bottom.ts` is a complete line for a window
-with no sidebar; `sidebar.ts` is a quiet column beside OpenCode's own Context block;
-`sidebar-full.ts` replaces that block; `sidebar-budget.ts` is that column drawn as a table, with a
-budget from a proxy and the branch's diff; `gallery.ts` draws every technique at once. All of them
-are loaded and asserted by the test suite, so none of them can rot.
+with no sidebar; `gallery.ts` draws every technique at once. Both are loaded and asserted by the
+test suite, so neither can rot. The sidebar examples became the `sidebar` preset in 0.9.
 
 ## Your Claude Code statusline
 
@@ -258,7 +387,7 @@ A shell command, fed the same JSON on stdin that Claude Code's `statusLine` hook
 
 ```jsonc
 {
-  "statusline": {
+  "status": {
     "commands": { "mine": { "run": "~/.claude/statusline.sh", "intervalMs": 2000 } },
     "segments": [{ "type": "command", "name": "mine" }]
   }
@@ -303,8 +432,15 @@ config:
 ```
 
 Without them the `cost` and `context` segments stay silent instead of reporting `$0.00` and `0%`.
-If your proxy knows the real spend — LiteLLM's `/spend` endpoints do — a `command` segment can read
-it, which is better than any locally multiplied estimate.
+If your proxy knows the real spend, that is better than any locally multiplied estimate. The table's
+`spend` and `avail` rows read it from a file: LiteLLM's IAP plugin writes `{ "baseline", "delta",
+"cap" }` to `~/.cache/opencode-litellm-iap/spend.json`, and anything that writes the same shape will
+do (`{ "type": "spend", "file": "~/elsewhere.json" }` points them at it). With no file they draw
+nothing. A `command` segment can read anything else — LiteLLM's `/spend` endpoints, say.
+
+```sh
+bunx @opencode-cockpit/status preview --proxy ~/.cache/opencode-litellm-iap/spend.json
+```
 
 ## Troubleshooting
 

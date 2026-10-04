@@ -7,6 +7,9 @@
  * point is not a report, it is the next step (docs/roadmap/doctor.md).
  */
 
+import { BUNDLE, bayOf } from "@opencode-cockpit/client/plugin-entries"
+import type { Bay } from "@opencode-cockpit/client/settings"
+import { RESTART_COMMAND } from "../core/service.ts"
 import { isNewer, type Spec } from "../core/spec.ts"
 
 export type State = "ok" | "info" | "warn" | "fail"
@@ -21,12 +24,8 @@ export interface Check {
   fix?: string[]
 }
 
-/** The packages Cockpit ships, and which halves each has. */
-export const BUNDLE = "opencode-cockpit"
-export const BAYS = ["shell", "review", "status", "updater", "subagents", "trust"] as const
-export type Bay = (typeof BAYS)[number]
-/** Bays with an agent half — the rest are interface only. */
-const SERVER_BAYS: readonly string[] = ["shell", "review", "subagents"]
+/** Bays whose agent half doctor checks is loaded beside the interface's (`doctor.test.ts` checks it). */
+export const SERVER_BAYS: readonly Bay[] = ["shell", "review", "subagents", "trail"]
 
 /** Where a config file sits in OpenCode's split: agent plugins or interface plugins. */
 export type Half = "server" | "tui"
@@ -64,6 +63,8 @@ export interface Facts {
     backgroundSubagents?: boolean
   }
   settings: SettingsFacts
+  /** OpenCode 2's background service; unset on OpenCode 1. */
+  service?: ServiceFacts
   /** When doctor ran, so a log line's time reads as `7h ago`. Unset prints the time as logged. */
   now?: number
 }
@@ -92,16 +93,27 @@ export interface DaemonFacts {
   errors: { t: string; msg: string }[]
 }
 
+export interface ServiceFacts {
+  state: "running" | "stopped" | "unknown"
+  url?: string
+  /** When it started, ms since the epoch. */
+  startedAt?: number
+  /** When the newest Cockpit install it loads last changed, and which entry that is. */
+  installedAt?: number
+  installed?: string
+  /**
+   * What its agent side said it loaded when it started (`@opencode-cockpit/client/service`), and what
+   * is in that place now — undefined when the install is gone. Unset when the agent side wrote nothing
+   * (a Cockpit older than 0.9, or no window has opened since it started).
+   */
+  agent?: { loaded: { version: string; installedAt: number }; now?: { version: string; installedAt: number } }
+}
+
 export interface SettingsFacts {
   files: { path: string; error?: string }[]
   modules: { path: string; exists: boolean }[]
-}
-
-/** The package an entry is, when it is one of ours. */
-export function bayOf(name: string | undefined): Bay | "bundle" | undefined {
-  if (name === BUNDLE) return "bundle"
-  const match = /^@opencode-cockpit\/([a-z]+)$/.exec(name ?? "")
-  return match && (BAYS as readonly string[]).includes(match[1] as string) ? (match[1] as Bay) : undefined
+  /** What the settings loader would tell a bay: old names, unknown sidebar entries, wrong types. */
+  notices?: { file: string; text: string }[]
 }
 
 const ours = (facts: Facts) => facts.entries.filter((entry) => bayOf(entry.name))
@@ -382,6 +394,9 @@ export function checkSettings(facts: Facts): Check {
   const fix: string[] = []
   for (const file of settings.files)
     if (file.error) fix.push(`${file.path}: ${file.error} — the whole file is ignored`)
+  const broken = fix.length > 0
+  for (const notice of settings.notices ?? []) fix.push(`${notice.file}: ${notice.text}`)
+  const noted = fix.length > 0
   for (const module of settings.modules) {
     if (!module.exists) fix.push(`statusline module ${module.path} does not exist`)
   }
@@ -389,11 +404,15 @@ export function checkSettings(facts: Facts): Check {
   return {
     title: "Settings",
     state: fix.length ? "warn" : "ok",
-    summary: fix.length
+    summary: broken
       ? "a settings file Cockpit cannot use"
-      : read === 0
-        ? "defaults (no settings file)"
-        : `${read} file${read === 1 ? "" : "s"}${settings.modules.length ? `, ${settings.modules.length} statusline module${settings.modules.length === 1 ? "" : "s"}` : ""}`,
+      : noted
+        ? "settings that are not read as written"
+        : fix.length
+          ? "a statusline module is missing"
+          : read === 0
+            ? "defaults (no settings file)"
+            : `${read} file${read === 1 ? "" : "s"}${settings.modules.length ? `, ${settings.modules.length} statusline module${settings.modules.length === 1 ? "" : "s"}` : ""}`,
     detail: settings.files.map((file) => file.path),
     ...(fix.length ? { fix } : {}),
   }
@@ -428,14 +447,94 @@ export function checkSubagents(facts: Facts): Check | undefined {
   }
 }
 
+/**
+ * OpenCode 2's background service loads plugins once, when it starts. Started before Cockpit was last
+ * installed, it still runs the old agent side — the windows draw the new interface, the agent has the
+ * old tools and skills — until it restarts.
+ */
+export function checkService(facts: Facts): Check | undefined {
+  const { service } = facts
+  if (!service) return undefined
+  const title = "Service"
+  if (service.state === "stopped")
+    return {
+      title,
+      state: "ok",
+      summary: "OpenCode 2's background service is not running; a window starts it",
+    }
+  if (service.state === "unknown")
+    return {
+      title,
+      state: "info",
+      summary: "could not ask OpenCode 2 about its background service",
+      detail: ["After updating Cockpit, restart it so it loads the new agent side."],
+      fix: [RESTART_COMMAND],
+    }
+  const when = (at: number) => ago(new Date(at).toISOString(), facts.now)
+  /** What the agent side said it loaded, against what is installed there now: no clocks to compare. */
+  if (service.agent) {
+    const { loaded, now } = service.agent
+    const same = now && now.version === loaded.version && now.installedAt === loaded.installedAt
+    if (same)
+      return {
+        title,
+        state: "ok",
+        summary: `OpenCode 2's background service runs the installed Cockpit (${loaded.version})`,
+      }
+    return {
+      title,
+      state: "warn",
+      summary: "OpenCode 2's background service has the old Cockpit: it was installed again since it started",
+      detail: [
+        now
+          ? `It loaded ${loaded.version}, installed ${when(loaded.installedAt)}; ${now.version} was installed ${when(now.installedAt)}.`
+          : `It loaded ${loaded.version}, from an install that is no longer there.`,
+        "It loads plugins once, when it starts: the agent keeps the old tools and skills until it restarts.",
+      ],
+      fix: [RESTART_COMMAND],
+    }
+  }
+  const { startedAt, installedAt } = service
+  if (startedAt === undefined || installedAt === undefined)
+    return {
+      title,
+      state: "info",
+      summary: `OpenCode 2's background service is running${service.url ? ` (${service.url})` : ""}`,
+      detail: [
+        startedAt === undefined ? "Could not tell when it started." : `Started ${when(startedAt)}.`,
+        "It loads plugins when it starts: after updating Cockpit, restart it.",
+      ],
+      fix: [RESTART_COMMAND],
+    }
+  // A second of slack: an install and a start in the same moment are the same moment.
+  if (startedAt + 1000 < installedAt)
+    return {
+      title,
+      state: "warn",
+      summary: "OpenCode 2's background service has the old Cockpit: it started before the install",
+      detail: [
+        `Started ${when(startedAt)}; ${service.installed ?? "Cockpit"} was installed ${when(installedAt)}.`,
+        "It loads plugins once, when it starts: the agent keeps the old tools and skills until it restarts.",
+      ],
+      fix: [RESTART_COMMAND],
+    }
+  return {
+    title,
+    state: "ok",
+    summary: `OpenCode 2's background service started ${when(startedAt)}, after the install`,
+  }
+}
+
 export function allChecks(facts: Facts): Check[] {
   const subagents = checkSubagents(facts)
+  const service = checkService(facts)
   return [
     checkOpencode(facts),
     checkConfig(facts),
     checkRunning(facts),
     checkErrors(facts),
     checkDaemon(facts),
+    ...(service ? [service] : []),
     checkEnvironment(facts),
     ...(subagents ? [subagents] : []),
     checkSettings(facts),

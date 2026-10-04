@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { SessionSnapshot, StatusContext } from "../src/core/context.ts"
+import { type SessionSnapshot, type StatusContext, serviceStatus } from "../src/core/context.ts"
 import { buildSegments, findSegment, type Segment, segmentText } from "../src/core/segments.ts"
 
 const session = (over: Partial<SessionSnapshot> = {}): SessionSnapshot => ({
@@ -281,6 +281,52 @@ describe("the rest of the built-ins", () => {
     })
     expect(render("diagnostics", broken)?.text).toBe("! tsserver, github +1")
     expect(render("diagnostics", broken)?.tone).toBe("error")
+  })
+
+  /** Issue #34: OpenCode 2's MCP status is a tagged object, and every connected server read as broken. */
+  /** The tagged shapes: OpenCode 2's five, and 1.18's SDK's `needs_client_registration`. */
+  test("a tagged MCP status reads as its word, for every state there is", () => {
+    const tagged = [
+      { status: "connected" },
+      { status: "disabled" },
+      { status: "pending" },
+      { status: "failed", error: "spawn ENOENT" },
+      { status: "needs_auth", error: "401" },
+      { status: "needs_client_registration", error: "no client id" },
+    ]
+    expect(tagged.map(serviceStatus)).toEqual([
+      "connected",
+      "disabled",
+      "pending",
+      "failed",
+      "needs_auth",
+      "needs_client_registration",
+    ])
+    expect(serviceStatus("connected")).toBe("connected")
+    expect(serviceStatus({})).toBe("")
+    expect(serviceStatus(undefined)).toBe("")
+    const mcp = tagged.map((raw, i) => ({ name: `s${i}`, status: serviceStatus(raw) }))
+    expect(render("diagnostics", ctx({ mcp }))?.text).toBe("! s3, s4 +1")
+  })
+
+  test("connected, turned off, still connecting or no word at all is not an alarm; any other word is", () => {
+    const quiet = ["connected", "disabled", "pending", ""].map((status, i) => ({ name: `s${i}`, status }))
+    expect(render("diagnostics", ctx({ mcp: quiet }))).toBeUndefined()
+    expect(render("diagnostics", ctx({ mcp: [{ name: "odd", status: "crashed" }] }))?.text).toBe("! odd")
+  })
+
+  test("a cut keeps the count: the names give way first", () => {
+    const mcp = ["web-search-prime-with-a-long-name", "codegraph", "jira"].map((name) => ({
+      name,
+      status: "failed",
+    }))
+    const text = render("diagnostics", ctx({ mcp, width: 24 }))?.text ?? ""
+    expect(text).toHaveLength(24)
+    expect(text).toEndWith("… +1")
+    expect(text).toStartWith("! web-search")
+    expect(render("diagnostics", ctx({ mcp, width: 200 }))?.text).toBe(
+      "! web-search-prime-with-a-long-name, codegraph +1",
+    )
   })
 
   test("a command segment shows whatever the command last returned", () => {

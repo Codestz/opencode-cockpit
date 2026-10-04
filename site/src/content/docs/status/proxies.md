@@ -49,7 +49,7 @@ estimate cannot match that. Read the real figure with a
 
 ```jsonc
 {
-  "statusline": {
+  "status": {
     "commands": {
       "budget": { "run": "curl -sf $LLM_PROXY/spend | jq -r .remaining", "intervalMs": 30000 }
     },

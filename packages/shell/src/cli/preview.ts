@@ -12,10 +12,18 @@
  */
 
 import type { TuiThemeCurrent } from "@opencode-ai/plugin/tui"
-import { HEADING_GAP, type State as Shared, summaryRuns } from "@opencode-cockpit/client/design"
+import {
+  emptyBlock,
+  FEWER_TEXT,
+  HEADING_GAP,
+  moreText,
+  type State as Shared,
+  summaryRuns,
+  warnRows,
+} from "@opencode-cockpit/client/design"
 import type { ScreenResult, ShellInfo } from "@opencode-cockpit/protocol/shell"
 import { type ConsoleInput, consoleRows, type Row, type Run } from "../tui/lib/console.ts"
-import { sidebarRow } from "../tui/lib/sidebar.ts"
+import { fold, sidebarRow } from "../tui/lib/sidebar.ts"
 import {
   badgeText,
   displayCommand,
@@ -94,7 +102,50 @@ function fitRow(row: Row, width: number): Row {
 
 // --- the sidebar ---------------------------------------------------------------------------------
 
-function sidebar(list: readonly ShellInfo[], width: number): Row[] {
+/** A settings notice as the block draws it (client/settings `noticeText`), for `--notice`. */
+const NOTICE = 'settings: "ui.historyMinutes" is no longer read — run /cockpit-setup'
+
+interface SidebarState {
+  /** Expanded by a click on `+ N more`. */
+  showAll?: boolean
+  hideWhenEmpty?: boolean
+  notices?: readonly string[]
+}
+
+function sidebar(list: readonly ShellInfo[], width: number, state: SidebarState = {}): Row[] {
+  /** As `components/sidebar.tsx` draws them: the design module's rows for an empty block and a notice. */
+  const warnings = (state.notices ?? []).flatMap((text) => warnRows(text, width).map((row) => row as Row))
+  if (list.length === 0)
+    return [
+      ...emptyBlock("Shells", width, state.hideWhenEmpty === true && warnings.length === 0).map(
+        (row) => row as Row,
+      ),
+      ...warnings,
+    ]
+  const folding = fold({
+    all: list,
+    folded: list.filter((shell) => kindOf(shell) === "run" || kindOf(shell) === "fail"),
+    showAll: state.showAll === true,
+    rows: 5,
+    expandedRows: 12,
+  })
+  const toggle: Row[] = !folding.toggle
+    ? []
+    : [
+        fitRow(
+          [
+            {
+              text: `  ${folding.toggle === "fewer" ? FEWER_TEXT : moreText(folding.more)}`,
+              tone: "muted",
+            },
+          ],
+          width,
+        ),
+      ]
+  return [...blockRows(folding.shown, list, width), ...toggle, ...warnings]
+}
+
+function blockRows(shown: readonly ShellInfo[], list: readonly ShellInfo[], width: number): Row[] {
   /** As `components/sidebar.tsx` draws it: the name left, every count flush right, no row of air. */
   const tally: Partial<Record<Shared, number>> = {}
   for (const shell of list) tally[STATE[kindOf(shell)]] = (tally[STATE[kindOf(shell)]] ?? 0) + 1
@@ -108,7 +159,7 @@ function sidebar(list: readonly ShellInfo[], width: number): Row[] {
   return [
     fitRow(heading, width),
     ...Array.from({ length: HEADING_GAP }, () => fitRow([], width)),
-    ...list.map((shell): Row => {
+    ...shown.map((shell): Row => {
       const row = sidebarRow(shell, SAMPLE_NOW, 2, width)
       const kind = hex(kindColor(theme, kindOf(shell)))
       return [
@@ -258,6 +309,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "",
       "  --part      one surface (default: all three)",
       "  --width     the sidebar's width (default 38, about what OpenCode gives it)",
+      "  --notice    the sidebar with a settings notice in it",
       "  --columns   the dock's and the console's width (default: this terminal, 60 to 140)",
       "  --state     the console in one state (default: every one):",
       ...Object.entries(STATES).map(([name, about]) => `                ${name.padEnd(9)}${about}`),
@@ -288,8 +340,21 @@ const section = (title: string, rows: Row[]) => {
   out.push("", title, "")
   for (const row of rows) out.push(paint(row))
 }
-if (!part || part === "sidebar")
-  section(`Sidebar — ${sidebarWidth} columns`, sidebar(SAMPLE_LIST, sidebarWidth))
+if (!part || part === "sidebar") {
+  const notices = args.includes("--notice") ? [NOTICE] : []
+  section(`Sidebar — ${sidebarWidth} columns`, sidebar(SAMPLE_LIST, sidebarWidth, { notices }))
+  section("Sidebar — expanded", sidebar(SAMPLE_LIST, sidebarWidth, { showAll: true, notices }))
+  /** Expanded over six, down to one: nothing to fold, so no `− fewer`. */
+  section(
+    "Sidebar — one shell, after it was expanded",
+    sidebar(SAMPLE_LIST.slice(0, 1), sidebarWidth, { showAll: true, notices }),
+  )
+  section("Sidebar — no shells yet", sidebar([], sidebarWidth, { notices }))
+  section(
+    "Sidebar — no shells yet, hideWhenEmpty",
+    sidebar([], sidebarWidth, { hideWhenEmpty: true, notices }),
+  )
+}
 if (!part || part === "dock")
   section(`Dock — ${columns} columns`, dock(SAMPLE_LIST, SHELLS.running, DEV_SCREEN, columns))
 if (!part || part === "console")

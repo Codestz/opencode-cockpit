@@ -8,7 +8,7 @@
 import { describe, expect, test } from "bun:test"
 import { memoryDisk } from "../src/core/disk.ts"
 import { fetchAllLatest, fetchLatest, registryFrom } from "../src/core/registry.ts"
-import { updateCheckEnabled } from "../src/core/settings.ts"
+import { updateCheck, updateCheckEnabled } from "../src/core/settings.ts"
 
 const stub = (fn: (url: string, init: RequestInit) => Promise<Response> | Response) =>
   ((url: string, init: RequestInit) => fn(String(url), init)) as unknown as typeof fetch
@@ -59,10 +59,26 @@ describe("the daily notice setting", () => {
     expect(updateCheckEnabled(memoryDisk({}), where, undefined)).toBe(true)
   })
 
-  test("Shell's old `ui.updateCheck: false` still silences it", () => {
-    expect(
-      updateCheckEnabled(memoryDisk({ [GLOBAL]: '{"ui":{"updateCheck":false}}' }), where, undefined),
-    ).toBe(false)
+  /** An old name is not read (0.9): it is a notice naming `updater.updateCheck`, and the check stays on. */
+  test("Shell's old `ui.updateCheck` is not read, and says what to write instead", () => {
+    const disk = memoryDisk({ [GLOBAL]: '{"ui":{"updateCheck":false}}' })
+    expect(updateCheckEnabled(disk, where, undefined)).toBe(true)
+    expect(updateCheck(disk, where, undefined).notices).toMatchObject([
+      { bay: "updater", kind: "old", old: "ui.updateCheck", new: "updater.updateCheck" },
+    ])
+  })
+
+  test("comments and trailing commas are fine, as in every bay", () => {
+    const disk = memoryDisk({ [GLOBAL]: '{\n  // quiet\n  "updater": { "updateCheck": false, },\n}' })
+    expect(updateCheckEnabled(disk, where, undefined)).toBe(false)
+  })
+
+  test("a value of the wrong kind is a notice, and the default stands", () => {
+    const disk = memoryDisk({ [GLOBAL]: '{"updater":{"updateCheck":"no"}}' })
+    expect(updateCheck(disk, where, undefined)).toMatchObject({
+      enabled: true,
+      notices: [{ kind: "invalid" }],
+    })
   })
 
   test("the project file beats the global one, and plugin options beat both", () => {

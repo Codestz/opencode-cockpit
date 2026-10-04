@@ -10,7 +10,7 @@
  * pack check cannot. Needs the `opencode` binary, so it stays out of CI.
  */
 
-import { mkdtempSync, rmSync } from "node:fs"
+import { mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs"
 import { join } from "node:path"
 import { Terminal } from "@xterm/headless"
 import { FEATURES } from "../packages/opencode/src/features.ts"
@@ -50,7 +50,7 @@ const run = (cmd: string[], cwd: string) => {
  */
 function agentTurn(env: Record<string, string | undefined>) {
   const prompt = [
-    "Call the tool shell_start with command 'echo AGENT-SHELL-OK' and description 'agent probe', then call review_list, then call subagents_list.",
+    "Call the tool shell_start with command 'echo AGENT-SHELL-OK' and description 'agent probe', then call review_list, then call subagents_list, then call cockpit_settings.",
     "Your system prompt has heading lines starting with '## Background shells', '## Review comments' and '## Subagents'.",
     "Quote all three heading lines exactly in your reply.",
   ].join(" ")
@@ -61,12 +61,17 @@ function agentTurn(env: Record<string, string | undefined>) {
     "-m",
     "opencode/space-bunny-free",
   ]
+  /** Bounded, and stdin closed: an open stdin or a permission prompt makes `opencode run` wait forever. */
   const result = Bun.spawnSync([...args, "--format", "json", prompt], {
     cwd: project,
     env,
+    stdin: "ignore",
     stdout: "pipe",
     stderr: "pipe",
+    timeout: 300_000,
   })
+  if (result.exitCode === null || result.signalCode)
+    throw new Error(`the agent turn never finished (5 min):\n${result.stdout.toString().slice(-3000)}`)
   const events = result.stdout
     .toString()
     .split("\n")
@@ -95,7 +100,7 @@ function agentTurn(env: Record<string, string | undefined>) {
     .map((event) => (event.part as unknown as { text: string }).text)
     .join("\n")
   const report = `${result.stdout}\n${result.stderr}`.slice(-3000)
-  for (const name of ["shell_start", "review_list", "subagents_list"]) {
+  for (const name of ["shell_start", "review_list", "subagents_list", "cockpit_settings"]) {
     if (!called.includes(name)) throw new Error(`the agent never completed ${name}:\n${report}`)
   }
   for (const heading of ["## Background shells", "## Review comments", "## Subagents"]) {
@@ -105,7 +110,8 @@ function agentTurn(env: Record<string, string | undefined>) {
 
 const cols = Number(process.env.SMOKE_COLS) || 150
 const rows = 40
-const term = new Terminal({ cols, rows, allowProposedApi: true })
+/** One per OpenCode started: the second run (AGENT=1) draws on a clean screen of its own. */
+let term = new Terminal({ cols, rows, allowProposedApi: true })
 const screen = async () => {
   await new Promise<void>((done) => term.write("", done))
   const buffer = term.buffer.active
@@ -114,14 +120,127 @@ const screen = async () => {
     (_, y) => buffer.getLine(buffer.baseY + y)?.translateToString(true) ?? "",
   ).join("\n")
 }
+/** The sidebar's half of a screen. */
+const rightHalf = (text: string) =>
+  text
+    .split("\n")
+    .map((line) => line.slice(Math.floor(cols / 2)))
+    .join("\n")
+/**
+ * Which of `patterns` showed on some screen within `ms` — not all on one: a turn scrolls the first
+ * out of view before the last arrives. Done as soon as every one has.
+ */
+const seen = async (ms: number, patterns: readonly RegExp[]) => {
+  const found = new Set<number>()
+  for (const end = Date.now() + ms; found.size < patterns.length && Date.now() < end; await Bun.sleep(250)) {
+    const text = await screen()
+    for (const [at, pattern] of patterns.entries()) if (pattern.test(text)) found.add(at)
+  }
+  return {
+    all: found.size === patterns.length,
+    missing: patterns.filter((_, at) => !found.has(at)),
+    last: await screen(),
+  }
+}
+/** Reads the screen until `done` says so, or `ms` runs out; the last screen either way. */
+const until = async (ms: number, done: (text: string) => boolean) => {
+  let text = await screen()
+  for (const end = Date.now() + ms; !done(text) && Date.now() < end; text = await screen()) {
+    await Bun.sleep(250)
+  }
+  return text
+}
+/**
+ * A block's heading in the sidebar, and the first row under it (past the heading's air) — read in
+ * the heading's own column, so the conversation beside it cannot answer for the block.
+ */
+const under = (text: string, heading: string): string | undefined => {
+  const lines = text.split("\n")
+  const right = Math.floor(cols / 2)
+  for (const [y, line] of lines.entries()) {
+    const at = line.slice(right).search(new RegExp(`(^|\\s)${heading}(\\s|$)`))
+    if (at < 0) continue
+    const x = right + at + (line[right + at] === " " ? 1 : 0)
+    const next = lines.slice(y + 1, y + 4).find((row) => row.slice(x).trim())
+    return next?.slice(x).trim()
+  }
+  return undefined
+}
+/**
+ * A subagent's row in the sidebar: its status glyph, then the agent's name in the block's agent column,
+ * eight cells at most, so `explore` whole (the old `expl…`/`exp…` still read, for an older build).
+ */
+const EXPLORE_ROW = /[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] exp(lore|l?o?…) /
+/** The Status table's token row, which only a conversation with a reply in it fills. */
+const TOKENS_ROW = / tokens [\d.]+k? · \d+%/
+/** The line `/cockpit-setup` sends: once it is in the conversation, the command ran. */
+const SETUP_LINE = "Use the cockpit-setup skill to help me set up Cockpit."
+/** The skill loaded, and its first step taken — the tool it reads the live state with. Either version. */
+const SETUP_SKILL_USED = [/Skill "cockpit-setup"/, /[⚙›] cockpit_settings/]
+/** `/statusline`'s line, which says the new name first, and the skill it names, loaded. */
+const STATUS_SKILL_USED = [
+  /\/statusline is now \/status-setup\. Use the status-setup skill/,
+  /Skill "status-setup"/,
+]
+/** A prompt sent while the agent answers, waiting its turn: OpenCode 1's tag, OpenCode 2's line. */
+const QUEUED = /QUEUED|1 queued · Use the cockpit-setup skill/
+/** A minimal stdio MCP server: answers initialize, lists one tool, runs it. Run with Bun. */
+const OK_MCP = `import { createInterface } from "node:readline"
+const send = (msg) => process.stdout.write(JSON.stringify(msg) + "\\n")
+createInterface({ input: process.stdin }).on("line", (line) => {
+  let req
+  try { req = JSON.parse(line) } catch { return }
+  if (req.id === undefined) return
+  if (req.method === "initialize")
+    return send({ jsonrpc: "2.0", id: req.id, result: {
+      protocolVersion: req.params?.protocolVersion ?? "2024-11-05",
+      capabilities: { tools: {} },
+      serverInfo: { name: "ok-test", version: "1.0.0" },
+    } })
+  if (req.method === "tools/list")
+    return send({ jsonrpc: "2.0", id: req.id, result: { tools: [{
+      name: "ping", description: "Answers pong.", inputSchema: { type: "object", properties: {} },
+    }] } })
+  if (req.method === "tools/call")
+    return send({ jsonrpc: "2.0", id: req.id, result: { content: [{ type: "text", text: "pong" }] } })
+  send({ jsonrpc: "2.0", id: req.id, result: {} })
+})
+`
+
+/**
+ * Build and pack under a lock. `build` empties every `dist/` before it compiles, so a second run
+ * (v1 and v2 side by side, or a `dev:install`) packing at that moment shipped a bay without its
+ * files: OpenCode said "1 plugin failed" and Trust's commands were missing. A directory is the lock
+ * (`mkdir` is atomic); one older than ten minutes is left over from a killed run.
+ */
+const buildLock = join(root, "node_modules", ".cockpit-build.lock")
+async function withBuildLock(work: () => void): Promise<void> {
+  for (;;) {
+    try {
+      mkdirSync(buildLock)
+      break
+    } catch {
+      const age = Date.now() - (statSync(buildLock, { throwIfNoEntry: false })?.mtimeMs ?? Date.now())
+      if (age > 600_000) rmSync(buildLock, { recursive: true, force: true })
+      else await Bun.sleep(500)
+    }
+  }
+  try {
+    work()
+  } finally {
+    rmSync(buildLock, { recursive: true, force: true })
+  }
+}
 
 try {
-  run(["bun", "run", "build"], root)
   const tarballs = join(work, "tarballs")
-  /** The plumbing, then every bay — from the bundle's own list, so a new one cannot be left out. */
-  for (const dir of ["protocol", "daemon", "client", "opencode", ...FEATURES]) {
-    run(["bun", "pm", "pack", "--destination", tarballs], join(root, "packages", dir))
-  }
+  await withBuildLock(() => {
+    run(["bun", "run", "build"], root)
+    /** The plumbing, then every bay — from the bundle's own list, so a new one cannot be left out. */
+    for (const dir of ["protocol", "daemon", "client", "opencode", ...FEATURES]) {
+      run(["bun", "pm", "pack", "--destination", tarballs], join(root, "packages", dir))
+    }
+  })
   const names = [...new Bun.Glob("*.tgz").scanSync(tarballs)]
   const file = (prefix: string) => `file:${join(tarballs, names.find((n) => n.startsWith(prefix)) as string)}`
   await Bun.write(
@@ -136,6 +255,7 @@ try {
         "@opencode-cockpit/updater": file("opencode-cockpit-updater-"),
         "@opencode-cockpit/subagents": file("opencode-cockpit-subagents-"),
         "@opencode-cockpit/trust": file("opencode-cockpit-trust-"),
+        "@opencode-cockpit/trail": file("opencode-cockpit-trail-"),
       },
       overrides: {
         "@opencode-cockpit/protocol": file("opencode-cockpit-protocol-"),
@@ -161,8 +281,17 @@ try {
 
   // The plugins must live under node_modules: that is what disables OpenCode's Solid transform.
   const bay = (name: string) => join(install, "node_modules", "@opencode-cockpit", name)
-  const tuiBays = [bay("shell"), bay("status"), bay("review"), bay("updater"), bay("subagents"), bay("trust")]
-  const serverBays = [bay("shell"), bay("review"), bay("subagents")]
+  const tuiBays = [
+    bay("shell"),
+    bay("status"),
+    bay("review"),
+    bay("updater"),
+    bay("subagents"),
+    bay("trail"),
+    bay("trust"),
+  ]
+  /** Status's agent side carries only the `status-setup` skill and its commands. */
+  const serverBays = [bay("shell"), bay("status"), bay("review"), bay("subagents"), bay("trail")]
   /**
    * v1 reads `plugin` from opencode.json and tui.json; v2 reads `plugins` from opencode.json and
    * cli.json (docs/opencode/v2.md). The same packages go in either way.
@@ -185,6 +314,13 @@ try {
         [key]: plugins,
         /** A model that needs no key, for the turns AGENT=1 runs inside the interface. */
         ...(process.env.AGENT && name === "opencode.json" ? { model: "opencode/space-bunny-free" } : {}),
+        /**
+         * The setup skills read and write Cockpit's config, outside the project: a prompt it would
+         * wait on forever here. OpenCode 2 is started with `--auto` for the same reason.
+         */
+        ...(process.env.AGENT && !v2 && name === "opencode.json"
+          ? { permission: { external_directory: "allow" } }
+          : {}),
       }),
     )
   }
@@ -192,11 +328,18 @@ try {
    * A statusline whose value has to come from somewhere the plugin cannot fake: a literal marker
    * proves the line drew at all, and a command segment proves the whole pipeline -- spawn, parse,
    * repaint -- works from a published build.
+   *
+   * The global file carries the section's name from before 0.9, `statusline`: it is no longer read,
+   * and Status has to say so in a `!` row instead of drawing as if nothing had been written.
    */
+  await Bun.write(
+    join(config, "opencode-cockpit", "config.json"),
+    JSON.stringify({ statusline: { preset: "minimal" } }),
+  )
   await Bun.write(
     join(project, ".cockpit.json"),
     JSON.stringify({
-      statusline: {
+      status: {
         surface: "bottom",
         segments: [
           { type: "text", value: "STATUSLINE-DREW" },
@@ -204,6 +347,8 @@ try {
         ],
         commands: { smoke: { run: "printf 'COMMAND-RAN'", intervalMs: 250 } },
       },
+      /** An old name in Review's section: the pane has to say so in a `!` row. */
+      review: { sidebarOrder: 3 },
     }),
   )
 
@@ -216,17 +361,22 @@ try {
     TERM: "xterm-256color",
   }
   /** v2 would attach to the user's background service; a private server keeps the run to itself. */
-  const proc = Bun.spawn(v2 ? [opencode, "--standalone"] : [opencode], {
-    cwd: project,
-    env,
-    terminal: {
-      cols,
-      rows,
-      data: (_t: unknown, chunk: Uint8Array) => term.write(chunk.slice()),
-    },
-  } as Parameters<typeof Bun.spawn>[1]) as ReturnType<typeof Bun.spawn> & {
-    terminal: { write(data: string): void }
+  const launch = (cwd: string, args: string[] = []) => {
+    const screenOf = new Terminal({ cols, rows, allowProposedApi: true })
+    term = screenOf
+    return Bun.spawn([opencode, ...(v2 ? ["--standalone"] : []), ...args], {
+      cwd,
+      env,
+      terminal: {
+        cols,
+        rows,
+        data: (_t: unknown, chunk: Uint8Array) => screenOf.write(chunk.slice()),
+      },
+    } as Parameters<typeof Bun.spawn>[1]) as ReturnType<typeof Bun.spawn> & {
+      terminal: { write(data: string): void }
+    }
   }
+  let proc = launch(project)
   const type = async (keys: string, waitMs: number) => {
     proc.terminal.write(keys)
     await Bun.sleep(waitMs)
@@ -247,7 +397,7 @@ try {
    * The console, which was never opened here — so a crash on open was never caught here either.
    * Pressing `?` walks both halves of the key row: the keys that act, and the rest in the panel.
    */
-  await type("\x18i", 3000) // ctrl+x i
+  await type("\x18j", 3000) // ctrl+x j
   const consoleScreen = await screen()
   await type("?", 1500)
   const consoleDetails = await screen()
@@ -257,7 +407,7 @@ try {
    * Full screen, which neither version's run opened before — so on OpenCode 2 it could draw nothing
    * and still pass. `w` swaps the dialog for it and is remembered, so it is swapped back before leaving.
    */
-  await type("\x18i", 3000)
+  await type("\x18j", 3000)
   await type("w", 2500)
   const fullScreen = await screen()
   await type("w", 1500)
@@ -308,7 +458,20 @@ try {
         .some((line) => line.includes(title))
     )
   }
+  /**
+   * The screen at rest, nothing open over it — taken before the first command runs. Each step waits
+   * for the screen to come back to it: a command's toast ("No finished subagents to clear") still up
+   * when `ctrl+p` was typed covered the palette, and the next step failed on v2. A line or two may
+   * differ (a tip, a toggled sidebar); a toast or a dialog is more. Timed out, it goes on anyway, and
+   * the palette check below says what was in the way.
+   */
+  let quiet = ""
+  const atRest = (text: string) => {
+    const was = quiet.split("\n")
+    return text.split("\n").filter((line, y) => line !== was[y]).length <= 2
+  }
   const palette = async (title: string, waitMs = 2500) => {
+    await until(12_000, atRest)
     await type("\x10", 1000) // ctrl+p
     await type(title, 1500)
     const listed = await screen()
@@ -320,11 +483,13 @@ try {
   const found: [string, string][] = []
   for (const [name, title] of [
     ["shell", "Start a background shell"],
-    ["status", "Ask the agent to customise the statusline"],
+    ["status", "Ask the agent to set up the status bay"],
     ["review", "Open or close the changes"],
     ["updater", "Update plugins"],
     ["subagents", "Open the subagents"],
+    ["trail", "Show what this conversation made"],
     ["trust", "Show what Trust answers for you"],
+    ["setup", "Ask the agent to set up Cockpit"],
   ] as const) {
     await type("\x10", 1000)
     await type(`cockpit ${name}`, 1500)
@@ -332,6 +497,13 @@ try {
     if (!listed.includes(title)) found.push([`"cockpit ${name}" never listed "${title}"`, listed])
     await type("\x1b", 800)
   }
+  /** At rest: a beat after the last search's palette closed, the same screen twice running (or 5s). */
+  await Bun.sleep(1000)
+  quiet = await until(5000, (text) => {
+    const same = text === quiet
+    quiet = text
+    return same
+  })
   /** Each surface is closed before the next: an open review takes the keys, `ctrl+p` included. */
   const ranReview = await palette("Toggle the changes full screen", 3000)
   await type("\x1b", 1200)
@@ -344,6 +516,9 @@ try {
   }
   await type("\x1b", 1200)
   const ranUpdater = await palette("Update plugins", 4000)
+  await type("\x1b", 1200)
+  /** From home there is no conversation, so Trail opens on the project's records: none, and says so. */
+  const ranTrail = await palette("Show what this conversation made", 2500)
   await type("\x1b", 1200)
 
   /**
@@ -363,7 +538,7 @@ try {
     )
     await type("\r", 1000)
     let sidebar = ""
-    for (let i = 0; i < 45 && !/[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(sidebar); i++) {
+    for (let i = 0; i < 45 && !EXPLORE_ROW.test(sidebar); i++) {
       await Bun.sleep(2000)
       sidebar = await screen()
     }
@@ -371,17 +546,28 @@ try {
     /** Found again before every click: the blocks above it (the statusline's) grow as the turn runs. */
     const clickSubagent = async () => {
       const lines = (await screen()).split("\n")
-      const y = lines.findIndex((line) => /[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(line.slice(Math.floor(cols / 2))))
+      const right = Math.floor(cols / 2)
+      const y = lines.findIndex((line) => EXPLORE_ROW.test(line.slice(right)))
       if (y < 0) throw new Error(`the sidebar never showed the subagent:\n${lines.join("\n")}`)
-      const x = (lines[y] as string).lastIndexOf(" explore ") + 3
+      const x = right + ((lines[y] as string).slice(right).search(EXPLORE_ROW) as number) + 3
       proc.terminal.write(`\x1b[<0;${x + 1};${y + 1}M`)
       await Bun.sleep(80)
       await type(`\x1b[<0;${x + 1};${y + 1}m`, 2500)
     }
     await clickSubagent()
     const full = await screen()
-    /** The cursor onto the last item and open it, then a message typed into the pane, not a dialog. */
-    await type("k", 600)
+    /** `?` swaps the run for every key the pane takes, and `?` again brings the run back. */
+    await type("?", 1200)
+    const keys = await screen()
+    await type("?", 1000)
+    /**
+     * The cursor onto the last item and open it, then a message typed into the pane, not a dialog.
+     * Each key waits on what it needs on screen rather than a fixed time: the run's first item can
+     * take a while to arrive on a slow turn, and `enter` with no cursor yet opens nothing.
+     */
+    await until(30_000, (text) => /[›⌄◇◆] /.test(rightHalf(text)))
+    await type("k", 300)
+    await until(5000, (text) => text.includes("▌ "))
     await type("\r", 1200)
     const toggled = await screen()
     await type("m", 600)
@@ -418,19 +604,139 @@ try {
     await type("x", 1500)
     const removed = await screen()
     await type("q", 1000)
-    return { sidebar, full, toggled, typing, slashed, finished, pasted, relayed, conversation, removed }
+    return { sidebar, full, keys, toggled, typing, slashed, finished, pasted, relayed, conversation, removed }
   }
 
-  const slash = async (name: string) => {
-    await type(`/${name}`, 1200)
-    await type("\r", 4000)
-    const drawn = await screen()
+  /** `ready`: read as soon as it shows, for what does not stay — a toast the next one replaces. */
+  const slash = async (name: string, ready?: (text: string) => boolean) => {
+    await type(`/${name}`, 300)
+    /** `enter` once the popup offers the name: with the agent busy it can take longer to list. */
+    await until(4000, (text) => new RegExp(`/${name}\\s{2,}\\S`).test(text))
+    await type("\r", ready ? 0 : 4000)
+    const drawn = ready ? await until(4000, ready) : await screen()
     await type("\x1b", 1000)
     return drawn
   }
+  /**
+   * A command the agent side ships, which OpenCode runs as its own: on OpenCode 1 `enter` on the popup
+   * first completes the name into the prompt, and a second `enter` sends it (measured, both versions).
+   */
+  const shipped = async (name: string) => {
+    await type(`/${name}`, 300)
+    await until(4000, (text) => new RegExp(`/${name}\\s{2,}\\S`).test(text))
+    await type("\r", 1200)
+    if (new RegExp(`┃\\s+/${name}\\s*$`, "m").test(await screen())) await type("\r", 0)
+  }
   const updater = await slash("plugins-update")
   const subagents = process.env.AGENT ? await subagentsInTheInterface() : undefined
+  /**
+   * The setup commands' slash names, shipped by the agent side, offered in the popup as they are typed
+   * — once each: the interface's palette entries for them carry no slash name. Only listed here, not
+   * run: running one asks a model, and a run without AGENT=1 stays offline.
+   */
+  const popup = async (typed: string) => {
+    await type("\x15", 300)
+    await type(typed, 1500)
+    const listed = await screen()
+    await type("\x15", 300)
+    await type("\x1b", 800)
+    return listed
+  }
+  const popups = {
+    "/cockpit-setup": await popup("/cockpit-se"),
+    "/status-setup": await popup("/status-se"),
+  }
+  /**
+   * AGENT=1: Status's command under its old name, kept for a release as a command of its own whose
+   * line says the new name first, and the skill it names loaded. In the conversation the subagent run
+   * left open, last, because it starts a turn. `/status-setup` sends the same line without the note.
+   */
+  const status = process.env.AGENT
+    ? await (async () => {
+        /** Whatever an earlier step left in the prompt goes first, or the name is typed after it. */
+        await type("\x15", 300)
+        await shipped("statusline")
+        const old = await seen(120_000, STATUS_SKILL_USED)
+        /** The skill asks a question next; `esc` dismisses it so nothing is left waiting. */
+        await type("\x1b", 1000)
+        return { old }
+      })()
+    : undefined
   proc.kill("SIGKILL")
+
+  /**
+   * AGENT=1: a second OpenCode, in a project nothing has happened in. `/cockpit-setup` from home has
+   * to open a conversation, and the agent there has to load the `cockpit-setup` skill and call
+   * `cockpit_settings` — the skill's first step. Run again while the agent answers, it has to queue
+   * behind the reply rather than cut it off. With the conversation open the sidebar draws: every
+   * block that lists something has to say it is there while it is empty — the heading and `none yet`
+   * — and the Status table, which nothing configures here, has to be the default surface, with the
+   * global file's old `statusline` named in a `!` row in the sidebar.
+   */
+  const presence = async () => {
+    const fresh = join(work, "fresh")
+    await Bun.write(join(fresh, "README.md"), "fresh\n")
+    for (const cmd of [
+      ["git", "init", "-q", "-b", "main"],
+      ["git", "config", "user.email", "smoke@example.com"],
+      ["git", "config", "user.name", "Smoke"],
+      ["git", "add", "-A"],
+      ["git", "commit", "-qm", "fresh"],
+    ]) {
+      run(cmd, fresh)
+    }
+    /** The skill has the agent read Cockpit's config, outside the project: nothing may wait on a prompt. */
+    proc = launch(fresh, v2 ? ["--auto"] : [])
+    await Bun.sleep(14_000)
+    await shipped("cockpit-setup")
+    const opened = await until(20_000, (text) => text.includes(SETUP_LINE))
+    /** Again, while the agent is still answering the first. */
+    await type("\x15", 300)
+    await shipped("cockpit-setup")
+    const queued = await until(8000, (text) => QUEUED.test(text))
+    const used = await seen(180_000, SETUP_SKILL_USED)
+    const drawn = await until(60_000, (text) => TOKENS_ROW.test(rightHalf(text)))
+    await Bun.sleep(3000)
+    const settled = await screen()
+    proc.kill("SIGKILL")
+    return { opened, used, queued, drawn: TOKENS_ROW.test(rightHalf(settled)) ? settled : drawn }
+  }
+  const fresh = process.env.AGENT ? await presence() : undefined
+
+  /**
+   * Status's `diagnostics` row in the sidebar table, on both versions (#34: OpenCode 2 hands a
+   * server's status as `{ status: "connected" }`, and every healthy server was flagged). A project
+   * with two MCP servers: a small stdio server that answers, and one whose command does not exist.
+   * The table — the default surface, nothing configures it here — draws in a conversation, so one
+   * short turn is sent (a free model; the only turn outside AGENT=1). Then, with the servers given
+   * time to connect or fail: no `! ok-test`, and `! broken-test` drawn, which proves the row was live.
+   * One `opencode.json` for both: 2.0 reads `mcp.servers`, 1.18 the flat keys (2.0 ignored a .jsonc).
+   */
+  const mcpStatus = async () => {
+    const at = join(work, "mcp")
+    const okMcp = join(work, "ok-mcp.ts")
+    await Bun.write(okMcp, OK_MCP)
+    const servers = {
+      "ok-test": { type: "local", command: [process.execPath, okMcp] },
+      "broken-test": { type: "local", command: ["cockpit-does-not-exist"] },
+    }
+    await Bun.write(
+      join(at, "opencode.json"),
+      JSON.stringify({ model: "opencode/space-bunny-free", mcp: { servers, ...servers } }),
+    )
+    await Bun.write(join(at, "README.md"), "mcp\n")
+    proc = launch(at)
+    await Bun.sleep(14_000)
+    await type("Reply with just the word hi.", 400)
+    await type("\r", 1000)
+    const drawn = await until(90_000, (text) => /! broken-test/.test(rightHalf(text)))
+    /** A healthy server that is flagged at all may be flagged only once it has connected. */
+    await Bun.sleep(8000)
+    const settled = await screen()
+    proc.kill("SIGKILL")
+    return { drawn, settled }
+  }
+  const mcp = await mcpStatus()
   // `SMOKE_SHOW=1 bun run smoke:tui` prints the updater's frame: a marker proves it drew, not how.
   if (process.env.SMOKE_SHOW) console.log(updater)
 
@@ -446,10 +752,29 @@ try {
   ] as const) {
     if (!second.includes(marker)) throw new Error(`${what}:\n${second}`)
   }
+  if (!second.includes(`! settings: "statusline" is no longer read`))
+    throw new Error(`Status never named the old "statusline" section:\n${second}`)
+  for (const [name, listed] of Object.entries(popups)) {
+    /** Once: the shipped command's row, and no second one from the interface. */
+    /** A row: at the popup's edge, the name, a gap on the same line, its description. */
+    const rows = listed.match(new RegExp(`┃ ${name} {2,}\\S`, "g")) ?? []
+    if (rows.length !== 1)
+      throw new Error(`the slash popup offered ${name} ${rows.length} times, not once:\n${listed}`)
+  }
+  if (status && !status.old.all)
+    throw new Error(
+      `/statusline never ran the status-setup skill with its new name said (missing ${status.old.missing.join(", ")}):\n${status.old.last}`,
+    )
+
+  for (const marker of ["Nothing recorded in this project yet.", "[esc] Close"]) {
+    if (!ranTrail.includes(marker))
+      throw new Error(`the palette's Trail never drew "${marker}":\n${ranTrail}`)
+  }
 
   for (const [what, marker] of [
     ["the review panel never drew", "review"],
     ["the review panel drew no diff", "SMOKE-REVIEW"],
+    ["the review panel never named its old setting", '! settings: "review.sidebarOrder"'],
   ] as const) {
     if (!review.includes(marker)) throw new Error(`${what}:\n${review}`)
   }
@@ -484,6 +809,9 @@ try {
       ["the sidebar never showed the Subagents block", subagents.sidebar, "Subagents"],
       ["a click on the subagent never opened its full screen", subagents.full, "EXPLORE"],
       ["the full screen never drew its keys", subagents.full, "[m] Message"],
+      ["the full screen never offered every key", subagents.full, "[?] Keys"],
+      ["? never showed every key", subagents.keys, "KEYS"],
+      ["the keys screen never said how back", subagents.keys, "[esc] Hide Keys"],
       ["enter never opened the selected item", subagents.toggled, "▌ "],
       ["m never opened the message input in the pane", subagents.typing, "┃ hello there"],
       ["/subagents never opened the full screen", subagents.slashed, "[m] Message"],
@@ -502,13 +830,25 @@ try {
         throw new Error(`the main conversation never showed the relayed exchange:\n${subagents.conversation}`)
     } else console.log("relay not checked: the subagent had not finished when the message was sent")
     const asked = subagents.removed.includes("Press x again")
-    const listed = /[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] explore /.test(subagents.removed)
+    const listed = EXPLORE_ROW.test(subagents.removed)
     if (!asked && listed)
       throw new Error(`x neither removed the subagent nor asked to stop it:\n${subagents.removed}`)
   }
 
   /** A plugin OpenCode could not load says so in the footer, whichever half it was. */
-  for (const text of [first, second, consoleScreen, fullScreen, review, updater, ...Object.values(ran)]) {
+  for (const text of [
+    first,
+    second,
+    consoleScreen,
+    fullScreen,
+    review,
+    updater,
+    ranTrail,
+    ...Object.values(ran),
+    ...Object.values(popups),
+    ...(fresh ? [fresh.drawn] : []),
+    mcp.settled,
+  ]) {
     if (/plugins? failed/.test(text)) throw new Error(`OpenCode could not load a plugin:\n${text}`)
   }
 
@@ -521,9 +861,69 @@ try {
       `the panel froze: still at tick ${firstMax} after 4s (published JSX not Solid-compiled?)\n${second}`,
     )
   }
+  if (process.env.SMOKE_SHOW) console.log(mcp.settled)
+  if (!/! broken-test/.test(rightHalf(mcp.drawn)) || !/! broken-test/.test(rightHalf(mcp.settled)))
+    throw new Error(`the Status table never flagged the broken MCP server:\n${mcp.settled}`)
+  for (const text of [mcp.drawn, mcp.settled]) {
+    if (/!\s+ok-test/.test(text)) throw new Error(`the Status table flagged a healthy MCP server:\n${text}`)
+  }
+  if (fresh) {
+    const { opened, used, queued, drawn } = fresh
+    if (process.env.SMOKE_SHOW) console.log(drawn)
+    if (!opened.includes(SETUP_LINE))
+      throw new Error(`/cockpit-setup from home never opened a conversation with its line:\n${opened}`)
+    if (!used.all)
+      throw new Error(
+        `/cockpit-setup's agent never used the skill (missing ${used.missing.join(", ")}):\n${used.last}`,
+      )
+    if (!QUEUED.test(queued))
+      throw new Error(`/cockpit-setup while the agent answered never queued:\n${queued}`)
+    for (const heading of ["Subagents", "Shells", "Trail"]) {
+      if (!under(drawn, heading)?.startsWith("none yet"))
+        throw new Error(`the sidebar never drew "${heading}" with "none yet" under it:\n${drawn}`)
+    }
+    if (!TOKENS_ROW.test(rightHalf(drawn)))
+      throw new Error(`the sidebar never drew the Status table's tokens row:\n${drawn}`)
+    if (!rightHalf(drawn).includes(`! settings: "statusline" is no longer`))
+      throw new Error(`the sidebar never named the old "statusline" section:\n${drawn}`)
+  }
   if (process.env.AGENT) agentTurn(env)
+  /**
+   * AGENT=1: each bay's measurement against its installed server half — the guidance has to change
+   * what a real turn does, without the prompt naming the bay. Trail: a turn that opens a PR (with a
+   * fake `gh`) records it. Shell: "start the dev server" goes in shell_start, and a second
+   * conversation reuses it rather than starting another. Review: a waiting comment is read with
+   * review_list and answered with review_reply.
+   */
+  if (process.env.AGENT) {
+    for (const [name, what] of [
+      ["trail", "Trail's"],
+      ["shell", "Shell's"],
+      ["review", "Review's"],
+    ] as const) {
+      /**
+       * Trail's on a free model misses about one turn in six, so it is two of three; the others
+       * still one of one.
+       */
+      const runs = name === "trail" ? ["--runs", "3", "--pass", "2"] : ["--runs", "1"]
+      const measured = Bun.spawnSync(
+        ["bun", join(root, `packages/${name}/measure/agent.ts`), "--plugin", bay(name), ...runs],
+        {
+          cwd: root,
+          env: { ...process.env, OPENCODE: opencode },
+          stdin: "ignore",
+          stdout: "pipe",
+          stderr: "pipe",
+          /** Three attempts, of up to two five-minute turns each, inside each run of the measurement. */
+          timeout: name === "trail" ? 6_000_000 : 2_000_000,
+        },
+      )
+      if (measured.exitCode !== 0)
+        throw new Error(`${what} measurement failed:\n${measured.stdout}\n${measured.stderr}`.slice(-3000))
+    }
+  }
   console.log(
-    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; console and its keys drew; full screen drew; statusline drew; review drew its diff; updater answered its slash name; every bay found under "cockpit" in the palette, and its commands ran from there${subagents ? "; a subagent showed in the sidebar and opened full screen, by click and by /subagents" : ""}${process.env.AGENT ? "; an agent called both bays' tools and was told about them" : ""}`,
+    `tui smoke passed: panel live, tick ${firstMax} → ${secondMax}; console and its keys drew; full screen drew; statusline drew and named its old section; review drew its diff and named its old setting; updater answered its slash name; trail opened empty; every bay and /cockpit-setup found under "cockpit" in the palette, and the commands ran from there; /cockpit-setup and /status-setup offered once each as they were typed${subagents ? "; a subagent showed in the sidebar and opened full screen, by click and by /subagents, with its keys; /statusline ran the status-setup skill, saying its new name" : ""}${fresh ? "; /cockpit-setup from home opened a conversation whose agent loaded the cockpit-setup skill and called cockpit_settings, and queued behind the reply; an empty sidebar said none yet in every block, under the Status table" : ""}; the Status table flagged the broken MCP server and not the healthy one${process.env.AGENT ? "; an agent called the bays' tools and was told about them; Trail's, Shell's and Review's measurements passed" : ""}`,
   )
 } finally {
   /** KEEP=1 leaves the install and project behind, to inspect what a run actually loaded. */

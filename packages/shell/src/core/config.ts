@@ -1,18 +1,21 @@
-import { existsSync, readFileSync } from "node:fs"
-import { homedir } from "node:os"
-import { join } from "node:path"
+import { baySettings, type SettingsNotice } from "@opencode-cockpit/client/settings"
 import type { WatchRule } from "@opencode-cockpit/protocol/shell"
 
 /**
- * Settings, read from one file so they are written once instead of twice (OpenCode keeps agent and
- * TUI plugins in separate configs). Precedence, lowest first:
+ * Shell's settings, through the loader every bay shares (`@opencode-cockpit/client/settings`), read
+ * by both halves so they are written once instead of twice (OpenCode keeps agent and TUI plugins in
+ * separate configs). Precedence, lowest first:
  *
  *   ~/.config/opencode-cockpit/config.json  →  <project>/.cockpit.json  →  plugin-entry options
  *
- * Everything is optional, and an unreadable or invalid file is ignored rather than fatal: a typo in
- * a config should never stop shells from working.
+ * Only the `shell` section of a file is read. Shell's keys used to sit at the file's root, with the
+ * interface's under `ui`; those are no longer read, and each one found is a notice naming the new
+ * place (drawn in the Shells block, and by doctor). Everything is optional, and an unreadable or
+ * invalid file is ignored rather than fatal: a typo in a config should never stop shells from working.
  */
-export interface CockpitConfig {
+export interface ShellConfig {
+  /** Off switch for this bay, both halves, wherever it is written. `features.shell: false` too. */
+  enabled?: boolean
   /** Health watching (see shell_watch). */
   watch?: {
     /** Attach a matching preset to every new shell without being asked. Off by default. */
@@ -57,96 +60,68 @@ export interface CockpitConfig {
   guidance?: boolean
   /** Running shells listed in the system prompt each turn; 0 disables (~20 tokens each). */
   listRunningShells?: number
-  /** Interface options; also settable on the tui.json plugin entry. */
-  ui?: {
-    dockHeight?: number
-    dockOpen?: boolean
-    sidebarRows?: number
-    /**
-     * Where this bay's block sits among the others in a shared surface. Lower draws first.
-     *
-     * Two bays in one sidebar draw in the order they registered, and until now that order was a
-     * constant nobody could reach: shells above the statusline, whatever you would rather see.
-     */
-    sidebarOrder?: number
-    historyMinutes?: number
-    colors?: boolean
-    defaultView?: "screen" | "log"
-    keybinds?: Record<string, string>
-    updateCheck?: boolean
-  }
+  /** The panel at the foot of the window: its height in rows (at most 45% of the window). */
+  dockHeight?: number
+  /** Whether the panel starts open; unset, it starts as you last left it. */
+  dockOpen?: boolean
+  /** Draw the Shells block in the sidebar; the dock and console stay either way. */
+  sidebar?: boolean
+  /** Shells in the sidebar before the rest fold into `+ N more`. */
+  sidebarRows?: number
+  /** Draw no Shells block at all while there are none. Default false: the heading and `none yet`. */
+  hideWhenEmpty?: boolean
+  /** Minutes a finished shell stays in the folded views after it ends. Was `ui.historyMinutes`. */
+  hideFinishedAfterMinutes?: number
+  /** Paint the colours programs print. */
+  colors?: boolean
+  /** What the console opens on: the program's screen, or its clean log. */
+  defaultView?: "screen" | "log"
+  keybinds?: Record<string, string>
 }
 
-export const CONFIG_FILE = "config.json"
-export const PROJECT_FILE = ".cockpit.json"
-
-export function globalConfigPath(env: Record<string, string | undefined> = process.env): string {
-  const base = env.XDG_CONFIG_HOME ?? join(env.HOME ?? homedir(), ".config")
-  return join(base, "opencode-cockpit", CONFIG_FILE)
+/** What every source left unset becomes. Their kinds are what a written value is checked against. */
+export const DEFAULTS = {
+  guidance: true,
+  listRunningShells: 15,
+  dockHeight: 14,
+  hideFinishedAfterMinutes: 30,
+  colors: true,
+  defaultView: "screen" as "screen" | "log",
+  watch: {} as NonNullable<ShellConfig["watch"]>,
+  kinds: {} as Record<string, string>,
+  defaults: {} as NonNullable<ShellConfig["defaults"]>,
+  lifecycle: {} as NonNullable<ShellConfig["lifecycle"]>,
+  notify: {} as NonNullable<ShellConfig["notify"]>,
 }
 
-/** Reads and merges every source. `options` is the plugin entry's own options object. */
+export interface LoadedShell {
+  /** Every source merged over the defaults. */
+  config: ShellConfig
+  /** The block's place, from the top-level `sidebar` list. */
+  order: number
+  /** Settings to fix, for a `!` row in the block. */
+  notices: SettingsNotice[]
+}
+
+/** Reads and merges every source. `options` is the plugin entry's own options object. Never throws. */
+export function loadShell(
+  directory: string,
+  options?: unknown,
+  env: Record<string, string | undefined> = process.env,
+): LoadedShell {
+  const loaded = baySettings("shell", DEFAULTS, { options, where: { directory, env } })
+  const config = loaded.config as ShellConfig & typeof loaded.config
+  /** A value outside the two the console knows is the default, not a third view. */
+  if (config.defaultView !== "screen" && config.defaultView !== "log") config.defaultView = "screen"
+  if (config.dockOpen !== undefined && typeof config.dockOpen !== "boolean") delete config.dockOpen
+  return { config, order: loaded.order, notices: loaded.notices }
+}
+
+/** Every source merged over the defaults: what the agent's half reads. */
 export function loadConfig(
   directory: string,
   options?: unknown,
   env: Record<string, string | undefined> = process.env,
-): CockpitConfig {
-  return mergeConfig(
-    mergeConfig(readConfigFile(globalConfigPath(env)), readConfigFile(join(directory, PROJECT_FILE))),
-    asConfig(options),
-  )
-}
-
-export function readConfigFile(path: string): CockpitConfig {
-  if (!existsSync(path)) return {}
-  try {
-    return asConfig(JSON.parse(readFileSync(path, "utf8")))
-  } catch {
-    return {} // a broken config must not take shells down with it
-  }
-}
-
-/** Section-wise merge: later sources win key by key, and never lose a whole section. */
-export function mergeConfig(base: CockpitConfig, over: CockpitConfig): CockpitConfig {
-  return {
-    ...base,
-    ...over,
-    watch: { ...base.watch, ...over.watch, presets: { ...base.watch?.presets, ...over.watch?.presets } },
-    kinds: { ...base.kinds, ...over.kinds },
-    defaults: { ...base.defaults, ...over.defaults },
-    lifecycle: { ...base.lifecycle, ...over.lifecycle },
-    notify: { ...base.notify, ...over.notify },
-    ui: { ...base.ui, ...over.ui, keybinds: { ...base.ui?.keybinds, ...over.ui?.keybinds } },
-  }
-}
-
-/**
- * Plugin-entry options were flat before the config file existed (`{ dockHeight: 16 }`), so those
- * keys still work and are read as `ui`.
- */
-function asConfig(input: unknown): CockpitConfig {
-  if (!input || typeof input !== "object") return {}
-  const raw = input as Record<string, unknown>
-  const config: CockpitConfig = {}
-  for (const key of ["watch", "kinds", "defaults", "lifecycle", "notify", "ui"] as const) {
-    const value = raw[key]
-    if (value && typeof value === "object") Object.assign(config, { [key]: value })
-  }
-  if (typeof raw.guidance === "boolean") config.guidance = raw.guidance
-  if (typeof raw.listRunningShells === "number") config.listRunningShells = raw.listRunningShells
-
-  const legacy: CockpitConfig["ui"] = {}
-  for (const key of [
-    "dockHeight",
-    "dockOpen",
-    "sidebarRows",
-    "sidebarOrder",
-    "historyMinutes",
-    "updateCheck",
-  ] as const) {
-    if (raw[key] !== undefined) Object.assign(legacy, { [key]: raw[key] })
-  }
-  if (raw.keybinds && typeof raw.keybinds === "object")
-    legacy.keybinds = raw.keybinds as Record<string, string>
-  return Object.keys(legacy).length > 0 ? mergeConfig(config, { ui: legacy }) : config
+): ShellConfig {
+  return loadShell(directory, options, env).config
 }

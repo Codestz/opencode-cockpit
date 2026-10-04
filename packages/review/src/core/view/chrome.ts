@@ -6,7 +6,7 @@
  * trouble, the performance numbers, a selection — *replaces* what is there rather than adding to it.
  */
 
-import { closeHint, fitHints, GLYPH, HINT_GAP, type Hint } from "@opencode-cockpit/client/design"
+import { closeHint, fitHints, GLYPH, HINT_GAP, type Hint, warnRows } from "@opencode-cockpit/client/design"
 import { type ChangeSet, progress, type Review } from "../model/review.ts"
 import type { Columns } from "./geometry.ts"
 import { clipRuns, type Fill, type Row, type Run, rowWidth } from "./rows.ts"
@@ -70,8 +70,37 @@ export function headerRows(changes: ChangeSet, review: Review, width: number, la
   ]
 }
 
+/**
+ * The settings notices as the one row under the header, in place of its rule — the header stays two
+ * rows, so nothing below it moves. The shared `!` row (`warnRows`) cut to one line; with several,
+ * how many comes first, so a narrow pane still says there is more than the one it shows.
+ */
+export function settingsRow(notices: readonly string[], width: number): Row | undefined {
+  const [first] = notices
+  if (first === undefined) return undefined
+  const text =
+    notices.length === 1
+      ? first
+      : `settings: ${notices.length} to fix, run /cockpit-setup — ${first.replace(/^settings: /, "")}`
+  const [row = []] = warnRows(text, width, 1)
+  return { runs: row.map((run) => ({ text: run.text, ...(run.tone ? { tone: run.tone } : {}) })) }
+}
+
+/**
+ * The way to every key the row had no room for. Ranked just under the way out, so a narrow row keeps
+ * it and gives up `[w] Width` first: one key that leads to all of them beats one more of them.
+ */
+const KEYS: Hint = { key: "?", label: "Keys", priority: 100 }
+
 /** The keys, on screen, because a surface whose keys are undiscoverable has none. */
-export function footerRows(width: number, _columns: Columns, state: ViewState = {}, empty = false): Row[] {
+export function footerRows(
+  width: number,
+  _columns: Columns,
+  state: ViewState = {},
+  empty = false,
+  /** The file under the cursor is a binary: `o` opens it, and is worth a place in the row. */
+  binary = false,
+): Row[] {
   const inDiff = state.pane === "diff"
   const selecting = inDiff && state.anchor !== undefined
   const lines =
@@ -146,12 +175,14 @@ export function footerRows(width: number, _columns: Columns, state: ViewState = 
     return [rule, { runs: clipRuns(trouble, width, "none") }]
   }
   if (state.stats) return [rule, { runs: clipRuns([...state.stats], width, "none") }]
+  /** On the keys screen the only key worth a row is the way back to the review. */
+  if (state.keys) return [rule, { runs: keyRow([], [closeHint("Hide Keys")], width) }]
 
   /**
    * Nothing to review: only the keys that act. Moving, noting and marking have nothing to land on,
    * and a row that offers them anyway teaches that its keys do not always mean anything.
    */
-  if (empty) return [rule, { runs: keyRow([], [...sources, close], width) }]
+  if (empty) return [rule, { runs: keyRow([], [...sources, KEYS, close], width) }]
   /** A selection says how many lines it holds before the keys that act on them. */
   const lead: Run[] = selecting
     ? [{ text: `${lines} line${lines === 1 ? "" : "s"}`, tone: "accent", bold: true }]
@@ -161,7 +192,16 @@ export function footerRows(width: number, _columns: Columns, state: ViewState = 
     {
       runs: keyRow(
         lead,
-        [...moving, ...extra, submit, ...sources, { key: "w", label: "Width" }, close],
+        [
+          ...moving,
+          ...(binary ? [{ key: "o", label: "Open" }] : []),
+          ...extra,
+          submit,
+          ...sources,
+          { key: "w", label: "Width" },
+          KEYS,
+          close,
+        ],
         width,
       ),
     },

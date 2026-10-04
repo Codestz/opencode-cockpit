@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { Hooks, PluginInput } from "@opencode-ai/plugin"
 import { partsToV1Hooks, serverFromV1 } from "@opencode-cockpit/client/server"
-import { createReviewServer } from "../../src/agent/plugin.ts"
+import { createReviewServer, reviewGuidance } from "../../src/agent/plugin.ts"
 import type { Thread } from "../../src/core/model/thread.ts"
 import { reviewPaths } from "../../src/core/store/paths.ts"
 import { createPersistence } from "../../src/core/store/persist.ts"
@@ -123,6 +123,27 @@ describe("what the agent is told", () => {
     await rm(home, { recursive: true, force: true })
     const hooks = await start()
     expect((await systemOf(hooks)).length).toBeGreaterThan(0)
+  })
+})
+
+describe("named for each OpenCode, and where the user reads the threads", () => {
+  test("tools.review_list in OpenCode 2's Code Mode, review_list on OpenCode 1", () => {
+    expect(reviewGuidance(2)).toContain("tools.review_list shows the ones waiting on you")
+    expect(reviewGuidance(2)).toContain("then tools.review_reply with resolved=true")
+    expect(reviewGuidance(1)).not.toContain("tools.")
+  })
+
+  test("the threads are in Review, opened with its key — for the Cockpit-wide line", async () => {
+    const parts = await createReviewServer()(serverFromV1(input()), undefined)
+    expect(parts.surfaces).toEqual([{ what: "review threads", where: "Review", open: "ctrl+x v" }])
+    const rebound = await createReviewServer()(serverFromV1(input()), {
+      keybinds: { "cockpit.review.open": "none" },
+    })
+    expect(rebound.surfaces?.[0]?.open).toBe("/changes")
+  })
+
+  test("enabled: false is both halves — no tools, no guidance", async () => {
+    expect(await createReviewServer()(serverFromV1(input()), { enabled: false })).toEqual({})
   })
 })
 

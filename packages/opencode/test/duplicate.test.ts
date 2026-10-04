@@ -49,18 +49,31 @@ describe("configured twice in one OpenCode instance", () => {
      * tools, because OpenCode does not deduplicate them and duplicate names fail the model request.
      */
     expect(Object.keys(fromBundle.tool ?? {}).filter((name) => name.startsWith("shell_"))).toEqual([])
+    /** Setup too: one `cockpit_settings`, one skill and one `/cockpit-setup` between the two entries. */
+    expect(standalone.tool?.cockpit_settings).toBeDefined()
+    expect(fromBundle.tool?.cockpit_settings).toBeUndefined()
+    const config = {} as { command?: Record<string, unknown>; skills?: { paths: string[] } }
+    await (standalone as { config?: (c: unknown) => Promise<void> }).config?.(config)
+    await (fromBundle as { config?: (c: unknown) => Promise<void> }).config?.(config)
+    expect(Object.keys(config.command ?? {}).sort()).toEqual(["cockpit-setup", "status-setup", "statusline"])
+    expect(config.skills?.paths.map((path) => path.split("/").at(-1)).sort()).toEqual([
+      "cockpit-setup",
+      "status-setup",
+    ])
   })
 
   test("features switched off load nothing; separate instances each get Shell", async () => {
     const off = await bundle.server(fakeInput(), {
-      features: { shell: false, review: false, subagents: false },
+      features: { shell: false, review: false, subagents: false, trail: false },
     })
-    expect(off.tool).toBeUndefined()
+    /** Only what every install has: the tools the `cockpit-setup` skill reads and writes with. */
+    expect(Object.keys(off.tool ?? {}).sort()).toEqual(["cockpit_conventions", "cockpit_settings"])
     /** One bay off leaves the others alone, which is the whole point of the switches. */
     const shellOff = await bundle.server(fakeInput(), { features: { shell: false } })
     expect(Object.keys(shellOff.tool ?? {}).filter((name) => name.startsWith("shell_"))).toEqual([])
     expect(Object.keys(shellOff.tool ?? {})).toContain("review_list")
     expect(Object.keys(shellOff.tool ?? {})).toContain("subagents_list")
+    expect(Object.keys(shellOff.tool ?? {})).toContain("trail_add")
     const a = await bundle.server(fakeInput())
     const b = await bundle.server(fakeInput())
     expect(a.tool?.shell_start).toBeDefined()

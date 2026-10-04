@@ -82,7 +82,8 @@ rows(ctx: StatusContext): Piece[] {
 }
 ```
 
-A column keeps at most `maxRows` rows (default 8) — count them and raise it, or the extras vanish.
+A column keeps at most `sidebarRows` rows (default 8; a line in `lines` takes its own `maxRows`) —
+count them and raise it, or the extras vanish.
 The preview prints `↳ N dropped` when that happens.
 
 ## Alignment
@@ -110,22 +111,23 @@ find:
 
 ## Let an agent draw it
 
-Type **`/statusline`** in OpenCode. It draws nothing: it hands the agent already in your session a
-brief carrying what it cannot look up — which config file this project reads, what is drawing right
-now, your modules and any that failed to load, the preset and segment names — and ends by asking
-what you want it to show.
+Type **`/status-setup`** in OpenCode (`/statusline` until 0.9), or just ask for the change. It draws
+nothing: the agent loads the **`status-setup` skill** that ships with Status — the presets, every
+segment, the design rules this bay learned the expensive way, and the preview to check a line with —
+reads what is written now with `cockpit_settings`, and asks what you want it to show.
 
-The rules this bay learned the expensive way also ship **as a skill** inside the package, at
-`skills/statusline-design/`. Copy it in and the agent picks up the taste as well as the api:
+For another agent, Claude Code for example, the same skill ships in the package, at
+`skills/status-setup/` — the design rules are in its `references/design.md`. (`skills/statusline-design/`,
+its name before 0.9, is kept for 0.9 for anyone who copied it, and removed in 0.10.)
 
 ```sh
 # Claude Code, for this project or for every project
 mkdir -p .claude/skills
-cp -r node_modules/@opencode-cockpit/status/skills/statusline-design .claude/skills/
+cp -r node_modules/@opencode-cockpit/status/skills/status-setup .claude/skills/
 ```
 
-Its `description` fires on any request that mentions the statusline, a segment, or a module
-importing `@opencode-cockpit/status/segment`. What it carries is the taste, not the api: look at the
+Its `description` fires on any request to change what the statusline or the Status table shows.
+Outside OpenCode it has no `cockpit_settings` to read, so give it the file. What it carries is the taste, not the api: look at the
 thing before shipping it, `preview --watch` instead of restarting OpenCode, the six sample states a
 design gets wrong, the glyph traps above, and the rule that a number printed twice in one column is
 the thing the eye catches on.

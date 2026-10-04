@@ -14,6 +14,12 @@ describe("feature options", () => {
     expect(featureOptions({ trust: { threshold: 5 } }, "trust")).toEqual({ threshold: 5 })
   })
 
+  test("Trail is in the bundle, on by default, and switched off like the rest", () => {
+    expect(isEnabled(undefined, "trail")).toBe(true)
+    expect(isEnabled({ features: { trail: false } }, "trail")).toBe(false)
+    expect(featureOptions({ trail: { sidebarRows: 3 } }, "trail")).toEqual({ sidebarRows: 3 })
+  })
+
   test("shell options come from their own key, with 0.1.x top-level options as fallback", () => {
     expect(featureOptions({ dockHeight: 10, shell: { dockHeight: 20, dockOpen: true } }, "shell")).toEqual({
       dockHeight: 20,

@@ -56,3 +56,21 @@ Code is coloured the way the rest of OpenCode colours it, because the palette co
 rather than from us. Twelve filetypes are covered, and adding one is a row in a table —
 [the language table](https://github.com/Codestz/opencode-cockpit/blob/main/packages/review/src/core/view/syntax/languages.ts)
 is the file to edit.
+
+## Images and other binaries
+
+A binary is never drawn as text — git's rule decides it (a NUL in the first 8000 bytes). Its card
+says what is true about it:
+
+```text
+PNG 2880×1800 · 807 KB → 789 KB
+2.56% of pixels changed · 601×221 at 1900,300
+[o] Open Both
+```
+
+PNG, APNG, JPEG, GIF, WebP and BMP are named with their dimensions; anything else is
+`binary · 12.3 KB → 14.0 KB`. PNG and GIF of the same size are also decoded — in slices, off the draw
+path, so a pair of screenshots never freezes the window — for the pixel diff and a small preview,
+before and after side by side in half-block characters with what changed lit. The preview shows
+*where*; <kbd>o</kbd> opens both versions in your system's viewer for *what*. Binaries are read up to
+32 MB and decoded up to 4096×4096 pixels; past either, the card still names and sizes the file.

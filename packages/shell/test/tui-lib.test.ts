@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import type { ScreenRun, ShellInfo } from "@opencode-cockpit/protocol/shell"
 import { friendlyError, splitMatches } from "../src/tui/lib/search.ts"
+import { fold } from "../src/tui/lib/sidebar.ts"
 import {
   BADGE_LABEL,
   badgeText,
@@ -262,5 +263,33 @@ describe("errors are rewritten for humans", () => {
   test("anything else is passed through, whatever was thrown", () => {
     expect(friendlyError(new Error("disk is full"))).toBe("disk is full")
     expect(friendlyError("plain string")).toBe("plain string")
+  })
+})
+
+describe("folding the sidebar", () => {
+  const list = (n: number) => Array.from({ length: n }, (_, at) => `sh${at}`)
+  const at = (all: string[], folded: string[], showAll: boolean) =>
+    fold({ all, folded, showAll, rows: 5, expandedRows: 12 })
+
+  test("one shell: nothing to fold, so no toggle — expanded or not", () => {
+    expect(at(list(1), list(1), false)).toEqual({ shown: ["sh0"], more: 0, stale: false })
+    /** Expanded at six, down to one: no `− fewer`, and the expansion is stale. */
+    expect(at(list(1), list(1), true)).toEqual({ shown: ["sh0"], more: 0, stale: true })
+  })
+
+  test("more than the folded limit: `+ N more`, and `− fewer` once expanded", () => {
+    expect(at(list(7), list(7), false)).toMatchObject({ more: 2, toggle: "more", stale: false })
+    expect(at(list(7), list(7), true)).toMatchObject({ more: 0, toggle: "fewer", stale: false })
+    expect(at(list(7), list(7), true).shown).toHaveLength(7)
+  })
+
+  test("finished shells the folded view leaves out count too, though under the limit", () => {
+    /** Three shells, one running: folded shows one and offers the other two. */
+    expect(at(list(3), ["sh0"], false)).toMatchObject({ shown: ["sh0"], more: 2, toggle: "more" })
+    expect(at(list(3), ["sh0"], true)).toMatchObject({ more: 0, toggle: "fewer", stale: false })
+  })
+
+  test("expanded past the expanded limit: what is left, and the console", () => {
+    expect(at(list(20), list(20), true)).toMatchObject({ more: 8, toggle: "both" })
   })
 })

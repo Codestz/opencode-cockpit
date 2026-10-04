@@ -186,6 +186,14 @@ describe("the guidance names only the options the tool has (load test #1)", () =
     expect(text).toContain("task_id")
   })
 
+  test("its own tools are named as each OpenCode calls them: tools.x in OpenCode 2's Code Mode", () => {
+    const v2 = subagentsGuidance({ version: 2, background: true })
+    expect(v2).toContain("call tools.subagents_wait")
+    expect(v2).toContain("tools.subagents_list gives")
+    expect(v2).toContain("read it with tools.subagents_read")
+    expect(subagentsGuidance({ version: 1, background: true })).not.toContain("tools.")
+  })
+
   test("with it, background is a boolean, and subagents_wait is the way to block", () => {
     const text = subagentsGuidance({ version: 2, background: true })
     expect(text).toContain("background: true, a boolean")

@@ -292,7 +292,22 @@ describe("the guidance says who is messaged", () => {
   })
 
   test("the conversation, and anyone on OpenCode 2, get the guidance as it was", () => {
-    expect(shellGuidance(1, false)).toBe(shellGuidance(2, true))
+    expect(shellGuidance(2, true)).toBe(shellGuidance(2, false))
+    expect(shellGuidance(1, false)).not.toContain("not messaged")
     expect(shellGuidance(2, false)).not.toContain("not messaged")
+  })
+
+  test("tools are named as each OpenCode calls them: tools.x in OpenCode 2's Code Mode", () => {
+    expect(shellGuidance(1, false)).toContain("go in shell_start,")
+    expect(shellGuidance(1, false)).not.toContain("tools.")
+    expect(shellGuidance(2, false)).toContain("go in tools.shell_start,")
+    expect(shellGuidance(2, false)).toContain("call tools.shell_list")
+  })
+
+  test("it says to reuse a running dev server, name shells short, and say what was started", () => {
+    const text = shellGuidance(2, false)
+    expect(text).toContain("never start a second")
+    expect(text).toContain('"dev", "test", "build"')
+    expect(text).toContain("tell them what you started")
   })
 })

@@ -1,15 +1,21 @@
 /** @jsxImportSource @opentui/solid */
 
+import { defaultKeys } from "@opencode-cockpit/client/catalog"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
 import { bindingLookup, dualTui, type Host } from "@opencode-cockpit/client/host"
+import { noticeText } from "@opencode-cockpit/client/settings"
 import type { BoxRenderable } from "@opentui/core"
-import { headOf } from "../core/git/sources.ts"
+import { loadReview, type ReviewConfig } from "../core/config.ts"
+import { headOf, readBlob, readWorking } from "../core/git/sources.ts"
+import { createLooks } from "../core/image/looks.ts"
 import type { Source } from "../core/model/review.ts"
+import { matchesBinding, paletteBindings } from "../core/palette.ts"
 import { metrics } from "../core/perf.ts"
 import { reviewPaths } from "../core/store/paths.ts"
 import { createPersistence } from "../core/store/persist.ts"
-import { frameBounds, VARIANTS, type Variant } from "../core/view/frame.ts"
+import { frameBounds, VARIANTS } from "../core/view/frame.ts"
 import { FOOTER_ROWS, HEADER_ROWS } from "../core/view/geometry.ts"
+import { createViewer, systemExists, systemSpawn, systemWhich } from "../core/viewer.ts"
 import { createStore } from "./data/changes.ts"
 import { createActions } from "./panel/actions.ts"
 import { paneLayer } from "./panel/keys.ts"
@@ -21,11 +27,7 @@ import { createTrouble } from "./panel/trouble.ts"
 import { Overlay } from "./view/overlay.tsx"
 import { createRowPool, type RowPool } from "./view/pool.ts"
 
-/** Global keys, leader-prefixed and few. `<leader>` is OpenCode's own prefix — `ctrl+x` by default. */
-const DEFAULT_KEYS = {
-  "cockpit.review.open": "<leader>v",
-  "cockpit.review.place": "<leader>r",
-}
+const DEFAULT_KEYS = defaultKeys("review")
 
 const REVIEW_PACKAGE = "@opencode-cockpit/review"
 
@@ -34,18 +36,8 @@ const SLOT_ORDER = 180
 
 const SOURCES: Source[] = ["worktree", "branch"]
 
-export interface ReviewTuiOptions {
-  /** Which placement to open in: right | full. */
-  variant?: Variant
-  /**
-   * What to review on open: worktree | branch | session.
-   *
-   * Uncommitted by default, because that is what you are looking at nine times in ten — the work
-   * that just happened. Branch is for reading a pull request, which is a thing you choose to do.
-   */
-  source?: Source
-  keybinds?: Record<string, string>
-}
+/** The `review` section of the config files, then the plugin entry's options (core/config.ts). */
+export type ReviewTuiOptions = Partial<ReviewConfig>
 
 /**
  * Review's TUI half: what it is made of, and who owns what.
@@ -74,10 +66,26 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
     }
     api.lifecycle.onDispose(() => claim.release())
 
-    const options = (rawOptions ?? {}) as ReviewTuiOptions
+    const { config: options, notices } = loadReview(api.state.path.directory, rawOptions)
+    if (!options.enabled) {
+      api.log.info("review: off in the settings")
+      return
+    }
+    /**
+     * Review draws no sidebar block, so its settings notices are a `!` row in the pane (in place of
+     * the header's rule, `chrome.ts`), said once more as the session starts, and kept in the log.
+     */
+    for (const notice of notices) api.log.warn("review: settings", { file: notice.file, notice: notice.text })
+    if (notices.length > 0)
+      api.ui.toast({
+        variant: "warning",
+        title: "Review",
+        message: notices.map(noticeText).join("\n"),
+        duration: 10_000,
+      })
     const keys = bindingLookup({ ...DEFAULT_KEYS, ...options.keybinds })
-    const store = createStore(api, options.source ?? "worktree")
-    const surface = createSurface(options.variant ?? "right")
+    const store = createStore(api, options.source)
+    const surface = createSurface(options.variant)
 
     /**
      * The renderables the slot hands back, which do not exist until it mounts.
@@ -125,6 +133,25 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
 
     const { guard, notice } = createTrouble({ api, surface, store })
 
+    const directory = () => api.state.path.worktree || api.state.path.directory
+
+    /**
+     * The images under review, decoded off the draw path once git has been read: the pixel diff and
+     * the thumbs the preview is drawn from. A paint is asked for as each file is done.
+     */
+    const looks = createLooks(
+      async (file, side) => {
+        const read =
+          side === "after"
+            ? await readWorking(directory(), file.path)
+            : file.binary?.revision
+              ? await readBlob(directory(), file.binary.revision, file.from ?? file.path)
+              : undefined
+        return read?.whole ? read.bytes : undefined
+      },
+      () => draw(),
+    )
+
     const { draw } = createPainter({
       api,
       surface,
@@ -133,6 +160,32 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       queries,
       notice,
       boxes: () => ({ backdrop, panel, pool }),
+      looks: () => looks.current(),
+      settings: notices.map(noticeText),
+    })
+
+    /** `o`: the old side out of git, uncapped — a viewer needs the whole file, not its header. */
+    const viewer = createViewer({
+      platform: process.platform,
+      env: process.env,
+      which: systemWhich,
+      exists: systemExists,
+      spawn: systemSpawn,
+      readOld: async (file) =>
+        file.binary?.revision
+          ? (
+              await readBlob(
+                directory(),
+                file.binary.revision,
+                file.from ?? file.path,
+                Number.POSITIVE_INFINITY,
+              )
+            )?.bytes
+          : undefined,
+      report: (problem) => {
+        surface.said = { text: problem, at: Date.now() }
+        draw()
+      },
     })
 
     /** The branch can change under us, and the review that belongs to it changes with it. */
@@ -144,6 +197,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       const [, threads, at] = await Promise.all([store.load(), persistence.load(), headOf(directory)])
       head = at
       surface.review = { ...surface.review, threads }
+      looks.sync(store.current().changes.files)
       /** Land on something worth reading rather than on an empty pane. */
       const files = queries.files()
       if (!surface.view.file || !files.some((file) => file.path === surface.view.file)) {
@@ -178,10 +232,15 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
 
     const close = () => {
       surface.open = false
+      surface.yielded = false
       clearInterval(watching)
       watching = undefined
+      clearInterval(waiting)
+      waiting = undefined
       panel?.blur()
       dropKeys()
+      /** The old versions `o` wrote out are only for as long as the pane is up. */
+      void viewer.clean()
       draw()
       /** The prompt wants its cursor back, exactly where the host had it. */
       const at = api.renderer.getCursorState?.()
@@ -191,6 +250,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
 
     const show = () => {
       surface.open = true
+      surface.yielded = false
       panel?.focus()
       takeKeys()
       draw()
@@ -200,6 +260,51 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
     }
 
     const toggle = () => (surface.open ? close() : show())
+
+    /**
+     * Stepping aside for the host's command palette.
+     *
+     * The review's keys are a global layer (the only kind that fires), so with the pane open `ctrl+p`
+     * opened OpenCode's palette under it and every key typed into the palette moved the review
+     * instead. The palette's own key is let through untouched; the review hides and gives up its keys,
+     * and comes back when the palette closes — on OpenCode 1, which says how deep its dialogs are. On
+     * OpenCode 2 nothing says when the palette closes, so the review closes instead; the palette's
+     * "Open or close the changes" brings it back where it was.
+     */
+    let waiting: ReturnType<typeof setInterval> | undefined
+    const paletteKeys = paletteBindings(api.v1?.state.config)
+    const stepAside = () => {
+      if (!api.v1) return close()
+      surface.yielded = true
+      dropKeys()
+      draw()
+      const since = Date.now()
+      let opened = false
+      clearInterval(waiting)
+      waiting = setInterval(() => {
+        const depth = api.ui.dialog.depth
+        if (depth > 0) opened = true
+        /** Closed again, or never opened at all: either way the review comes back. */
+        if ((opened && depth === 0) || (!opened && Date.now() - since > 1_000)) {
+          clearInterval(waiting)
+          waiting = undefined
+          if (!surface.open || !surface.yielded) return
+          surface.yielded = false
+          takeKeys()
+          draw()
+        }
+      }, 100)
+    }
+    api.lifecycle.onDispose(
+      api.keymap.intercept(
+        (context) => {
+          if (!surface.open || surface.yielded || !disposeKeys) return
+          if (paletteKeys.some((binding) => matchesBinding(context.event, binding)))
+            guard.run("palette", stepAside)
+        },
+        { priority: 10_000 },
+      ),
+    )
 
     const cycle = () => {
       surface.variant = VARIANTS[(VARIANTS.indexOf(surface.variant) + 1) % VARIANTS.length] ?? "right"
@@ -225,6 +330,7 @@ export function createReviewTui({ source = REVIEW_PACKAGE }: { source?: string }
       sources: SOURCES,
       head: () => head,
       viewport,
+      viewer,
     })
 
     const pointer = createPointer({

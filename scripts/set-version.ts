@@ -62,9 +62,13 @@ const docs = [
     .map((file) => join(root, file)),
   join(root, "site/src/data/landing.ts"),
 ]
-/** v1's `opencode plugin x@v`, v2's `opencode plugin add x@v`, and v2's `"package": "x@v"` entries. */
+/**
+ * v1's `opencode plugin x@v`, v2's `opencode plugin add x@v`, v2's `"package": "x@v"` entries, and a
+ * plain entry in a `"plugins": ["x@v", …]` list. Only list entries (after `[` or `,`), so a doctor
+ * sample quoting an old version in a sentence keeps it.
+ */
 const pinned =
-  /((?:opencode plugin (?:add )?|"package": ")(?:opencode-cockpit|@opencode-cockpit\/[a-z]+))@\d+\.\d+\.\d+(?:-[\w.]+)?/g
+  /((?:opencode plugin (?:add )?|"package": "|\[\s*"|,\s*")(?:opencode-cockpit|@opencode-cockpit\/[a-z]+))@\d+\.\d+\.\d+(?:-[\w.]+)?/g
 for (const file of docs) {
   if (!existsSync(file)) continue
   const text = await Bun.file(file).text()

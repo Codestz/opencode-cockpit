@@ -276,6 +276,36 @@ try {
       }
     }
 
+    /**
+     * Trail alone: both halves, from what was installed. Its agent half is the one that matters most
+     * — `trail_add` is how anything gets into the trail — and no other bay's check imports it; its
+     * preview bin is named twice, with a shebang, like Status's.
+     */
+    if (bays.includes("@opencode-cockpit/trail")) {
+      const { default: server } = await import(Bun.resolveSync("@opencode-cockpit/trail/server", dir))
+      if (
+        server?.id !== "opencode-cockpit.trail" ||
+        typeof server.server !== "function" ||
+        typeof server.setup !== "function"
+      )
+        throw new Error(
+          `${install.name}: @opencode-cockpit/trail/server must export the plugin for both OpenCodes`,
+        )
+      if (install.packages.includes("@opencode-cockpit/trail")) {
+        const root = join(dir, "node_modules", "@opencode-cockpit", "trail")
+        const bins = (await Bun.file(join(root, "package.json")).json()).bin as Record<string, string>
+        if (!bins.trail) throw new Error(`${install.name}: trail must declare a "trail" bin, for bunx`)
+        for (const [name, file] of Object.entries(bins)) {
+          const first = (await Bun.file(join(root, file)).text()).split("\n", 1)[0] ?? ""
+          if (!first.startsWith("#!")) throw new Error(`${install.name}: the ${name} bin has no shebang`)
+        }
+        for (const door of ["server.js", "tui.js"])
+          if (!existsSync(join(root, door)))
+            throw new Error(`${install.name}: trail ships no ${door} for OpenCode 2`)
+      }
+      console.log(`  ${install.name}: trail's agent half loads, its bin and OpenCode 2's doors are there`)
+    }
+
     // The statusline bay has no server half and no daemon: there is nothing further to run.
     if (!bays.includes("@opencode-cockpit/shell")) {
       console.log(`  ${install.name}: loads, compiled interface entry, authoring subpaths resolve`)

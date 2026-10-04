@@ -91,7 +91,7 @@ describe("the keys, at any width", () => {
 
   test("with nothing to review, only the keys that act", () => {
     const row = keys(100, {}, true)
-    expect(row.trim()).toBe("[b] Source   [B] Base   [esc] Close")
+    expect(row.trim()).toBe("[b] Source   [B] Base   [?] Keys   [esc] Close")
   })
 
   test("the action has one name: viewed", () => {

@@ -40,6 +40,7 @@ import {
   streamScroll,
   streamWindow,
 } from "../../core/view/stream.ts"
+import type { Viewer } from "../../core/viewer.ts"
 import type { Store } from "../data/changes.ts"
 import { askForBase, askForNote, noteFields, replyFields, submitFields } from "../view/dialogs.tsx"
 import type { Queries } from "./queries.ts"
@@ -75,6 +76,8 @@ export interface ActionDeps {
   head: () => string | undefined
   /** The pane's size, which is what the stream's heights are measured against. */
   viewport: () => Viewport
+  /** Opens a binary's two versions in the system viewer. */
+  viewer: Viewer
 }
 
 export interface Actions {
@@ -104,6 +107,14 @@ export interface Actions {
   cycle: () => void
   close: () => void
   reload: () => void
+  /** `o`: the file under the cursor, both versions, in the system's viewer. */
+  openExternal: () => void
+  /** `?`: every key, in the body's place — or back from it. */
+  toggleKeys: () => void
+  /** Back from the keys screen, if it is showing; true when it was. */
+  leaveKeys: () => boolean
+  /** `esc`: the keys screen first, then the review. */
+  quit: () => void
 }
 
 export function createActions(deps: ActionDeps): Actions {
@@ -678,6 +689,50 @@ export function createActions(deps: ActionDeps): Actions {
     draw()
   }
 
+  /** Said in the footer, where you are looking, for a few seconds. */
+  const tell = (text: string) => {
+    surface.said = { text, at: Date.now() }
+    draw()
+  }
+
+  /**
+   * Both versions of the binary under the cursor, in the system's own viewer.
+   *
+   * Launched and not waited on — nothing here may block the thread the pane draws on. What goes wrong
+   * later (the opener failing to start) arrives through the viewer's `report` and is said the same way.
+   */
+  const openExternal = () => {
+    const file = store.current().changes.files.find((each) => each.path === surface.view.file)
+    if (!file) return
+    if (!file.binary) return tell("o opens images and other binaries in your viewer; this file is text")
+    const cwd = api.state.path.worktree || api.state.path.directory
+    guard.task("open", async () => {
+      const result = await deps.viewer.open(cwd, file)
+      if (result.problem) tell(result.problem)
+    })
+  }
+
+  const toggleKeys = () => {
+    surface.view = { ...surface.view, keys: !surface.view.keys }
+    draw()
+  }
+
+  const leaveKeys = (): boolean => {
+    if (!surface.view.keys) return false
+    surface.view = { ...surface.view, keys: false }
+    draw()
+    return true
+  }
+
+  /**
+   * Escape closes the nearest thing first, and the close is deferred: closing disposes the layer the
+   * key is dispatching through.
+   */
+  const quit = () => {
+    if (leaveKeys()) return
+    setTimeout(() => close(), 0)
+  }
+
   return {
     move,
     scroll,
@@ -702,5 +757,9 @@ export function createActions(deps: ActionDeps): Actions {
     cycle: deps.cycle,
     close,
     reload: deps.refresh,
+    openExternal,
+    toggleKeys,
+    leaveKeys,
+    quit,
   }
 }

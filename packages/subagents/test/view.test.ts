@@ -61,7 +61,7 @@ for (const version of [1, 2] as const) {
       const id = nodes[0]?.session.id
       expect(lines.map((line) => line.id)).toEqual([undefined, undefined, id])
       expect(rowText(lines[0]?.row ?? []).trimEnd()).toMatch(/^Subagents +1 done$/)
-      expect(rowText(lines[2]?.row ?? []).trimEnd()).toMatch(/^● explore .+ \d+ calls · \d+s$/)
+      expect(rowText(lines[2]?.row ?? []).trimEnd()).toMatch(/^● explore .+ \d+s$/)
     })
 
     test("the pane: exactly its height, every row exactly its width, in every state", async () => {

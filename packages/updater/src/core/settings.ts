@@ -1,39 +1,43 @@
 /**
- * The Updater's one setting: whether to check once a day and say so.
+ * The Updater's one setting: whether to check once a day and say so — `updater.updateCheck`.
  *
- * Read through the same files as every bay — `~/.config/opencode-cockpit/config.json`, then the
- * project's `.cockpit.json`, then plugin-entry options, later wins. `ui.updateCheck` is honoured
- * too: it is the switch Shell's own notice had, and someone who turned that off meant it.
+ * Read through the loader every bay reads with (`@opencode-cockpit/client/settings`):
+ * `~/.config/opencode-cockpit/config.json`, then the project's `.cockpit.json`, then plugin-entry
+ * options, later wins. `ui.updateCheck`, the switch Shell's own notice had, is an old name: the
+ * loader recognises it and doctor names the fix, but its value is not read.
  */
 
-import { join } from "node:path"
+import { baySettings, type SettingsNotice } from "@opencode-cockpit/client/settings"
 import type { Disk } from "./disk.ts"
-import { parseJsonc } from "./jsonc.ts"
 
-type Section = { updateCheck?: unknown } | undefined
-
-function fromFile(disk: Disk, path: string): boolean | undefined {
-  const text = disk.read(path)
-  if (text === undefined) return undefined
-  const parsed = parseJsonc(text)
-  if (!parsed.ok) return undefined // a broken config must not take the notice down with it
-  const file = parsed.value as { updater?: Section; ui?: Section } | null
-  const value = file?.updater?.updateCheck ?? file?.ui?.updateCheck
-  return typeof value === "boolean" ? value : undefined
+export interface UpdateCheckWhere {
+  env: Readonly<Record<string, string | undefined>>
+  home: string
+  directory?: string
 }
 
-export function updateCheckEnabled(
+/** The setting, and what about it is worth fixing. A broken file is a notice, never the end of the check. */
+export function updateCheck(
   disk: Disk,
-  where: { env: Readonly<Record<string, string | undefined>>; home: string; directory?: string },
+  where: UpdateCheckWhere,
   options: unknown,
-): boolean {
-  const base = where.env.XDG_CONFIG_HOME || join(where.home, ".config")
-  const layers = [
-    fromFile(disk, join(base, "opencode-cockpit", "config.json")),
-    where.directory ? fromFile(disk, join(where.directory, ".cockpit.json")) : undefined,
-    (options as Section)?.updateCheck,
-  ]
-  let enabled = true
-  for (const layer of layers) if (typeof layer === "boolean") enabled = layer
-  return enabled
+): { enabled: boolean; notices: SettingsNotice[] } {
+  const loaded = baySettings(
+    "updater",
+    { updateCheck: true },
+    {
+      options,
+      where: {
+        env: where.env,
+        home: where.home,
+        ...(where.directory ? { directory: where.directory } : {}),
+        read: (path) => disk.read(path),
+      },
+    },
+  )
+  return { enabled: loaded.config.enabled && loaded.config.updateCheck, notices: loaded.notices }
+}
+
+export function updateCheckEnabled(disk: Disk, where: UpdateCheckWhere, options: unknown): boolean {
+  return updateCheck(disk, where, options).enabled
 }

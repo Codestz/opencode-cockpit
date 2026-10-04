@@ -1,4 +1,4 @@
-import { rmSync } from "node:fs"
+import { existsSync, rmSync } from "node:fs"
 import { homedir } from "node:os"
 import { basename, dirname, extname, isAbsolute, join, resolve } from "node:path"
 import { pathToFileURL } from "node:url"
@@ -159,8 +159,24 @@ export async function loadCustomSegments(
         })
       }
     } catch (err) {
-      errors.push(`${path}: ${err instanceof Error ? err.message : String(err)}`)
+      errors.push(
+        `${path}: ${existsSync(full) ? (err instanceof Error ? err.message : String(err)) : missing(full)}`,
+      )
     }
   }
   return { segments, errors }
+}
+
+/**
+ * The sidebar examples 0.9 removed when the `sidebar` preset became the table they built toward. A
+ * config that still points at one in the package gets a sentence that says what replaced it, rather
+ * than a resolver's stack of paths.
+ */
+const REMOVED_EXAMPLES = new Set(["sidebar.ts", "sidebar-full.ts", "sidebar-budget.ts"])
+
+/** What a config pointing at one of them is told — in the brief, the log and the `!` row. */
+export const REMOVED_EXAMPLE = `removed in 0.9: use "preset": "sidebar"`
+
+function missing(full: string): string {
+  return REMOVED_EXAMPLES.has(basename(full)) ? REMOVED_EXAMPLE : "no file there"
 }

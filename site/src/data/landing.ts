@@ -11,6 +11,7 @@ export const nav = {
     { label: "Statusline", href: "#status" },
     { label: "Updater", href: "#updater" },
     { label: "Subagents", href: "#subagents" },
+    { label: "Trail", href: "#trail" },
     { label: "Trust", href: "#trust" },
     { label: "Platform", href: "#platform" },
     { label: "Install", href: "#install" },
@@ -37,9 +38,9 @@ export const hero = {
 
 export const specs = [
   { value: "1", label: "daemon, shared by every window" },
-  { value: "9", label: "agent tools" },
-  { value: "35", label: "watch presets" },
-  { value: "14", label: "statusline segments" },
+  { value: "18", label: "agent tools" },
+  { value: "34", label: "watch presets" },
+  { value: "23", label: "statusline segments" },
 ]
 
 export const compare = {
@@ -60,7 +61,7 @@ export const compare = {
 }
 
 export const platform = {
-  number: "08",
+  number: "09",
   kicker: "The platform",
   title: "What every capability inherits.",
   intro:
@@ -80,8 +81,8 @@ export const platform = {
       title: "One config for both halves",
       body:
         "On OpenCode 1, agent plugins are configured in <code>opencode.json</code>, interface plugins in <code>tui.json</code>. " +
-        "Cockpit reads a single file — global, then project, then plugin entry — and ignores a broken one " +
-        "rather than failing.",
+        "Cockpit reads one file for both — global, then project, one section per bay — and a file it " +
+        "cannot read is a <code>!</code> row and the defaults, never a blank sidebar.",
     },
     {
       icon: "panel",
@@ -111,7 +112,7 @@ export const platform = {
 export const bays = {
   number: "01",
   kicker: "What is fitted",
-  title: "Six instruments today. One switch each.",
+  title: "Seven instruments today. One switch each.",
   intro:
     "Every bay is its own npm package with a switch in config. They share the daemon, the config " +
     "file and the keys, so the second costs nothing and moving between them changes nothing you " +
@@ -135,7 +136,7 @@ export const bays = {
         "A resolve is checked against the file before it counts",
         "Notes live on the branch, so they outlive the chat",
         "The agent can leave notes of its own",
-        "Uncommitted, the branch, or just this conversation",
+        "Uncommitted, or the whole branch against its parent",
       ],
       foot: ["3 agent tools", "12 filetypes", "@opencode-cockpit/review"],
       docs: "/review/overview/",
@@ -170,7 +171,7 @@ export const bays = {
         "Time and idle limits, with the reason recorded",
         "Reuses a finished shell instead of piling up",
       ],
-      foot: ["9 agent tools", "35 watch presets", "@opencode-cockpit/shell"],
+      foot: ["8 agent tools", "34 watch presets", "@opencode-cockpit/shell"],
       docs: "/shell/overview/",
       media: {
         kind: "casts" as const,
@@ -188,7 +189,7 @@ export const bays = {
       tagline: "The session, at a glance",
       state: "live",
       status: "Available",
-      gains: { agent: "—", you: "What the session is costing you" },
+      gains: { agent: "A skill to design the line with you", you: "What the session is costing you" },
       blurb:
         "How full is the context? Where did the tokens go? What has changed? OpenCode answers the " +
         "first in a corner and the rest not at all. The statusline answers them where you are already " +
@@ -196,18 +197,18 @@ export const bays = {
       points: [
         "A capacity bar that means something at a glance",
         "Tokens split into cache, input and output",
-        "Fourteen segments, or your own in TypeScript",
+        "A table in the sidebar by default, or a line under the prompt",
+        "Twenty-three segments, or your own in TypeScript",
         "Your Claude Code statusline script runs unchanged",
-        "Colours follow whatever theme you run",
         "Silent about anything the host already says better",
       ],
-      foot: ["14 segments", "2 surfaces", "@opencode-cockpit/status"],
+      foot: ["23 segments", "2 surfaces", "@opencode-cockpit/status"],
       docs: "/status/overview/",
       media: {
         kind: "image" as const,
         src: "/media/statusline.png",
         alt: "The statusline under an OpenCode conversation: a context bar at 40 per cent, the token total with its cache, input and output parts, the session diff, and elapsed time",
-        caption: "the default line · no configuration written at all",
+        caption: "the bottom line · { \"status\": { \"sidebar\": false } }",
       },
     },
     {
@@ -267,7 +268,7 @@ export const bays = {
         "Stop one, or move a blocking one to the background",
         "The same on OpenCode 1 and 2",
       ],
-      foot: ["sidebar + pane", "ctrl+x w · /subagents", "@opencode-cockpit/subagents"],
+      foot: ["sidebar + pane", "ctrl+x d · /subagents", "@opencode-cockpit/subagents"],
       docs: "/subagents/overview/",
       media: {
         kind: "casts" as const,
@@ -279,6 +280,39 @@ export const bays = {
             caption: "tapes/subagents.ts · a real subagent on OpenCode 1 — only the silences are capped",
           },
         ],
+      },
+    },
+    {
+      id: "trail",
+      name: "Trail",
+      tagline: "What a conversation made — and which conversation made it",
+      state: "live",
+      status: "Available",
+      gains: {
+        agent: "Records the PRs, tickets and pages it creates, and can say which conversation made one",
+        you: "Everything a conversation made, in the sidebar, one click from the page",
+      },
+      blurb:
+        "A conversation opens pull requests in two repositories, moves a ticket, publishes a page — and " +
+        "the only record is the chat. Trail keeps it: the agent records what it creates or changes with " +
+        "whatever tools you use, and Cockpit orders it by the ticket it was for and puts it in the " +
+        "sidebar, a click from the page. Months later, `/trail` says which conversation opened PR #33 and " +
+        "takes you back into it.",
+      points: [
+        "No setup: the agent writes the trail, with gh, an MCP server, any tool",
+        "Grouped by the work — a ticket heads its PRs",
+        "Click a row: the page opens in your browser",
+        "Which conversation made it, and a jump back into it",
+        "A link it printed and never recorded is put back to it, as a choice",
+        "Copy a conversation's trail as markdown, for the PR or the standup",
+      ],
+      foot: ["sidebar · /trail · /link", "trail_add · trail_list", "@opencode-cockpit/trail"],
+      docs: "/trail/overview/",
+      media: {
+        kind: "image" as const,
+        src: "/media/trail.png",
+        alt: "Trail in the sidebar — a conversation's PRs, tickets, pages and deploys grouped under the tickets they were for — and the /trail dialog with the same records, their systems, what was done and when",
+        caption: "bunx @opencode-cockpit/trail preview · the rows OpenCode draws, from a sample conversation",
       },
     },
     {
@@ -319,7 +353,7 @@ export const bays = {
 
 /** What is coming, and the reason it is next. */
 export const next = {
-  number: "09",
+  number: "10",
   kicker: "What is next",
   title: "One bay at a time, and only what can be built.",
   intro:
@@ -339,7 +373,7 @@ export const next = {
 }
 
 export const install = {
-  number: "10",
+  number: "11",
   kicker: "Install",
   title: "Two minutes, then ask it to start something.",
   modes: [
@@ -366,13 +400,15 @@ export const install = {
       command: "opencode plugin add opencode-cockpit@0.8.0",
       note:
         "The same package — it carries a half for each OpenCode. One entry in <code>opencode.json</code> " +
-        'loads both halves. <a href="/opencode-cockpit/start/opencode-versions/">What differs on OpenCode 2</a>.',
+        "loads both halves. After installing or updating, run <code>opencode service restart</code>: " +
+        "OpenCode 2's background service loads plugins only when it starts. " +
+        '<a href="/opencode-cockpit/start/opencode-versions/">What differs on OpenCode 2</a>.',
     },
   ],
   steps: [
     "Run the command above — on OpenCode 1 it writes both plugin entries, on OpenCode 2 one entry loads both halves.",
-    "Restart OpenCode. The daemon starts on first use and exits when idle.",
-    "Optional: put kinds, watch presets and defaults in <code>~/.config/opencode-cockpit/config.json</code>.",
+    "Restart OpenCode — on OpenCode 2, <code>opencode service restart</code> as well. The daemon starts on first use and exits when idle.",
+    "Optional: type <code>/cockpit-setup</code> and the agent sets up <code>~/.config/opencode-cockpit/config.json</code> with you — which bays show, where, in what order — then, if you want, tunes Cockpit to how your project works.",
     "Something off? <code>npx opencode-cockpit@latest doctor</code> checks your setup and prints the fix.",
   ],
 }
