@@ -103,6 +103,12 @@ export interface ServiceFacts {
   /** When the newest Cockpit install it loads last changed, and which entry that is. */
   installedAt?: number
   installed?: string
+  /**
+   * What its agent side said it loaded when it started (`@opencode-cockpit/client/service`), and what
+   * is in that place now — undefined when the install is gone. Unset when the agent side wrote nothing
+   * (a Cockpit older than 0.9, or no window has opened since it started).
+   */
+  agent?: { loaded: { version: string; installedAt: number }; now?: { version: string; installedAt: number } }
 }
 
 export interface SettingsFacts {
@@ -474,6 +480,29 @@ export function checkService(facts: Facts): Check | undefined {
       fix: [RESTART_COMMAND],
     }
   const when = (at: number) => ago(new Date(at).toISOString(), facts.now)
+  /** What the agent side said it loaded, against what is installed there now: no clocks to compare. */
+  if (service.agent) {
+    const { loaded, now } = service.agent
+    const same = now && now.version === loaded.version && now.installedAt === loaded.installedAt
+    if (same)
+      return {
+        title,
+        state: "ok",
+        summary: `OpenCode 2's background service runs the installed Cockpit (${loaded.version})`,
+      }
+    return {
+      title,
+      state: "warn",
+      summary: "OpenCode 2's background service has the old Cockpit: it was installed again since it started",
+      detail: [
+        now
+          ? `It loaded ${loaded.version}, installed ${when(loaded.installedAt)}; ${now.version} was installed ${when(now.installedAt)}.`
+          : `It loaded ${loaded.version}, from an install that is no longer there.`,
+        "It loads plugins once, when it starts: the agent keeps the old tools and skills until it restarts.",
+      ],
+      fix: [RESTART_COMMAND],
+    }
+  }
   const { startedAt, installedAt } = service
   if (startedAt === undefined || installedAt === undefined)
     return {

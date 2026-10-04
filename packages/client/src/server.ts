@@ -22,6 +22,7 @@ import {
   tool,
 } from "@opencode-ai/plugin"
 import { cockpitVersion, createLog, type Log, silentLog } from "./log.ts"
+import { recordAgent } from "./service.ts"
 import { setupServer } from "./setup.ts"
 import { registerSurfaces, type Surface } from "./surfaces.ts"
 
@@ -713,6 +714,8 @@ async function begin(
   options: unknown,
 ): Promise<ServerParts> {
   host.log.info("start", { entry: id, opencode: host.version, cockpit: cockpitVersion() })
+  /** Which install this agent side loaded, for a window to compare with its own (service.ts). */
+  if (host.version === 2) recordAgent(host.log)
   try {
     /** `cockpit_settings`, the `cockpit-setup` skill and `/cockpit-setup`: the first entry here adds them. */
     const parts = withSurfaces(host, composeParts([await start(host, options), setupServer(host, id)]))

@@ -187,6 +187,11 @@ All notable changes to this project are documented here. The format follows
   the windows drew the new ones. **After updating on OpenCode 2, run `opencode service restart`.**
   `doctor` now warns when the service started before the install, `update` and `/plugins-update` say
   to restart it, and the repository's `dev:install` restarts it itself.
+- **A window now says when OpenCode 2's service runs an older Cockpit than it does:** one toast,
+  `Cockpit was updated — OpenCode's background service still runs the old one. Run: opencode
+  service restart` (with both versions when they differ). Never restarted for you — that would cut
+  every open window — and nothing is said when it cannot tell. The agent side records which install
+  it loaded; doctor reads the same record, so it no longer guesses from clocks.
 
 ### Removed
 

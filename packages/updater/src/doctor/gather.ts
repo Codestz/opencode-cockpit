@@ -7,6 +7,7 @@
  */
 
 import { join, resolve } from "node:path"
+import { parseRecord } from "@opencode-cockpit/client/service"
 import { loadSettings } from "@opencode-cockpit/client/settings"
 import { globalConfigDir } from "../core/configs.ts"
 import type { Disk } from "../core/disk.ts"
@@ -286,12 +287,35 @@ function readService(io: DoctorIo, entries: Entry[]): ServiceFacts | undefined {
       return at === undefined ? [] : [{ at, raw: entry.raw }]
     })
     .sort((a, b) => b.at - a.at)[0]
+  const agent = pid === undefined ? undefined : readAgent(io, pid)
   return {
     state: "running",
     url: status.url,
     ...(startedAt !== undefined ? { startedAt } : {}),
     ...(installed ? { installedAt: installed.at, installed: installed.raw } : {}),
+    ...(agent ? { agent } : {}),
   }
+}
+
+/**
+ * What the service's agent side wrote when it started — the install it loaded — and what is in that
+ * install's place now: the same record every window compares itself with (client `service.ts`).
+ */
+function readAgent(io: DoctorIo, pid: number): ServiceFacts["agent"] {
+  const record = parseRecord(io.disk.read(join(cockpitHome(io), "agents", `${pid}.json`)))
+  if (!record) return undefined
+  const loaded = { version: record.version, installedAt: record.installedAt }
+  const file = join(record.dir, "package.json")
+  let version: unknown
+  try {
+    version = (JSON.parse(io.disk.read(file) ?? "") as { version?: unknown }).version
+  } catch {
+    version = undefined
+  }
+  const at = io.modified?.(file)
+  return typeof version === "string" && at !== undefined
+    ? { loaded, now: { version, installedAt: Math.round(at) } }
+    : { loaded }
 }
 
 export async function gatherFacts(io: DoctorIo): Promise<Facts> {

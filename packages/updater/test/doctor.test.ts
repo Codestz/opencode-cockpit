@@ -552,6 +552,49 @@ describe("OpenCode 2's background service (it keeps the plugin code it started w
     expect(found.Service?.fix).toEqual(["opencode service restart"])
   })
 
+  describe("with the record its agent side wrote (0.9+): what it loaded against what is there now", () => {
+    const CLIENT = "/home/me/.cockpit-dev/node_modules/@opencode-cockpit/client"
+    const withRecord = (now: { version: string; at: number } | undefined, loadedAt = NOW - 2 * HOUR) => {
+      const base = machine({ status: "http://127.0.0.1:49374", elapsed: "10:00" }, 6 * 24 * HOUR)
+      return {
+        ...base,
+        files: {
+          ...base.files,
+          [`${HOME}/.cache/opencode-cockpit/agents/4242.json`]: json({
+            version: "0.9.0",
+            installedAt: loadedAt,
+            dir: CLIENT,
+            pid: 4242,
+            startedAt: loadedAt + 1000,
+          }),
+          ...(now ? { [`${CLIENT}/package.json`]: json({ version: now.version }) } : {}),
+        },
+        mtimes: { ...base.mtimes, ...(now ? { [`${CLIENT}/package.json`]: now.at } : {}) },
+      }
+    }
+
+    test("the same install: fine, whatever the clocks say", async () => {
+      const found = await checks(withRecord({ version: "0.9.0", at: NOW - 2 * HOUR }))
+      expect(found.Service?.state).toBe("ok")
+      expect(found.Service?.summary).toContain("runs the installed Cockpit (0.9.0)")
+    })
+
+    test("installed again since (a dev install keeps its version): warns, with both", async () => {
+      const found = await checks(withRecord({ version: "0.9.0", at: NOW - HOUR }))
+      expect(found.Service?.state).toBe("warn")
+      expect(found.Service?.detail?.[0]).toBe(
+        "It loaded 0.9.0, installed 2h ago; 0.9.0 was installed 1h ago.",
+      )
+      expect(found.Service?.fix).toEqual(["opencode service restart"])
+    })
+
+    test("the install it loaded is gone: warns", async () => {
+      const found = await checks(withRecord(undefined))
+      expect(found.Service?.state).toBe("warn")
+      expect(found.Service?.detail?.[0]).toContain("no longer there")
+    })
+  })
+
   test("OpenCode 1 has no service to talk about", async () => {
     expect((await checks({ ...machine({ status: "stopped" }), opencode: "1.18.32" })).Service).toBeUndefined()
   })

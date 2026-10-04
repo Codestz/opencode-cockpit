@@ -63,6 +63,10 @@
     "./setup": {
       "types": "./types/setup.d.ts",
       "default": "./dist/setup.js"
+    },
+    "./service": {
+      "types": "./types/service.d.ts",
+      "default": "./dist/service.js"
     }
   },
   "files": [

@@ -16,6 +16,7 @@ import type { CliRenderer, KeyEvent } from "@opentui/core"
 import { createComponent, createRoot, getOwner, type JSX, type Owner, onCleanup } from "solid-js"
 import { textElement } from "./elements.tsx"
 import { cockpitVersion, createLog, type Log, silentLog } from "./log.ts"
+import { registerServiceCheck } from "./service.ts"
 import { registerSetup } from "./setup.ts"
 
 type V1Layer = Parameters<TuiPluginApi["keymap"]["registerLayer"]>[0]
@@ -729,6 +730,12 @@ export function dualTui(id: string, start: Start) {
       registerSetup(host, id)
     } catch (error) {
       host.log.warn("setup: not registered", { entry: id, error })
+    }
+    /** OpenCode 2: one toast when the background service still runs an older Cockpit (service.ts). */
+    try {
+      registerServiceCheck(host, id)
+    } catch (error) {
+      host.log.warn("service: not checked", { entry: id, error })
     }
     try {
       await start(host, options)
