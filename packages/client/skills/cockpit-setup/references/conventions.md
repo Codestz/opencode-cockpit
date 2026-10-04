@@ -5,8 +5,11 @@ dev server, what a ticket key looks like. It never explains how to use a bay —
 carries each bay's guidance, and a second copy in AGENTS.md only goes stale.
 
 Short imperative lines, one fact each, grouped by bay with a bold label. Only the bays they have on,
-only what they told you. Hand `cockpit_conventions` the lines below the heading: the tool adds the
-heading and the markers.
+only what they told you or confirmed from the tool's answer. Hand `cockpit_conventions` the lines
+below the heading: the tool adds the heading and the markers.
+
+**The examples below are shapes, not content.** Every `<…>` is theirs to fill; a line whose blank
+they did not fill is left out. Never carry over an example's ticket system, repo or branch pattern.
 
 ## Shell — the commands that keep running
 
@@ -15,9 +18,9 @@ agent and the person find it again by that), and when to start it:
 
 ```markdown
 **Shells**
-- Start the dev server with `bun run dev` as a background shell described "dev server". Reuse it if it is already running; never start a second one.
-- Run the tests with `bun run test:watch` as a background shell described "test watcher". Read its output instead of running the suite again.
-- Start the database with `docker compose up db` as a background shell described "database", before anything that needs it.
+- Start the dev server with `<command>` as a background shell described "dev server". Reuse it if it is already running; never start a second one.
+- Run the tests with `<command>` as a background shell described "test watcher". Read its output instead of running the suite again.
+- Start the database with `<command>` as a background shell described "database", before anything that needs it.
 ```
 
 Add `with watch: true` to a line when they want to hear when a run passes or fails: the Shell picks a
@@ -30,13 +33,14 @@ rest of the settings file — and name it in the line: `with watch: "e2e"`.
 
 ```markdown
 **Trail**
-- Tickets are Jira keys like `COM-1736`. When a PR, branch or page is for a ticket, put its key in `for`.
-- Pull requests go to `github.com/acme/web` and `github.com/acme/api`.
-- Name branches `<ticket>-<short-slug>`, e.g. `COM-1736-login-redirect`.
+- Tickets are `<PREFIX>-` keys, like `<PREFIX>-123`. When a PR, branch or page is for a ticket, put its key in `for`.
+- Pull requests go to `<host/owner/repo>`.
+- Name branches `<their pattern>`.
 ```
 
 The `for` line is the one that matters: it is what groups the trail by ticket. Several prefixes
-(`COM-…`, `ENG-…`) go in one line. Leave out a line they have no answer for.
+go in one line. Name the ticket system (Jira, Linear…) only if they did. Leave out a line they have
+no answer for — a branch pattern above all, which few people state.
 
 ## Subagents — how they like work split
 
@@ -56,14 +60,19 @@ or
 
 ## A whole section
 
+For someone who said "the dev server and the test watcher keep running, tickets are ENG-":
+
 ```markdown
 **Shells**
 - Start the dev server with `bun run dev` as a background shell described "dev server". Reuse it if it is already running.
 - Run the tests with `bun run test:watch` as a background shell described "test watcher", with watch: true.
 
 **Trail**
-- Tickets are Linear keys like `ENG-412`. When a PR is for a ticket, put its key in `for`.
+- Tickets are `ENG-` keys, like `ENG-412`. When a PR is for a ticket, put its key in `for`.
 ```
+
+The commands came from the tool's answer (`package.json` scripts), confirmed with them — never ask
+for a command the tool already found; offer it.
 
 ## Not here
 

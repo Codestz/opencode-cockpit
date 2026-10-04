@@ -773,10 +773,11 @@ export function setupServer(host: ServerHost, source: string): ServerParts {
         .optional()
         .describe("true for the second phase: the tour, the project's facts and the AGENTS.md sections"),
     },
-    execute: async (args) => {
+    execute: async (args, ctx) => {
       const input: ReportInput = {
         opencode: host.version,
-        directory: host.directory,
+        // The session's own directory where the host gives one: the project the person is in.
+        directory: ctx?.directory || host.directory,
         claims: claimedFeatures(host.scope),
       }
       const report = settingsReport(input)
@@ -794,7 +795,7 @@ export function setupServer(host: ServerHost, source: string): ServerParts {
       conventions: z.string().describe("The section's markdown, without its heading. Empty removes it."),
     },
     execute: async (args, ctx) => {
-      const path = instructionPaths(host.directory, process.env, homedir())[args.file]
+      const path = instructionPaths(ctx?.directory || host.directory, process.env, homedir())[args.file]
       const written = writeSection(readText(path), args.conventions)
       if (!written.ok) throw new Error(written.error)
       if (written.action !== "unchanged" && written.action !== "absent") {
