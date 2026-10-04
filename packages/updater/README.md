@@ -93,7 +93,7 @@ npx opencode-cockpit@latest doctor
 ```
 
 checks OpenCode, its config, Cockpit's logs and the daemon, and prints the fix for anything wrong —
-on OpenCode 1 and 2, and when Cockpit will not load at all ([what it checks](https://codestz.github.io/opencode-cockpit/help/doctor/)).
+on OpenCode 1 and 2, and when Cockpit will not load at all ([what it checks](https://cockpit.codestz.dev/help/doctor/)).
 
 Everything Cockpit does inside OpenCode goes to one file — which OpenCode loaded which bay, and every
 error with its stack:
@@ -102,6 +102,6 @@ error with its stack:
 tail -50 ~/.cache/opencode-cockpit/cockpit.log
 ```
 
-`COCKPIT_DEBUG=1 opencode` adds the detail. [Troubleshooting](https://codestz.github.io/opencode-cockpit/help/troubleshooting/) covers
-the failures people hit and what to attach to an issue; [OpenCode 1 and 2](https://codestz.github.io/opencode-cockpit/start/opencode-versions/)
+`COCKPIT_DEBUG=1 opencode` adds the detail. [Troubleshooting](https://cockpit.codestz.dev/help/troubleshooting/) covers
+the failures people hit and what to attach to an issue; [OpenCode 1 and 2](https://cockpit.codestz.dev/start/opencode-versions/)
 covers what differs between the two.

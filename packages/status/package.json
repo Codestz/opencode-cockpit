@@ -10,7 +10,7 @@
     "url": "git+https://github.com/Codestz/opencode-cockpit.git",
     "directory": "packages/status"
   },
-  "homepage": "https://github.com/Codestz/opencode-cockpit#readme",
+  "homepage": "https://cockpit.codestz.dev/status/overview/",
   "bugs": {
     "url": "https://github.com/Codestz/opencode-cockpit/issues"
   },

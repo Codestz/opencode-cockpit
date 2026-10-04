@@ -77,5 +77,5 @@ Claude Code statuslines print one row per `echo`. Every row is kept; pick one wi
 For anything with a CLI that the bay does not know about: a cluster context, a ticket number, a
 deploy state — or your proxy's real spend, which is better than any locally multiplied estimate.
 
-For anything that needs the session, write [a module](/opencode-cockpit/status/modules/) instead.
+For anything that needs the session, write [a module](/status/modules/) instead.
 It runs in-process, needs no subprocess, and is typed.

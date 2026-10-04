@@ -6,7 +6,7 @@ description: Every built-in segment, the surfaces they sit on, and how a line su
 Settings live in the `status` section of `~/.config/opencode-cockpit/config.json` for every
 project, and of `<project>/.cockpit.json` for one. Comments and trailing commas are fine. The keys
 every bay shares, the sidebar order and the names from before 0.9 are on
-[Configuration](/opencode-cockpit/configuration/).
+[Configuration](/configuration/).
 
 ## Presets
 
@@ -302,4 +302,4 @@ The top-level `"sidebar"` list says, for every bay at once — Status first by d
 
 That puts the table under the shells. It has no effect on the bottom surface, where there is nothing
 to share the row with. A `sidebarOrder` in the `status` section is no longer read; it is a `!` row
-pointing here. See [Configuration](/opencode-cockpit/configuration/#the-sidebar-order).
+pointing here. See [Configuration](/configuration/#the-sidebar-order).

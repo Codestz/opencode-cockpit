@@ -1,7 +1,7 @@
 # site
 
 The public site and documentation, published to
-<https://codestz.github.io/opencode-cockpit/> by `.github/workflows/site.yml`.
+<https://cockpit.codestz.dev/> by `.github/workflows/site.yml`.
 
 ```sh
 bun install

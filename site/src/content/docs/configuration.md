@@ -120,7 +120,7 @@ order the packages are listed in `cli.json`**, so list them in the order you wan
 ## status
 
 The Status bay. The rest of it — segments, lines, modules — is under
-[Segments and layout](/opencode-cockpit/status/configuration/).
+[Segments and layout](/status/configuration/).
 
 | Key | | Default |
 | --- | --- | --- |
@@ -135,7 +135,7 @@ The Status bay. The rest of it — segments, lines, modules — is under
 
 ## subagents
 
-See [Subagents](/opencode-cockpit/subagents/overview/#settings).
+See [Subagents](/subagents/overview/#settings).
 
 | Key | | Default |
 | --- | --- | --- |
@@ -204,11 +204,11 @@ starts however you last left it.
 ## trail
 
 Nothing beyond the shared keys. Its block is on by default, and `ctrl+x f` (`cockpit.trail.open`)
-opens `/trail`. See [Trail](/opencode-cockpit/trail/overview/#settings).
+opens `/trail`. See [Trail](/trail/overview/#settings).
 
 ## trust
 
-See [Trust](/opencode-cockpit/trust/overview/#settings).
+See [Trust](/trust/overview/#settings).
 
 | Key | | Default |
 | --- | --- | --- |
@@ -220,7 +220,7 @@ Its block is off by default: `"sidebar": true` shows it, and the palette flips i
 
 ## review
 
-No sidebar block. See [Panel and keys](/opencode-cockpit/review/interface/#settings).
+No sidebar block. See [Panel and keys](/review/interface/#settings).
 
 | Key | | Default |
 | --- | --- | --- |
@@ -229,7 +229,7 @@ No sidebar block. See [Panel and keys](/opencode-cockpit/review/interface/#setti
 
 ## updater
 
-See [Updater](/opencode-cockpit/updater/overview/).
+See [Updater](/updater/overview/).
 
 | Key | | Default |
 | --- | --- | --- |
@@ -239,7 +239,7 @@ See [Updater](/opencode-cockpit/updater/overview/).
 
 0.9 gave every bay the same shape, so some names changed. **The old ones are not read.** Each one a
 file still carries is drawn as a `!` row in its bay's block, printed by
-[doctor](/opencode-cockpit/help/doctor/), and fixed first by `/cockpit-setup`:
+[doctor](/help/doctor/), and fixed first by `/cockpit-setup`:
 
 ```
 ! settings: "statusline" is no longer read — run /cockpit-setup

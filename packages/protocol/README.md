@@ -81,7 +81,7 @@ Bun ≥ 1.3.5 or Node ≥ 20 for the schemas alone. Runs anywhere zod runs.
 
 ## More
 
-[Architecture](https://codestz.github.io/opencode-cockpit/platform/architecture/) ·
+[Architecture](https://cockpit.codestz.dev/platform/architecture/) ·
 [Daemon](../daemon) · [Client](../client) ·
 [Repository](https://github.com/Codestz/opencode-cockpit)
 

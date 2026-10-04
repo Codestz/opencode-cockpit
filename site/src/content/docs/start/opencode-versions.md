@@ -81,7 +81,7 @@ what you will notice:
 | **Updating** | `/plugins-update`, or `npx opencode-cockpit@latest update` | change the version in `opencode.json`, then `opencode service restart`; Cockpit's updater edits OpenCode 1's files only |
 | **The agent side** | loads with each window | runs in a background service that keeps the Cockpit it started with until `opencode service restart` — a window toasts when it is older, and doctor's Service check says so |
 | **Status's `diagnostics`** | MCP servers and language servers | MCP servers only — v2 does not expose language servers to plugins |
-| **OpenCode's own sidebar blocks** | Context, MCP, LSP, Todo, Files, Footer — off in `tui.json` under `plugin_enabled` | Context, MCP, Footer — off in `cli.json` as `-opencode.sidebar.<id>` in `plugins` ([ids](/opencode-cockpit/configuration/#opencodes-own-sidebar-blocks)) |
+| **OpenCode's own sidebar blocks** | Context, MCP, LSP, Todo, Files, Footer — off in `tui.json` under `plugin_enabled` | Context, MCP, Footer — off in `cli.json` as `-opencode.sidebar.<id>` in `plugins` ([ids](/configuration/#opencodes-own-sidebar-blocks)) |
 | **Colours** | the theme | the same theme, except the subtle border grey, one shade lighter |
 
 :::caution[The permission difference]

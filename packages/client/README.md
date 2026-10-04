@@ -137,7 +137,7 @@ Bun ≥ 1.3.5. macOS and Linux.
 
 ## More
 
-[Architecture](https://codestz.github.io/opencode-cockpit/platform/architecture/) ·
+[Architecture](https://cockpit.codestz.dev/platform/architecture/) ·
 [Daemon](../daemon) · [Protocol](../protocol) ·
 [Repository](https://github.com/Codestz/opencode-cockpit)
 

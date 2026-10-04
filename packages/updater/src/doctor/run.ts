@@ -48,7 +48,7 @@ function render(checks: readonly Check[], color: boolean): string {
       : [failed && paint("31", `${failed} to fix`), warned && paint("33", `${warned} to look at`)]
           .filter(Boolean)
           .join(", "),
-    paint("90", "Stuck? https://codestz.github.io/opencode-cockpit/help/troubleshooting/"),
+    paint("90", "Stuck? https://cockpit.codestz.dev/help/troubleshooting/"),
     "",
   )
   return out.join("\n")

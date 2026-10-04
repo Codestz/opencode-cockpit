@@ -32,10 +32,10 @@ not saved anywhere yet (`"against": "branch"` counts the whole branch instead). 
 the bar; the turn's own clock does not, OpenCode already shows one. Every number gets a word, in a
 fixed column so the figures line up; colour is a level (calm, then the warning, then the error),
 never a label. A row with nothing to say is not drawn: `write` with no cache writes, `spend` and
-`avail` with no proxy writing a budget ([Proxies](/opencode-cockpit/status/proxies/)),
+`avail` with no proxy writing a budget ([Proxies](/status/proxies/)),
 `diagnostics` while every MCP and language server is healthy (`! name` in red when one breaks). It sits
 beside OpenCode's own Context block; to keep only one, see
-[Replacing OpenCode's own sidebar blocks](/opencode-cockpit/status/configuration/#replacing-opencodes-own-sidebar-blocks).
+[Replacing OpenCode's own sidebar blocks](/status/configuration/#replacing-opencodes-own-sidebar-blocks).
 
 ### At the bottom instead
 
@@ -81,7 +81,7 @@ in both places.
 
 This matters most behind a proxy, where the model catalogue knows neither prices nor a context
 window. A confident `$0.00` reads as "this was free"; an absent segment reads as what it is.
-See [Proxies](/opencode-cockpit/status/proxies/).
+See [Proxies](/status/proxies/).
 
 ## Two surfaces
 
@@ -112,7 +112,7 @@ have given to a bay you actually operate would be charging you for the privilege
 | Command | Does |
 | --- | --- |
 | `/status-setup` | The agent sets your line up with you, with the `status-setup` skill that ships with Status: a preset to start from, the segments, the sidebar or the bottom, and the preview before it is called done |
-| `/cockpit-setup` | The same for every bay at once: which show, where, in what order — see [Configuration](/opencode-cockpit/configuration/) |
+| `/cockpit-setup` | The same for every bay at once: which show, where, in what order — see [Configuration](/configuration/) |
 
 `/status-setup` asks the agent rather than opening a panel, because the useful next step is usually
 "change this for me". The skill reads what is written now with `cockpit_settings`, so it knows what
@@ -124,11 +124,11 @@ and says the new name.
 
 Use the first that fits.
 
-1. **[Declarative segments](/opencode-cockpit/status/configuration/)** in `config.json` or
+1. **[Declarative segments](/status/configuration/)** in `config.json` or
    `.cockpit.json`. No code, no subprocess.
-2. **[Your own TypeScript](/opencode-cockpit/status/modules/)**, for a segment that has to read the
+2. **[Your own TypeScript](/status/modules/)**, for a segment that has to read the
    session and decide — or remember what it saw a minute ago.
-3. **[A shell command](/opencode-cockpit/status/commands/)**, fed the same JSON Claude Code's
+3. **[A shell command](/status/commands/)**, fed the same JSON Claude Code's
    `statusLine` hook sends, so a script you already wrote works unchanged.
 
 ## Install

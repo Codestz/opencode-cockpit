@@ -61,7 +61,7 @@ async function capture(browser: Awaited<ReturnType<typeof chromium.launch>>, gif
   const scratch = mkdtempSync(join(tmpdir(), `cockpit-${gif.name}-`))
   try {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 })
-    await page.goto(`http://localhost:${PORT}/opencode-cockpit/${gif.page}`, { waitUntil: "networkidle" })
+    await page.goto(`http://localhost:${PORT}/${gif.page}`, { waitUntil: "networkidle" })
     // the window alone: no nav over it, no labels beside it, the pointer nowhere near it
     await page.evaluate((selector) => {
       document.documentElement.style.scrollBehavior = "auto"

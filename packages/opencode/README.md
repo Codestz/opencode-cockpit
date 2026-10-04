@@ -7,7 +7,7 @@
 
 **Superpowers for [OpenCode](https://opencode.ai) — take all of them, or just the one you need.**
 
-**[Documentation →](https://codestz.github.io/opencode-cockpit/)**  ·  [Install](https://codestz.github.io/opencode-cockpit/start/install/)  ·  [Shell](https://codestz.github.io/opencode-cockpit/shell/overview/)  ·  [Configuration](https://codestz.github.io/opencode-cockpit/configuration/)  ·  [Changelog](https://github.com/Codestz/opencode-cockpit/blob/main/CHANGELOG.md)
+**[Documentation →](https://cockpit.codestz.dev/)**  ·  [Install](https://cockpit.codestz.dev/start/install/)  ·  [Shell](https://cockpit.codestz.dev/shell/overview/)  ·  [Configuration](https://cockpit.codestz.dev/configuration/)  ·  [Changelog](https://github.com/Codestz/opencode-cockpit/blob/main/CHANGELOG.md)
 
 Coding agents are stuck in a one-command-at-a-time world: they run something, wait for it to
 finish, and paste the whole log back into their context. Cockpit gives your agent the things a
@@ -17,7 +17,7 @@ without drowning in it — and gives *you* a live view of all of it, inside Open
 ![One OpenCode session with Cockpit: background tests failing then passing, subagents at work, the PR landing in Trail, the context filling](https://raw.githubusercontent.com/Codestz/opencode-cockpit/main/media/hero.gif)
 
 *Drawn by Cockpit's own renderers, the same code that runs in your terminal. Every bay, live, is on
-the [site](https://codestz.github.io/opencode-cockpit/).*
+the [site](https://cockpit.codestz.dev/).*
 
 ## Features
 
@@ -197,7 +197,7 @@ npx opencode-cockpit@latest doctor
 ```
 
 checks OpenCode, its config, Cockpit's logs and the daemon, and prints the fix for anything wrong —
-on OpenCode 1 and 2, and when Cockpit will not load at all ([what it checks](https://codestz.github.io/opencode-cockpit/help/doctor/)).
+on OpenCode 1 and 2, and when Cockpit will not load at all ([what it checks](https://cockpit.codestz.dev/help/doctor/)).
 
 Everything Cockpit does inside OpenCode goes to one file — which OpenCode loaded which bay, and every
 error with its stack:
@@ -206,8 +206,8 @@ error with its stack:
 tail -50 ~/.cache/opencode-cockpit/cockpit.log
 ```
 
-`COCKPIT_DEBUG=1 opencode` adds the detail. [Troubleshooting](https://codestz.github.io/opencode-cockpit/help/troubleshooting/) covers
-the failures people hit and what to attach to an issue; [OpenCode 1 and 2](https://codestz.github.io/opencode-cockpit/start/opencode-versions/)
+`COCKPIT_DEBUG=1 opencode` adds the detail. [Troubleshooting](https://cockpit.codestz.dev/help/troubleshooting/) covers
+the failures people hit and what to attach to an issue; [OpenCode 1 and 2](https://cockpit.codestz.dev/start/opencode-versions/)
 covers what differs between the two.
 
 ## How it works

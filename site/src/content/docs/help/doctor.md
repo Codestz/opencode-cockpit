@@ -100,4 +100,4 @@ for a dotfiles script or CI.
 Doctor checks that statusline modules exist, not that they load; it does not yet know which cached
 copy of a plugin OpenCode loaded; and it runs from a terminal, not from inside OpenCode — though
 inside OpenCode, `cockpit_settings` gives the agent the same settings notices.
-[Troubleshooting](/opencode-cockpit/help/troubleshooting/) covers the rest.
+[Troubleshooting](/help/troubleshooting/) covers the rest.

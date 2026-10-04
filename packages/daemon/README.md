@@ -125,7 +125,7 @@ Bun ≥ 1.3.5 — OpenCode's embedded runtime qualifies, so no separate install.
 
 ## More
 
-[Architecture](https://codestz.github.io/opencode-cockpit/platform/architecture/) ·
+[Architecture](https://cockpit.codestz.dev/platform/architecture/) ·
 [Repository](https://github.com/Codestz/opencode-cockpit) ·
 [Contributing](https://github.com/Codestz/opencode-cockpit/blob/main/CONTRIBUTING.md)
 
