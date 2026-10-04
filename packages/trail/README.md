@@ -40,16 +40,19 @@ On by default, after Shells:
 ```
 Trail                              9
 
-COM-1736   Bundle desync     2h ago ↗
-  PR #33   0.8: Trust, on…   1h ago ↗
-  PR #12   Landing: Trus…    2h ago ↗
-Rollout checklist           30m ago ↗
-+ 5 more · /trail
+COM-1801
+  a1b2c3d  Bump the prot…  12m ago
+  ENG-42   Retry the soc…  15m ago ↗
+COM-1736   Bundle desync    2h ago ↗
+  PR #33   0.8: Trust, o…   1h ago ↗
+  PR #12   Landing: Trus…   2h ago ↗
++ 4 more · /trail
 ```
 
 What this conversation made, grouped by what it was for, newest work first. A row is the thing's
 ref (a record without one gives its title that column), its title, its system, what this
-conversation last did and when (`now`, `12m ago`) — history, not a status: a
+conversation last did and when (`now`, `12m ago`; a narrow sidebar drops the system first, then the
+"ago") — history, not a status: a
 PR's state belongs to GitHub, and a trail that said "open" for a merged PR would be worse than none.
 **Click a row with `↗` to open the page**; one without a page opens `/trail` on it; `+ N more` opens
 `/trail`. Empty, the block says `none yet`.
@@ -104,7 +107,8 @@ drawn in the block as a `!` row with what to do.
 ## Team conventions (optional)
 
 Trail works with nothing in your repository. If your team names things a certain way, a few lines in
-`AGENTS.md` shape the records — they do not make them happen:
+`AGENTS.md` shape the records — they do not make them happen. `/cockpit-setup`'s second phase offers
+your ticket prefix, read from your branch names and commits, and writes it there for you; or by hand:
 
 ```md
 ## Trail

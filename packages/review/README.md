@@ -33,6 +33,7 @@ its own with `review_open`, which appear in the panel beside yours.
 | key | |
 | --- | --- |
 | `ctrl+x v` | open, or close |
+| `ctrl+x k` | right pane or full screen, from anywhere |
 | `tab` | move between the file list and the diff |
 | `j` / `k` | next / previous — a file on the left; on the right a line, running on into the next file |
 | `enter` | on the left: jump to a file, or fold a folder. On the right: fold or unfold this file |
@@ -80,7 +81,7 @@ PNG, APNG, JPEG, GIF, WebP and BMP are named with their dimensions; anything els
 `binary · 12.3 KB → 14.0 KB`. PNG and GIF are also decoded — in slices, off the draw path — for the
 pixel diff and a small before/after preview in half blocks, with what changed lit. A preview shows
 *where*; `o` opens both versions in your system's viewer for *what*. Binaries are read up to 32 MB
-(text stops at 400 KB) and decoded up to 16 megapixels; past either, the card still names and sizes
+(text stops at 400 KB) and decoded up to 4096×4096 pixels; past either, the card still names and sizes
 the file.
 
 ## Seeing it without OpenCode
@@ -114,6 +115,25 @@ middle you may well start a new chat. That should no more lose your review than 
 
 Outside the project, because a review is not part of the work — the first time it turns up in
 someone's `git status` it becomes a thing to explain in a pull request.
+
+## Settings
+
+All optional, in the `review` section of `~/.config/opencode-cockpit/config.json` or a project's
+`.cockpit.json` — read by both halves:
+
+```json
+{ "review": { "variant": "full", "source": "branch" } }
+```
+
+| Setting | Default | |
+| --- | --- | --- |
+| `variant` | `right` | where it opens: `right` or `full` |
+| `source` | `worktree` | what it opens on: `worktree` (uncommitted) or `branch` |
+| `keybinds` | `{ "cockpit.review.open": "<leader>v", "cockpit.review.place": "<leader>k" }` | the two keys that work from anywhere |
+| `enabled` | `true` | `false` turns Review off, its agent tools and guidance too; so does `features.review: false` |
+
+A value Review does not know is the default and a `!` row in the pane naming the ones it does. Every
+bay's settings are on [Configuration](https://codestz.github.io/opencode-cockpit/configuration/).
 
 ## Notes
 

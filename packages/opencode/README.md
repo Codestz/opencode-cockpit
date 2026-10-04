@@ -26,7 +26,7 @@ ships.*
 |---|---|---|
 | **Shell** | Background terminals it starts, waits on, reads and types into — dev servers, watchers, test suites, REPLs | [`@opencode-cockpit/shell`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/shell) |
 | **Review** | A pull request in the terminal: your comments on the lines, which it reads, answers and resolves | [`@opencode-cockpit/review`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/review) |
-| **Statusline** | — (for you: what the session is costing, under the prompt or in the sidebar) | [`@opencode-cockpit/status`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/status) |
+| **Statusline** | The `status-setup` skill, to change the line with you (for you: what the session is costing, in the sidebar or under the prompt) | [`@opencode-cockpit/status`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/status) |
 | **Updater** | — (for you: every plugin, what it really runs, and the update) | [`@opencode-cockpit/updater`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/updater) |
 | **Subagents** | Every subagent's run in the sidebar and a pane; follow-ups continue the subagent that did the work; message, stop or background one | [`@opencode-cockpit/subagents`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/subagents) |
 | **Trail** | `trail_add` / `trail_list`: it records the PRs, tickets and pages it creates or changes, and can say which conversation made one (for you: the sidebar, one click from the page, and `/trail`) | [`@opencode-cockpit/trail`](https://github.com/Codestz/opencode-cockpit/tree/main/packages/trail) |
@@ -68,7 +68,7 @@ changes, never about a thousand identical recompiles:
 shell_start command="tsc --watch --noEmit" description="type checker" watch=true
 → tsc: ok → fail · src/auth.ts(42,3): error TS2339: Property 'id' does not exist
 ```
-Presets cover about 35 tools (tsc, vitest, jest, eslint, cargo, go, gradle, pytest, vite, next,
+Presets cover 34 tools (tsc, vitest, jest, eslint, cargo, go, gradle, pytest, vite, next,
 docker compose…), and anything else takes three regexes of its own. A watched process that dies
 counts as a failure, so a crashed dev server is reported too.
 
@@ -94,14 +94,21 @@ keeping line numbers and highlighting matches — and output keeps the colours t
 
 | Key / command | Does |
 |---|---|
-| `ctrl+x o` · `/shells` | Toggle the shells panel under the chat |
+| `/shells` | Every shell in view, plus "New shell": pick one to open its console |
+| `ctrl+x o` · `/shells-dock` | Toggle the shells panel under the chat |
 | `ctrl+x j` · `/shell` | Open the shell console |
 | `/shell-new` | Start a shell yourself |
 | `/shells-clear` | Remove finished shells |
-| `/plugins-update` | Every plugin you have installed: what runs, what is published, and an update checked against disk |
-| `/cockpit-setup` | Briefs the agent to set Cockpit up with you: which bays show, where, in what order |
-| `/status-setup` | Briefs the agent to set up the Status bay with you (was `/statusline`) |
+| `ctrl+x d` · `/subagents` | Open the subagent working now, in a pane beside the chat |
+| `ctrl+x v` · `/changes` | Open or close the review of what changed; `ctrl+x k` moves it between the right pane and full screen |
 | `ctrl+x f` · `/trail` | What this conversation made; `/link`, then paste the link, adds one yourself |
+| `ctrl+x p` · `/trust` | What Trust answered for you, and what it has learned |
+| `/plugins-update` | Every plugin you have installed: what runs, what is published, and an update checked against disk |
+| `/cockpit-setup` | The agent sets Cockpit up with you, with the `cockpit-setup` skill: which bays show, where, in what order — then, if you want, tunes it to how your project works |
+| `/status-setup` | The agent designs the Status line with you, with the `status-setup` skill (`/statusline` until 0.9) |
+
+Every key is the same on OpenCode 1 and 2, none of them is one of OpenCode's own, and each bay's
+`keybinds` changes it.
 
 Status reads the same everywhere — `RUN` (with a spinner), `FAIL`, `STOP`, `DONE` — running shells
 and recent failures stay in view, the rest folds behind `▸ N more`. In the console: `i` types
@@ -150,6 +157,16 @@ options as an object:
 An existing v1 `opencode.json` with `plugin` is read by OpenCode 2 as well. To update there, change
 the version in that entry — `/plugins-update` and `npx opencode-cockpit update` edit OpenCode 1's
 files only.
+
+**After installing or updating on OpenCode 2, restart its background service:**
+
+```sh
+opencode service restart
+```
+
+OpenCode 2 runs the agent side in a background service that loads plugins once, when it starts.
+Until it restarts, the windows draw the new Cockpit while the agent keeps the old one's tools and
+skills; a window says so in a toast, and `npx opencode-cockpit@latest doctor` does too.
 
 **Configure them** in one file, read by both halves of every bay and by every project — or type
 `/cockpit-setup` and the agent writes it with you:

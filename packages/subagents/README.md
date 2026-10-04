@@ -16,10 +16,13 @@ opencode plugin add @opencode-cockpit/subagents@0.8.0                   # OpenCo
 
 ## What it does
 
-**In the sidebar**, a Subagents block: each subagent in this conversation, its type, muted, and its
-task — a run with no title is named by its task's first words — and under one still at it, what it is doing now: `grep "session" src/auth/**`,
-`thinking`, `waiting for permission`, `stopped` — with how many calls and how long the whole run has
-taken on the right. Working ones come first. A finished one is a single quiet row; one held on a
+**In the sidebar**, a Subagents block: each subagent in this conversation, its agent, muted, and its
+task — a run with no title is named by its task's first words. The agents are one column, as wide as
+the longest shown and eight cells at most, so `general`, `explore` and `build` read whole and the
+titles line up. Under one still at it, what it is doing now: `grep "session" src/auth/**`,
+`thinking`, `waiting for permission` — with how many calls and how long the run has taken on the
+right. Working ones come first. A finished one is a single quiet row that says how long it ran
+(`● general Update README for the… 28s`); its calls and rounds are in the pane. One held on a
 permission is drawn in the warning tone and counted apart in the heading (`1 running · 1 needs you`).
 A subagent that launched its own has them indented under it, and the same helper launched again and
 again for the same task is one entry with a count (`×6`). A finished nested one leaves the sidebar
@@ -47,10 +50,10 @@ markdown too; the answer is markdown.
 | `b` | Move it to the background, so the main agent carries on (OpenCode's own `ctrl+b`) |
 | `i` | Details: model, what it is denied, calls by tool, tokens, cost |
 | `w` | Half the window, or all of it (remembered) |
-| `[` `]` | Another subagent of this conversation |
+| `[` `]` · `←` `→` | Another subagent of this conversation |
 | `d` `u` · `g` `G` | Page down · up · to the start · follow the run |
 | `?` | Every key, in the pane — the footer has room for the ones you use constantly |
-| `esc` `q` | Back to the conversation |
+| `esc` `q` | Let go of the cursor, then back to the conversation |
 
 **Follow-ups keep their context.** The main agent is asked to continue the subagent that did the work
 (`task_id` on OpenCode 1, `sessionID` on 2) rather than launch a new one. Each round shows in the

@@ -39,7 +39,7 @@ every one of them reports its own health.
 [`bun run record`](CONTRIBUTING.md) and re-run on release, so none of them can drift from what
 ships.*
 
-**9 agent tools · 35 watch presets · [docs](https://codestz.github.io/opencode-cockpit/shell/overview/) · [`@opencode-cockpit/shell`](packages/shell)**
+**8 agent tools · 34 watch presets · [docs](https://codestz.github.io/opencode-cockpit/shell/overview/) · [`@opencode-cockpit/shell`](packages/shell)**
 
 ---
 
@@ -137,13 +137,15 @@ the ticket it was for, one click from the page. And the other way round: `/trail
 conversation in the project says which one opened PR #33, and `g` goes back into it.
 
 ```
-Trail                            4
+Trail                                    9
 
-COM-1736  Bundle desync    Jira  2h ↗
-  PR #33  0.8: Trust, on… GitHub 1h ↗
-  PR #12  Landing: Trus… GitHub  2h ↗
-deploy    staging · web-portal  25m
-+ 3 more · /trail
+COM-1801
+  a1b2c3d  Bump the pr…          12m ago
+  ENG-42   Retry the s…  Linear  15m ago ↗
+COM-1736   Bundle desy…    Jira   2h ago ↗
+  PR #33   0.8: Trust,…  GitHub   1h ago ↗
+  PR #12   Landing: Tr…  GitHub   2h ago ↗
++ 4 more · /trail
 ```
 
 No setup: no account, no token, no list of tools. The agent already knows what it just did with
@@ -217,7 +219,7 @@ changes, never about a thousand identical recompiles:
 shell_start command="tsc --watch --noEmit" description="type checker" watch=true
 → tsc: ok → fail · src/auth.ts(42,3): error TS2339: Property 'id' does not exist
 ```
-Presets cover about 35 tools (tsc, vitest, jest, eslint, cargo, go, gradle, pytest, vite, next,
+Presets cover 34 tools (tsc, vitest, jest, eslint, cargo, go, gradle, pytest, vite, next,
 docker compose…), and anything else takes three regexes of its own. A watched process that dies
 counts as a failure, so a crashed dev server is reported too.
 
@@ -251,8 +253,15 @@ keeping line numbers and highlighting matches — and output keeps the colours t
 | `/plugins-update` | Every plugin you have installed: what runs, what is published, and an update checked against disk |
 | `/cockpit-setup` | The agent sets Cockpit up with you: which bays show, in the sidebar or at the bottom, in what order, quiet or present when empty — and fixes any setting from before 0.9 |
 | `/status-setup` | The agent designs the Status line with you: a preset, its segments, the sidebar or the bottom (`/statusline` until 0.9; the old name still works for one release and says the new one) |
+| `ctrl+x d` · `/subagents` | Open the subagent working now, in a pane beside the chat |
+| `ctrl+x v` · `/changes` | Open or close the review of what changed |
+| `ctrl+x k` | Move the review between the right pane and full screen |
 | `ctrl+x f` · `/trail` | What this conversation made, or every conversation in the project (`tab`) |
 | `/link` | Add a link to this conversation's trail yourself: paste the link, and a note if you like |
+| `ctrl+x p` · `/trust` | What Trust answered for you, and the ledger of what it has learned |
+
+Every key is the same on OpenCode 1 and 2, none of them is one of OpenCode's own, and each bay's
+`keybinds` changes it ([Keys](https://codestz.github.io/opencode-cockpit/configuration/#keys)).
 
 A shell's status reads the same everywhere — `RUN` (with a spinner), `FAIL`, `STOP`, `DONE` — running shells
 and recent failures stay in view, the rest folds behind `▸ N more`. In the console: `i` types
@@ -373,7 +382,7 @@ Spelled the same in every section:
 | `sidebar` | Draw the bay's sidebar block — a boolean here; the top-level `sidebar` is the order. For Status, `false` puts its line at the bottom, under the prompt | `true`; Trust `false` |
 | `sidebarRows` | Rows the block lists before the rest fold into `+ N more` | Status 8 (its table 14), Subagents 6, Shell 5, Trail 5, Trust 3 |
 | `hideWhenEmpty` | Subagents, Shell and Trail. `false`: with nothing to list the block still says it is there — its heading and `none yet`. `true`: no block at all until there is something | `false` |
-| `keybinds` | Keys for the bay's commands, `{ "<command>": "<key>" }` | each bay's own |
+| `keybinds` | Keys for the bay's commands, `{ "<command>": "<key>" }`; `"none"` unbinds one | Subagents `<leader>d`; Shell `<leader>o` dock, `<leader>j` console; Trail `<leader>f`; Trust `<leader>p`; Review `<leader>v` open, `<leader>k` placement |
 
 Time keys carry their unit: `hideFinishedAfterMinutes`, `hideNestedAfterSeconds`.
 
@@ -402,7 +411,8 @@ them.
 | --- | --- | --- |
 | `preset` | A whole line by name: `sidebar` (the table), `minimal`, `default`, `detailed` (bottom lines). Anything written beside it wins | `sidebar` |
 | `surface` | `sidebar` or `bottom`; `"sidebar": false` says the same | `sidebar` |
-| `segments` | The line's parts, built-ins or your own | the preset's |
+| `segments` | The line's parts, built-ins or your own — the whole list, replacing the preset's | the preset's |
+| `override` | Changes to the preset's segments by name, the rest kept: `false` drops one, a name swaps it, an object merges into its settings — `{ "git": { "against": "branch" } }` | none |
 | `lines` | More than one line, each with its own `surface`, `segments`, `maxRows`… | one |
 | `separator`, `stack`, `icons`, `debug`, `padding*` | How a line is laid out | per surface |
 | `commands` | Shell commands usable as segments — your Claude Code statusline script, unchanged | none |
@@ -495,7 +505,8 @@ off — it is OpenCode's setting, in OpenCode's file, and the name differs by ve
 { "plugins": ["opencode-cockpit@0.8.0", "-opencode.sidebar.context"] }
 ```
 
-The other blocks switch the same way, by these ids. Hiding them is a matter of taste: Status's table
+The other blocks switch the same way, by these ids (an `internal:` id in OpenCode 2's `cli.json`
+does nothing, silently). Hiding them is a matter of taste: Status's table
 already warns when an MCP or language server fails, and `opencode mcp list` still lists them all.
 
 | Block | OpenCode 1 | OpenCode 2 |

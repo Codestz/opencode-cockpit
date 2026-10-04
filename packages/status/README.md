@@ -12,10 +12,14 @@ get it with every other bay through the `opencode-cockpit` bundle.
 
 ## Install
 
-```jsonc
-// ~/.config/opencode/tui.json
-{ "plugin": ["@opencode-cockpit/status"] }
+```sh
+opencode plugin @opencode-cockpit/status@0.8.0 --global --force     # OpenCode 1
+opencode plugin add @opencode-cockpit/status@0.8.0                   # OpenCode 2
 ```
+
+On OpenCode 1 that writes both entries — the table in `tui.json`, and in `opencode.json` the agent
+side that `/status-setup` needs. On OpenCode 2, run `opencode service restart` after installing or
+updating: its background service loads plugins only when it starts.
 
 That's enough. Without any configuration you get a table at the top of the sidebar carrying what
 OpenCode's own Context block says, better. `/status-setup` has the agent change it with you.
@@ -43,9 +47,10 @@ the bar; the turn's own clock does not, OpenCode already shows one. Every number
 figures line up; colour is a level (calm, then the warning, then the error), never a label.
 
 A row with nothing to say is not drawn: `write` with no cache writes, `spend` and `avail` with no
-proxy writing a budget (see [Proxies](#proxies-litellm-and-friends)), `working` while nothing runs,
-and a hairline with nothing on one side of it. The rows are built-ins — `title`, `context` with
-`"style": "solid"`, `tokens` with `"style": "row"`, `in`, `out`, `cache`, `write`, `sep`, `spend`,
+proxy writing a budget (see [Proxies](#proxies-litellm-and-friends)), `diagnostics` while every MCP
+and language server is healthy (`! name` in red when one breaks), and a hairline with nothing on one
+side of it. The rows are built-ins — `title`, `context` with `"style": "solid"`, `session.status`,
+`diagnostics`, `tokens` with `"style": "row"`, `in`, `out`, `cache`, `write`, `sep`, `spend`,
 `avail`, `git` — so nothing is installed beside it.
 
 It sits beside OpenCode's own Context block; to keep only one, see
@@ -82,7 +87,7 @@ in both places.
 
 ## A whole line by name
 
-Composing fourteen segments is a design exercise; most people want a good line. A preset is
+Composing twenty-three segments is a design exercise; most people want a good line. A preset is
 built-ins only — nothing to install, nothing to write:
 
 ```jsonc
@@ -129,7 +134,8 @@ Type it, or just ask ("put the statusline at the bottom"), and the agent sets th
 through the `status-setup` skill shipped in this package (`skills/status-setup/`): it reads what is
 written now with `cockpit_settings`, fixes old names first, offers a preset to start from, asks what
 you want, writes only what differs from the defaults, and checks the line in the preview that came
-with your install. `/statusline`, its name until 0.9, still works for one release and says the new
+with your install — `cockpit_settings` names it under Previews — never `bunx`, which fetches another
+release. `/statusline`, its name until 0.9, still works for one release and says the new
 name. Both come from Status's agent side (`@opencode-cockpit/status/server`), which the bundle
 includes and the package's install line adds.
 
@@ -235,7 +241,7 @@ it fits. How full the context is survives a 60-column window; the version string
 | `model` | `claude-opus-5` | `full` |
 | `context` | how full the window is | `style`: `percent` \| `bar` \| `solid` \| `gradient` \| `split`, `width`, `warnAt`, `dangerAt` |
 | `tokens` | `78.5k tok`; `tokens 85.2k · 43%` as a table row | `format`, `style`: `parts` \| `row` |
-| `title` | `Context`, bold: a column's heading | `text` |
+| `title` | `Status`, bold: a column's heading | `text` |
 | `in` · `out` · `cache` · `write` | `cache  84.9k · 100%` — one part of the window and its share; nothing when zero | |
 | `sep` | a hairline between groups, drawn only with a row on either side | `width` |
 | `spend` · `avail` | `spend  $26.24`, `avail  $173.76 · 87% left` — a proxy's budget; nothing without one | `file` |
@@ -244,7 +250,7 @@ it fits. How full the context is survives a 60-column window; the version string
 | `todo` | `3/7 todo` | `showComplete` |
 | `session.status` | `working 1m02s` since the prompt, or a retry and its countdown; `"working": false` (the sidebar preset) keeps only the retry | |
 | `session.time` | the session's age, or with `of: "turn"` how long the last answer took | `of`: `session` \| `turn`, `coarse` |
-| `diagnostics` | unhealthy LSP and MCP servers | |
+| `diagnostics` | `! name` for an unhealthy MCP or language server (OpenCode 2: MCP only); nothing while all are healthy | |
 | `version` | this bay's version | |
 | `text` | literal text | `value` |
 | `command` | the output of a shell command | `name`, `row` |
@@ -303,8 +309,10 @@ differ by version:
 That removes the host's own `Context / tokens / % used / spent` block, leaving the space to the
 table — the honest way to avoid reading the same figure twice. `/cockpit-setup` offers it when Status
 draws in the sidebar. On OpenCode 1 the same works for `internal:sidebar-files`, `-lsp`, `-mcp`,
-`-footer`, and the home screen's `internal:home-footer` and `internal:home-tips`; OpenCode 2's sidebar
-has no LSP or Todo block. Leave the Todo block on: nothing in Cockpit replaces it.
+`-footer`, `-todo`, and the home screen's `internal:home-footer` and `internal:home-tips`. OpenCode 2's
+sidebar has three blocks of its own — `opencode.sidebar.context`, `opencode.sidebar.mcp`,
+`opencode.sidebar.footer` — and no LSP or Todo block; an `internal:` id there does nothing. Leave the
+Todo block on: nothing in Cockpit replaces it.
 
 ## What you can draw
 
