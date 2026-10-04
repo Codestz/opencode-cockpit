@@ -89,6 +89,18 @@ All notable changes to this project are documented here. The format follows
   brackets.
 
 ### Changed
+- **The agent knows where you see its work.** One line per window, written from the bays you have
+  on and your keys: shells, subagents and this conversation's trail in the sidebar, review threads in
+  Review — so it points you there instead of pasting the lists.
+- **Shell's guidance:** the agent checks for a running dev server or watcher before starting one and
+  reuses it, and gives shells short names you recognise (`dev`, `test`, `build`).
+- **Trail's guidance:** records group under the ticket with `for`, and the agent calls `trail_list`
+  before saying what the work produced instead of answering from memory.
+- **On OpenCode 2, every bay's guidance names tools as Code Mode calls them** (`tools.shell_start`).
+- **Review's `enabled: false` turns off its agent side too** — its tools and guidance.
+- **Behaviour, measured:** `AGENT=1` smoke runs real turns that must end in the right tool —
+  `shell_start` for a dev server and no second one, `review_list`/`review_reply` for a waiting comment,
+  `trail_add` for a new PR — so a wording change that stops working cannot ship unnoticed.
  The setup skills run the preview that came with your install — `cockpit_settings` names it
   under Previews — never `bunx`, which fetches another release.
 - **Settings: one shape, one loader, one file for both halves.** "Configure them in one file, read by
