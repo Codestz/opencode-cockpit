@@ -9,7 +9,7 @@
 shells that keep running, subagents you can watch, a pull request in the terminal, and a trail of
 everything each conversation made.
 
-![One OpenCode session with Cockpit: the tests run in the background, fail, and pass after a fix; subagents work in parallel; the PR lands in Trail under its ticket; the context bar fills](media/hero.gif)
+<img src="media/hero.gif" width="840" alt="One OpenCode session with Cockpit: the tests run in the background, fail, and pass after a fix; subagents work in parallel; the PR lands in Trail under its ticket; the context bar fills">
 
 *Drawn by Cockpit's own renderers, the same code that runs in your terminal: a test run failing and
 passing in the background, subagents at work, the PR landing in Trail, the context filling. Every

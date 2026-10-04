@@ -6,7 +6,7 @@
  *
  * One loop exactly, from the hero's own second zero (LOOP, src/scripts/landing.ts), so the GIF wraps
  * without a seam; screenshots of the window, not a screen recording, so there is no clock to line up;
- * 840 px wide, 6 frames a second and 48 colours keep it near 1.6 MB with every tone still its own.
+ * captured at 2×, 1680 px wide and the full 256 colours, so the text stays sharp wherever GitHub draws it.
  */
 import { spawn } from "node:child_process"
 import { mkdtempSync, rmSync } from "node:fs"
@@ -15,6 +15,8 @@ import { join, resolve } from "node:path"
 import { chromium } from "playwright-core"
 
 const LOOP = 28
+/** Wide enough that GitHub scales it down, on a retina screen too. */
+const WIDTH = Number(process.env.WIDTH ?? 1680)
 const PORT = 4399
 const site = resolve(import.meta.dir, "..")
 const out = resolve(site, "..", "media", "hero.gif")
@@ -28,7 +30,9 @@ const run = (cmd: string, args: string[]) =>
 try {
   await new Promise((wait) => setTimeout(wait, 3000))
   const browser = await chromium.launch({ executablePath: chrome, headless: true })
-  const page = await browser.newPage({ viewport: { width: 1280, height: 760 } })
+  // captured at 2×: GitHub shows the GIF at up to ~880 px, so on a retina screen it is drawn from
+  // twice that — a 1× capture is stretched and the text goes soft
+  const page = await browser.newPage({ viewport: { width: 1280, height: 760 }, deviceScaleFactor: 2 })
   await page.goto(`http://localhost:${PORT}/opencode-cockpit/`, { waitUntil: "networkidle" })
   // the window alone: no nav over it, no labels beside it
   await page.evaluate(() => {
@@ -59,7 +63,7 @@ try {
   const concat = join(scratch, "frames.txt")
   await Bun.write(concat, `${list}\nfile '${frames.at(-1)!.file}'\n`)
   await run("ffmpeg", ["-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", concat, "-vf",
-    "fps=6,scale=840:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=48:stats_mode=diff[p];[b][p]paletteuse=dither=none:diff_mode=rectangle", out])
+    `fps=6,scale=${WIDTH}:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=256:stats_mode=full[p];[b][p]paletteuse=dither=none:diff_mode=rectangle`, out])
   console.log(`wrote ${out} — ${frames.length} frames`)
 } finally {
   preview.kill()
