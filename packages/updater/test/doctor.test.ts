@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { readFileSync } from "node:fs"
+import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { memoryDisk } from "../src/core/disk.ts"
 import { ago, type Check, SERVER_BAYS } from "../src/doctor/checks.ts"
@@ -635,5 +635,17 @@ describe("the bays doctor knows", () => {
       )
       expect(Object.keys(manifest.exports)).toContain("./server")
     }
+  })
+
+  test("every bay that publishes an agent half is one it checks — Status gained one in 0.9 and was missed", () => {
+    const packages = join(import.meta.dir, "..", "..")
+    /** The bundle is checked on its own; the client is a library, not a bay. */
+    const notBays = new Set(["opencode", "client"])
+    const withServer = readdirSync(packages).filter((dir) => {
+      if (notBays.has(dir) || !existsSync(join(packages, dir, "package.json"))) return false
+      const manifest = JSON.parse(readFileSync(join(packages, dir, "package.json"), "utf8"))
+      return Object.keys(manifest.exports ?? {}).includes("./server")
+    })
+    expect([...SERVER_BAYS].sort()).toEqual(withServer.sort())
   })
 })

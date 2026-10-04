@@ -25,7 +25,7 @@ export interface Check {
 }
 
 /** Bays whose agent half doctor checks is loaded beside the interface's (`doctor.test.ts` checks it). */
-export const SERVER_BAYS: readonly Bay[] = ["shell", "review", "subagents", "trail"]
+export const SERVER_BAYS: readonly Bay[] = ["shell", "status", "review", "subagents", "trail"]
 
 /** Where a config file sits in OpenCode's split: agent plugins or interface plugins. */
 export type Half = "server" | "tui"
