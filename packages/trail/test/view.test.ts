@@ -5,7 +5,7 @@ import { SAMPLE_NOW, SAMPLES, type Sample } from "../src/core/sample.ts"
 import { emptyState } from "../src/core/store.ts"
 import { runAdd } from "../src/core/tools.ts"
 import { type DialogInput, dialogRows, MIN_HEIGHT, type Tab } from "../src/core/view/dialog.ts"
-import { type Row, rowText, widthOf } from "../src/core/view/rows.ts"
+import { type Row, refOf, rowText, since, widthOf } from "../src/core/view/rows.ts"
 import { EMPTY_TEXT, sidebarRows } from "../src/core/view/sidebar.ts"
 
 const sample = (name: string) => (SAMPLES[name] as () => Sample)()
@@ -123,9 +123,9 @@ describe("the sidebar block", () => {
     expect(rows[0]).toMatch(/^Trail +9$/)
     expect(rows).toContain("COM-1801")
     expect(rows.find((row) => row.startsWith("  PR #33"))).toMatch(
-      /^ {2}PR #33 {3}0\.8: Trust, one design s… +GitHub {2}updated {3}1h ↗$/,
+      /^ {2}PR #33 {3}0\.8: Trust, one desi… +GitHub {2}updated {3}1h ago ↗$/,
     )
-    expect(rows.find((row) => row.includes("a1b2c3d"))).toMatch(/created {2}12m$/)
+    expect(rows.find((row) => row.includes("a1b2c3d"))).toMatch(/created {2}12m ago$/)
   })
 
   test("+ N more · /trail counts the records not shown, and is a hit", () => {
@@ -149,6 +149,42 @@ describe("the sidebar block", () => {
     expect(narrow.find((row) => row.includes("PR #33"))).toContain("…")
     const wide = texts(sidebarOf("busy", 60).rows)
     expect(wide.join("\n")).toContain("GitHub")
+  })
+
+  /**
+   * The column sits under Shells' and Subagents' durations (`1m04s`), so a bare `2h` read as two
+   * hours of work. It says when: `now`, `12m ago`; only a narrow sidebar short of room drops "ago".
+   */
+  test("the time column says when, not for how long: `now`, `12m ago`, `2h ago`", () => {
+    expect(since(10_000)).toBe("now")
+    expect(since(12 * 60_000)).toBe("12m ago")
+    expect(since(2 * 3_600_000)).toBe("2h ago")
+    expect(since(2 * 3_600_000, true)).toBe("2h")
+    for (const width of [36, 42, 60]) {
+      const rows = texts(sidebarOf("busy", width, 12).rows).filter((row) => /(↗|\d[mhd]|now)\s*$/.test(row))
+      expect(rows.length).toBeGreaterThan(0)
+      for (const row of rows) expect(row).toMatch(/(now|\d+[mhd] ago)( ↗)?$/)
+    }
+    const narrow = texts(sidebarOf("busy", 24, 12).rows)
+    expect(narrow.join("\n")).not.toContain("ago")
+    expect(narrow.find((row) => row.includes("a1b"))).toMatch(/ 12m$/)
+  })
+
+  /** `Confluenc…  Release notes for…`: a kind, cut, in the ref's column, and the title cut for it. */
+  test("a record with no ref gives its title the ref's column; a kind is not a ref", () => {
+    for (const width of [24, 30, 36, 50]) {
+      const rows = texts(sidebarOf("busy", width, 12).rows)
+      const notes = rows.find((row) => row.includes("Release"))
+      expect(notes).toStartWith("Release notes")
+      expect(rows.join("\n")).not.toMatch(/Confl[a-z ]*…|artif/)
+      /** A ref still has its column. */
+      expect(rows.find((row) => row.includes("Bundle"))).toStartWith("COM-1")
+    }
+    expect(refOf({ label: "Confluence page", kind: "Confluence page" })).toBeUndefined()
+    expect(refOf({ label: "PR #33", kind: "pr" })).toBe("PR #33")
+    expect(refOf({ label: "deploy 2026-10-03.4", ref: "deploy 2026-10-03.4", kind: "deploy" })).toBe(
+      "deploy 2026-10-03.4",
+    )
   })
 })
 
@@ -179,20 +215,29 @@ describe("/trail", () => {
     const onFind = dialogOf("busy", { selected: find?.key })
     expect(onFind.target.add?.url).toBe("https://github.com/acme/web/pull/40")
     const row = texts(onFind.rows).find((text) => text.includes("acme/web/pull/40"))
-    expect(row).toMatch(/^▌PR #40 .*GitHub {3}seen 3m {2}\[a\] Add$/)
+    expect(row).toMatch(/^▌PR #40 .*GitHub {3}seen 3m ago {2}\[a\] Add$/)
+  })
+
+  test("with no ref, the title starts in the ref's column, and the kind is not said beside the chip", () => {
+    const rows = texts(dialogOf("busy").rows)
+    expect(rows.find((row) => row.includes("Release notes"))).toMatch(
+      /^ Release notes for 0\.8 +Confluence +created +40m ago ↗$/,
+    )
+    expect(rows.find((row) => row.includes("Rollout"))).toMatch(/^ Rollout checklist · docs /)
+    expect(rows.find((row) => row.includes("Bundle desync"))).toMatch(/^ COM-1736 +Bundle desync /)
   })
 
   test("found-not-recorded rows: only what this conversation has not recorded, and only on This conversation", () => {
     const rows = texts(dialogOf("busy").rows)
     expect(rows).toContain(" FOUND, NOT RECORDED  seen in output — add what this conversation made")
-    expect(rows.filter((row) => /seen \d+m {2}\[a\] Add$/.test(row))).toHaveLength(2)
+    expect(rows.filter((row) => /seen \d+m ago {2}\[a\] Add$/.test(row))).toHaveLength(2)
     expect(texts(dialogOf("busy", { tab: "all", height: 60 }).rows).join("\n")).not.toContain("FOUND")
   })
 
   test("All conversations: each conversation under what it touched; g goes there; a deleted one is marked", () => {
     const view = dialogOf("project", { tab: "all", height: 60, width: 116 })
     const rows = texts(view.rows)
-    expect(rows.some((row) => /↳ “Review the 0\.8 branch” .* reviewed +20m$/.test(row))).toBe(true)
+    expect(rows.some((row) => /↳ “Review the 0\.8 branch” .* reviewed +20m ago$/.test(row))).toBe(true)
     expect(rows.some((row) => row.includes("“Set up the latency dashboard” · deleted"))).toBe(true)
     const touch = view.items.find((item) => item.kind === "touch" && item.touch.session === "ses_review")
     expect(dialogOf("project", { tab: "all", selected: touch?.key }).target).toMatchObject({

@@ -38,17 +38,18 @@ anything is stored, and only `http(s)` links are ever opened.
 On by default, after Shells:
 
 ```
-Trail                            4
+Trail                              9
 
-COM-1736  Bundle desync    Jira  2h ↗
-  PR #33  0.8: Trust, on… GitHub 1h ↗
-  PR #12  Landing: Trus… GitHub  2h ↗
-deploy    staging · web-portal  25m
-+ 3 more · /trail
+COM-1736   Bundle desync     2h ago ↗
+  PR #33   0.8: Trust, on…   1h ago ↗
+  PR #12   Landing: Trus…    2h ago ↗
+Rollout checklist           30m ago ↗
++ 5 more · /trail
 ```
 
 What this conversation made, grouped by what it was for, newest work first. A row is the thing's
-name, its title, its system, what this conversation last did and when — history, not a status: a
+ref (a record without one gives its title that column), its title, its system, what this
+conversation last did and when (`now`, `12m ago`) — history, not a status: a
 PR's state belongs to GitHub, and a trail that said "open" for a merged PR would be worse than none.
 **Click a row with `↗` to open the page**; one without a page opens `/trail` on it; `+ N more` opens
 `/trail`. Empty, the block says `none yet`.

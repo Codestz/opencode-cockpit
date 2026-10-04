@@ -3,12 +3,15 @@
  *
  *    Trail · opencode-cockpit         [tab]  This conversation   All conversations
  *
- *    COM-1736    Bundle desync                      Jira   updated             2h ↗
- *      PR #33    0.8: Trust, one design s…        GitHub   created → updated   1h ↗
- *    artifact    Rollout checklist · docs         Claude   created            30m ↗
+ *    COM-1736    Bundle desync                  Jira   updated             2h ago ↗
+ *      PR #33    0.8: Trust, one design s…    GitHub   created → updated   1h ago ↗
+ *    Rollout checklist · docs                 Claude   created            30m ago ↗
  *
  *    FOUND, NOT RECORDED  seen in output — add what this conversation made
- *    PR #40      https://github.com/acme/web/pull/40      GitHub   seen 3m  [a] Add
+ *    PR #40      https://github.com/acme/web/pull/40  GitHub   seen 3m ago  [a] Add
+ *
+ * A record with no ref gives its title the ref's column (`refOf`), and the time is when, said so
+ * (`since`), as in the sidebar.
  *
  *    [enter] Open   [g] Go   [c] Copy   [x] Remove   [/] Search   …   [esc] Close
  *
@@ -37,7 +40,7 @@ import {
   type Touch,
 } from "../model.ts"
 import { historyText, type State } from "../store.ts"
-import { age, cursorRow, cut, fit, type Row, type Run, spread, widthOf } from "./rows.ts"
+import { cursorRow, cut, fit, type Row, type Run, refOf, since, spread, widthOf } from "./rows.ts"
 
 export type Tab = "this" | "all"
 
@@ -199,14 +202,14 @@ function columnsFor(
   const full: Columns = {
     label: Math.min(
       LABEL_MAX,
-      most(things.map(({ thing, depth }) => widthOf(thing.label ?? "") + depth * INDENT)),
+      most(things.map(({ thing, depth }) => widthOf(refOf(thing) ?? "") + depth * INDENT)),
     ),
     system: Math.min(
       SYSTEM_MAX,
       most(things.map(({ thing }) => (thing.system ? widthOf(thing.system) + 2 : 0))),
     ),
     history: Math.min(HISTORY_MAX, most(things.map(({ thing }) => widthOf(historyText(thing))))),
-    age: most(things.map(({ thing }) => widthOf(age(input.now - lastOf(thing).at)))),
+    age: most(things.map(({ thing }) => widthOf(since(input.now - lastOf(thing).at)))),
   }
   /** Margin, label and its gap; then each right column and its gap, the age, the mark and a margin. */
   const titleRoom = (c: Columns) =>
@@ -247,7 +250,7 @@ function rightOf(
         ]
       : []),
     ...(columns.history ? [muted(cell(history, columns.history)), { text: "  " }] : []),
-    muted(age(now - at).padStart(columns.age)),
+    muted(since(now - at).padStart(columns.age)),
     { text: openable ? " ↗ " : "   ", tone: "muted" },
   ]
 }
@@ -264,11 +267,13 @@ function thingRow(thing: Thing, depth: number, input: DialogInput, columns: Colu
           ? ` · ${who.subagent}`
           : ""
       : ""
+  /** With no ref, the title starts where the ref would; its kind is not repeated beside the chip. */
+  const ref = refOf(thing)
   return spread(
     [
       { text: " " },
-      ...(columns.label
-        ? [muted(cell(`${indent}${thing.label ?? ""}`, columns.label)), { text: "  " }]
+      ...(columns.label && ref
+        ? [muted(cell(`${indent}${ref}`, columns.label)), { text: "  " }]
         : [{ text: indent }]),
       { text: thing.title, tone: "text" },
       ...(by ? [muted(by)] : []),
@@ -312,7 +317,7 @@ function foundRow(found: Found, columns: Columns, width: number, now: number): R
       { text: " ".repeat(Math.max(0, columns.system - (found.system ? widthOf(found.system) + 2 : 0))) },
       ...(found.system ? [chip(found.system)] : []),
       ...(columns.system ? [{ text: "  " }] : []),
-      muted(`seen ${age(now - found.at).padStart(columns.age)}  `),
+      muted(`seen ${since(now - found.at).padStart(columns.age)}  `),
       keyRun("a"),
       muted(" Add "),
     ],
@@ -360,7 +365,7 @@ export function dialogRows(input: DialogInput): DialogView {
       Math.max(0, ...found.map((each) => (each.system ? widthOf(each.system) + 2 : 0))),
     ),
     history: 0,
-    age: Math.max(0, ...found.map((each) => widthOf(age(input.now - each.at)))),
+    age: Math.max(0, ...found.map((each) => widthOf(since(input.now - each.at)))),
   }
 
   if (arranged.total === 0)

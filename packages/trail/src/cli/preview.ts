@@ -88,7 +88,7 @@ function paint(row: Row): string {
 
 if (args.includes("--help") || args.includes("-h")) {
   process.stdout.write(
-    `Usage: trail preview [--sample ${Object.keys(SAMPLES).join("|")}] [--width <sidebar columns>] [--columns <dialog columns>] [--rows <dialog rows>] [--text] [--html]\n`,
+    `Usage: trail preview [--sample ${Object.keys(SAMPLES).join("|")}] [--width <sidebar columns>] [--columns <dialog columns>] [--rows <dialog rows>] [--widths 24,30,36,50] [--text] [--html]\n`,
   )
   process.exit(0)
 }
@@ -115,11 +115,23 @@ const frame = (rows: Row[]) => {
 const NOTICE = 'settings: "trail.sidebarRows" should be a number; the default is used'
 
 const out: string[] = []
+/** `--widths 24,30,36,50`: the sidebar at each of these widths, and nothing else. */
+const widths = (value("--widths") ?? "").split(",").map(Number).filter(Boolean)
 for (const name of names) {
   const make = SAMPLES[name]
   if (!make) {
     process.stderr.write(`No sample "${name}". Try: ${Object.keys(SAMPLES).join(", ")}\n`)
     process.exit(1)
+  }
+  if (widths.length > 0) {
+    const { state, session } = make()
+    const mine = arrange(conversationThings(state, session))
+    out.push("", `── ${name} ──`)
+    for (const width of widths) {
+      out.push("", `Sidebar (${width} columns)`, "")
+      out.push(...frame(sidebarRows({ width, arranged: mine, now: SAMPLE_NOW, limit: 12 }).rows))
+    }
+    continue
   }
   const { state, session, found } = make()
   out.push("", `── ${name} ──`)

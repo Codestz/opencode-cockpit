@@ -4,15 +4,17 @@
  *   Trail                                            9
  *
  *   COM-1801
- *     ENG-42   Retry the sock…  Linear  created  15m ↗
- *   COM-1736   Bundle desync      Jira  updated   2h ↗
- *     PR #33   0.8: Trust, on…  GitHub  updated   1h ↗
+ *     ENG-42   Retry the s…  Linear  created  15m ago ↗
+ *   COM-1736   Bundle desync   Jira  updated   2h ago ↗
+ *     PR #33   0.8: Trust,…  GitHub  updated   1h ago ↗
+ *   Status page incident     status…  published  now ↗
  *   + 4 more · /trail
  *
  * (`COM-1801` heads its group by name: nothing here records the ticket itself.)
  *
- * A row: the ref (or kind) muted, the title, the system, then what this conversation last did and
- * when — muted, because it is history and not a state; nothing here goes stale, so nothing wears a
+ * A row: the ref muted, the title, the system, then what this conversation last did and when —
+ * `now`, `12m ago`: the column under Shells' and Subagents' durations says "ago" so it is not read as
+ * one. A record with no ref gives its title the ref's column. All muted, because it is history and not a state; nothing here goes stale, so nothing wears a
  * state's colour. `↗` marks a row a click opens in the browser.
  *
  * **Present when empty** (Gate 1): the heading and a muted `none yet` in the slot the first record
@@ -22,8 +24,8 @@
  * **A settings notice always speaks**: under the heading, `!` and the words wrapped to the column
  * (`warnRows`), even with `hideWhenEmpty` — a typo in the config is never silent.
  *
- * Narrow, the row gives up its columns in order — the action, then the system, then the ref's width —
- * before the title drops below a readable few cells; whatever is cut ends in `…`.
+ * Narrow, the row gives up its columns in order — the action, then the system, then the "ago", then
+ * the ref's width — before the title drops below a readable few cells; whatever is cut ends in `…`.
  */
 
 import {
@@ -36,7 +38,7 @@ import {
   warnRows,
 } from "@opencode-cockpit/client/design"
 import { type Arranged, type Line, lastOf, linesOf, type Thing } from "../model.ts"
-import { age, cut, fit, type Row, type Run, spread, widthOf } from "./rows.ts"
+import { cut, fit, type Row, type Run, refOf, since, spread, widthOf } from "./rows.ts"
 
 export interface SidebarInput {
   width: number
@@ -78,6 +80,8 @@ interface Columns {
   system: number
   action: number
   age: number
+  /** `2h` rather than `2h ago`: a narrow sidebar, short of room for the title. */
+  short: boolean
 }
 
 const muted = (text: string): Run => ({ text, tone: "muted" })
@@ -89,30 +93,41 @@ function columnsFor(lines: readonly Line[], width: number, now: number): Columns
   const full: Columns = {
     label: Math.min(
       LABEL_MAX,
-      most(things.map(({ thing, depth }) => widthOf(thing.label ?? "") + depth * INDENT)),
+      most(things.map(({ thing, depth }) => widthOf(refOf(thing) ?? "") + depth * INDENT)),
     ),
     system: Math.min(SYSTEM_MAX, most(things.map(({ thing }) => widthOf(thing.system ?? "")))),
     action: Math.min(ACTION_MAX, most(things.map(({ thing }) => widthOf(lastOf(thing).action)))),
-    age: most(things.map(({ thing }) => widthOf(age(now - lastOf(thing).at)))),
+    age: 0,
+    short: false,
   }
+  /** The time column is as wide as its widest time, said the long or the short way. */
+  const timed = (c: Omit<Columns, "age">): Columns => ({
+    ...c,
+    age: most(things.map(({ thing }) => widthOf(since(now - lastOf(thing).at, c.short)))),
+  })
   /** Two cells after the title; each column its width and two after it; the age; the mark's two. */
   const right = (c: Columns) => 2 + (c.system ? c.system + 2 : 0) + (c.action ? c.action + 2 : 0) + c.age + 2
   const titleRoom = (c: Columns) => width - (c.label ? c.label + 2 : 0) - right(c)
+  const bare = { ...full, action: 0, system: 0 }
   const tries: Columns[] = [
     full,
     { ...full, action: 0 },
-    { ...full, action: 0, system: 0 },
-    { ...full, action: 0, system: 0, label: Math.min(full.label, 6) },
-  ]
+    bare,
+    { ...bare, short: true },
+    { ...bare, short: true, label: Math.min(full.label, 6) },
+  ].map(timed)
   return tries.find((c) => titleRoom(c) >= TITLE_MIN) ?? (tries.at(-1) as Columns)
 }
 
 function thingRow(thing: Thing, depth: 0 | 1, columns: Columns, width: number, now: number): Row {
   const last = lastOf(thing)
   const indent = " ".repeat(depth * INDENT)
-  const label = columns.label
-    ? [muted(pad(cut(`${indent}${thing.label ?? ""}`, columns.label), columns.label)), { text: "  " }]
-    : [{ text: indent }]
+  const ref = refOf(thing)
+  /** With no ref, the title starts where the ref would. */
+  const label =
+    columns.label && ref
+      ? [muted(pad(cut(`${indent}${ref}`, columns.label), columns.label)), { text: "  " }]
+      : [{ text: indent }]
   /** The system right-aligned, so a short name sits against the action like a column of numbers. */
   const right: Run[] = [
     { text: " " },
@@ -123,7 +138,7 @@ function thingRow(thing: Thing, depth: 0 | 1, columns: Columns, width: number, n
         ]
       : []),
     ...(columns.action ? [muted(pad(cut(last.action, columns.action), columns.action)), { text: "  " }] : []),
-    muted(age(now - last.at).padStart(columns.age)),
+    muted(since(now - last.at, columns.short).padStart(columns.age)),
     { text: thing.openable ? ` ${OPEN_MARK}` : "  ", tone: "muted" },
   ]
   return spread([...label, { text: thing.title, tone: "text" }], right, width)

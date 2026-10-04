@@ -182,3 +182,21 @@ export const ago = (ms: number): string => {
   const said = age(ms)
   return said === "now" ? "just now" : `${said} ago`
 }
+
+/**
+ * The right-hand column's time: `now`, `12m ago`, `2h ago`. Trail's column is when, not how long, and
+ * it sits under Shells and Subagents, whose column is how long a thing ran (`1m04s`): a bare `2h`
+ * there read as two hours of work. `short` drops the "ago" where a narrow sidebar has no room for it.
+ */
+export function since(ms: number, short = false): string {
+  const said = age(ms)
+  return said === "now" || short ? said : `${said} ago`
+}
+
+/**
+ * What the ref column shows: the ref, or what a link names (`PR #33`) — not the kind. A kind there
+ * was cut to `Confluenc…` beside a title cut short too, and the dialog's `Confluence` chip said it
+ * again. With none, the title takes the column.
+ */
+export const refOf = (thing: { label?: string; ref?: string; kind?: string }): string | undefined =>
+  thing.ref !== undefined || thing.label !== thing.kind ? thing.label : undefined
