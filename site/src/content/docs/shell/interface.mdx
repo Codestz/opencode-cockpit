@@ -35,6 +35,10 @@ anything. Press <kbd>s</kbd> in the console to widen it to the whole project and
 A dock under the chat with a tab per shell, the selected shell's live screen, and the health of each
 one at a glance. `shell.dockHeight` sets how tall, `shell.dockOpen` whether it starts open.
 
+A shell's state reads the same in the dock, the sidebar and the console: `⠹ RUN` (the spinner turns
+while it runs), `● FAIL`, `● STOP`, `● DONE`. Running shells and recent failures stay in view; the rest
+fold behind `+ N more`.
+
 ## The console
 
 Full screen, one shell at a time.
