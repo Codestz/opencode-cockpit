@@ -167,8 +167,8 @@ const under = (text: string, heading: string): string | undefined => {
   return undefined
 }
 /**
- * A subagent's row in the sidebar: its status glyph, then the agent's name — shortened to `explo…`
- * or `exp…` when the title wants the room.
+ * A subagent's row in the sidebar: its status glyph, then the agent's name in the block's agent column,
+ * five cells at most: `expl…` (the old `explore`/`exp…` still read, for an older build).
  */
 const EXPLORE_ROW = /[●○⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] exp(lore|l?o?…) /
 /** The Status table's token row, which only a conversation with a reply in it fills. */
@@ -431,7 +431,20 @@ try {
         .some((line) => line.includes(title))
     )
   }
+  /**
+   * The screen at rest, nothing open over it — taken before the first command runs. Each step waits
+   * for the screen to come back to it: a command's toast ("No finished subagents to clear") still up
+   * when `ctrl+p` was typed covered the palette, and the next step failed on v2. A line or two may
+   * differ (a tip, a toggled sidebar); a toast or a dialog is more. Timed out, it goes on anyway, and
+   * the palette check below says what was in the way.
+   */
+  let quiet = ""
+  const atRest = (text: string) => {
+    const was = quiet.split("\n")
+    return text.split("\n").filter((line, y) => line !== was[y]).length <= 2
+  }
   const palette = async (title: string, waitMs = 2500) => {
+    await until(12_000, atRest)
     await type("\x10", 1000) // ctrl+p
     await type(title, 1500)
     const listed = await screen()
@@ -457,6 +470,13 @@ try {
     if (!listed.includes(title)) found.push([`"cockpit ${name}" never listed "${title}"`, listed])
     await type("\x1b", 800)
   }
+  /** At rest: a beat after the last search's palette closed, the same screen twice running (or 5s). */
+  await Bun.sleep(1000)
+  quiet = await until(5000, (text) => {
+    const same = text === quiet
+    quiet = text
+    return same
+  })
   /** Each surface is closed before the next: an open review takes the keys, `ctrl+p` included. */
   const ranReview = await palette("Toggle the changes full screen", 3000)
   await type("\x1b", 1200)
@@ -854,16 +874,21 @@ try {
       ["shell", "Shell's"],
       ["review", "Review's"],
     ] as const) {
+      /**
+       * Trail's on a free model misses about one turn in six, so it is two of three; the others
+       * still one of one.
+       */
+      const runs = name === "trail" ? ["--runs", "3", "--pass", "2"] : ["--runs", "1"]
       const measured = Bun.spawnSync(
-        ["bun", join(root, `packages/${name}/measure/agent.ts`), "--plugin", bay(name), "--runs", "1"],
+        ["bun", join(root, `packages/${name}/measure/agent.ts`), "--plugin", bay(name), ...runs],
         {
           cwd: root,
           env: { ...process.env, OPENCODE: opencode },
           stdin: "ignore",
           stdout: "pipe",
           stderr: "pipe",
-          /** Three attempts, of up to two five-minute turns each, inside the measurement. */
-          timeout: 2_000_000,
+          /** Three attempts, of up to two five-minute turns each, inside each run of the measurement. */
+          timeout: name === "trail" ? 6_000_000 : 2_000_000,
         },
       )
       if (measured.exitCode !== 0)

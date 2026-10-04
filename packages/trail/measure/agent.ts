@@ -9,6 +9,7 @@
  *   bun packages/trail/measure/agent.ts                         OpenCode on PATH, this checkout
  *   OPENCODE=~/.opencode/bin/opencodeold bun packages/trail/measure/agent.ts
  *   bun packages/trail/measure/agent.ts --plugin <dir> --runs 3 --keep
+ *   bun packages/trail/measure/agent.ts --runs 3 --pass 2           two of three is a pass
  *
  * `--plugin` is the server half to load: a package directory (an install's
  * `node_modules/@opencode-cockpit/trail`, or the bundle's) — by default this checkout's
@@ -16,7 +17,8 @@
  * config, state, data and cache, Cockpit's home, the project (a git repository on a branch). Needs
  * the network and a free OpenCode Zen model, so it stays out of CI — like `AGENT=1 smoke:tui`.
  *
- * Exits 0 when every run recorded the PR, 1 otherwise, and prints what each run did.
+ * Exits 0 when at least `--pass` runs recorded the PR (every run, unset), 1 otherwise, and prints
+ * what each run did. A free model misses about one turn in six, so the smoke asks two of three.
  */
 
 import { mkdtempSync, realpathSync, rmSync } from "node:fs"
@@ -36,6 +38,8 @@ if (!opencode) {
 }
 const plugin = resolve(value("--plugin") ?? join(import.meta.dir, ".."))
 const runs = Number(value("--runs")) || 1
+/** Runs that must record the PR; every run when unset, and never more than there are. */
+const pass = Math.min(runs, Number(value("--pass")) || runs)
 const model = value("--model") ?? "opencode/space-bunny-free"
 const keep = args.includes("--keep")
 const PR = "https://github.com/acme/web/pull/417"
@@ -202,8 +206,11 @@ async function once(index: number): Promise<Outcome> {
   }
 }
 
-console.log(`Trail measurement: ${version} (${opencode}), plugin ${plugin}, ${model}, ${runs} run(s)`)
+console.log(
+  `Trail measurement: ${version} (${opencode}), plugin ${plugin}, ${model}, ${runs} run(s), ${pass} to pass`,
+)
 let passed = 0
+let ran = 0
 /**
  * A turn in which the model declined to open the PR at all measures nothing about Trail — a free
  * model on OpenCode 2 refused `gh pr create` in 2 of 4 runs as "public-facing". Such a run is tried
@@ -211,6 +218,9 @@ let passed = 0
  */
 const ATTEMPTS = 3
 for (let i = 1; i <= runs; i++) {
+  /** Enough have passed: the rest would measure nothing more. */
+  if (passed >= pass) break
+  ran++
   let outcome = await once(i)
   for (let attempt = 2; !outcome.ghRan && attempt <= ATTEMPTS; attempt++) {
     console.log(
@@ -226,5 +236,5 @@ for (let i = 1; i <= runs; i++) {
   for (const input of outcome.calls) console.log(`  trail_add ${JSON.stringify(input)}`)
   if (outcome.said) console.log(`  said: ${outcome.said.replace(/\s+/g, " ").slice(0, 200)}`)
 }
-console.log(`${passed} of ${runs} recorded the PR`)
-process.exit(passed === runs ? 0 : 1)
+console.log(`${passed} of ${ran} run(s) recorded the PR (${pass} needed)`)
+process.exit(passed >= pass ? 0 : 1)
