@@ -89,7 +89,8 @@ All notable changes to this project are documented here. The format follows
   brackets.
 
 ### Changed
-
+ The setup skills run the preview that came with your install — `cockpit_settings` names it
+  under Previews — never `bunx`, which fetches another release.
 - **Settings: one shape, one loader, one file for both halves.** "Configure them in one file, read by
   both halves of the plugin and by every project" was true for Shell only; now it is true for every
   bay. Every bay reads `~/.config/opencode-cockpit/config.json` and a project's `.cockpit.json`
@@ -144,9 +145,12 @@ All notable changes to this project are documented here. The format follows
 - **Shell offered "show fewer" with one shell left** after you had expanded the list. The toggle
   shows only while folding hides something, and an expansion the list outgrew folds itself back.
 - **An empty Subagents block took a row of sidebar space** with `hideWhenEmpty` on OpenCode 1.
-- **The setup skills previewed another release's Status.** `bunx @opencode-cockpit/status preview`
-  fetched the newest one from npm; `cockpit_settings` now names the preview that came with your
-  install, and the skills use only that.
+- **The `diagnostics` segment flagged every MCP server on OpenCode 2** (#34). OpenCode 2 hands an MCP
+  server's status as a tagged object (`{ status: "connected" }`), which was read as text, so every
+  connected server showed as broken. Both versions' shapes are read now; a server that is disabled or
+  still connecting is not an alarm, one that failed or needs auth is. `diagnostics` also joins the
+  sidebar table: nothing while every server is healthy, `! name` in red when one breaks, and a cut
+  keeps the `+N` count.
 - **OpenCode 2 kept running the old Cockpit after an update.** Its background service loads plugins
   once, when it starts, so the agent kept the old tools and skills (no `trail_add`, no skills) while
   the windows drew the new ones. **After updating on OpenCode 2, run `opencode service restart`.**
