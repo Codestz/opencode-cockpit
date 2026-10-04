@@ -32,6 +32,9 @@ import { readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { parseJsonc } from "./jsonc.ts"
+import { oldAtTop, oldInSection } from "./settings/old-names.ts"
+
+export { OLD_NAMES } from "./settings/old-names.ts"
 
 // ── Names ──────────────────────────────────────────────────────────────────────────────────────
 
@@ -144,65 +147,7 @@ export const noticeText = (notice: SettingsNotice): string => `settings: ${notic
 
 // ── Old names ──────────────────────────────────────────────────────────────────────────────────
 //
-// Detection only, and removed in 0.10. Before 0.9 each bay had its own spellings; they are no longer
-// read, only recognised, so a config written for 0.8 says what changed instead of silently doing
-// nothing. Values under these keys are ignored.
-
-/** Shell's keys that sat at the file's root before it had a section. */
-const ROOT_SHELL = ["watch", "kinds", "defaults", "lifecycle", "notify", "guidance", "listRunningShells"]
-
-/**
- * Root keys Status used to read as its own when the file had no section — so a root `enabled: false`
- * meant for something else turned the statusline off. A file's root is no bay's settings now.
- */
-const ROOT_STATUS = [
-  "enabled",
-  "debug",
-  "preset",
-  "surface",
-  "segments",
-  "separator",
-  "stack",
-  "icons",
-  "maxRows",
-  "lines",
-  "commands",
-  "modules",
-  "paddingLeft",
-  "paddingRight",
-  "paddingTop",
-  "paddingBottom",
-]
-
-/** Old keys inside a bay's section (and its plugin options), and what replaced them. Removed in 0.10. */
-const OLD_IN_SECTION: Readonly<Partial<Record<Bay, Readonly<Record<string, string>>>>> = {
-  status: { maxRows: "sidebarRows" },
-  shell: { historyMinutes: "hideFinishedAfterMinutes" },
-  subagents: { hideFinishedAfter: "hideFinishedAfterMinutes", hideNestedAfter: "hideNestedAfterSeconds" },
-}
-
-/** Shell's old `ui` group: where each key went. Anything not listed went to `shell.<key>`. Removed in 0.10. */
-const OLD_UI: Readonly<Record<string, string>> = {
-  historyMinutes: "shell.hideFinishedAfterMinutes",
-  updateCheck: "updater.updateCheck",
-  sidebarOrder: "sidebar",
-}
-
-/** Every old name the loader recognises, and what to write instead — for the `cockpit-setup` skill's reference. */
-export const OLD_NAMES: readonly { old: string; new: string }[] = [
-  { old: "statusline", new: "status" },
-  { old: "status.maxRows", new: "status.sidebarRows" },
-  ...ROOT_SHELL.map((key) => ({ old: key, new: `shell.${key}` })),
-  { old: "ui.<key>", new: "shell.<key>" },
-  { old: "ui.historyMinutes", new: "shell.hideFinishedAfterMinutes" },
-  { old: "ui.updateCheck", new: "updater.updateCheck" },
-  { old: "ui.sidebarOrder", new: "sidebar" },
-  { old: "<bay>.sidebarOrder", new: "sidebar" },
-  { old: "subagents.hideFinishedAfter", new: "subagents.hideFinishedAfterMinutes" },
-  { old: "subagents.hideNestedAfter", new: "subagents.hideNestedAfterSeconds" },
-]
-
-const oldText = (old: string) => `"${old}" is no longer read — run ${SETUP_COMMAND}`
+// Detection only, and removed in 0.10: `settings/old-names.ts`.
 
 // ── Small helpers ──────────────────────────────────────────────────────────────────────────────
 
@@ -335,15 +280,9 @@ function withoutOld(
   notes: SettingsNotice[],
 ): Section {
   const out: Section = {}
-  const old = (name: string, now: string) =>
-    notes.push({ bay, file, kind: "old", old: name, new: now, text: oldText(name) })
   for (const [key, value] of Object.entries(section)) {
-    const now = OLD_IN_SECTION[bay]?.[key]
-    if (key === "sidebarOrder") old(`${prefix}${key}`, "sidebar")
-    else if (now) old(`${prefix}${key}`, `${bay}.${now}`)
-    else if (bay === "shell" && key === "ui" && isObject(value)) {
-      for (const inner of Object.keys(value)) old(`${prefix}ui.${inner}`, OLD_UI[inner] ?? `shell.${inner}`)
-    } else if (key === "sidebar" && Array.isArray(value)) {
+    if (oldInSection(bay, key, value, file, prefix, notes)) continue
+    if (key === "sidebar" && Array.isArray(value)) {
       notes.push({
         bay,
         file,
@@ -473,25 +412,7 @@ function readLayer(raw: Section, file: string, scope: SettingsLayer["scope"], no
         const section = withoutOld(key, value, file, `${key}.`, notes)
         sections[key] = checkShared(key, section, file, `${key}.`, notes)
       } else note({ bay: key, kind: "invalid", old: key, text: `"${key}" should be an object of settings` })
-    } else if (key === "statusline") {
-      note({ bay: "status", kind: "old", old: key, new: "status", text: oldText(key) })
-    } else if (ROOT_SHELL.includes(key)) {
-      note({ bay: "shell", kind: "old", old: key, new: `shell.${key}`, text: oldText(key) })
-    } else if (key === "ui" && isObject(value)) {
-      for (const inner of Object.keys(value)) {
-        const now = OLD_UI[inner] ?? `shell.${inner}`
-        const bay = now.startsWith("updater.") ? "updater" : "shell"
-        note({ bay, kind: "old", old: `ui.${inner}`, new: now, text: oldText(`ui.${inner}`) })
-      }
-    } else if (ROOT_STATUS.includes(key)) {
-      note({
-        bay: "status",
-        kind: "unread",
-        old: key,
-        new: `status.${key}`,
-        text: `"${key}" at the top level is not read: it belongs in "status"`,
-      })
-    } else {
+    } else if (!oldAtTop(key, value, note)) {
       const meant = closestName(key, TOP)
       note({
         bay: meant && isBay(meant) ? meant : "cockpit",
