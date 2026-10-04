@@ -33,7 +33,8 @@ function grid(el: HTMLElement, size: number) {
   probe.className = "term"
   probe.style.cssText = `position:absolute;visibility:hidden;font-size:${size}px`
   probe.textContent = "M".repeat(20)
-  document.body.append(probe)
+  // measured inside the page, where the terminal font is set — not in the body's fallback
+  ;(document.querySelector(".deck-page") ?? document.body).append(probe)
   const cell = probe.getBoundingClientRect().width / 20
   probe.remove()
   return {
@@ -228,6 +229,25 @@ function strip() {
   }, 1600)
 }
 
+/* ── drawing a frame: rows, or a sidebar beside a quiet chat, and what sits over it ── */
+/** A chat line: what you said (`you`), what the agent did, what answered it. */
+type Line = { text: string; kind?: "you" | "ok" | "trust" | "ask" | "muted" }
+type Scene = { caption?: string; rows?: Rows; side?: Rows; bottom?: Rows; chat?: Line[]; overlay?: string; flash?: boolean }
+
+const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;")
+function draw(term: HTMLElement, scene: Scene) {
+  const overlay = scene.overlay ? `<div class="overlay">${scene.overlay}</div>` : ""
+  if (!scene.side) {
+    term.innerHTML = paint(scene.rows ?? []) + overlay
+    return
+  }
+  const chat = (scene.chat ?? []).map((line) => `<div class="${line.kind ?? ""}">${esc(line.text)}</div>`).join("")
+  term.innerHTML =
+    `<div class="split"><div class="ghost">${chat}<div class="fill"></div>` +
+    `<div class="prompt">› ask anything${scene.bottom ? `<div class="term">${paint(scene.bottom)}</div>` : ""}</div>${overlay}</div>` +
+    `<div class="sidepane term${scene.flash ? " lit" : ""}">${paint(scene.side)}</div></div>`
+}
+
 /* ── Trail, as a story: one sticky window, four steps ─────────────────────── */
 async function story() {
   const trail = await bay("trail")
@@ -236,9 +256,10 @@ async function story() {
   const screen = document.querySelector<HTMLElement>(".story-screen")!
   const term = $("story-term")
   const cols = () => grid(screen, 12).cols
-  const frames = [
-    () => ({ caption: "sidebar · Trail — the first record lands", rows: one.sidebar(40) }),
-    () => ({ caption: "sidebar · Trail", rows: busy.sidebar(40, 8) }),
+  const asked: Line[] = [{ text: "Fix COM-1736 and open a PR", kind: "you" }, { text: "trail_add · PR #33 · created", kind: "muted" }]
+  const frames: (() => Scene & { go?: boolean })[] = [
+    () => ({ caption: "sidebar · Trail — the first record lands", side: one.sidebar(36), chat: asked, flash: true }),
+    () => ({ caption: "sidebar · Trail", side: busy.sidebar(36, 8), chat: [...asked, { text: "trail_add · COM-1736 · updated", kind: "muted" }, { text: "trail_add · deploy · staging", kind: "muted" }] }),
     () => ({ caption: "/trail · This conversation", rows: busy.dialog({ width: cols(), height: 22 }).rows }),
     () => {
       const all = busy.dialog({ width: cols(), height: 22, tab: "all" })
@@ -251,10 +272,10 @@ async function story() {
     document.querySelectorAll<HTMLElement>(".step").forEach((el) => el.classList.toggle("on", Number(el.dataset.step) === i))
     document.querySelectorAll(".progress i").forEach((el, k) => el.classList.toggle("on", k <= i))
     const frame = frames[i]()
-    $("story-caption").textContent = frame.caption
+    $("story-caption").textContent = frame.caption ?? ""
     term.style.opacity = "0"
     setTimeout(() => {
-      term.innerHTML = paint(frame.rows)
+      draw(term, frame)
       term.style.opacity = "1"
     }, reduced ? 0 : 160)
     clearTimeout(goTimer)
@@ -268,69 +289,155 @@ async function story() {
   show(0)
 }
 
-/* ── one scene per bay: seconds in view, the grid, the spinner → rows ────── */
-type Scene = { caption?: string; rows?: Rows; side?: Rows; bottom?: Rows; chat?: string[] }
-const phase = (t: number, each: number, n: number) => Math.floor(t / each) % n
-const latest = version
-
-const SCENES: Record<string, (mod: any, t: number, size: { cols: number; rows: number }, frame: number) => Scene> = {
-  shell: (shell, t, { cols, rows }, frame) => {
-    const which = (["running", "failed", "done"] as const)[phase(t, 5, 3)]
-    const caption = { running: "ctrl+x j · bun run dev — still running", failed: "ctrl+x j · the test run that failed", done: "ctrl+x j · bun run build — done" }[which]
-    return { caption, rows: shell.screen(which, cols, rows, frame, shell.NOW + t * 1000) }
-  },
-  subagents: (sub, t, { cols, rows }, frame) => ({
-    caption: "ctrl+x d · explore — Map the authentication flow",
-    rows: sub.pane(sub.START + Math.min(10 + (t % 20) * 2.6, 60) * 1000, cols, rows, frame),
-  }),
-  review: (review, t, { cols, rows }) =>
-    phase(t, 6, 2) === 0
-      ? { caption: "ctrl+x v · a note, waiting on the agent", rows: review.noted(cols, rows) }
-      : { caption: "ctrl+x v · a PNG: before → after, changes lit", rows: review.image(cols, rows) },
-  status: (status, t, { cols }) => {
-    // one session filling: calm → busy → nearly full, as the table and as the line
-    const fixture = (["working", "busy", "full"] as const)[phase(t, 3, 3)]
-    return {
-      caption: `Status — ${fixture}`,
-      side: status.table(fixture, 34),
-      bottom: status.line(fixture, Math.max(40, cols - 46)),
-      chat: ["Refactor the session store", "Reading src/auth/session.ts…", "Running the auth tests…"],
-    }
-  },
-  trust: (trust, t, { cols, rows }) =>
-    phase(t, 6, 2) === 0
-      ? { caption: "ctrl+x p · what Trust answered", rows: trust.activity("busy", cols, rows) }
-      : {
-          caption: "sidebar · Trust",
-          side: trust.sidebar("busy", 36),
-          chat: ["Ship the trust bay", "$ git status --short   ✓ answered by Trust", "$ bun test   ✓ answered by Trust", "$ git push origin feat/trust   ○ asks you — 5 of 8"],
-        },
-  updater: (updater, t, { cols }) => {
-    const step = phase(t, 1.4, 4)
-    return {
-      caption: "/plugins-update",
-      rows: updater.list(Math.min(cols, 86), step % 2, step >= 2 ? ["opencode-cockpit", "@acme/opencode-lint-rules"] : ["opencode-cockpit"], latest),
-    }
-  },
+/* ── one player per bay ─────────────────────────────────────────────────────
+ * A player is made when its section comes into view (so it starts from the top), draws a frame for
+ * any second `t`, and loops every `loop` seconds. `start` puts the first frame mid-action, so a
+ * window is never empty when it appears; `rest` is the one frame shown under reduced motion.
+ */
+type Size = { cols: number; rows: number }
+interface Player {
+  loop: number
+  start?: number
+  rest: number
+  frame(t: number, size: Size, spin: number): Scene
 }
+const phase = (t: number, each: number, n: number) => Math.floor(t / each) % n
+const typed = (text: string, from: number, t: number, cps = 22) => text.slice(0, Math.max(0, Math.floor((t - from) * cps)))
 
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;")
-function draw(term: HTMLElement, scene: Scene) {
-  if (!scene.side) {
-    term.innerHTML = paint(scene.rows ?? [])
-    return
-  }
-  const [first, ...rest] = scene.chat ?? []
-  term.innerHTML =
-    `<div class="split"><div class="ghost"><div class="you">${esc(first ?? "")}</div>${rest.map((l) => `<div>${esc(l)}</div>`).join("")}` +
-    `<div class="fill"></div><div class="prompt">› ask anything${scene.bottom ? `<div class="term">${paint(scene.bottom)}</div>` : ""}</div></div>` +
-    `<div class="sidepane term">${paint(scene.side)}</div></div>`
+const PLAYERS: Record<string, (mod: any) => Player> = {
+  shell: (shell) => ({
+    loop: 15,
+    rest: 0,
+    frame(t, { cols, rows }, spin) {
+      const which = (["running", "failed", "done"] as const)[phase(t, 5, 3)]
+      const caption = { running: "ctrl+x j · bun run dev — still running", failed: "ctrl+x j · the test run that failed", done: "ctrl+x j · bun run build — done" }[which]
+      return { caption, rows: shell.screen(which, cols, rows, spin, shell.NOW + t * 1000) }
+    },
+  }),
+
+  subagents: (sub) => ({
+    loop: 20,
+    rest: 12,
+    frame: (t, { cols, rows }, spin) => ({
+      caption: "ctrl+x d · explore — Map the authentication flow",
+      rows: sub.pane(sub.START + Math.min(10 + t * 2.6, 60) * 1000, cols, rows, spin),
+    }),
+  }),
+
+  /** A person reviewing: walk, mark viewed, note a line, hand it over, the agent resolves it. Then an image. */
+  review: (review) => {
+    const each = 1.9
+    const walk = review.STEPS.length * each
+    return {
+      loop: walk + 6,
+      start: each,
+      rest: 7 * each,
+      frame(t, { cols, rows }) {
+        if (t >= walk) return { caption: "ctrl+x v · a screenshot: before → after, changed pixels lit", rows: review.image(cols, rows) }
+        const i = Math.floor(t / each)
+        const step = review.STEPS[i]
+        const overlay = step.draft
+          ? `<div class="dialog"><div class="head">Note · src/tui/index.tsx · line 1</div><div class="draft">${esc(typed(step.draft, i * each, t))}<i>▍</i></div><div class="keys"><b>[enter]</b> Save   <b>[esc]</b> Cancel</div></div>`
+          : undefined
+        return { caption: step.caption, rows: review.frame(i, cols, rows), overlay }
+      },
+    }
+  },
+
+  /** One long turn: the window fills, through the gauge's steps, as the table and as the line. */
+  status: (status) => ({
+    loop: 16,
+    start: 1,
+    rest: 12.5,
+    frame(t, { cols }) {
+      const p = Math.min(1, t / 14)
+      const caption = p < 0.6 ? "Status — calm: there is room" : p < 0.8 ? "Status — past 75%: worth a look" : "Status — past 90%: compact, or start fresh"
+      return {
+        caption,
+        side: status.table(p, 34),
+        bottom: status.line(p, Math.max(40, cols - 46)),
+        chat: [
+          { text: "Refactor the session store", kind: "you" },
+          { text: "Reading src/auth/session.ts…", kind: "muted" },
+          ...(p > 0.35 ? [{ text: "Editing 6 files…", kind: "muted" as const }] : []),
+          ...(p > 0.7 ? [{ text: "Running the auth tests…", kind: "muted" as const }] : []),
+        ],
+      }
+    },
+  }),
+
+  /**
+   * Trust learning, as it happens: the agent asks for `bun test`, you allow it — 1/3, 2/3, 3/3 — and
+   * the fourth time Trust answers it. Then ctrl+x p shows what it answered, and why.
+   */
+  trust: (trust) => {
+    let engine = trust.live()
+    let done = -1
+    let chat: Line[] = []
+    let asking: { id: string; have: number; need: number } | undefined
+    let lit = 0
+    const BEATS: [number, () => void][] = [
+      [0.2, () => (chat = [{ text: "Run the tests and push", kind: "you" }])],
+      ...[0, 1, 2].flatMap((n): [number, () => void][] => [
+        [0.8 + n * 2.6, () => {
+          const a = engine.ask("bun test")
+          const p = a.progress[0]
+          asking = { id: a.id, have: p?.have ?? n, need: p?.need ?? 3 }
+          chat.push({ text: "$ bun test", kind: "muted" })
+        }],
+        [2.4 + n * 2.6, () => {
+          engine.approve(asking!.id)
+          chat.push({ text: `✓ allowed by you · ${n + 1}/3`, kind: "ok" })
+          asking = undefined
+          lit = 6
+        }],
+      ]),
+      [9.0, () => {
+        const a = engine.ask("bun test")
+        chat.push({ text: "$ bun test", kind: "muted" }, { text: a.answered ? "✓ answered by Trust — approved by you 3× in a row" : a.why, kind: "trust" })
+        lit = 8
+      }],
+    ]
+    return {
+      loop: 17,
+      rest: 10,
+      frame(t, { cols, rows }) {
+        if (t < done) {
+          engine = trust.live()
+          done = -1
+          chat = []
+          asking = undefined
+        }
+        for (const [at, act] of BEATS) if (at <= t && at > done) act()
+        done = t
+        if (t >= 11.5) return { caption: "ctrl+x p · what Trust answered, and why", rows: engine.activity(cols, rows) }
+        const flash = lit-- > 0
+        const overlay = asking
+          ? `<div class="permission"><div class="head">Permission required</div><div class="what"><b>bash</b> bun test</div><div class="learn">Trust: ${asking.have}/${asking.need} toward trusted</div><div class="keys"><b>Allow once</b>   Allow always   Reject</div></div>`
+          : undefined
+        return { caption: asking ? "the agent asks — you answer" : t > 9 ? "Trust answered it for you" : "sidebar · Trust", side: engine.sidebar(36), chat, overlay, flash }
+      },
+    }
+  },
+
+  updater: (updater) => ({
+    loop: 5.6,
+    rest: 4.2,
+    frame(t, { cols }) {
+      const step = phase(t, 1.4, 4)
+      return {
+        caption: "/plugins-update",
+        rows: updater.list(Math.min(cols, 86), step % 2, step >= 2 ? ["opencode-cockpit", "@acme/opencode-lint-rules"] : ["opencode-cockpit"], version),
+      }
+    },
+  }),
 }
 
 function scenes() {
-  const live = new Map<HTMLElement, { t0: number; mod: any }>()
-  let frame = 0
-  // fetch a bay a screen early, play it only while it is on screen
+  type Live = { player: Player; t0: number; held?: number }
+  const live = new Map<HTMLElement, Live>()
+  let spin = 0
+  // fetch a bay a screen early; play it only while it is on screen, from the top each time
   const near = new IntersectionObserver((entries) => {
     for (const e of entries) if (e.isIntersecting) bay((e.target as HTMLElement).dataset.scene!)
   }, { rootMargin: "100% 0px" })
@@ -342,20 +449,37 @@ function scenes() {
         continue
       }
       term.closest(".feature")?.classList.add("seen")
-      bay(term.dataset.scene!).then((mod) => live.set(term, { t0: performance.now(), mod }))
+      bay(term.dataset.scene!).then((mod) => {
+        const player = PLAYERS[term.dataset.scene!](mod)
+        live.set(term, { player, t0: performance.now() - (player.start ?? 0) * 1000 })
+      })
     }
   }, { threshold: 0.2 })
   for (const term of document.querySelectorAll<HTMLElement>("[data-scene]")) {
     near.observe(term)
     seen.observe(term)
+    // hold the frame while the pointer is on the window, so it can be read
+    const frame = term.closest<HTMLElement>(".window")!
+    frame.addEventListener("mouseenter", () => {
+      const it = live.get(term)
+      if (it) it.held = performance.now()
+    })
+    frame.addEventListener("mouseleave", () => {
+      const it = live.get(term)
+      if (it?.held) {
+        it.t0 += performance.now() - it.held
+        it.held = undefined
+      }
+    })
   }
   const tick = () => {
-    frame++
+    spin++
     if (visible())
-      for (const [term, { t0, mod }] of live) {
+      for (const [term, it] of live) {
         const size = Number(term.dataset.size || 12)
-        const t = reduced ? 0 : (performance.now() - t0) / 1000
-        const scene = SCENES[term.dataset.scene!](mod, t, grid(term.parentElement!, size), frame)
+        const { player } = it
+        const t = reduced ? player.rest : (((it.held ?? performance.now()) - it.t0) / 1000) % player.loop
+        const scene = player.frame(t, grid(term.parentElement!, size), spin)
         draw(term, scene)
         const caption = document.querySelector(`[data-caption="${term.dataset.scene}"]`)
         if (caption && scene.caption) caption.textContent = scene.caption

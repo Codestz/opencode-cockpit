@@ -80,7 +80,7 @@ body:has(.deck-page) { background: #050a14; }
 .titlebar i { width: 10px; height: 10px; border-radius: 50%; background: #1b2740; flex: none; }
 .titlebar span { margin-left: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .screen { padding: 14px 6px; height: 400px; overflow: hidden; position: relative; }
-.screen > .term { height: 100%; }
+.screen > .term { height: 100%; position: relative; }
 
 /* ── hero ── */
 .hero { text-align: center; padding: 72px 20px 0; position: relative; max-width: 1200px; margin: 0 auto; }
@@ -156,6 +156,8 @@ body:has(.deck-page) { background: #050a14; }
 .callout.hot { color: var(--tn-accent); }
 .callout.hot::before { background: var(--tn-accent); }
 
+.proof { margin: 22px auto 0; font-family: var(--mono); font-size: 12px; color: var(--tn-muted); }
+.proof::before { content: "● "; color: var(--tn-accent); }
 .bays { display: flex; flex-wrap: wrap; margin: 70px auto 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .bay { padding: 22px 26px; font-family: var(--mono); font-size: 13px; color: var(--fg-2); border-right: 1px solid var(--line); flex: 1; min-width: 140px; text-align: left; transition: color 0.3s, background 0.3s; }
 .bay:last-child { border-right: 0; }
@@ -182,10 +184,6 @@ body:has(.deck-page) { background: #050a14; }
 .progress { display: flex; gap: 6px; margin-top: 16px; }
 .progress i { height: 2px; flex: 1; background: var(--line); transition: background 0.3s; }
 .progress i.on { background: var(--tn-accent); }
-.recording { margin-top: 18px; font-family: var(--mono); font-size: 13px; color: var(--fg-2); }
-.recording summary { cursor: pointer; list-style: none; display: inline-block; border-bottom: 1px solid var(--line-2); padding-bottom: 3px; }
-.recording summary:hover { color: var(--fg); }
-.recording[open] summary { margin-bottom: 14px; }
 
 /* ── one section per bay ── */
 .feature { display: grid; grid-template-columns: 0.85fr 1.15fr; gap: 64px; align-items: center; padding: 120px 20px; border-top: 1px solid var(--line); max-width: 1200px; margin: 0 auto; }
@@ -209,7 +207,31 @@ kbd { font-size: 12px; color: var(--tn-accent); border: 1px solid var(--line-2);
 .split .ghost .fill { flex: 1; }
 .split .ghost .prompt { border: 1px solid var(--tn-border); padding: 8px 10px; }
 .split .ghost .prompt .term { margin-top: 6px; font-size: 11px; overflow: hidden; }
-.split .sidepane { background: var(--tn-panel); border-left: 1px solid var(--tn-border); padding: 16px 14px; white-space: pre; }
+.split .sidepane { background: var(--tn-panel); border-left: 1px solid var(--tn-border); padding: 16px 14px; white-space: pre; transition: box-shadow 0.4s; }
+.split .sidepane.lit { box-shadow: inset 0 0 0 1px var(--tn-accent), inset 0 0 30px rgba(108, 182, 255, 0.12); }
+.split .ghost { position: relative; }
+.split .ghost .muted { color: var(--tn-muted); }
+.split .ghost .ok { color: var(--tn-success); }
+.split .ghost .trust { color: var(--tn-accent); }
+
+/* what sits over a pane: Review's note dialog, OpenCode's permission prompt */
+/* redrawn every frame, so nothing here animates in: it would start again at every paint */
+.overlay { position: absolute; inset: auto 0 0 0; display: grid; place-items: end center; padding: 18px; pointer-events: none; white-space: normal; }
+.split .ghost .overlay { bottom: 52px; }
+.overlay .dialog, .overlay .permission {
+  width: min(520px, 100%); background: var(--tn-panel); border: 1px solid var(--tn-accent); padding: 12px 14px;
+  font-family: var(--mono); font-size: 12px; color: var(--tn-text); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+}
+.overlay .head { color: var(--tn-muted); margin-bottom: 8px; }
+.overlay .draft { color: var(--tn-text); min-height: 1.4em; }
+.overlay .draft i { color: var(--tn-accent); font-style: normal; animation: pulse 1s steps(2) infinite; }
+.overlay .keys { margin-top: 10px; color: var(--tn-muted); white-space: pre; }
+.overlay .keys b { color: var(--tn-accent); }
+.overlay .permission { border-color: var(--tn-warning); }
+.overlay .permission .head { color: var(--tn-warning); }
+.overlay .permission .what b { color: var(--tn-tool); font-weight: 400; margin-right: 8px; }
+.overlay .permission .learn { margin-top: 6px; color: var(--tn-muted); }
+.overlay .permission .keys b { color: var(--tn-bg); background: var(--tn-warning); padding: 0 6px; }
 
 /* ── setup and the end ── */
 .setup { padding: 140px 20px 120px; border-top: 1px solid var(--line); max-width: 1200px; margin: 0 auto; }
@@ -254,8 +276,10 @@ kbd { font-size: 12px; color: var(--tn-accent); border: 1px solid var(--line-2);
   .feature, .feature.flip { grid-template-columns: 1fr; gap: 36px; padding: 80px 16px; }
   .feature.flip .copy { order: 0; }
   .setup-grid { grid-template-columns: 1fr; }
-  .split { grid-template-columns: 1fr; }
-  .split .ghost { display: none; }
+  /* the chat stays — the prompt and what answered it are the story — with the sidebar under it */
+  .split { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; }
+  .split .ghost { padding: 14px; overflow: hidden; }
+  .split .sidepane { border-left: 0; border-top: 1px solid var(--tn-border); padding: 12px 14px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .deck-page *, .deck-page *::before, .deck-page *::after { animation: none !important; transition: none !important; }

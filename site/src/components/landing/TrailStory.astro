@@ -1,5 +1,4 @@
 ---
-import Cast from "../Cast.astro"
 import { inline } from "../../lib/inline"
 import { trail } from "../../data/landing"
 ---
@@ -26,10 +25,6 @@ import { trail } from "../../data/landing"
         </div>
       </div>
       <div class="progress" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-      <details class="recording">
-        <summary>▶ {trail.recording}</summary>
-        <Cast name="trail" caption="A real recording: tapes/trail.cast" autoplay={false} />
-      </details>
     </div>
   </div>
 </section>

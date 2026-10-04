@@ -33,6 +33,7 @@ import Install from "./Install.astro"
     <div class="callout l" id="c-chat" data-for="hero-chat">the conversation <b>OPENCODE</b></div>
     <div class="callout l" id="c-status" data-for="b-status">context, filling <b>STATUS</b></div>
   </div>
+  <p class="proof">{hero.proof}</p>
 
   <div class="bays" id="bays">
     {bays.map((bay) => <a class="bay" href={`#${bay.id}`} data-bay={bay.id}>{bay.name}<small>{bay.what}</small></a>)}

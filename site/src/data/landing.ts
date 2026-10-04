@@ -32,6 +32,8 @@ export const nav = [
 ]
 
 export const hero = {
+  /** Under the window: what makes it more than a picture of the product. */
+  proof: "Drawn live by Cockpit's own code — the same renderers that run in your terminal.",
   tag: `${version} — Trail: what every conversation shipped`,
   title: "Your agent, on instruments.",
   accent: "See it work while it works.",
@@ -73,7 +75,6 @@ export const trail = {
       body: "`tab` to every conversation in the project, then `g` on any line: you're back in the session that made it.",
     },
   ],
-  recording: "Watch it in a real session",
 }
 
 export interface Feature {
