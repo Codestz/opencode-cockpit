@@ -218,6 +218,10 @@ kbd { font-size: 12px; color: var(--tn-accent); border: 1px solid var(--line-2);
 /* redrawn every frame, so nothing here animates in: it would start again at every paint */
 .overlay { position: absolute; inset: auto 0 0 0; display: grid; place-items: end center; padding: 18px; pointer-events: none; white-space: normal; }
 .split .ghost .overlay { bottom: 52px; }
+/* a key just pressed, the way a screencast shows one */
+.overlay .keypress { justify-self: end; align-self: start; font-family: var(--mono); font-size: 12px; color: var(--tn-muted); background: var(--tn-panel); border: 1px solid var(--tn-border); padding: 6px 10px; }
+.overlay:has(.keypress) { inset: 0; place-items: start end; }
+.overlay .keypress b { color: var(--tn-bg); background: var(--tn-accent); padding: 0 7px; margin-right: 6px; font-weight: 700; }
 .overlay .dialog, .overlay .permission {
   width: min(520px, 100%); background: var(--tn-panel); border: 1px solid var(--tn-accent); padding: 12px 14px;
   font-family: var(--mono); font-size: 12px; color: var(--tn-text); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);

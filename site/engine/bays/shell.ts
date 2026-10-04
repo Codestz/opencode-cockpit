@@ -6,16 +6,50 @@ import { sidebarBlock } from "../../../packages/shell/src/tui/lib/sidebar.ts"
 
 const { SHELLS, SAMPLE_LIST, SAMPLE_NOW, SAMPLE_PROJECT, SAMPLE_LOG, DEV_SCREEN, TEST_SCREEN, BUILD_SCREEN } = samples
 export const NOW = SAMPLE_NOW
-export type Which = "running" | "failed" | "done"
 
-export function screen(which: Which, width: number, height: number, frame: number, now = SAMPLE_NOW) {
-  const shell = SHELLS[which]
-  const screen = which === "failed" ? TEST_SCREEN : which === "done" ? BUILD_SCREEN : DEV_SCREEN
+type Screen = typeof DEV_SCREEN
+type Styled = NonNullable<Screen["styled"]>[number]
+
+/** A test run long enough to watch scroll: passing files, then the sample's own failure and summary. */
+const TEST_RUN: Screen = (() => {
+  const passing = ["cart/total", "cart/discount", "cart/tax", "checkout/address", "checkout/payment", "checkout/review", "auth/login", "auth/logout", "auth/refresh", "api/orders", "api/products", "api/users", "ui/button", "ui/modal", "ui/table"]
+  const lines = [
+    ...passing.map((f, i) => ` ✓ src/${f}.test.ts (${4 + ((i * 7) % 11)} tests) ${9 + ((i * 13) % 40)}ms`),
+    ...TEST_SCREEN.text.split("\n").slice(2),
+  ]
+  return { ...TEST_SCREEN, text: lines.join("\n") }
+})()
+
+const SCREENS = { running: DEV_SCREEN, failed: TEST_RUN, done: BUILD_SCREEN } as const
+export type Which = keyof typeof SCREENS
+
+/** How many lines each program prints before it settles. */
+export const length = (which: Which) => SCREENS[which].text.split("\n").length
+
+/**
+ * The screen after `k` lines have arrived — the way a terminal fills, and scrolls once it is full.
+ * A program's own colours (the dev server's) are kept with their lines.
+ */
+function reveal(screen: Screen, k: number): Screen {
+  const text = screen.text.split("\n")
+  const from = Math.max(0, Math.min(k, text.length) - screen.rows)
+  const to = Math.min(k, text.length)
+  const styled = screen.styled?.slice(from, to) as Styled[] | undefined
+  return { ...screen, text: text.slice(from, to).join("\n"), ...(styled ? { styled } : {}), cursor: { x: 0, y: Math.max(0, to - from - 1) } }
+}
+
+/**
+ * The console (ctrl+x j) on one of the sample shells, `k` lines into its output. Until its output is
+ * all there, a shell that will fail or finish is still running — the badge and the keys say so.
+ */
+export function screen(which: Which, width: number, height: number, frame: number, now = SAMPLE_NOW, k = Number.POSITIVE_INFINITY) {
+  const settled = k >= length(which)
+  const shell = settled || which === "running" ? SHELLS[which] : { ...SHELLS[which], status: "running", exitCode: undefined, endedAt: undefined, summary: undefined, pid: 4400 }
   return consoleRows({
-    shell, now, frame, project: SAMPLE_PROJECT, screen, log: SAMPLE_LOG, view: "screen", up: 0,
+    shell, now, frame, project: SAMPLE_PROJECT, screen: reveal(SCREENS[which], k), log: SAMPLE_LOG, view: "screen", up: 0,
     typing: false, colors: true, filter: "", searching: false, draft: "",
-    keys: { shell: true, running: which === "running", view: "screen", filtered: false, count: SAMPLE_LIST.length, scope: "session", finished: 3 },
-    position: `${SAMPLE_LIST.indexOf(shell) + 1}/${SAMPLE_LIST.length}`, width, height, fill: false,
+    keys: { shell: true, running: shell.status === "running", view: "screen", filtered: false, count: SAMPLE_LIST.length, scope: "session", finished: 3 },
+    position: `${SAMPLE_LIST.indexOf(SHELLS[which]) + 1}/${SAMPLE_LIST.length}`, width, height, fill: false,
   } as never)
 }
 

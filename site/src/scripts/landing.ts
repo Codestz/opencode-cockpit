@@ -305,15 +305,33 @@ const phase = (t: number, each: number, n: number) => Math.floor(t / each) % n
 const typed = (text: string, from: number, t: number, cps = 22) => text.slice(0, Math.max(0, Math.floor((t - from) * cps)))
 
 const PLAYERS: Record<string, (mod: any) => Player> = {
-  shell: (shell) => ({
-    loop: 15,
-    rest: 0,
-    frame(t, { cols, rows }, spin) {
-      const which = (["running", "failed", "done"] as const)[phase(t, 5, 3)]
-      const caption = { running: "ctrl+x j · bun run dev — still running", failed: "ctrl+x j · the test run that failed", done: "ctrl+x j · bun run build — done" }[which]
-      return { caption, rows: shell.screen(which, cols, rows, spin, shell.NOW + t * 1000) }
-    },
-  }),
+  /**
+   * The console, live: the dev server streams, `→` moves to the test run — passing files scroll by,
+   * then the failure — and `→` again to the build, which prints and finishes. Output arrives a line at
+   * a time, and a shell is running until its output is all there.
+   */
+  shell: (shell) => {
+    const parts = [
+      { which: "running", from: 0, lines: (t: number) => 8 + t * 3.2, caption: "ctrl+x j · bun run dev — still running, still printing" },
+      { which: "failed", from: 6.5, lines: (t: number) => t * 5, caption: "→ · the next shell: the test run" },
+      { which: "done", from: 12, lines: (t: number) => t * 2.4, caption: "→ · the next shell: the build" },
+    ] as const
+    return {
+      loop: 17,
+      rest: 11,
+      frame(t, { cols, rows }, spin) {
+        const at = parts.findLastIndex((part) => part.from <= t)
+        const part = parts[at]
+        const since = t - part.from
+        const k = Math.floor(part.lines(since))
+        const settled = k >= shell.length(part.which)
+        const caption = part.which === "failed" && settled ? "the tests failed — the agent is told once, with the line" : part.which === "done" && settled ? "the build — done, and quiet" : part.caption
+        // the key that moved here, shown for a moment
+        const overlay = at > 0 && since < 0.9 ? `<div class="keypress"><b>→</b> next shell</div>` : undefined
+        return { caption, rows: shell.screen(part.which, cols, rows, spin, shell.NOW + t * 1000, k), overlay }
+      },
+    }
+  },
 
   subagents: (sub) => ({
     loop: 20,
