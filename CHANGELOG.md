@@ -89,6 +89,8 @@ All notable changes to this project are documented here. The format follows
   on a file it cannot read or a flag it does not know rather than drawing other settings. `--config -`
   reads a candidate on stdin as the file it will become (`--as global|project`), so a change is seen
   before it is written anywhere — the `status-setup` skill previews this way, with no temporary file.
+  The setup skills run the preview that came with your install — `cockpit_settings` names it under
+  Previews — never `bunx`, which fetches another release.
   `--surface sidebar|bottom` draws there whatever the file says; the sidebar is 34 columns unless
   `--width` says otherwise. `--debug` names every row: `✓git` drew, `✗spend` drew nothing, `?gti` is
   no segment at all — where `⟨?title⟩` and `⟨todo⟩` used to differ by one character in the same
@@ -115,8 +117,6 @@ All notable changes to this project are documented here. The format follows
   `trail_add` for a new PR — so a wording change that stops working cannot ship unnoticed. Trail's
   passes on two of three turns (`measure/agent.ts --runs 3 --pass 2`): a free model misses about one
   in six.
- The setup skills run the preview that came with your install — `cockpit_settings` names it
-  under Previews — never `bunx`, which fetches another release.
 - **Settings: one shape, one loader, one file for both halves.** "Configure them in one file, read by
   both halves of the plugin and by every project" was true for Shell only; now it is true for every
   bay. Every bay reads `~/.config/opencode-cockpit/config.json` and a project's `.cockpit.json`
@@ -141,8 +141,8 @@ All notable changes to this project are documented here. The format follows
   - Status's keys at a file's root are no longer read as Status's (a root `"enabled": false` meant
     for something else used to turn the statusline off).
 - **Status lives in the sidebar by default, as a table.** The `sidebar` preset is now the budget
-  table — `Context`, the window as one solid bar, the tokens in named rows with their share, a
-  proxy's spend and what is left, the branch's diff against where it forked — and it is what you get
+  table — headed `Status`, the window as one solid bar, the tokens in named rows with their share, a
+  proxy's spend and what is left, what is uncommitted — and it is what you get
   with no configuration. `{ "status": { "sidebar": false } }` (or `"surface": "bottom"`) puts the
   line under the prompt again. A preset that does not exist, or a config pointing at a removed
   example, gets a `!` row naming the presets there are, never a blank column.
