@@ -44,6 +44,18 @@ All notable changes to this project are documented here. The format follows
   the command opens a conversation; while the agent is answering it waits its turn (`1 queued`)
   instead of cutting the reply off. In the palette as well, whichever Cockpit packages you installed.
   The skill's settings reference is written from the code, and a test fails when the two disagree.
+  - **Then, if you want it: "tune it to how you work."** A tour of each bay you have on, with its
+    real key and command, then your project's conventions: which commands keep running (found in
+    `package.json` scripts, a Makefile, a compose file or a Procfile) and belong in a background
+    shell, your ticket prefix (offered from your branches and commits) so Trail groups by ticket, where
+    PRs go, whether to explore in background subagents. Written, after you agree, as one
+    `## Cockpit conventions` section in this project's `AGENTS.md` or OpenCode's global one, by a
+    `cockpit_conventions` tool that replaces that section in place on a rerun and keeps every other
+    byte of the file. Conventions only: how to use each bay is already in every request.
+  - **Every OpenCode sidebar block, by its id, for the version you run:** Context (suggested off when
+    Status's table is in the sidebar), MCP (neutral: Status's table warns when a server fails),
+    Footer, and on OpenCode 1 LSP and Files; Todo is never suggested off. `status-setup` lists the
+    same.
 - **Review shows images.** A changed binary is read as bytes instead of being skipped or shown as
   `U+FFFD`. An image says what changed — `PNG 2880×1800 · 807 KB → 789 KB` (PNG, APNG, JPEG, GIF,
   WebP, BMP; any other binary its sizes) — and PNG and GIF of the same size get a pixel diff (how much
@@ -132,6 +144,14 @@ All notable changes to this project are documented here. The format follows
 - **Shell offered "show fewer" with one shell left** after you had expanded the list. The toggle
   shows only while folding hides something, and an expansion the list outgrew folds itself back.
 - **An empty Subagents block took a row of sidebar space** with `hideWhenEmpty` on OpenCode 1.
+- **The setup skills previewed another release's Status.** `bunx @opencode-cockpit/status preview`
+  fetched the newest one from npm; `cockpit_settings` now names the preview that came with your
+  install, and the skills use only that.
+- **OpenCode 2 kept running the old Cockpit after an update.** Its background service loads plugins
+  once, when it starts, so the agent kept the old tools and skills (no `trail_add`, no skills) while
+  the windows drew the new ones. **After updating on OpenCode 2, run `opencode service restart`.**
+  `doctor` now warns when the service started before the install, `update` and `/plugins-update` say
+  to restart it, and the repository's `dev:install` restarts it itself.
 
 ### Removed
 

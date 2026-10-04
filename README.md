@@ -302,8 +302,22 @@ An existing v1 `opencode.json` with `plugin` is read by OpenCode 2 as well. To u
 the version in that entry — `/plugins-update` and `npx opencode-cockpit update` edit OpenCode 1's
 files only.
 
+**After installing or updating on OpenCode 2, restart its background service:**
+
+```sh
+opencode service restart
+```
+
+OpenCode 2 runs the agent side in a background service that loads plugins once, when it starts, and
+keeps running when you close OpenCode. Until it restarts, the windows draw the new Cockpit while the
+agent keeps the old one's tools and skills. `npx opencode-cockpit@latest doctor` says when the
+service started before the install.
+
 **Configure them** in one file, read by both halves of every bay and by every project — see
-[Configuration](#configuration), or type `/cockpit-setup` and let the agent write it with you.
+[Configuration](#configuration), or type `/cockpit-setup` and let the agent write it with you. When
+the blocks are set it offers to tune Cockpit to how you work: a tour of each bay's keys, then your
+project's conventions — the dev server to keep in a background shell, your ticket prefix for Trail —
+written as one `## Cockpit conventions` section in `AGENTS.md`, which a rerun updates in place.
 
 ## Configuration
 
