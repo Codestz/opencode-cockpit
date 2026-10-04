@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { existsSync } from "node:fs"
 import { join } from "node:path"
+import { sectionText, writeSection } from "../src/conventions.ts"
 import { claimFeature } from "../src/feature.ts"
 import type { Host } from "../src/host.ts"
 import { silentLog } from "../src/log.ts"
@@ -8,6 +9,8 @@ import type { ServerHost } from "../src/server.ts"
 import {
   baysOfEntry,
   briefAgent,
+  CONVENTIONS_TOOL,
+  conventionsReply,
   HOST_BLOCKS,
   offerPreview,
   previewCommands,
@@ -21,6 +24,8 @@ import {
   settingsReport,
   settingsText,
   setupServer,
+  tuneFacts,
+  tuneText,
 } from "../src/setup.ts"
 
 /**
@@ -253,10 +258,94 @@ describe("OpenCode's own blocks", () => {
     expect(off).toContain('`"plugin_enabled": { "internal:sidebar-todo": true }`')
   })
 
-  test("OpenCode 2 has no LSP or Todo block to talk about", () => {
+  test("OpenCode 2 has no LSP, Todo or Files block to talk about", () => {
     const { text } = report({})
     expect(text).not.toContain("internal:sidebar-lsp")
-    expect(text).toContain("OpenCode 2 has no LSP or Todo block in the sidebar.")
+    expect(text).toContain("OpenCode 2 has no LSP, Todo or Files block in the sidebar.")
+  })
+
+  test("every block each version has is listed by its id; the optional ones neutrally, either way", () => {
+    const ids = (text: string) => [...text.matchAll(/^- \w+ `([\w.:-]+)`/gm)].map((match) => match[1])
+    expect(ids(report({}).text)).toEqual([
+      "opencode.sidebar.context",
+      "opencode.sidebar.mcp",
+      "opencode.sidebar.footer",
+    ])
+    expect(ids(report({}, { opencode: 1 }).text)).toEqual([
+      "internal:sidebar-context",
+      "internal:sidebar-mcp",
+      "internal:sidebar-lsp",
+      "internal:sidebar-files",
+      "internal:sidebar-footer",
+      "internal:sidebar-todo",
+    ])
+    const mcp = report({ [V2_CLI]: { plugins: ["-opencode.sidebar.mcp"] } }).text
+    expect(mcp).toContain("- MCP `opencode.sidebar.mcp`: off (set in")
+    expect(mcp).toContain("Status's table already warns when one fails")
+    expect(mcp).toContain('Back on: remove `"-opencode.sidebar.mcp"`')
+    expect(report({ [PROJECT]: { status: { sidebar: false } } }).text).not.toContain("Status's table already")
+  })
+})
+
+/* ─── the second phase ──────────────────────────────────────────────────────────────────────── */
+
+describe("tune", () => {
+  const facts = (files: Record<string, string>, over: Partial<ReportInput> = {}) => {
+    const input: ReportInput = {
+      opencode: 2,
+      directory: "/work/app",
+      env: {},
+      home: "/home/me",
+      read: (path) => files[path],
+      ...over,
+    }
+    return tuneFacts(input, (args) => (args[0] === "log" ? "COM-1 a\nCOM-2 b\n" : undefined))
+  }
+
+  test("the tour gives each bay that is on its keys as set now, and its commands", () => {
+    const { report: r } = report({
+      [GLOBAL]: { shell: { keybinds: { "cockpit.shells.dock": "<leader>d" } } },
+    })
+    const text = tuneText(r, facts({}))
+    expect(text).toContain("- shell — background shells")
+    expect(text).toContain("`<leader>d` `/shells-dock` show or hide the shells panel")
+    expect(text).toContain("`<leader>i` `/shell` open the console")
+    expect(text).toContain("`<leader>f` `/trail`")
+    const off = report({ [GLOBAL]: { features: { trail: false } } }).report
+    expect(tuneText(off, facts({}))).not.toContain("- trail —")
+  })
+
+  test("the project's long-running commands, ticket keys and AGENTS.md sections", () => {
+    const files = {
+      "/work/app/package.json": JSON.stringify({ scripts: { dev: "next dev", lint: "biome check" } }),
+      "/work/app/AGENTS.md": `# Ours\n\n${sectionText("- Tickets are COM-…")}\n`,
+    }
+    const text = tuneText(report({}).report, facts(files))
+    expect(text).toContain('- `npm run dev` — package.json "dev": "next dev"')
+    expect(text).toContain("Other package.json scripts (they end on their own): lint")
+    expect(text).toContain("COM (2, e.g. COM-1)")
+    expect(text).toContain("- project: /work/app/AGENTS.md — has the Cockpit section. Now:")
+    expect(text).toContain("    - Tickets are COM-…")
+    expect(text).toContain("- global: /home/me/.config/opencode/AGENTS.md — not created yet")
+    expect(text).toContain("Conventions only")
+  })
+
+  test("on OpenCode 1, creating AGENTS.md beside a CLAUDE.md is flagged", () => {
+    const text = tuneText(
+      report({}, { opencode: 1 }).report,
+      facts({ "/work/app/CLAUDE.md": "x" }, { opencode: 1 }),
+    )
+    expect(text).toContain("/work/app/CLAUDE.md exists, and OpenCode 1 reads it only while there is no")
+  })
+
+  test("cockpit_conventions answers with what it did and the section as it now reads", () => {
+    const added = writeSection("# Ours\n", "- a")
+    if (!added.ok) throw new Error(added.error)
+    const reply = conventionsReply("/work/app/AGENTS.md", added)
+    expect(reply.split("\n")[0]).toBe(
+      "Added the Cockpit section at the end of /work/app/AGENTS.md; everything before it is unchanged.",
+    )
+    expect(reply).toContain(sectionText("- a"))
   })
 })
 
@@ -277,7 +366,7 @@ describe("setupServer", () => {
   test("the tool, the skill and the command, once per OpenCode", () => {
     const scope = {}
     const first = setupServer(serverHost(scope), "opencode-cockpit")
-    expect(Object.keys(first.tools ?? {})).toEqual([SETTINGS_TOOL])
+    expect(Object.keys(first.tools ?? {})).toEqual([SETTINGS_TOOL, CONVENTIONS_TOOL])
     expect(first.skills).toEqual([{ dir: SETUP_SKILL_DIR }])
     expect(first.commands).toEqual([expect.objectContaining({ name: "cockpit-setup", prompt: SETUP_PROMPT })])
     expect(setupServer(serverHost(scope), "@opencode-cockpit/shell")).toEqual({})

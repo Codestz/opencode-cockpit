@@ -481,6 +481,18 @@ off — it is OpenCode's setting, in OpenCode's file, and the name differs by ve
 { "plugins": ["opencode-cockpit@0.8.0", "-opencode.sidebar.context"] }
 ```
 
+The other blocks switch the same way, by these ids. Hiding them is a matter of taste: Status's table
+already warns when an MCP or language server fails, and `opencode mcp list` still lists them all.
+
+| Block | OpenCode 1 | OpenCode 2 |
+| --- | --- | --- |
+| Context | `internal:sidebar-context` | `opencode.sidebar.context` |
+| MCP | `internal:sidebar-mcp` | `opencode.sidebar.mcp` |
+| Footer (path and branch) | `internal:sidebar-footer` | `opencode.sidebar.footer` |
+| LSP | `internal:sidebar-lsp` | — |
+| Files | `internal:sidebar-files` | — |
+| Todo | `internal:sidebar-todo` | — |
+
 Leave OpenCode's Todo block on: nothing in Cockpit replaces it.
 
 ### Advanced: options on the plugin entry

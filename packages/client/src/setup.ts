@@ -20,12 +20,25 @@
  * entry that sends the same line (`registerSetup`).
  */
 
-import { readFileSync } from "node:fs"
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
-import { basename, join } from "node:path"
+import { basename, dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { tool } from "@opencode-ai/plugin"
-import { BAY_ABOUT, bayKeys, type KeyInfo, shownDefault } from "./catalog.ts"
+import { BAY_ABOUT, BAY_COMMANDS, bayKeys, DEFAULT_KEYS, type KeyInfo, shownDefault } from "./catalog.ts"
+import {
+  findSections,
+  type GitRun,
+  type InstructionFile,
+  instructionPaths,
+  type ProjectFacts,
+  projectFacts,
+  readInstructions,
+  sectionText,
+  type WriteAction,
+  type Written,
+  writeSection,
+} from "./conventions.ts"
 import { claimedFeatures, claimFeature } from "./feature.ts"
 import type { Host } from "./host.ts"
 import { parseJsonc } from "./jsonc.ts"
@@ -83,16 +96,25 @@ export const SETUP_SKILL_DIR = fileURLToPath(new URL(`../skills/${SETUP_SKILL}`,
 // Measured on 1.18.32 and 2.0.18 (docs/opencode/settings-and-commands.md, "/cockpit-setup spikes").
 
 /** OpenCode's own sidebar blocks this talks about, and their plugin ids on each version. */
-type HostBlock = "context" | "lsp" | "todo"
+type HostBlock = "context" | "mcp" | "lsp" | "todo" | "files" | "footer"
 
 /**
  * 1.18.32 names its blocks `internal:sidebar-*` and turns one off in `tui.json` with
  * `"plugin_enabled": { "<id>": false }`. 2.0.18 names them `opencode.sidebar.*`, turns one off with
- * `"-<id>"` in `cli.json`'s `plugins` list, and has no LSP or Todo block at all.
+ * `"-<id>"` in `cli.json`'s `plugins` list, and has no LSP, Todo or Files block at all. Every id is
+ * the binary's own, and each switch was measured hiding its block (MCP and Footer on both versions in
+ * an isolated run, 2026-10-03) — except Files, whose block never drew in a test run to hide.
  */
 export const HOST_BLOCKS: Readonly<Record<1 | 2, Partial<Record<HostBlock, string>>>> = {
-  1: { context: "internal:sidebar-context", lsp: "internal:sidebar-lsp", todo: "internal:sidebar-todo" },
-  2: { context: "opencode.sidebar.context" },
+  1: {
+    context: "internal:sidebar-context",
+    mcp: "internal:sidebar-mcp",
+    lsp: "internal:sidebar-lsp",
+    todo: "internal:sidebar-todo",
+    files: "internal:sidebar-files",
+    footer: "internal:sidebar-footer",
+  },
+  2: { context: "opencode.sidebar.context", mcp: "opencode.sidebar.mcp", footer: "opencode.sidebar.footer" },
 }
 
 /** One of OpenCode's interface config files, and which of the blocks it switches. */
@@ -455,17 +477,29 @@ function hostSection(report: SettingsReport): string[] {
         `  Status draws its table in the sidebar, so "Context" shows twice. Suggest turning OpenCode's off: ${how(ids.context, false)}.`,
       )
   }
-  if (ids.lsp)
+  /** A block that is the person's call: its state, why one might hide it, and the switch either way. */
+  const optional = (name: string, id: string | undefined, why: string) => {
+    if (!id) return
+    const { on } = state(id)
     lines.push(
-      `- LSP \`${ids.lsp}\`: ${said(ids.lsp)}. Optional; offer it without recommending either way. Off: ${how(ids.lsp, false)}.`,
+      `- ${name} \`${id}\`: ${said(id)}. Optional; offer it without recommending either way. ${why} ${on ? `Off: ${how(id, false)}` : `Back on: ${how(id, true)}`}.`,
     )
+  }
+  optional(
+    "MCP",
+    ids.mcp,
+    `Lists every MCP server and its state. ${statusInSidebar(report) ? "Status's table already warns when one fails, so hiding" : "Hiding"} the list makes the sidebar quieter; \`opencode mcp list\` still shows every server.`,
+  )
+  optional("LSP", ids.lsp, "Lists the language servers running.")
+  optional("Files", ids.files, "Lists the files this conversation changed.")
+  optional("Footer", ids.footer, "The project's path and git branch at the bottom of the sidebar.")
   if (ids.todo)
     lines.push(
       state(ids.todo).on
         ? `- Todo \`${ids.todo}\`: on. Never suggest turning it off: nothing in Cockpit replaces it.`
         : `- Todo \`${ids.todo}\`: ${said(ids.todo)}. Say it is off and offer to turn it back on (nothing in Cockpit replaces it): ${how(ids.todo, true)}.`,
     )
-  if (report.opencode === 2) lines.push("- OpenCode 2 has no LSP or Todo block in the sidebar.")
+  if (report.opencode === 2) lines.push("- OpenCode 2 has no LSP, Todo or Files block in the sidebar.")
   const broken = found.filter((file) => file.error)
   for (const file of broken)
     lines.push(`- ${file.path} does not parse (${file.error}): fix it before editing.`)
@@ -567,6 +601,143 @@ export function settingsText(report: SettingsReport, previews: Record<string, st
   ].join("\n")
 }
 
+// ── The second phase: making it fit how the person works ───────────────────────────────────────
+//
+// Asked for with `cockpit_settings({ tune: true })`, after the blocks are set: a tour of what each
+// installed bay does for the person, with the keys as they are set now; what the project runs that
+// never ends; the ticket keys its history uses; and what each AGENTS.md says now. The conventions
+// themselves are written by `cockpit_conventions` (conventions.ts).
+
+export const CONVENTIONS_TOOL = "cockpit_conventions"
+
+export interface TuneFacts {
+  project: ProjectFacts
+  instructions: InstructionFile[]
+}
+
+export function tuneFacts(input: ReportInput, git?: GitRun): TuneFacts {
+  const env = input.env ?? process.env
+  const home = input.home ?? homedir()
+  const read = input.read ?? readText
+  return {
+    project: projectFacts(input.directory, read, git),
+    instructions: readInstructions(input.opencode, input.directory, env, home, read),
+  }
+}
+
+/** A bay's commands with the keys they have now: its defaults, then what `keybinds` wrote over them. */
+export function bayCommands(state: BayState): { key?: string; slash?: string; does: string }[] {
+  const written = state.keys.find((key) => key.info.key === "keybinds")?.value
+  const keys: Record<string, unknown> = { ...DEFAULT_KEYS[state.bay], ...(isObject(written) ? written : {}) }
+  return BAY_COMMANDS[state.bay].map((command) => {
+    const key = command.command ? keys[command.command] : undefined
+    return {
+      ...(typeof key === "string" && key !== "none" ? { key } : {}),
+      ...(command.slash ? { slash: command.slash } : {}),
+      does: command.does,
+    }
+  })
+}
+
+function tourLines(report: SettingsReport): string[] {
+  return report.bays
+    .filter((state) => state.on)
+    .map((state) => {
+      const commands = bayCommands(state)
+        .map((each) =>
+          [each.key ? `\`${each.key}\`` : "", each.slash ? `\`/${each.slash}\`` : "", each.does]
+            .filter(Boolean)
+            .join(" "),
+        )
+        .join(" · ")
+      return `- ${state.bay} — ${BAY_ABOUT[state.bay]}${commands ? `. ${commands}` : ""}`
+    })
+}
+
+function instructionLines(file: InstructionFile): string[] {
+  const head = `- ${file.scope}: ${file.path} — `
+  if (file.unclosed)
+    return [
+      `${head}its Cockpit section (line ${file.unclosed}) has no end marker; ${CONVENTIONS_TOOL} says how to fix it`,
+    ]
+  if (!file.exists)
+    return [
+      `${head}not created yet (${CONVENTIONS_TOOL} creates it)`,
+      ...(file.shadows
+        ? [
+            `  ${file.shadows} exists, and OpenCode 1 reads it only while there is no ${file.path}: creating this file stops OpenCode 1 reading that one. Say so before choosing it.`,
+          ]
+        : []),
+    ]
+  if (file.sections === 0) return [`${head}exists, no Cockpit section yet (one would be added at the end)`]
+  return [
+    `${head}has the Cockpit section${file.sections > 1 ? ` ${file.sections} times (a write merges them into one)` : ""}. Now:`,
+    "",
+    ...(file.body ? file.body.split("\n").map((line) => `    ${line}`) : ["    (empty)"]),
+    "",
+  ]
+}
+
+/** The second phase's facts, after the settings. */
+export function tuneText(report: SettingsReport, facts: TuneFacts): string {
+  const { project } = facts
+  const long = project.longRunning.map((each) => `- \`${each.command}\` — ${each.from}`)
+  const tickets = project.tickets.map((each) => `${each.prefix} (${each.count}, e.g. ${each.example})`)
+  return [
+    "## Tune it to how they work",
+    "",
+    "Conventions only: every request already tells the agent how to use each bay, so never write how to use Cockpit.",
+    "",
+    "### The tour: what each bay does for them (keys as set now; `<leader>` is OpenCode's leader key, ctrl+x unless they changed it)",
+    "",
+    ...tourLines(report),
+    "",
+    `### This project (${report.directory})`,
+    "",
+    ...(long.length > 0
+      ? ["Long-running commands found — offer these as background shells:", ...long]
+      : ["No long-running command found in package.json, a Makefile, a compose file or a Procfile: ask."]),
+    ...(project.otherScripts.length > 0
+      ? [
+          `Other package.json scripts (they end on their own): ${project.otherScripts.slice(0, 20).join(", ")}`,
+        ]
+      : []),
+    ...(project.packageManager ? [`Package manager: ${project.packageManager}`] : []),
+    `Ticket keys in branch names and the last 200 commits: ${tickets.length > 0 ? tickets.join(", ") : "none seen — ask"}`,
+    `Git remotes: ${project.remotes.length > 0 ? project.remotes.map((each) => `${each.repo} (${each.name})`).join(", ") : "none"}`,
+    "",
+    `### AGENTS.md — where the conventions go, as one marked section written with ${CONVENTIONS_TOOL}`,
+    "",
+    ...facts.instructions.flatMap(instructionLines),
+    "- The project file is for this repository's conventions (the team's too, if committed); the global one for every project.",
+    `- Ask before writing. ${CONVENTIONS_TOOL} replaces the section in place and keeps the rest of the file byte for byte.`,
+  ].join("\n")
+}
+
+/** What `cockpit_conventions` answers: what it did, where, and the section as it now reads. */
+export function conventionsReply(path: string, written: Extract<Written, { ok: true }>): string {
+  const did: Record<WriteAction, string> = {
+    created: `Created ${path} with the Cockpit section.`,
+    added: `Added the Cockpit section at the end of ${path}; everything before it is unchanged.`,
+    updated: `Updated the Cockpit section in ${path}; everything outside it is unchanged.`,
+    unchanged: `${path} already had exactly this section: nothing written.`,
+    removed:
+      written.text === undefined
+        ? `Removed the Cockpit section; ${path} held nothing else, so it was deleted.`
+        : `Removed the Cockpit section from ${path}; everything else is unchanged.`,
+    absent: `${path} has no Cockpit section: nothing to remove.`,
+  }
+  const found = written.text ? findSections(written.text) : undefined
+  const body = found?.ok ? found.sections[0]?.body : undefined
+  return [
+    did[written.action],
+    ...(written.merged > 0 ? [`It had ${written.merged + 1} Cockpit sections; they are one now.`] : []),
+    ...(body ? ["", "The section now:", "", sectionText(body)] : []),
+    "",
+    "OpenCode reads AGENTS.md when a conversation starts: it applies to new conversations.",
+  ].join("\n")
+}
+
 // ── The agent side: tool, skill and command ────────────────────────────────────────────────────
 
 const TOOL_DESCRIPTION = [
@@ -575,6 +746,15 @@ const TOOL_DESCRIPTION = [
   "order, every setting that is not read and how to fix it, the settings files' paths, and OpenCode's own",
   "sidebar blocks with the exact syntax to switch them. Read-only. Call it before changing Cockpit's",
   "settings and again after writing, to check the change: it should then report no notices.",
+  "With tune: true it adds the second phase of /cockpit-setup: a tour of each bay's keys and commands,",
+  "the project's long-running commands, ticket keys and remotes, and what each AGENTS.md's Cockpit section says.",
+].join(" ")
+
+const CONVENTIONS_DESCRIPTION = [
+  "Writes the person's Cockpit conventions into an AGENTS.md as one marked `## Cockpit conventions` section:",
+  "replaced in place when it is there, added at the end when not, the rest of the file kept byte for byte.",
+  "Only after the person agreed to the text and the file. `conventions` is the section's markdown without",
+  "its heading; an empty string removes the section. Returns the section as it now reads.",
 ].join(" ")
 
 /**
@@ -584,21 +764,54 @@ const TOOL_DESCRIPTION = [
 export function setupServer(host: ServerHost, source: string): ServerParts {
   const claim = claimFeature(host.scope, "setup", source)
   if (!claim.active) return {}
+  const z = tool.schema
   const settings = tool({
     description: TOOL_DESCRIPTION,
-    args: {},
-    execute: async () => {
-      const report = settingsReport({
+    args: {
+      tune: z
+        .boolean()
+        .optional()
+        .describe("true for the second phase: the tour, the project's facts and the AGENTS.md sections"),
+    },
+    execute: async (args) => {
+      const input: ReportInput = {
         opencode: host.version,
         directory: host.directory,
         claims: claimedFeatures(host.scope),
-      })
-      host.log.info("setup: settings read", { notices: report.notices.length })
-      return settingsText(report, previewCommands())
+      }
+      const report = settingsReport(input)
+      host.log.info("setup: settings read", { notices: report.notices.length, tune: args.tune === true })
+      const text = settingsText(report, previewCommands())
+      return args.tune ? `${text}\n\n${tuneText(report, tuneFacts(input))}` : text
+    },
+  })
+  const conventions = tool({
+    description: CONVENTIONS_DESCRIPTION,
+    args: {
+      file: z
+        .enum(["project", "global"])
+        .describe("project: this repository's AGENTS.md; global: OpenCode's, read in every project"),
+      conventions: z.string().describe("The section's markdown, without its heading. Empty removes it."),
+    },
+    execute: async (args, ctx) => {
+      const path = instructionPaths(host.directory, process.env, homedir())[args.file]
+      const written = writeSection(readText(path), args.conventions)
+      if (!written.ok) throw new Error(written.error)
+      if (written.action !== "unchanged" && written.action !== "absent") {
+        /** The file is the person's: OpenCode's own edit permission decides, as for any edit. */
+        await ctx.ask({ permission: "edit", patterns: [path], always: [path], metadata: { filepath: path } })
+        if (written.text === undefined) rmSync(path, { force: true })
+        else {
+          mkdirSync(dirname(path), { recursive: true })
+          writeFileSync(path, written.text)
+        }
+      }
+      host.log.info("setup: conventions written", { file: args.file, action: written.action })
+      return conventionsReply(path, written)
     },
   })
   return {
-    tools: { [SETTINGS_TOOL]: settings },
+    tools: { [SETTINGS_TOOL]: settings, [CONVENTIONS_TOOL]: conventions },
     skills: [{ dir: SETUP_SKILL_DIR }],
     commands: [
       {

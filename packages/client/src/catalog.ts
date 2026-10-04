@@ -73,6 +73,62 @@ export const DEFAULT_KEYS: Readonly<Partial<Record<Bay, Readonly<Record<string, 
   review: { "cockpit.review.open": "<leader>v", "cockpit.review.place": "<leader>r" },
 }
 
+/** One thing a person can do with a bay: its command's key (from `DEFAULT_KEYS` and `keybinds`) and slash name. */
+export interface BayCommand {
+  /** The command's id, whose key `keybinds` sets — none for a command with no key. */
+  command?: string
+  /** Typed in the prompt, without the `/`. */
+  slash?: string
+  does: string
+}
+
+/**
+ * What each bay offers a person, for the tour `/cockpit-setup` gives: the commands worth knowing, not
+ * every one (Shell has eight; the panes list their own keys under `?`). Read off each bay's interface
+ * entry; the agent-side commands (`/status-setup`, `/cockpit-setup`) are its server's.
+ */
+export const BAY_COMMANDS: Readonly<Record<Bay, readonly BayCommand[]>> = {
+  status: [{ slash: "status-setup", does: "design what the line shows, with the agent" }],
+  subagents: [
+    {
+      command: "cockpit.subagents.open",
+      slash: "subagents",
+      does: "follow each subagent live, message it, stop it, move it to the background",
+    },
+  ],
+  shell: [
+    {
+      command: "cockpit.shells.dock",
+      slash: "shells-dock",
+      does: "show or hide the shells panel under the chat",
+    },
+    {
+      command: "cockpit.shells.console",
+      slash: "shell",
+      does: "open the console: a shell's live screen and log",
+    },
+    { slash: "shells", does: "pick a shell, or start one yourself" },
+  ],
+  trail: [
+    {
+      command: "cockpit.trail.open",
+      slash: "trail",
+      does: "what this conversation made, or every conversation's",
+    },
+    { slash: "link", does: "add a link to the trail yourself" },
+  ],
+  trust: [{ command: "cockpit.trust.ledger", slash: "trust", does: "what Trust answers for you, and why" }],
+  review: [
+    {
+      command: "cockpit.review.open",
+      slash: "changes",
+      does: "the diff, with comments on its lines; `s` hands them to the agent",
+    },
+    { command: "cockpit.review.place", does: "the changes full screen" },
+  ],
+  updater: [{ slash: "plugins-update", does: "update every plugin (OpenCode 1)" }],
+}
+
 /**
  * Each bay's own keys. Defaults must equal what the bay hands `baySettings` — tested in
  * `packages/opencode/test/catalog.test.ts` against every bay's own `DEFAULTS`.

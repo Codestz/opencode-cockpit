@@ -136,16 +136,20 @@ Then the same with `--state fresh`; `--as project` for a `.cockpit.json`; `--sur
 Check `fresh` and `empty` (what a new session shows) and `full` (the widest numbers). For anything
 custom, paste an ASCII mock and ask before writing it.
 
-## 6. OpenCode's own Context block
+## 6. OpenCode's own sidebar blocks
 
-With the table in the sidebar, OpenCode's own Context block says the same thing above it. Suggest
-turning OpenCode's off — **ask first**, it is OpenCode's file, and keep everything else in it.
-`cockpit_settings` gives the exact edit for this version:
+These are OpenCode's settings in OpenCode's files: **ask first**, and keep everything else in the
+file. `cockpit_settings` lists every block this version has, by its exact id, with its state now and
+the exact edit — use those, never guess an id (`"-internal:sidebar-context"` does nothing on OpenCode 2).
 
-- OpenCode 1, `tui.json`: `{ "plugin_enabled": { "internal:sidebar-context": false } }`
-- OpenCode 2, `cli.json`: add `"-opencode.sidebar.context"` to the `"plugins"` list.
-
-Never suggest turning OpenCode's Todo block off: nothing in Cockpit replaces it.
+| Block | OpenCode 1 (`tui.json` → `"plugin_enabled": { "<id>": false }`) | OpenCode 2 (`cli.json` → `"-<id>"` in `"plugins"`) | What to say |
+| --- | --- | --- | --- |
+| Context | `internal:sidebar-context` | `opencode.sidebar.context` | with the table in the sidebar it says the same thing above it: suggest turning it off |
+| MCP | `internal:sidebar-mcp` | `opencode.sidebar.mcp` | optional, neutral: the table's `diagnostics` row already warns when a server fails; `opencode mcp list` shows them all |
+| Footer | `internal:sidebar-footer` | `opencode.sidebar.footer` | optional, neutral: the project's path and git branch at the bottom of the sidebar |
+| LSP | `internal:sidebar-lsp` | — | optional, neutral |
+| Files | `internal:sidebar-files` | — | optional, neutral |
+| Todo | `internal:sidebar-todo` | — | **never suggest turning it off**: nothing in Cockpit replaces it |
 
 ## 7. Write, verify, close
 

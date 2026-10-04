@@ -4,7 +4,14 @@ import { join } from "node:path"
 import { BAY_ABOUT, bayKeys, settingsReference } from "../src/catalog.ts"
 import { readSkill } from "../src/server.ts"
 import { BAYS, SHARED_DEFAULTS } from "../src/settings.ts"
-import { HOST_BLOCKS, SETTINGS_TOOL, SETUP_SKILL, SETUP_SKILL_DIR, settingsReport } from "../src/setup.ts"
+import {
+  CONVENTIONS_TOOL,
+  HOST_BLOCKS,
+  SETTINGS_TOOL,
+  SETUP_SKILL,
+  SETUP_SKILL_DIR,
+  settingsReport,
+} from "../src/setup.ts"
 
 /**
  * The `cockpit-setup` skill is static text shipped beside code that changes. These are what keep it
@@ -58,6 +65,15 @@ describe("the skill", () => {
     expect(skill).toContain(`"plugin_enabled": { "${HOST_BLOCKS[1].context}": false }`)
     expect(skill).toContain(`"-${HOST_BLOCKS[2].context}"`)
     expect(skill).toContain("never suggest turning it off")
+    for (const id of [...Object.values(HOST_BLOCKS[1]), ...Object.values(HOST_BLOCKS[2])])
+      expect(skill).toContain(`\`${id}\``)
+  })
+
+  test("the second phase: offered after the close, through its tool, with its reference", () => {
+    expect(skill.indexOf("tune it to how you work")).toBeGreaterThan(skill.indexOf("## 8. Close"))
+    expect(skill).toContain("`tune: true`")
+    expect(skill).toContain(`\`${CONVENTIONS_TOOL}\``)
+    expect(skill).toContain("(references/conventions.md)")
   })
 
   /** The JSON blocks under "Offer a starting point", as the skill writes them. */

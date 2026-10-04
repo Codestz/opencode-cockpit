@@ -265,7 +265,7 @@ describe("one entry for both", () => {
     const entry = dualServer("cockpit.test", async () => ({}))
     const cleanup = await entry.setup(one.ctx as never)
     await entry.setup(two.ctx as never)
-    expect(one.added).toEqual(["cockpit_settings"])
+    expect(one.added).toEqual(["cockpit_settings", "cockpit_conventions"])
     expect(one.skills.map((skill) => skill.id)).toEqual(["cockpit-setup"])
     expect(one.skills[0]?.path).toEndWith("skills/cockpit-setup/SKILL.md")
     expect(one.commands.map((command) => command.name)).toEqual(["cockpit-setup"])

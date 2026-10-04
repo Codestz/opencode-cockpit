@@ -1,6 +1,6 @@
 ---
 name: cockpit-setup
-description: Set up opencode-cockpit ("Cockpit") with the user — which of its bays run, which show a block in OpenCode's sidebar, in what order, how quiet they are when empty — and fix settings from before 0.9. Use it whenever the user runs /cockpit-setup or asks to configure, tidy or change Cockpit or its sidebar, even in passing - "make my sidebar quieter", "hide the shells block when it's empty", "move trail above subagents", "turn subagents off", "show trust in the sidebar", "configure cockpit", or a question about ~/.config/opencode-cockpit/config.json or .cockpit.json. To design what the Status line itself shows, use the status-setup skill instead.
+description: Set up opencode-cockpit ("Cockpit") with the user — which of its bays run, which show a block in OpenCode's sidebar, in what order, how quiet they are when empty — fix settings from before 0.9, and, when they want it, tune Cockpit to how they work (a tour of its keys and the project's conventions (dev server, ticket keys) written to AGENTS.md). Use it whenever the user runs /cockpit-setup or asks to configure, tidy or change Cockpit or its sidebar, even in passing - "make my sidebar quieter", "hide the shells block when it's empty", "move trail above subagents", "turn subagents off", "show trust in the sidebar", "configure cockpit", "tell cockpit our dev server is bun dev", "our tickets are COM-…", or a question about ~/.config/opencode-cockpit/config.json or .cockpit.json. To design what the Status line itself shows, use the status-setup skill instead.
 ---
 
 # Setting up Cockpit
@@ -109,18 +109,21 @@ have not seen in the tool's answer.
 ## 5. OpenCode's own sidebar blocks
 
 These are OpenCode's settings in OpenCode's files, so **ask before editing them**, and keep
-everything else in the file. `cockpit_settings` says what each is set to now and gives the exact
-edit for this version.
+everything else in the file. `cockpit_settings` lists every block this version has, by its exact id,
+with what it is set to now and the exact edit — use those; never guess an id
+(`"-internal:sidebar-context"` does nothing on OpenCode 2).
 
-- **Context**: when Status draws its table in the sidebar, "Context" shows twice. Suggest turning
-  OpenCode's off.
-  - OpenCode 1, `tui.json`: `{ "plugin_enabled": { "internal:sidebar-context": false } }`
-  - OpenCode 2, `cli.json`: add `"-opencode.sidebar.context"` to the `"plugins"` list, keeping the
-    entries already there. (`"-internal:sidebar-context"` does nothing on OpenCode 2.)
-- **LSP** (OpenCode 1 only, `internal:sidebar-lsp`): optional. Mention it, recommend neither way.
-- **Todo**: **never suggest turning it off** — nothing in Cockpit replaces it. If the tool says it is
-  off, offer to turn it back on.
-- OpenCode 2 has no LSP or Todo block in the sidebar.
+| Block | OpenCode 1 (`tui.json` → `"plugin_enabled": { "<id>": false }`) | OpenCode 2 (`cli.json` → `"-<id>"` in `"plugins"`) | What to say |
+| --- | --- | --- | --- |
+| Context | `internal:sidebar-context` | `opencode.sidebar.context` | with Status's table in the sidebar, "Context" shows twice: suggest turning OpenCode's off |
+| MCP | `internal:sidebar-mcp` | `opencode.sidebar.mcp` | optional, neutral: Status's table already warns when a server fails; `opencode mcp list` shows them all |
+| Footer | `internal:sidebar-footer` | `opencode.sidebar.footer` | optional, neutral: the project's path and git branch at the bottom of the sidebar |
+| LSP | `internal:sidebar-lsp` | — | optional, neutral |
+| Files | `internal:sidebar-files` | — | optional, neutral |
+| Todo | `internal:sidebar-todo` | — | **never suggest turning it off** — nothing in Cockpit replaces it. Off: offer it back |
+
+On OpenCode 1 that is `{ "plugin_enabled": { "internal:sidebar-context": false } }`; on OpenCode 2,
+add `"-opencode.sidebar.context"` to the `"plugins"` list, keeping the entries already there.
 
 ## 6. Write the file
 
@@ -146,3 +149,37 @@ Tell them, briefly:
 - **it applies after restarting OpenCode** — settings are read when it starts;
 - how to undo: remove those keys (or the file) and restart; `/cockpit-setup` again any time;
 - to design what the Status line shows, `/status-setup`.
+
+Then offer the second phase in one line: **"Want me to tune it to how you work?"** If not, stop
+there. Someone who only wanted a quieter sidebar is done.
+
+## 9. Make it fit how they work (only if they said yes)
+
+Call `cockpit_settings` with **`tune: true`**. It adds the tour, this project's long-running
+commands, ticket keys and remotes, and what each `AGENTS.md`'s Cockpit section says now.
+
+1. **The tour.** One line per bay that is on, from the tool: what it does for them, with its real key
+   and command. No more; they asked for a tour, not a manual.
+2. **Ask about the project**, one question at a time, pre-filled from the tool's answer, only for
+   the bays they have on:
+   - **Shell** — which commands keep running (dev server, `docker compose up`, a test watcher)? Offer
+     the ones the tool found, and a name for each ("dev server", "database"): the shell's
+     description, which is how it is found again.
+   - **Trail** — their ticket system and key prefix (offer the prefixes the history shows), the repos
+     PRs go to, how they name things.
+   - **Subagents** — explore in background subagents and keep the conversation free, or not.
+3. **Write conventions only.** Every request already tells the agent how to use each bay; never
+   write how to use Cockpit, only what no bay can know: *this* project's commands, keys, repos. The
+   lines and their shape are in [references/conventions.md](references/conventions.md) — read it
+   before drafting.
+4. **Choose the file and ask.** This project's `AGENTS.md` (the default for commands; the team gets it
+   if committed) or OpenCode's global one (every project — for a ticket prefix or a habit they use
+   everywhere). Show the exact section and the file, and ask. If the tool says creating the file
+   would stop OpenCode 1 reading a `CLAUDE.md`, say so first.
+5. **Write it with `cockpit_conventions`** (`file`, `conventions` = the section's lines without its
+   heading). It replaces the one marked section in place on a rerun and keeps everything else in the
+   file byte for byte. Never edit the section by hand.
+6. **Close:** what was written where; it applies to new conversations; `cockpit_conventions` with
+   empty `conventions` removes it.
+
+A rerun of this phase starts from the section the tool shows: change what they ask, keep the rest.
