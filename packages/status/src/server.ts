@@ -12,9 +12,11 @@
 import { existsSync } from "node:fs"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
+import { offerSettingsCheck } from "@opencode-cockpit/client/checks"
 import { claimFeature } from "@opencode-cockpit/client/feature"
 import { dualServer, type ServerStart } from "@opencode-cockpit/client/server"
 import { offerPreview } from "@opencode-cockpit/client/setup"
+import { statusNotices } from "./core/config.ts"
 import { OLD_PROMPT, OLD_SLASH, SETUP_PROMPT, SETUP_SKILL_DIR, SETUP_SLASH } from "./core/setup.ts"
 
 const STATUS_PACKAGE = "@opencode-cockpit/status"
@@ -29,6 +31,8 @@ export function createStatusServer({ source = STATUS_PACKAGE }: { source?: strin
     const here = dirname(fileURLToPath(import.meta.url))
     const preview = ["preview.js", "preview.ts"].map((file) => join(here, "cli", file)).find(existsSync)
     if (preview) offerPreview("status", `bun ${JSON.stringify(preview)}`)
+    /** What Status's line warns about, so `cockpit_settings` says it too: presets, surfaces, overrides. */
+    offerSettingsCheck("status", statusNotices)
     return {
       skills: [{ dir: SETUP_SKILL_DIR }],
       commands: [

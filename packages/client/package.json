@@ -64,6 +64,10 @@
       "types": "./types/setup.d.ts",
       "default": "./dist/setup.js"
     },
+    "./checks": {
+      "types": "./types/checks.d.ts",
+      "default": "./dist/checks.js"
+    },
     "./service": {
       "types": "./types/service.d.ts",
       "default": "./dist/service.js"

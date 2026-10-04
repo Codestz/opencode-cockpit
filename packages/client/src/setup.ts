@@ -26,6 +26,7 @@ import { basename, dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { tool } from "@opencode-ai/plugin"
 import { BAY_ABOUT, BAY_COMMANDS, bayKeys, DEFAULT_KEYS, type KeyInfo, shownDefault } from "./catalog.ts"
+import { bayNotices, uniqueNotices } from "./checks.ts"
 import {
   findSections,
   type GitRun,
@@ -281,7 +282,10 @@ export interface SettingsReport {
   directory: string
   settings: Settings
   bays: BayState[]
-  /** Every notice: the files', each installed bay's plugin options', and keys no bay reads. */
+  /**
+   * Every notice: the files', each bay's own — what its block draws as a `!` row, from its own check
+   * (`checks.ts`) — and keys no bay reads.
+   */
   notices: SettingsNotice[]
   /** OpenCode's interface files, global first: what they say about its sidebar blocks. */
   host: HostFile[]
@@ -328,7 +332,8 @@ export function settingsReport(input: ReportInput): SettingsReport {
     const infos = bayKeys(bay)
     const defaults = Object.fromEntries(infos.map((info) => [info.key, info.default]))
     const loaded = baySettings(bay, defaults, { settings, ...(options ? { options } : {}) })
-    notices.push(...loaded.notices.filter((notice) => notice.file === OPTIONS_SOURCE))
+    /** What the bay itself draws: its keys' kinds, and what only it knows (Status's presets…). */
+    notices.push(...bayNotices(bay, settings, options))
 
     /** Keys a section carries that this bay never reads: a typo is silence otherwise. */
     const known = infos.map((info) => info.key)
@@ -394,7 +399,7 @@ export function settingsReport(input: ReportInput): SettingsReport {
     directory: input.directory,
     settings,
     bays,
-    notices,
+    notices: uniqueNotices(notices),
     host: hostFilePaths(input.opencode, input.directory, env, home).map((path) =>
       readHostFile(input.opencode, path, read(path)),
     ),
@@ -434,7 +439,9 @@ export function noticeLine(notice: SettingsNotice): string {
       return `- ${where}: "${notice.old}" is no longer read. Remove it; the order is the top-level "sidebar" list.`
     return `- ${where}: "${notice.old}" is no longer read. Move its value to "${notice.new}" and remove "${notice.old}".`
   }
-  return `- ${where}: ${notice.text.replace(/ — run \/cockpit-setup$/, "")}.`
+  const text = notice.text.replace(/ — run \/cockpit-setup$/, "")
+  /** A bay's own words may end in a question (`did you mean "git"?`): no full stop after it. */
+  return `- ${where}: ${text}${/[.?!]$/.test(text) ? "" : "."}`
 }
 
 /** Whether Status draws its table in the sidebar. */

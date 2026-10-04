@@ -413,6 +413,25 @@ describe("Cockpit's settings", () => {
     expect(trust.config.threshold).toBe(5)
   })
 
+  /** What a bay draws as a `!` row is a fix line too: Trust's threshold, and Status's own words when offered. */
+  test("each bay's own notices: a key of the wrong kind, and a bay's own check", async () => {
+    const { offerSettingsCheck } = await import("@opencode-cockpit/client/checks")
+    offerSettingsCheck("status", () => [
+      { bay: "status", file: GLOBAL, kind: "invalid", text: 'override "gti" matches no segment' },
+    ])
+    try {
+      const files = { [GLOBAL]: json({ status: { override: { gti: false } }, trust: { threshold: "3" } }) }
+      const found = await checks({ opencode: "2.0.18", files })
+      expect(found.Settings?.state).toBe("warn")
+      expect(found.Settings?.fix).toEqual([
+        `${GLOBAL}: override "gti" matches no segment`,
+        `${GLOBAL}: "trust.threshold" should be a number; the default is used`,
+      ])
+    } finally {
+      offerSettingsCheck("status", () => [])
+    }
+  })
+
   test("a file the bays cannot parse is not fine", async () => {
     const found = await checks({ opencode: "2.0.18", files: { [PROJECT]: `{ "trust": { "threshold": 5 ` } })
     expect(found.Settings?.state).toBe("warn")

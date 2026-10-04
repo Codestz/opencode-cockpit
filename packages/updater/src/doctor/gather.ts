@@ -7,6 +7,7 @@
  */
 
 import { join, resolve } from "node:path"
+import { everyNotice } from "@opencode-cockpit/client/checks"
 import { parseRecord } from "@opencode-cockpit/client/service"
 import { loadSettings } from "@opencode-cockpit/client/settings"
 import { globalConfigDir } from "../core/configs.ts"
@@ -230,7 +231,8 @@ function readSettings(io: DoctorIo): Facts["settings"] {
   const files: Facts["settings"]["files"] = settings.files
     .filter((file) => file.found)
     .map((file) => (file.error ? { path: file.path, error: file.error } : { path: file.path }))
-  const notices = settings.notices
+  /** Each bay's own too — what its block draws — where the bay offered its check (`checks.ts`). */
+  const notices = everyNotice(settings)
     .filter((notice) => notice.kind !== "unreadable")
     .map((notice) => ({ file: notice.file, text: notice.text }))
   const modules: Facts["settings"]["modules"] = []

@@ -192,6 +192,10 @@ All notable changes to this project are documented here. The format follows
   service restart` (with both versions when they differ). Never restarted for you — that would cut
   every open window — and nothing is said when it cannot tell. The agent side records which install
   it loaded; doctor reads the same record, so it no longer guesses from clocks.
+- **`/cockpit-setup` said "Notices: none" while the sidebar still warned.** `cockpit_settings` and
+  doctor saw only the loader's notices, not each bay's own: Status's `override "gti" matches no
+  segment`, Trust's `threshold: "3"`. Each bay's notices now come from the bay — its keys' kinds, and
+  Status's own check of presets, surfaces and overrides — so "none" there means no `!` row anywhere.
 
 ### Removed
 

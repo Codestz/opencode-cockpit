@@ -2,6 +2,7 @@ import {
   baySettings,
   closestName,
   noticeText,
+  OPTIONS_SOURCE,
   type Settings,
   type SettingsNotice,
   type SettingsWhere,
@@ -198,11 +199,16 @@ export interface StatusInput {
   /** The plugin entry's options: the section's own keys, or a whole config with a `status` section. */
   options?: unknown
   where?: SettingsWhere
+  /** Already loaded, as `cockpit_settings` and doctor have them. */
+  settings?: Settings
 }
 
 /** Reads and merges every source. Never throws. */
 export function loadStatus(input: StatusInput = {}): LoadedStatus {
-  const loaded = baySettings("status", KINDS, { options: input.options, where: input.where })
+  const loaded = baySettings("status", KINDS, {
+    options: input.options,
+    ...(input.settings ? { settings: input.settings } : { where: input.where }),
+  })
   const written = loaded.written as StatusConfig
   const config: StatusConfig = { ...written }
   /** `features.status: false` turns the bay off as `enabled: false` does. */
@@ -250,26 +256,40 @@ function optionsSection(options: unknown): Record<string, unknown> | undefined {
   return isObject(options.status) ? options.status : options
 }
 
+/** One thing wrong in Status's settings that only Status can tell, and the key it is about. */
+export interface StatusProblem {
+  /** The section key it is about: `preset`, `surface`, `override`, or `lines` for one of the lines'. */
+  key: "preset" | "surface" | "override" | "lines"
+  /** Without the `settings: ` the row adds. */
+  text: string
+}
+
 /**
  * What the loader cannot know is wrong, because only Status knows its vocabulary: a preset nothing
  * answers to, a surface that does not exist. Each used to fall back in silence — an unknown preset
  * was quietly the default line, which looks like a preset that does nothing.
  */
 export function configNotices(config: StatusConfig): string[] {
-  const out: string[] = []
+  return configProblems(config).map((problem) => `settings: ${problem.text}`)
+}
+
+/** The same, with the key each one is about: for a notice that names its file (`statusNotices`). */
+export function configProblems(config: StatusConfig): StatusProblem[] {
+  const out: StatusProblem[] = []
   const names = Object.keys(PRESETS).join(", ")
   const lines: LineConfig[] = [config, ...(Array.isArray(config.lines) ? config.lines : [])]
   for (const [index, line] of lines.entries()) {
     const where = index === 0 ? "status" : `status.lines[${index - 1}]`
+    const key = index === 0 ? undefined : "lines"
     /** The name first: in a 24-column sidebar it is what survives the wrap. */
     if (typeof line.preset === "string" && !PRESETS[line.preset]) {
-      out.push(`settings: no preset "${line.preset}" (${names})`)
+      out.push({ key: key ?? "preset", text: `no preset "${line.preset}" (${names})` })
     }
     if (line.surface !== undefined && !SURFACES.includes(line.surface)) {
-      out.push(`settings: "${where}.surface" is "sidebar" or "bottom"`)
+      out.push({ key: key ?? "surface", text: `"${where}.surface" is "sidebar" or "bottom"` })
     }
   }
-  return [...out, ...overrideNotices(config)]
+  return [...out, ...overrideProblems(config)]
 }
 
 /**
@@ -277,15 +297,18 @@ export function configNotices(config: StatusConfig): string[] {
  * be a row that kept its old look with no word as to why. A section-wide override is checked against
  * every line that uses it, and is only wrong when it matches none of them.
  */
-function overrideNotices(config: StatusConfig): string[] {
-  const out: string[] = []
+function overrideProblems(config: StatusConfig): StatusProblem[] {
+  const out: StatusProblem[] = []
   const checked = new Map<Override, { where: string; from: string; types: Set<string> }>()
   for (const [index, source] of lineSources(config).entries()) {
     const raw = source.line.override ?? config.override
     const where = source.line.override !== undefined && config.lines?.length ? `status.lines[${index}].` : ""
     if (raw === undefined) continue
     if (!isObject(raw)) {
-      out.push(`settings: "${where || "status."}override" should be an object of segment names`)
+      out.push({
+        key: where ? "lines" : "override",
+        text: `"${where || "status."}override" should be an object of segment names`,
+      })
       continue
     }
     const base = baseSegments(source.line, config)
@@ -294,18 +317,52 @@ function overrideNotices(config: StatusConfig): string[] {
     checked.set(raw, seen)
   }
   for (const [override, { where, from, types }] of checked) {
-    for (const [key, change] of Object.entries(override)) {
+    const key = where ? "lines" : "override"
+    for (const [name, change] of Object.entries(override)) {
       if (!isChange(change)) {
-        out.push(`settings: ${where}override "${key}" is false, a segment name, or an object of its settings`)
-      } else if (!types.has(key)) {
-        const meant = closestSegment(key, [...types])
-        out.push(
-          `settings: ${where}override "${key}" matches no segment in ${from}${meant ? ` — did you mean "${meant}"?` : ""}`,
-        )
+        out.push({
+          key,
+          text: `${where}override "${name}" is false, a segment name, or an object of its settings`,
+        })
+      } else if (!types.has(name)) {
+        const meant = closestSegment(name, [...types])
+        out.push({
+          key,
+          text: `${where}override "${name}" matches no segment in ${from}${meant ? ` — did you mean "${meant}"?` : ""}`,
+        })
       }
     }
   }
   return out
+}
+
+/**
+ * Every notice Status draws for these settings, as notices — the loader's, its own keys' kinds, and
+ * its vocabulary's — each naming the file its key was written in. Offered to `cockpit_settings` and
+ * doctor (`offerSettingsCheck`), so "Notices: none" there means no `!` row here.
+ */
+export function statusNotices(input: { settings: Settings; options?: unknown }): SettingsNotice[] {
+  const loaded = loadStatus({ options: input.options, settings: input.settings })
+  const options = optionsSection(input.options)
+  /** The last source that wrote the key: plugin options win, then the project file, then the global. */
+  const fileOf = (key: StatusProblem["key"]) =>
+    options && key in options
+      ? OPTIONS_SOURCE
+      : ([...input.settings.layers]
+          .reverse()
+          .find((layer) => layer.sections.status && key in layer.sections.status)?.path ?? "status")
+  const own = baySettings("status", KINDS, { options: input.options, settings: input.settings }).notices
+  return [
+    ...own,
+    ...configProblems(loaded.config).map(
+      (problem): SettingsNotice => ({
+        bay: "status",
+        file: fileOf(problem.key),
+        kind: "invalid",
+        text: problem.text,
+      }),
+    ),
+  ]
 }
 
 /** The name a typo most likely meant: the same letters in another order first (`gti` → `git`). */
