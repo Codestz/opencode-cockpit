@@ -262,10 +262,10 @@ export function createTrailTui({ source = TRAIL_PACKAGE }: { source?: string } =
     }
 
     /** Recorded by you, with `/link`, through the agent's own door, `runAdd`. */
-    const addByYou = async (args: { title: string; url: string }): Promise<string | undefined> => {
+    const addByYou = async (args: { title: string; url: string }): Promise<void> => {
       if (!root) {
         toast("Open a conversation first: a link belongs to the conversation it was made in.", "warning")
-        return undefined
+        return
       }
       await sync()
       const title = titles.get(root) ?? (await sessions.get(root))?.title
@@ -278,15 +278,14 @@ export function createTrailTui({ source = TRAIL_PACKAGE }: { source?: string } =
       })
       if (!out.ok) {
         toast(out.text, "warning")
-        return undefined
+        return
       }
       if (!(await write([out.event]))) {
         toast("The trail could not be saved — see cockpit.log.", "error")
-        return undefined
+        return
       }
       log.info("added by you", { session: root, url: out.event.url })
       toast(out.text.split("\n")[0] ?? "Recorded.", "success")
-      return out.thing.key
     }
 
     const link = async () => {

@@ -201,10 +201,6 @@ export function historyText(record: Pick<Entry, "history">, joiner = " → "): s
   return said.join(joiner)
 }
 
-/** The last thing this conversation did to it. */
-export const lastStep = (record: Pick<Entry, "history">): Step =>
-  record.history.at(-1) ?? { action: "recorded", at: 0, by: "agent" }
-
 /**
  * Conversations that have records but no longer exist in OpenCode: what a reader that just listed the
  * sessions should mark `deleted`. Only roots the host was asked about can be judged, so the caller

@@ -1,6 +1,7 @@
 import {
   baySettings,
   closestName,
+  cockpitNotices,
   noticeText,
   OPTIONS_SOURCE,
   type Settings,
@@ -227,7 +228,7 @@ export function loadStatus(input: StatusInput = {}): LoadedStatus {
   if (modules.length > 0) config.modules = [...new Set(modules)]
   else delete config.modules
 
-  const own = [...cockpitNoticesOf(loaded.settings), ...loaded.notices].map(noticeText)
+  const own = [...cockpitNotices(loaded.settings), ...loaded.notices].map(noticeText)
   return {
     config,
     order: loaded.order,
@@ -235,14 +236,6 @@ export function loadStatus(input: StatusInput = {}): LoadedStatus {
     settings: loaded.settings,
   }
 }
-
-/** Every source merged, as written. */
-export function loadStatusConfig(directory: string, options?: unknown, env = process.env): StatusConfig {
-  return loadStatus({ options, where: { directory, env } }).config
-}
-
-const cockpitNoticesOf = (settings: Settings): SettingsNotice[] =>
-  settings.notices.filter((notice) => notice.bay === "cockpit")
 
 const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)

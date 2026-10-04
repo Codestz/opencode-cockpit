@@ -11,7 +11,6 @@
  * searching the catalog first.
  */
 
-import type { Checked } from "./add.ts"
 import {
   type Arranged,
   arrange,
@@ -108,9 +107,6 @@ export function addedText(added: Added): string {
     )
   return lines.join("\n")
 }
-
-/** A refused call, as `trail_add` answers it. */
-export const refusedText = (checked: Extract<Checked, { ok: false }>): string => checked.error
 
 /* ─── trail_list's answer ────────────────────────────────────────────────────────────────────── */
 
