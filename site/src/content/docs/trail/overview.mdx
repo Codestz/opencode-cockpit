@@ -3,6 +3,8 @@ title: Trail
 description: What a conversation made — the PRs, tickets and pages your agent created or changed, kept per conversation, one click from the page, and which conversation made each.
 ---
 
+import Live from "../../../components/Live.astro"
+
 A conversation produces things that outlive it: pull requests, often in more than one repository,
 tickets created or moved, a deploy, a page. Today the only record is the chat. Trail keeps it, per
 conversation, and answers both ways: *what did this conversation make?* and *which conversation
@@ -20,7 +22,7 @@ server, a company CLI — and the agent always knows what it just did. So the ag
 and Cockpit keeps, orders and shows it. Trail has no GitHub or Jira client and stores no
 credentials.
 
-![The /trail dialog on All conversations: PR #42 under COM-1736, with the conversation that opened it](/opencode-cockpit/media/trail.png)
+<Live scene="trail-dialog" caption="/trail" height={360} />
 
 ## How things get into it
 

@@ -3,9 +3,9 @@ title: Panel and keys
 description: The dock, the console, the sidebar, and every key that drives them.
 ---
 
-import Cast from "../../../components/Cast.astro"
+import Live from "../../../components/Live.astro"
 
-<Cast name="dock" caption="The panel under the conversation, then the console." />
+<Live scene="shell" caption="ctrl+x j · the console" size={11.5} />
 
 ## Opening it
 
@@ -83,7 +83,7 @@ anywhere in the console, whether or not you can see them.
 
 ## Searching a long log
 
-<Cast name="search" caption="240 lines down to the four that matter." />
+<Live scene="shell-search" caption="/ · search the log" size={11.5} height={340} />
 
 Filtering happens in the daemon, so a 40,000-line dev server costs nothing to search.
 

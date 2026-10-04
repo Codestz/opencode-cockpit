@@ -1,0 +1,35 @@
+---
+/**
+ * A live window in the docs: a bay drawn by its own renderer, playing one of the players in
+ * src/scripts/live.ts — the same windows the landing page plays, so the docs cannot drift from the
+ * product or from the site.
+ *
+ *   <Live scene="setup" caption="/cockpit-setup" />
+ */
+import "../styles/engine.css"
+import "../styles/live.css"
+
+interface Props {
+  scene: string
+  caption: string
+  /** Character size: smaller for a pane that needs its columns. */
+  size?: number
+  /** Window height in pixels. */
+  height?: number
+}
+const { scene, caption, size = 12, height = 400 } = Astro.props
+---
+
+<figure class="live not-content">
+  <div class="window">
+    <div class="titlebar" aria-hidden="true"><i></i><i></i><i></i><span data-caption={scene}>{caption}</span></div>
+    <div class="screen" role="img" aria-label={caption} style={`height:${height}px`}>
+      <div class="term" data-scene={scene} data-size={size} style={`font-size:${size}px`}></div>
+    </div>
+  </div>
+</figure>
+
+<script>
+  import { ready, scenes } from "../scripts/live"
+  ready().then(scenes)
+</script>

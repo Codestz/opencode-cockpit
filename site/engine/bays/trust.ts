@@ -8,6 +8,7 @@ import type { Request } from "../../../packages/trust/src/core/keys.ts"
 import { rulesFrom } from "../../../packages/trust/src/core/rules.ts"
 import { SAMPLE_NOW, SAMPLE_ROOT, SAMPLE_SETTINGS, SAMPLES } from "../../../packages/trust/src/core/sample.ts"
 import { activityRows } from "../../../packages/trust/src/core/view/activity.ts"
+import { explorerRows } from "../../../packages/trust/src/core/view/explorer.ts"
 import { sidebarRows } from "../../../packages/trust/src/core/view/sidebar.ts"
 
 const RULES = rulesFrom({ permission: { bash: { "*": "ask" }, edit: "ask" } })
@@ -62,4 +63,18 @@ export function live() {
 export function activity(name: string, width: number, height: number) {
   const { engine } = SAMPLES[name]()
   return activityRows({ state: engine.state, settings: SAMPLE_SETTINGS, now: SAMPLE_NOW, history: engine.history, width, height, project: "app" } as never).rows
+}
+
+/**
+ * The ledger (l in ctrl+x p): every family and command Trust has seen, and a card for the one under
+ * the cursor. `step` walks the cursor down the tree, opening the family it is in.
+ */
+export function ledger(name: string, width: number, height: number, step: number) {
+  const { engine } = SAMPLES[name]()
+  const reading = { state: engine.state, settings: SAMPLE_SETTINGS, now: SAMPLE_NOW, history: engine.history, width, height, project: "app" }
+  const first = explorerRows({ ...reading, open: new Set(), full: new Set(), filter: "" } as never) as { model: { nodes: { key: string; kind: string; family?: { key: string } }[] } }
+  const nodes = first.model.nodes.filter((node) => node.kind === "family" || node.kind === "command")
+  const node = nodes[step % Math.max(1, nodes.length)]
+  const open = new Set(node?.family ? [node.family.key] : [])
+  return explorerRows({ ...reading, open, full: new Set(), filter: "", ...(node ? { selected: node.key } : {}) } as never).rows
 }

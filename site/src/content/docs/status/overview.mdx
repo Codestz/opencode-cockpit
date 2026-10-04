@@ -3,6 +3,8 @@ title: Statusline
 description: A statusline for OpenCode you can actually configure — and what it deliberately refuses to say.
 ---
 
+import Live from "../../../components/Live.astro"
+
 Statusline puts a column of live session state at the top of the sidebar, or a line of it under
 your conversation. Bay 02, new in 0.3.0.
 
@@ -40,7 +42,7 @@ beside OpenCode's own Context block; to keep only one, see
 `{ "status": { "sidebar": false } }` — or `"surface": "bottom"` — draws the `default` line under the
 conversation:
 
-![The statusline under an OpenCode conversation: a context bar at 40%, the token total with its cache, input and output parts, what is uncommitted, elapsed time and todo progress](/opencode-cockpit/media/statusline.png)
+<Live scene="status" caption="Status" />
 
 OpenCode's own furniture already carries a lot. Its footer has the path, the branch and the token
 count. Its sidebar has the context percentage and the spend. Its prompt has the agent and the model.

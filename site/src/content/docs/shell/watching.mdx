@@ -3,7 +3,6 @@ title: Watching health
 description: Turn an endless log into two messages — it broke, and it is fixed.
 ---
 
-import Cast from "../../../components/Cast.astro"
 
 `tsc --watch` never exits, so the only way to know how it is doing is to read its log — and that
 costs tokens every single turn. A watcher reads it instead and reports **transitions**.

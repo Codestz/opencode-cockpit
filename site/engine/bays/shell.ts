@@ -54,8 +54,24 @@ export function screen(which: Which, width: number, height: number, frame: numbe
 }
 
 /** The Shells block for any list of shells, at `now`. */
-export const sidebar = (list: readonly ShellInfo[], now: number, frame: number, width: number) =>
-  sidebarBlock({ list, now, frame, width })
+export const sidebar = (list: readonly ShellInfo[], now: number, frame: number, width: number, hideWhenEmpty = false) =>
+  sidebarBlock({ list, now, frame, width, hideWhenEmpty })
+
+/**
+ * The console's log view of the dev server, as search leaves it: `/` and a query being typed
+ * (`draft`), or the log filtered to it, matches lit — what the console does with SAMPLE_LOG.
+ */
+export function log(width: number, height: number, frame: number, search: { draft?: string; filter?: string }) {
+  const filter = search.filter ?? ""
+  const searching = search.draft !== undefined
+  return consoleRows({
+    shell: SHELLS.running, now: SAMPLE_NOW, frame, project: SAMPLE_PROJECT, screen: DEV_SCREEN,
+    log: filter ? SAMPLE_LOG.filter((line) => line.text.includes(filter)) : SAMPLE_LOG,
+    view: "log", up: 0, typing: false, colors: true, filter, searching, draft: search.draft ?? "",
+    keys: { shell: true, running: true, view: "log", filtered: Boolean(filter), count: SAMPLE_LIST.length, scope: "session", finished: 3 },
+    position: `${SAMPLE_LIST.indexOf(SHELLS.running) + 1}/${SAMPLE_LIST.length}`, width, height, fill: false,
+  } as never)
+}
 
 /** A sample shell to build a scripted one from: a dev server, its type checker healthy. */
 export const devServer = (startedAt: number): ShellInfo => ({

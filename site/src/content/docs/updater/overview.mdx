@@ -3,7 +3,7 @@ title: Updater
 description: Every plugin you have installed, what it is really running, and an update checked against disk.
 ---
 
-import Cast from "../../../components/Cast.astro"
+import Live from "../../../components/Live.astro"
 
 OpenCode installs a plugin into a cache directory named after the spec you wrote, and **never
 resolves that spec again**. So `some-plugin@latest` — or no version at all — means the release that
@@ -14,7 +14,7 @@ anywhere tells you which release you are really running: the config says `latest
 The Updater lists every plugin you have, shows what is running beside what your config says and
 what is published, and updates the ones you pick.
 
-<Cast name="updater" caption="A plugin frozen behind @latest and one pinned behind, found and fixed — a real session, only the npm wait is cut." />
+<Live scene="updater" caption="/plugins-update" height={260} />
 
 ## Opening it
 
