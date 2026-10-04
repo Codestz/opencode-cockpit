@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { copyFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { branchChanges, readBlob, runGit, withCounts, worktreeChanges } from "../../src/core/git/sources.ts"
+import { withCounts } from "../../src/core/git/changes.ts"
+import { branchChanges, readBlob, runGit, worktreeChanges } from "../../src/io/git.ts"
 
 /**
  * Binaries through a real repository: what git hands over, read as bytes.

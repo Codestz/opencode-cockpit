@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import type { FileChange } from "../../src/core/model/review.ts"
-import { createViewer, type Launched, oldName, type ViewerDeps } from "../../src/core/viewer.ts"
+import { createViewer, type Launched, oldName, type ViewerDeps } from "../../src/io/viewer.ts"
 
 /**
  * `o`, with the system stubbed out: nothing here ever launches a real viewer. The opener is "found"

@@ -7,7 +7,7 @@ import { partsToV1Hooks, serverFromV1 } from "@opencode-cockpit/client/server"
 import { createReviewServer, reviewGuidance } from "../../src/agent/plugin.ts"
 import type { Thread } from "../../src/core/model/thread.ts"
 import { reviewPaths } from "../../src/core/store/paths.ts"
-import { createPersistence } from "../../src/core/store/persist.ts"
+import { createPersistence } from "../../src/io/persist.ts"
 
 /**
  * The server half's own behaviour: what it tells the agent before the agent asks anything.

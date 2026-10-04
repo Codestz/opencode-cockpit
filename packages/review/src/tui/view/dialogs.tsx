@@ -1,6 +1,6 @@
 /** @jsxImportSource @opentui/solid */
 import type { Host } from "@opencode-cockpit/client/host"
-import type { BaseCandidate } from "../../core/git/sources.ts"
+import type { BaseCandidate } from "../../core/git/changes.ts"
 import { type Thread, threadWhere } from "../../core/model/thread.ts"
 import { cardRows } from "../../core/view/card.ts"
 import type { Fill, Row, Tone } from "../../core/view/rows.ts"

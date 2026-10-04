@@ -2,14 +2,8 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import {
-  baseCandidates,
-  branchChanges,
-  pickBase,
-  runGit,
-  withCounts,
-  worktreeChanges,
-} from "../../src/core/git/sources.ts"
+import { pickBase, withCounts } from "../../src/core/git/changes.ts"
+import { baseCandidates, branchChanges, runGit, worktreeChanges } from "../../src/io/git.ts"
 
 /**
  * Driven against a real repository rather than a fake one.

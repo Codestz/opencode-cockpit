@@ -16,7 +16,7 @@ import { mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, extname, join } from "node:path"
 import { isRunnable, type OpenerWhere, openerFor, openerName } from "@opencode-cockpit/client/opener"
-import type { FileChange } from "./model/review.ts"
+import type { FileChange } from "../core/model/review.ts"
 
 /** A launched process, as far as this file cares: it can fail to start, and it is not waited on. */
 export interface Launched {

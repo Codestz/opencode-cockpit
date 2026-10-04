@@ -13,9 +13,9 @@
 
 import { mkdir, readdir, readFile, rename, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
-import type { Thread } from "../model/thread.ts"
-import { decode, encode } from "./format.ts"
-import type { ReviewPaths } from "./paths.ts"
+import type { Thread } from "../core/model/thread.ts"
+import { decode, encode } from "../core/store/format.ts"
+import type { ReviewPaths } from "../core/store/paths.ts"
 
 export interface Persistence {
   /** Every thread on disk, oldest first. Missing directory means an empty review, not an error. */

@@ -11,7 +11,6 @@
  */
 
 import type { Host } from "@opencode-cockpit/client/host"
-import { baseCandidates } from "../../core/git/sources.ts"
 import type { Guard } from "../../core/guard.ts"
 import {
   drop,
@@ -26,7 +25,6 @@ import {
   toggleRead,
 } from "../../core/model/review.ts"
 import { submission, toolsConfigured, waitingOnAgent } from "../../core/model/submit.ts"
-import type { Persistence } from "../../core/store/persist.ts"
 import { mostShift } from "../../core/view/diff.ts"
 import { streamWidth } from "../../core/view/layout.ts"
 import { keepCursorVisible, navigableRows } from "../../core/view/list.ts"
@@ -40,7 +38,9 @@ import {
   streamScroll,
   streamWindow,
 } from "../../core/view/stream.ts"
-import type { Viewer } from "../../core/viewer.ts"
+import { baseCandidates } from "../../io/git.ts"
+import type { Persistence } from "../../io/persist.ts"
+import type { Viewer } from "../../io/viewer.ts"
 import type { Store } from "../data/changes.ts"
 import { askForBase, askForNote, noteFields, replyFields, submitFields } from "../view/dialogs.tsx"
 import type { Queries } from "./queries.ts"
