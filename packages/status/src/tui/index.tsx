@@ -1,8 +1,8 @@
 /** @jsxImportSource @opentui/solid */
 
+import { briefAgent } from "@opencode-cockpit/client/brief"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
 import { dualTui, type Host } from "@opencode-cockpit/client/host"
-import { briefAgent } from "@opencode-cockpit/client/setup"
 import type { BoxRenderable } from "@opentui/core"
 import { createMemo } from "solid-js"
 import pkg from "../../package.json" with { type: "json" }

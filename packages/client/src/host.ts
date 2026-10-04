@@ -17,7 +17,7 @@ import { createComponent, createRoot, getOwner, type JSX, type Owner, onCleanup 
 import { textElement } from "./elements.tsx"
 import { cockpitVersion, createLog, type Log, silentLog } from "./log.ts"
 import { registerServiceCheck } from "./service.ts"
-import { registerSetup } from "./setup.ts"
+import { registerSetup } from "./setup/palette.ts"
 
 type V1Layer = Parameters<TuiPluginApi["keymap"]["registerLayer"]>[0]
 export type Layer = V1Layer

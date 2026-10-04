@@ -64,6 +64,10 @@
       "types": "./types/setup.d.ts",
       "default": "./dist/setup.js"
     },
+    "./brief": {
+      "types": "./types/brief.d.ts",
+      "default": "./dist/brief.js"
+    },
     "./checks": {
       "types": "./types/checks.d.ts",
       "default": "./dist/checks.js"
