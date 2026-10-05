@@ -7,7 +7,7 @@ import { activityModel, activityRows, answerWhy, targetOf } from "../src/core/vi
 import { historyRuns } from "../src/core/view/card.ts"
 import { explorerRows } from "../src/core/view/explorer.ts"
 import { countsOf } from "../src/core/view/model.ts"
-import { type Row, rowText, widthOf } from "../src/core/view/rows.ts"
+import { type Row, rowText, squeeze, widthOf } from "../src/core/view/rows.ts"
 import { sidebarRows, tally } from "../src/core/view/sidebar.ts"
 import { ALWAYS_KEY, explorerModel, type Node, nodeTarget, reveal, TAIL } from "../src/core/view/tree.ts"
 
@@ -68,8 +68,10 @@ const ledger = (
       full.add(family.key)
     }
   const filter = options.filter ?? ""
-  const model = explorerModel({ ...reading, open, full, filter })
-  const selected = (options.pick ?? ((nodes) => nodes[0]))(model.nodes)?.key
+  const model = explorerModel({ ...reading, open, full, filter, today: 0 })
+  const selected = (options.pick ?? ((nodes) => nodes.find((node) => node.kind !== "today")))(
+    model.nodes,
+  )?.key
   return {
     ...reading,
     open,
@@ -250,7 +252,7 @@ describe("the activity: what Trust did, then what it is about to do", () => {
     expect(text).toContain("! WATCH OUT")
     expect(text).toMatch(/RULES {2}\d+ trusted · \d+ learning · \d+ seen once/)
     expect(text).toContain(" l Open the ledger ")
-    expect(footerOf(activity("busy").rows)).toMatch(/^ \[enter\] Why .*\[esc\] Close$/)
+    expect(footerOf(activity("busy").rows)).toMatch(/^ \[enter\] Why .*\[a\] Ledger.*\[esc\] Back$/)
   })
 
   test("why each answer was given, in words", () => {
@@ -417,9 +419,9 @@ describe("the ledger: families as a tree, a card for the selection", () => {
     expect(view.hits.filter((hit) => hit.kind === "button")).toHaveLength(3)
   })
 
-  test("the footer: move, fold, card, filter, keys, and esc goes back", () => {
+  test("the footer: move, fold, card, filter, the activity, keys, and esc closes", () => {
     expect(footerOf(ledger("busy", { width: 116 }).rows)).toBe(
-      " [↑/↓] Move   [←/→] Fold   [tab] Card   [/] Filter   [p] Pause   [?] Keys   [esc] Back",
+      " [↑/↓] Move   [←/→] Fold   [tab] Card   [/] Filter   [a] Activity   [p] Pause   [?] Keys   [esc] Close",
     )
   })
 
@@ -471,5 +473,93 @@ describe("acting on a selection", () => {
     const snippet = configSnippet(nodeTarget(view.node as Node))
     expect(snippet.text).toBe(JSON.stringify({ permission: { bash: { "ls *": "allow" } } }))
     expect(snippet.note).toContain("config cannot say which agent")
+  })
+})
+
+describe("paths cut in the middle", () => {
+  const path = "tail -10 ~/.local/share/opencode-cockpit/trust/Projects-acme-store/events.ndjson"
+
+  test("the start says where, the end names the file", () => {
+    expect(squeeze(path, 60)).toBe("tail -10 ~/…/trust/Projects-acme-store/events.ndjson")
+    expect(squeeze(path, 30)).toBe("tail -10 ~/…/events.ndjson")
+    expect(squeeze(path, 200)).toBe(path)
+  })
+
+  test("only then is the end cut, and every result fits", () => {
+    for (const width of [10, 18, 25, 40, 70]) expect(widthOf(squeeze(path, width))).toBeLessThanOrEqual(width)
+    expect(squeeze(path, 20).endsWith("…")).toBe(true)
+  })
+
+  test("the longest path gives way first, and relative or absolute heads are kept", () => {
+    expect(squeeze("edit ../../../../../var/folders/tq/x/T/opencode-review/a.ts", 34)).toBe(
+      "edit ../…/x/T/opencode-review/a.ts",
+    )
+    expect(squeeze("cp /var/folders/tq/x/a.ts src/b.ts", 26)).toBe("cp /var/…/x/a.ts src/b.ts")
+  })
+})
+
+describe("a folder cut in the middle keeps its own name", () => {
+  test("`../…/T/` rather than `../…/`", () => {
+    expect(squeeze("../../../../var/folders/ab/x7k2q9/T/", 12)).toBe("../…/T/")
+  })
+})
+
+describe("the ledger by kind: commands, edits, tools and fetches, OpenCode's own", () => {
+  const model = () => {
+    const reading = readingOf("storefront")
+    return explorerModel({
+      ...reading,
+      open: new Set<string>(),
+      full: new Set<string>(),
+      filter: "",
+      today: 0,
+    })
+  }
+
+  test("each kind has one heading, in a fixed order, OpenCode's own last", () => {
+    const headings = model().lines.flatMap((line) => (line.kind === "heading" ? [line.section] : []))
+    expect(headings).toEqual(["commands", "edits", "tools"])
+    expect(model().nodes.at(-1)?.kind).toBe("always")
+  })
+
+  test("every edit is under its folder, and every folder is a row, even with one file", () => {
+    const { nodes } = model()
+    const edits = nodes.filter((node) => node.kind === "family" && node.family.permission === "edit")
+    expect(edits.length).toBeGreaterThanOrEqual(4)
+    expect(nodes.some((node) => node.kind === "command" && node.command.permission === "edit")).toBe(false)
+  })
+
+  test("families seen only once fold into one row per kind, which opens like a family", () => {
+    const reading = readingOf("storefront")
+    const folded = model().nodes.filter((node) => node.kind === "once")
+    expect(folded.length).toBeGreaterThan(0)
+    const key = (folded[0] as Node).key
+    const opened = explorerModel({ ...reading, open: new Set([key]), full: new Set<string>(), filter: "" })
+    expect(opened.nodes.length).toBeGreaterThan(model().nodes.length - 1)
+  })
+
+  test("the Today strip is the first stop, the cursor starts on the first rule, and its card lists today", () => {
+    const { rows, node } = ledger("storefront", { pick: () => undefined, width: 116, height: 30 })
+    expect(rowText(rows[1] as Row)).toMatch(/^ Today {2}✓ \d+ answered · last /)
+    expect(node?.kind).not.toBe("today")
+    const today = ledger("storefront", {
+      pick: (nodes) => nodes.find((each) => each.kind === "today"),
+      width: 116,
+    })
+    expect(textOf(today.rows)).toContain("prompts Trust answered for you")
+  })
+
+  test("a family's card lists one command a line, its standing in one column", () => {
+    const { rows } = ledger("storefront", {
+      width: 116,
+      height: 30,
+      pick: (nodes) => nodes.find((node) => node.kind === "family" && node.family.family === "tail"),
+    })
+    const columns = rows
+      .map(rowText)
+      .filter((line) => /tail -\d+ .*✓/.test(line))
+      .map((line) => line.indexOf("✓"))
+    expect(columns.length).toBeGreaterThanOrEqual(3)
+    expect(new Set(columns).size).toBe(1)
   })
 })

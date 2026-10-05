@@ -79,6 +79,53 @@ export function widthOf(text: string, limit = Number.POSITIVE_INFINITY): number 
 }
 
 /** `text` in at most `width` columns, ending in `…` when cut. */
+/**
+ * `text` in `width` columns with its paths cut in the middle, not at the end: the start says where,
+ * the end names the file — `tail -10 ~/…/trust/events.ndjson`. Cut at the end, five `tail` commands
+ * on one ledger file read as the same `~/.local/share/opencode-cockpit/trust/Projects-acme-store…`,
+ * and the file name, the only part that told them apart, was the part that was cut. Each path gives up
+ * one middle folder at a time, the longest path first; only then is the end cut.
+ */
+export function squeeze(text: string, width: number): string {
+  if (widthOf(text, width) <= width) return text
+  const words = text.split(" ")
+  while (widthOf(words.join(" ")) > width) {
+    let best = -1
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i] as string
+      if (shrinkPath(word) === word) continue
+      if (best < 0 || widthOf(word) > widthOf(words[best] as string)) best = i
+    }
+    if (best < 0) break
+    words[best] = shrinkPath(words[best] as string)
+  }
+  return cut(words.join(" "), width)
+}
+
+/**
+ * One middle folder of a path given up: `~/.local/share/x/f` → `~/…/share/x/f` → `~/…/x/f` →
+ * `~/…/f`. Its first part (`~`, `..`, `/var`, `packages`) and its last (the file) are kept.
+ */
+function shrinkPath(path: string): string {
+  /** A folder's own name is its last part: `/var/a/b/T/` keeps `T/`. */
+  if (path.endsWith("/") && path.length > 1) {
+    const inner = shrinkPath(path.slice(0, -1))
+    return inner === path.slice(0, -1) ? path : `${inner}/`
+  }
+  const parts = path.split("/")
+  if (parts.length < 3) return path
+  const gap = parts.indexOf("…")
+  if (gap < 0) {
+    const head = parts[0] === "" ? 2 : 1
+    if (parts.length - head < 2) return path
+    parts.splice(head, 1, "…")
+    return parts.join("/")
+  }
+  if (parts.length - gap - 1 <= 1) return path
+  parts.splice(gap + 1, 1)
+  return parts.join("/")
+}
+
 export function cut(text: string, width: number): string {
   if (width <= 0) return ""
   if (widthOf(text, width) <= width) return text

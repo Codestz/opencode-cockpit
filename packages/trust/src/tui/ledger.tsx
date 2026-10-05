@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 
 /**
- * `/trust`: the activity it opens on and the ledger behind `l` — the keys, the clicks, the filter
+ * `/trust`: the ledger it opens on and the activity behind `a` — the keys, the clicks, the filter
  * typed with `/`, and what `x`, `w`, `c` and `p` do to the ledger. Painted by `paint.ts`, from the
  * `DialogState` this changes.
  */
@@ -53,7 +53,8 @@ export function createLedger(input: {
     }
     const view = painter.shown().ledger
     if (!view?.node) return undefined
-    return { target: nodeTarget(view.node), families: view.model.families }
+    const target = nodeTarget(view.node)
+    return target ? { target, families: view.model.families } : undefined
   }
 
   /** What `w` and `x` decided, appended and said. Nothing is ever rewritten in the ledger. */
@@ -115,9 +116,10 @@ export function createLedger(input: {
       dialog.activity = items[Math.max(0, Math.min(items.length - 1, at + by))]?.key
     } else {
       const nodes = painter.shown().ledger?.model.nodes ?? []
+      const current = dialog.node ?? painter.shown().ledger?.node?.key
       const at = Math.max(
         0,
-        nodes.findIndex((node) => node.key === dialog.node),
+        nodes.findIndex((node) => node.key === current),
       )
       dialog.node = nodes[Math.max(0, Math.min(nodes.length - 1, at + by))]?.key
       dialog.button = undefined
@@ -131,6 +133,14 @@ export function createLedger(input: {
     dialog.button = undefined
     dialog.notice = undefined
     if (key !== undefined) dialog.node = key
+    draw()
+  }
+
+  /** The full activity, from the ledger: `a`, the Today strip's `enter`, or its button. */
+  const toActivity = () => {
+    dialog.view = "activity"
+    dialog.button = undefined
+    dialog.notice = undefined
     draw()
   }
 
@@ -155,8 +165,14 @@ export function createLedger(input: {
    */
   const fold = (way: "toggle" | "open" | "close" = "toggle") => {
     const at = node()
-    if (!at || at.kind === "always") return
+    if (!at || at.kind === "always" || at.kind === "today") return
     dialog.notice = undefined
+    /** A kind's `seen once` row opens and folds like a family, by its own key. */
+    if (at.kind === "once") {
+      if (dialog.opened.has(at.key) && way !== "open") dialog.opened.delete(at.key)
+      else if (!dialog.opened.has(at.key) && way !== "close") dialog.opened.add(at.key)
+      return draw()
+    }
     const key = at.family.key
     if (at.kind === "more") {
       if (way !== "close") dialog.full.add(key)
@@ -183,6 +199,7 @@ export function createLedger(input: {
     else if (action === "widen") widenSelected()
     else if (action === "copy") copy()
     else if (action === "ledger") toLedger()
+    else if (action === "activity") toActivity()
   }
 
   const enter = () => {
@@ -193,6 +210,7 @@ export function createLedger(input: {
       return
     }
     const at = node()
+    if (at?.kind === "today") return toActivity()
     if (at?.kind === "command" || at?.kind === "always") {
       if (buttons().length > 0) dialog.button = 0
       return draw()
@@ -268,6 +286,11 @@ export function createLedger(input: {
         run: listed(() => (dialog.view === "activity" ? toLedger() : sideways(1))),
       },
       { name: "cockpit.trust.tab", title: "Into the card and back", run: listed(() => tab()) },
+      {
+        name: "cockpit.trust.activity",
+        title: "The activity, or back to the ledger",
+        run: listed(() => (dialog.view === "activity" ? toLedger() : toActivity())),
+      },
       { name: "cockpit.trust.filter", title: "Filter the ledger", run: listed(() => filter()) },
       {
         name: "cockpit.trust.keys",
@@ -301,6 +324,7 @@ export function createLedger(input: {
       { key: "h,left", cmd: "cockpit.trust.left" },
       { key: "l", cmd: "cockpit.trust.l" },
       { key: "tab", cmd: "cockpit.trust.tab" },
+      { key: "a", cmd: "cockpit.trust.activity" },
       { key: "/", cmd: "cockpit.trust.filter" },
       { key: "?,shift+/", cmd: "cockpit.trust.keys" },
       { key: "x", cmd: "cockpit.trust.revoke" },
@@ -314,8 +338,8 @@ export function createLedger(input: {
   /**
    * Ahead of the keymap, because the host's dialog takes `esc` before any layer hears it (Shell's
    * search does the same): the filter being typed gets every key; and `esc` steps back one thing at
-   * a time — the key list, the card's buttons, the filter, the ledger — before the host closes the
-   * dialog from the activity, as it always has.
+   * a time — the key list, the activity, the card's buttons, the filter — before the host closes the
+   * dialog from the ledger.
    */
   api.lifecycle.onDispose(
     api.keymap.intercept(
@@ -336,12 +360,12 @@ export function createLedger(input: {
         }
         if (event.name !== "escape") return
         if (dialog.keys) dialog.keys = false
-        else if (dialog.view === "activity") return
+        else if (dialog.view === "activity") dialog.view = "ledger"
         else if (dialog.button !== undefined) dialog.button = undefined
         else if (dialog.filter !== "") {
           dialog.filter = ""
           dialog.node = undefined
-        } else dialog.view = "activity"
+        } else return
         ctx.consume({ preventDefault: true, stopPropagation: true })
         dialog.notice = undefined
         draw()
@@ -353,12 +377,14 @@ export function createLedger(input: {
   const openLedger = () => {
     /** Config may have changed since: what the dialog says about "ask" rules should be today's. */
     void loadRules()
+    /** The ledger first, the cursor on its first rule; today's answers are the strip above it. */
     Object.assign(dialog, {
       open: true,
-      view: "activity",
+      view: "ledger",
       keys: false,
       notice: undefined,
       activity: undefined,
+      node: undefined,
       typing: undefined,
       button: undefined,
     })
@@ -379,7 +405,7 @@ export function createLedger(input: {
       },
     )
     api.ui.dialog.setSize("xlarge")
-    log.debug("trust: open", { items: painter.shown().activity?.model.items.length ?? 0 })
+    log.debug("trust: open", { rules: painter.shown().ledger?.model.nodes.length ?? 0 })
   }
 
   const togglePause = () => {
