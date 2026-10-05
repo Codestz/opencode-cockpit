@@ -54,7 +54,7 @@ const widths = arg("--width") ? [Number(arg("--width"))] : [24, 36]
 const config = arg("--config")
 const sample = {
   statusline: { preset: "sidebar" },
-  shell: { sidebarOrder: 170 },
+  shell: { sidebar: [1] },
   sidebar: ["status", "shells", "trust"],
 }
 const settings = loadSettings({

@@ -117,8 +117,7 @@ segment, the design rules this bay learned the expensive way, and the preview to
 reads what is written now with `cockpit_settings`, and asks what you want it to show.
 
 For another agent, Claude Code for example, the same skill ships in the package, at
-`skills/status-setup/` — the design rules are in its `references/design.md`. (`skills/statusline-design/`,
-its name before 0.9, is kept for 0.9 for anyone who copied it, and removed in 0.10.)
+`skills/status-setup/` — the design rules are in its `references/design.md`.
 
 ```sh
 # Claude Code, for this project or for every project

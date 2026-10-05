@@ -37,11 +37,6 @@ describe("the reference", () => {
   test("every preset is in it", () => {
     for (const name of Object.keys(PRESETS)) expect(read("settings.md")).toContain(`| \`${name}\` |`)
   })
-
-  test("the design rules a copied statusline-design still carries are the same rules", () => {
-    const old = readFileSync(join(SETUP_SKILL_DIR, "..", "statusline-design", "SKILL.md"), "utf8")
-    expect(old.endsWith(read("design.md"))).toBe(true)
-  })
 })
 
 describe("the skill", () => {

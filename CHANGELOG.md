@@ -33,6 +33,8 @@ All notable changes to this project are documented here. The format follows
 ### Removed
 
 - **`/statusline`.** Its name until 0.9, kept for one release; `/status-setup` is the command.
+- **The `statusline-design` skill folder.** Kept in 0.9 for anyone who had copied it;
+  `skills/status-setup/` carries the same design rules, in `references/design.md`.
 - **Six entry points nothing imported:** `@opencode-cockpit/review/frame` (broken since it was
   added: it pointed at a file that was never built there), `trail/core`, `trust/core`,
   `updater/core`, `status/fixtures` and `client/elements`. Cockpit's own packages never used them;
