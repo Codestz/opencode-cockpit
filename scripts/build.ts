@@ -1,5 +1,6 @@
 /**
- * Compiles every package's `src/` to plain JavaScript in `dist/`, which is what gets published.
+ * Compiles every package's `src/` to plain JavaScript in `dist/`, and its declarations to `types/`:
+ * what gets published.
  *
  * Every package builds through this one script on purpose: publishing compiled output from a
  * single pipeline keeps "works from a checkout, broken once installed" bugs from coming back.
@@ -37,6 +38,14 @@ for (const pkg of packages) {
   const outDir = join(root, "packages", pkg, "dist")
   if (!existsSync(srcDir)) continue
   rmSync(outDir, { recursive: true, force: true })
+  /**
+   * `types/` is `tsc -b`'s, and an incremental build never deletes what a moved or removed source
+   * left there — a stale file once kept a broken entry point looking fine. Gone with its build info,
+   * so the next typecheck writes it whole.
+   */
+  rmSync(join(root, "packages", pkg, "types"), { recursive: true, force: true })
+  for (const info of readdirSync(join(root, "packages", pkg)).filter((name) => name.endsWith(".tsbuildinfo")))
+    rmSync(join(root, "packages", pkg, info), { force: true })
 
   const files = [...new Bun.Glob("**/*.{ts,tsx}").scanSync(srcDir)].sort()
   if (files.length === 0) throw new Error(`no sources found in ${srcDir}`)
@@ -62,3 +71,8 @@ for (const pkg of packages) {
   }
   console.log(`${pkg}: ${files.length} file${files.length === 1 ? "" : "s"} → packages/${pkg}/dist`)
 }
+
+/** The declarations publish beside the code: packing and releasing run this build and nothing else. */
+const types = Bun.spawnSync(["bunx", "tsc", "-b"], { cwd: root, stdout: "inherit", stderr: "inherit" })
+if (types.exitCode !== 0) process.exit(types.exitCode ?? 1)
+console.log("types: tsc -b → packages/*/types")

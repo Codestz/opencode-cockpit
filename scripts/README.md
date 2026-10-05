@@ -16,7 +16,7 @@ What each script is for, and what runs it. Anything here that nothing runs shoul
 
 | Script | What it does | Run by |
 | --- | --- | --- |
-| `build.ts` | Compiles every package to `dist/` | `bun run build`, CI, the release workflow |
+| `build.ts` | Compiles every package to `dist/`, clearing `dist/` and `types/` first | `bun run build`, CI, the release workflow |
 | `pack-check.ts` | Packs every package and checks what would publish | `bun run pack:check`, CI, the release workflow |
 | `tui-smoke.ts` | Drives a real OpenCode in a PTY through each bay's interface — every bay side by side, the bundle (`SMOKE_INSTALL=bundle`) or one bay alone (`SMOKE_INSTALL=<bay>`); one probe per bay in `smoke/probes/` | `bun run smoke:tui` |
 | `test-env.ts` | Keeps test runs' logs out of your own `cockpit.log` | `bun test` (preloaded by `bunfig.toml`) |
