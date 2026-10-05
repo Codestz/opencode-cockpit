@@ -101,7 +101,7 @@ export async function prepare(mode: Mode): Promise<Install> {
   const bundleDir = join(install, "node_modules", "opencode-cockpit")
   /**
    * Which entries have an agent side, from what was installed. Status's agent side carries only the
-   * `status-setup` skill and its commands; Trust and the updater have none.
+   * `status-setup` skill and its commands; Trust's and the updater's carry nothing of their own.
    */
   const hasServer = async (dir: string) =>
     "./server" in (await Bun.file(join(dir, "package.json")).json()).exports

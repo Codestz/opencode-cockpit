@@ -306,7 +306,23 @@ try {
       console.log(`  ${install.name}: trail's agent half loads, its bin and OpenCode 2's doors are there`)
     }
 
-    // The statusline bay has no server half and no daemon: there is nothing further to run.
+    /**
+     * Trust and the updater alone: an agent half with nothing of its own, which OpenCode 2 needs
+     * before it sets up their interface — without it, either installed alone loaded nothing there.
+     */
+    for (const bay of ["trust", "updater"]) {
+      if (!install.packages.includes(`@opencode-cockpit/${bay}`)) continue
+      const { default: server } = await import(Bun.resolveSync(`@opencode-cockpit/${bay}/server`, dir))
+      if (server?.id !== `opencode-cockpit.${bay}` || typeof server.setup !== "function")
+        throw new Error(
+          `${install.name}: @opencode-cockpit/${bay}/server must export the plugin for both OpenCodes`,
+        )
+      if (!existsSync(join(dir, "node_modules", "@opencode-cockpit", bay, "server.js")))
+        throw new Error(`${install.name}: ${bay} ships no server.js for OpenCode 2`)
+      console.log(`  ${install.name}: ${bay}'s empty agent half loads, and OpenCode 2's door is there`)
+    }
+
+    // Only Shell runs a daemon: without it there is nothing further to run.
     if (!bays.includes("@opencode-cockpit/shell")) {
       console.log(`  ${install.name}: loads, compiled interface entry, authoring subpaths resolve`)
       return

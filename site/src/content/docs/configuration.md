@@ -238,8 +238,8 @@ See [Updater](/updater/overview/).
 ## Names from before 0.9
 
 0.9 gave every bay the same shape, so some names changed. **The old ones are not read**, and since
-0.10 they are names like any other Cockpit does not know: [doctor](/help/doctor/) and
-`/cockpit-setup` list each one, and a top-level one is a `!` row at the top of Status's column:
+0.10 they are names like any other Cockpit does not know: `/cockpit-setup` lists each one, and a
+top-level one is also a line in [doctor](/help/doctor/) and a `!` row at the top of Status's column:
 
 ```
 ! settings: "statusline" is not a setting: did you mean "status"?

@@ -7,7 +7,7 @@
  *
  * Bun rather than Vite: Trust reaches for node:path at runtime, which Bun polyfills and Vite does not.
  */
-import { rmSync } from "node:fs"
+import { existsSync, readFileSync, rmSync } from "node:fs"
 import { join, resolve } from "node:path"
 
 const site = resolve(import.meta.dir, "..")
@@ -33,10 +33,16 @@ const result = await Bun.build({
       setup(build) {
         // Review's PNG reader imports node:zlib; the page never decodes a PNG.
         build.onResolve({ filter: /^node:zlib$/ }, () => ({ path: join(site, "engine", "zlib-stub.ts") }))
-        // Packages import each other by name; the site reads their source, not a build.
+        // Packages import each other by name; the site reads their source, not a build: the
+        // subpath's `exports` entry names its built file, and `dist/x.js` is `src/x.ts` (or `.tsx`).
         build.onResolve({ filter: /^@opencode-cockpit\// }, ({ path }) => {
-          const [, pkg, sub] = path.match(/^@opencode-cockpit\/([^/]+)\/?(.*)$/) ?? []
-          return { path: join(packages, pkg, "src", `${sub || "index"}.ts`) }
+          const [, pkg = "", sub = ""] = path.match(/^@opencode-cockpit\/([^/]+)\/?(.*)$/) ?? []
+          const manifest = JSON.parse(readFileSync(join(packages, pkg, "package.json"), "utf8"))
+          const entry = manifest.exports?.[sub ? `./${sub}` : "."]
+          const built: string | undefined = typeof entry === "string" ? entry : entry?.default
+          if (!built) throw new Error(`${path}: not in ${pkg}'s exports`)
+          const source = join(packages, pkg, built.replace(/^\.\/dist\//, "src/").replace(/\.js$/, ".ts"))
+          return { path: existsSync(source) ? source : `${source}x` }
         })
       },
     },
