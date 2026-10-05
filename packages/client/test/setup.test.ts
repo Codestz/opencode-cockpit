@@ -3,7 +3,7 @@ import { existsSync } from "node:fs"
 import { join } from "node:path"
 import { claimFeature } from "../src/feature.ts"
 import { silentLog } from "../src/log.ts"
-import type { Host } from "../src/opencode/host.ts"
+import type { Host } from "../src/opencode/host/index.ts"
 import type { ServerHost } from "../src/opencode/server.ts"
 import { sectionText, writeSection } from "../src/setup/conventions.ts"
 import {

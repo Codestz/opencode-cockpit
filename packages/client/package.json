@@ -29,8 +29,8 @@
       "default": "./dist/feature.js"
     },
     "./host": {
-      "types": "./types/opencode/host.d.ts",
-      "default": "./dist/opencode/host.js"
+      "types": "./types/opencode/host/index.d.ts",
+      "default": "./dist/opencode/host/index.js"
     },
     "./server": {
       "types": "./types/opencode/server.d.ts",

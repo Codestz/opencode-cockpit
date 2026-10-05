@@ -1,6 +1,6 @@
 /** Sending a line to the agent from the interface, on either OpenCode. */
 
-import type { Host } from "../opencode/host.ts"
+import type { Host } from "../opencode/host/index.ts"
 
 /** The session on screen, if there is one. */
 function sessionOnScreen(host: Host): string | undefined {

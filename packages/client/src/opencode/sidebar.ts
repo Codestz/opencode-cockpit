@@ -1,4 +1,4 @@
-import type { Host } from "./host.ts"
+import type { Host } from "./host/index.ts"
 
 /**
  * Where the bays' blocks sit in OpenCode's sidebar: one list in Cockpit's settings orders them all,

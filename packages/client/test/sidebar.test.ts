@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { Host } from "../src/opencode/host.ts"
+import type { Host } from "../src/opencode/host/index.ts"
 import { orderedSidebar } from "../src/opencode/sidebar.ts"
 
 describe("orderedSidebar", () => {

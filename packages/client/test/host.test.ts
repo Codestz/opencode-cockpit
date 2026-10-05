@@ -7,7 +7,7 @@ import {
   onPaste,
   themeFromV2,
   type V2Context,
-} from "../src/opencode/host.ts"
+} from "../src/opencode/host/index.ts"
 
 /**
  * The v2 half of the host, against a fake context shaped like OpenCode 2.0.15's (docs/opencode/v2.md).

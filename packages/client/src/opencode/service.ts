@@ -29,7 +29,7 @@ import { fileURLToPath } from "node:url"
 import { resolvePaths } from "@opencode-cockpit/protocol"
 import { claimFeature } from "../feature.ts"
 import type { Log } from "../log.ts"
-import type { Host } from "./host.ts"
+import type { Host } from "./host/index.ts"
 
 export const RESTART_COMMAND = "opencode service restart"
 
