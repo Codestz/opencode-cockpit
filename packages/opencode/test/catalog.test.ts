@@ -4,7 +4,7 @@ import { join } from "node:path"
 import { bayKeys, DEFAULT_KEYS, OWN_KEYS } from "@opencode-cockpit/client/catalog"
 import { DEFAULTS as REVIEW } from "../../review/src/core/config.ts"
 import { DEFAULTS as SHELL } from "../../shell/src/core/config.ts"
-import { KINDS as STATUS } from "../../status/src/core/config.ts"
+import { KINDS as STATUS } from "../../status/src/core/config/index.ts"
 import { DEFAULTS as SUBAGENTS } from "../../subagents/src/core/config.ts"
 import { DEFAULTS as TRUST } from "../../trust/src/core/config.ts"
 

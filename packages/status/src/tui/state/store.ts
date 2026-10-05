@@ -2,7 +2,7 @@ import type { Host } from "@opencode-cockpit/client/host"
 import { type Accessor, createMemo, createRoot, createSignal } from "solid-js"
 import { BUDGET_EVERY_MS, type Budget, budgetFile } from "../../core/budget.ts"
 import { type CommandRunner, createRunner } from "../../core/command.ts"
-import { resolveLines, type StatusConfig } from "../../core/config.ts"
+import { resolveLines, type StatusConfig } from "../../core/config/index.ts"
 import type { StatusContext } from "../../core/context.ts"
 import {
   branchDiffCommand,

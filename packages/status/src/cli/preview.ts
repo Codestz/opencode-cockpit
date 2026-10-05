@@ -16,7 +16,7 @@
 import { readFileSync, watch } from "node:fs"
 import { homedir } from "node:os"
 import { budgetFile } from "../core/budget.ts"
-import { type ResolvedLine, resolveLines, type Surface } from "../core/config.ts"
+import { type ResolvedLine, resolveLines, type Surface } from "../core/config/index.ts"
 import { resolveModulePath } from "../core/custom.ts"
 import { FIXTURES, type FixtureName } from "../core/fixtures.ts"
 import { moduleNoticeText } from "../core/notices.ts"

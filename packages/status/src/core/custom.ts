@@ -1,6 +1,6 @@
 import { homedir } from "node:os"
 import { basename, isAbsolute, resolve } from "node:path"
-import type { SegmentConfig } from "./config.ts"
+import type { SegmentConfig } from "./config/index.ts"
 import type { StatusContext } from "./context.ts"
 import type { Piece, Run, SegmentDef, Tone } from "./segments.ts"
 

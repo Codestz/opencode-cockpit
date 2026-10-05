@@ -10,7 +10,7 @@ import {
   resolveLines,
   SIDEBAR_SEGMENTS,
   type StatusConfig,
-} from "../src/core/config.ts"
+} from "../src/core/config/index.ts"
 import { FIXTURES } from "../src/core/fixtures.ts"
 import { fitColumn } from "../src/core/render.ts"
 import { buildSegments, findSegment } from "../src/core/segments.ts"

@@ -15,7 +15,7 @@ import {
   type ResolvedLine,
   resolveLines,
   type Surface,
-} from "./config.ts"
+} from "./config/index.ts"
 import type { StatusContext } from "./context.ts"
 import { noticeRows } from "./notices.ts"
 import { fit, fitColumn } from "./render.ts"

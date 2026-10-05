@@ -7,7 +7,7 @@
 
 import { bayKeys, shownDefault } from "@opencode-cockpit/client/catalog"
 import { BUILTINS } from "./builtins/index.ts"
-import { DEFAULT_SURFACE, PRESETS, type SegmentConfig } from "./config.ts"
+import { DEFAULT_SURFACE, PRESETS, type SegmentConfig } from "./config/index.ts"
 
 /**
  * What each built-in says, in a line, with the settings worth knowing. Keyed by name, so a built-in

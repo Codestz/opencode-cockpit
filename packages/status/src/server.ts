@@ -16,7 +16,7 @@ import { offerSettingsCheck } from "@opencode-cockpit/client/checks"
 import { claimFeature } from "@opencode-cockpit/client/feature"
 import { dualServer, type ServerStart } from "@opencode-cockpit/client/server"
 import { offerPreview } from "@opencode-cockpit/client/setup"
-import { statusNotices } from "./core/config.ts"
+import { statusNotices } from "./core/config/index.ts"
 import { SETUP_PROMPT, SETUP_SKILL_DIR, SETUP_SLASH } from "./core/setup.ts"
 
 const STATUS_PACKAGE = "@opencode-cockpit/status"

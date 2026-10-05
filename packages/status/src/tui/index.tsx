@@ -6,7 +6,7 @@ import { dualTui, type Host } from "@opencode-cockpit/client/host"
 import type { BoxRenderable } from "@opentui/core"
 import { createMemo } from "solid-js"
 import pkg from "../../package.json" with { type: "json" }
-import { asSegmentConfig, loadStatus, type ResolvedLine, resolveLines } from "../core/config.ts"
+import { asSegmentConfig, loadStatus, type ResolvedLine, resolveLines } from "../core/config/index.ts"
 import { moduleNoticeText, noticeRows, overflowNotice } from "../core/notices.ts"
 import { fit, fitColumn } from "../core/render.ts"
 import { buildSegments, type SegmentDef } from "../core/segments.ts"

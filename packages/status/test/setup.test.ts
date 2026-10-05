@@ -11,7 +11,7 @@ import {
   resolveLines,
   SIDEBAR_SEGMENTS,
   type StatusConfig,
-} from "../src/core/config.ts"
+} from "../src/core/config/index.ts"
 import { SEGMENT_ABOUT, statusReference } from "../src/core/reference.ts"
 import { SETUP_PROMPT, SETUP_SKILL, SETUP_SKILL_DIR } from "../src/core/setup.ts"
 import { createStatusServer } from "../src/server.ts"

@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test"
 import { offerSettingsCheck } from "@opencode-cockpit/client/checks"
 import { loadSettings } from "@opencode-cockpit/client/settings"
 import { settingsReport, settingsText } from "@opencode-cockpit/client/setup"
-import { loadStatus, statusNotices } from "../src/core/config.ts"
+import { loadStatus, statusNotices } from "../src/core/config/index.ts"
 
 /**
  * Status offers its own check to `cockpit_settings` (and doctor), so what its line warns about is

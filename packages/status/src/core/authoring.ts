@@ -14,7 +14,7 @@
  */
 export { GAUGE, gaugeTone } from "@opencode-cockpit/client/design"
 export type { ClaudeCodeStatusInput } from "./claude-code.ts"
-export type { SegmentConfig } from "./config.ts"
+export type { SegmentConfig } from "./config/index.ts"
 export type {
   ServiceSnapshot,
   SessionSnapshot,

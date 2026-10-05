@@ -7,7 +7,7 @@
  */
 
 import { claudeCodeInput } from "./claude-code.ts"
-import type { CommandConfig } from "./config.ts"
+import type { CommandConfig } from "./config/index.ts"
 import type { StatusContext } from "./context.ts"
 
 /**

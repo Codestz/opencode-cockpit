@@ -7,7 +7,7 @@
 import { describe, expect, test } from "bun:test"
 import type { TuiPluginApi } from "@opencode-ai/plugin/tui"
 import type { V2Context } from "@opencode-cockpit/client/host"
-import { DEFAULT_SEGMENTS, PRESETS, type SegmentConfig } from "../src/core/config.ts"
+import { DEFAULT_SEGMENTS, PRESETS, type SegmentConfig } from "../src/core/config/index.ts"
 import { lastTurn, type SessionSnapshot, type StatusContext } from "../src/core/context.ts"
 import { buildSegments, segmentText } from "../src/core/segments.ts"
 import { sessionSnapshot, sessionSnapshotV2 } from "../src/tui/state/snapshot.ts"

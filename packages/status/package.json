@@ -33,8 +33,8 @@
       "default": "./dist/tui/index.js"
     },
     "./config": {
-      "types": "./types/core/config.d.ts",
-      "default": "./dist/core/config.js"
+      "types": "./types/core/config/index.d.ts",
+      "default": "./dist/core/config/index.js"
     },
     "./segment": {
       "types": "./types/core/authoring.d.ts",

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { asSegmentConfig, SIDEBAR_SEGMENTS } from "../src/core/config.ts"
+import { asSegmentConfig, SIDEBAR_SEGMENTS } from "../src/core/config/index.ts"
 import { FIXTURES } from "../src/core/fixtures.ts"
 import {
   drawState,
