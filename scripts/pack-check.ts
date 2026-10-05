@@ -259,7 +259,7 @@ try {
           `export default { segments: { hi: () => ({ runs: [{ text: "hi" }] }) } } satisfies CustomModule\n`,
       )
       const { loadCustomSegments } = await import(
-        join(dir, "node_modules", "@opencode-cockpit", "status", "dist", "core", "custom.js")
+        join(dir, "node_modules", "@opencode-cockpit", "status", "dist", "io", "custom.js")
       )
       const loaded = await loadCustomSegments([join(outside, "mod.ts")], outside)
       if (loaded.errors.length > 0 || !loaded.segments.has("hi")) {

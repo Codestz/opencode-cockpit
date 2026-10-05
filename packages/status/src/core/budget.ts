@@ -7,7 +7,6 @@
  * it say nothing: a made-up figure would be worse than none.
  */
 
-import { readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join, resolve } from "node:path"
 
@@ -37,14 +36,6 @@ export function parseBudget(text: string | undefined): Budget | undefined {
   const { baseline, delta, cap } = (raw ?? {}) as { baseline?: unknown; delta?: unknown; cap?: unknown }
   if (typeof baseline !== "number" || typeof cap !== "number" || !(cap > 0)) return undefined
   return { spent: baseline + (typeof delta === "number" ? delta : 0), cap }
-}
-
-export function readBudget(path: string): Budget | undefined {
-  try {
-    return parseBudget(readFileSync(path, "utf8"))
-  } catch {
-    return undefined
-  }
 }
 
 const BUDGET_SEGMENTS = new Set(["spend", "avail"])

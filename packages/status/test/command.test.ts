@@ -1,7 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { type ClaudeCodeStatusInput, claudeCodeInput } from "../src/core/claude-code.ts"
-import { cleanOutput, createRunner, execShell, outputRows } from "../src/core/command.ts"
+import { cleanOutput, createRunner, outputRows } from "../src/core/command.ts"
 import type { StatusContext } from "../src/core/context.ts"
+import { execShell } from "../src/io/command.ts"
 
 const ctx = (over: Partial<StatusContext> = {}): StatusContext => ({
   now: 60_000,
