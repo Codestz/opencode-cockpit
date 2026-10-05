@@ -1,13 +1,13 @@
 #!/usr/bin/env bun
 /**
- * The see-it loop: the sidebar block and both Trust screens — the activity `/trust` opens on and the
- * ledger behind `l` — drawn in this terminal from sample worlds, with no OpenCode running. The same
+ * The see-it loop: the sidebar block and both Trust screens — the ledger `/trust` opens on and the
+ * activity behind `a` — drawn in this terminal from sample worlds, with no OpenCode running. The same
  * rows OpenCode draws; only the colours come from a fixed palette (OpenCode's default theme) instead
  * of the user's.
  *
  *   bunx @opencode-cockpit/trust preview                    every sample, both screens
  *   bunx @opencode-cockpit/trust preview --sample busy      one of them
- *   bunx @opencode-cockpit/trust preview --view activity    only the screen /trust opens on
+ *   bunx @opencode-cockpit/trust preview --view activity    only the activity, behind `a`
  *   bunx @opencode-cockpit/trust preview --view ledger      only the ledger (the explorer and its card)
  *   bunx @opencode-cockpit/trust preview --columns 80       the dialog at another width
  *   bunx @opencode-cockpit/trust preview --rows 20          the dialog in a short window
@@ -165,7 +165,7 @@ for (const name of names) {
       out.push("", title, "")
       out.push(...frame(rows))
     }
-    drawActivity("Activity — as /trust opens")
+    drawActivity("Activity — behind a")
     if (keys) drawActivity("Activity — ? keys", undefined, true)
   }
 
@@ -180,7 +180,8 @@ for (const name of names) {
       extra: { focus?: { button: number }; keys?: boolean; typing?: string; filter?: string } = {},
     ) => {
       const filter = extra.filter ?? ""
-      const model = explorerModel({ ...reading, open, full, filter })
+      /** `today`: the strip is a node the cursor can stop on; its count does not matter here. */
+      const model = explorerModel({ ...reading, open, full, filter, today: 0 })
       const selected = pick(model.nodes)?.key
       const { rows } = explorerRows({
         ...reading,
@@ -198,7 +199,16 @@ for (const name of names) {
       out.push("", title, "")
       out.push(...frame(rows))
     }
-    drawLedger("Ledger — as l opens it", (nodes) => nodes[0])
+    drawLedger("Ledger — as /trust opens it", () => undefined)
+    drawLedger("Ledger — the Today strip", (nodes) => nodes.find((node) => node.kind === "today"))
+    const fold = explorerModel({ ...reading, ...tree }).nodes.find((node) => node.kind === "once")
+    if (fold) {
+      open.add(fold.key)
+      drawLedger("Ledger — what was seen once, opened", (nodes) =>
+        nodes.find((node) => node.key === fold.key),
+      )
+      open.delete(fold.key)
+    }
     /** A trusted command in a family of several, revealed the way `enter` on the activity does. */
     const trusted = families
       .flatMap((family) => (family.commands.length > 1 ? family.commands : []))

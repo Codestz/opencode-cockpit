@@ -1,4 +1,4 @@
-/** Trust: its sidebar toggle says what it did, and its activity screen opens, from the palette. */
+/** Trust: its sidebar toggle says what it did, and its ledger opens, from the palette. */
 
 import { palette } from "../commands.ts"
 import { expect, keep, type } from "../harness.ts"
@@ -17,7 +17,11 @@ export const trust: Probe = {
       "the palette's Trust sidebar toggle said nothing",
       toggled,
     )
-    /** /trust opens on what Trust did; the ledger is one key further, behind `l`. */
-    expect(ledger.includes("Open the ledger"), "the palette never opened Trust's activity screen", ledger)
+    /** /trust opens on the ledger, today's answers one row above it and the activity behind `a`. */
+    expect(
+      ledger.includes("Today") && ledger.includes("[a] Activity"),
+      "the palette never opened Trust's ledger",
+      ledger,
+    )
   },
 }

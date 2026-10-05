@@ -286,7 +286,7 @@ describe("the dialog", () => {
     return consumed
   }
 
-  test("/trust opens on the activity; l the ledger; esc back to the activity, then the host closes", async () => {
+  test("/trust opens on the ledger; a the activity; esc back to the ledger, then the host closes", async () => {
     const fake = await start()
     command(fake, "cockpit.trust.ledger").run()
     expect(fake.dialog.open).toBe(true)
@@ -295,7 +295,7 @@ describe("the dialog", () => {
       fake.dialog.render?.()
     } catch {}
     expect(pressEscape(fake)).toBe(false)
-    command(fake, "cockpit.trust.l").run()
+    command(fake, "cockpit.trust.activity").run()
     expect(pressEscape(fake)).toBe(true)
     expect(pressEscape(fake)).toBe(false)
   })
@@ -311,7 +311,7 @@ describe("the dialog", () => {
     for (const handler of fake.intercepts)
       handler({ event: { name: "q", sequence: "q" }, consume: () => (consumed = true) })
     expect(consumed).toBe(true)
-    expect(pressEscape(fake)).toBe(true)
+    /** esc cancels what is typed; the ledger is what opened, so the next esc is the host's. */
     expect(pressEscape(fake)).toBe(true)
     expect(pressEscape(fake)).toBe(false)
   })

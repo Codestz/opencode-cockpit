@@ -9,7 +9,7 @@
 
 import { createEngine, type Engine } from "./engine.ts"
 import type { Request } from "./keys.ts"
-import { DAY } from "./ledger.ts"
+import { DAY, type Event } from "./ledger.ts"
 import { rulesFrom } from "./rules.ts"
 
 export const SAMPLE_ROOT = "/work/app"
@@ -25,8 +25,14 @@ const RULES = rulesFrom({
   permission: { bash: { "*": "ask", "npm publish *": "ask" }, edit: "ask", webfetch: "ask" },
 })
 
-function build(script: (step: Steps) => void): Engine {
-  const engine = createEngine(SAMPLE_SETTINGS)
+/** Runs `script` on a fresh engine; `record` gets every event it loads, in order — a ledger file's lines. */
+function build(script: (step: Steps) => void, record?: Event[]): Engine {
+  const real = createEngine(SAMPLE_SETTINGS)
+  const engine: Engine = Object.create(real)
+  engine.load = (events, options) => {
+    record?.push(...events)
+    real.load(events, options)
+  }
   let n = 0
   let clock = SAMPLE_NOW - 3 * DAY
   const ask = (line: string, permission = "bash", patterns = [line], agent = "build") => {
@@ -133,6 +139,81 @@ function crowd(s: Steps): void {
   s.auto("ls -la", 1)
   s.at(SAMPLE_NOW - 2_000)
   s.pending("git push origin feat/trust")
+}
+
+/**
+ * A crowded storefront project (`acme-store`), as a user's ledger looked: one agent, `orchestrator`; a
+ * `tail` family on one long ledger path, widened by hand; `ls` widened too; edits in five folders,
+ * one of them outside the project; MCP calls through `mcpx`, `gh` and `jq`; a fetch and a subagent
+ * type; a long tail of commands seen once; and OpenCode's own "always" given twice.
+ */
+function storefront(s: Steps): void {
+  const agent = "orchestrator"
+  const run = (line: string, times: number, how: "once" | "always" = "once") =>
+    s.approve(line, times, how, "bash", agent)
+  const edit = (path: string, times: number) => s.approve(path, times, "once", "edit", agent)
+  const hour = 3_600_000
+  const ledger = "~/.local/share/opencode-cockpit/trust/Projects-acme-store/events.ndjson"
+  const review = "/var/folders/ab/x7k2q9/T/opencode-review"
+  s.at(SAMPLE_NOW - 2 * DAY)
+  run(`tail -4 ${ledger}`, 3)
+  run(`tail -10 ${ledger}`, 2)
+  for (const n of [3, 9, 8]) run(`tail -${n} ${ledger}`, 1)
+  run(`ls -la ${review}`, 3)
+  run(`ls -l ${review}/screens`, 2)
+  run("git status --short", 2)
+  for (const line of ["git log --oneline -20", "git log -1 --format=%H", "git log --stat -3"]) run(line, 1)
+  run("git merge-base HEAD origin/main", 1)
+  run("git merge-base --is-ancestor HEAD main", 1)
+  run("gh pr view 482 --json url,title,state", 2)
+  run("gh pr list --search SHOP-21 --state all", 2)
+  run("gh api --method PATCH /repos/acme/store/pulls/482 -f body=@body.md", 2)
+  run("sed -n 1p .env.example", 2)
+  for (const line of [
+    "jq '.items | length' report.json",
+    "jq -r '.name' package.json",
+    "jq '.scripts' package.json",
+    "jq -c '.[]' out.json",
+  ])
+    run(line, 1)
+  for (const line of ["head -40 README.md", "head -5 CHANGELOG.md", "echo $STORE_URL", "echo done"])
+    run(line, 1)
+  for (const line of ["grep -rn TODO src", "grep -c error build.log", "git branch -a"]) run(line, 1)
+  run("mcpx jira getJiraIssue --site acme --issue SHOP-34", 2)
+  run("mcpx jira searchIssues --jql 'project = SHOP'", 1)
+  run("mcpx github list_pull_requests --repo acme/store", 1)
+  edit(`../../../../../var/folders/ab/x7k2q9/T/opencode-review/notes.md`, 3)
+  edit("packages/api/src/customers.ts", 2)
+  edit("packages/api/src/shopify.ts", 1)
+  edit("packages/api/src/orders.ts", 1)
+  edit("packages/web/context/auth.tsx", 1)
+  edit("packages/web/context/cart.tsx", 1)
+  edit("packages/web/app/checkout/page.tsx", 2)
+  s.approve("https://docs.example.com/api", 3, "once", "webfetch", agent)
+  s.approve("explore", 2, "once", "task", agent)
+  s.approve("find . -name '*.md'", 1, "always", "bash", agent)
+  s.approve("rg --files", 1, "always", "bash", agent)
+  s.at(SAMPLE_NOW - 2 * hour)
+  s.widen("tail", agent)
+  s.widen("ls", agent)
+  s.at(SAMPLE_NOW - 75 * 60_000)
+  s.auto(`tail -4 ${ledger}`, 1, "bash", agent)
+  s.at(SAMPLE_NOW - 30 * 60_000)
+  s.auto(`ls -la ${review}`, 2, "bash", agent)
+  s.auto(`../../../../../var/folders/ab/x7k2q9/T/opencode-review/notes.md`, 1, "edit", agent)
+  s.auto(`ls -l ${review}`, 1, "bash", agent)
+  s.auto(`tail -4 ${ledger}`, 1, "bash", agent)
+  s.auto(`tail -10 ${ledger}`, 1, "bash", agent)
+  s.auto("https://docs.example.com/api", 1, "webfetch", agent)
+  s.at(SAMPLE_NOW - 2_000)
+  s.pending("gh api --method PATCH /repos/acme/store/pulls/482 -f body=@body.md")
+}
+
+/** The `storefront` sample's events, as its ledger file would hold them, for a test project's ledger. */
+export function storefrontEvents(): Event[] {
+  const events: Event[] = []
+  build(storefront, events)
+  return events
 }
 
 /** A week of a project, as steps: rules earned early on, answered on most days since, the newest today. */
@@ -261,6 +342,9 @@ export const SAMPLES: Record<string, () => Sample> = {
    * on their way, a long `find`, the `---` a font merges, and OpenCode's own "always" twice.
    */
   crowded: () => ({ engine: build(crowd) }),
+
+  /** The project the ledger's redesign was drawn from: kinds, folders of edits, a long tail seen once. */
+  storefront: () => ({ engine: build(storefront) }),
 
   /** The same afternoon, paused: the dialog has to say it before anything else. */
   "crowded-paused": () => {

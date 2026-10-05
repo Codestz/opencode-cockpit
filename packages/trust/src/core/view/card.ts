@@ -4,21 +4,35 @@
  */
 
 import { anyOf, narrower, outside, redirected, showSubject, spelledWords, widenable } from "../family.ts"
-import { earned, type History, type Mark } from "../history.ts"
+import { dayOf, earned, type History, latestAnswers, type Mark } from "../history.ts"
 import { keyOf, type Thresholds } from "../ledger.ts"
 import { NOT_COVERED, revokeLabel, widenLabel, widenScope } from "./actions.ts"
 import {
   type AlwaysGroup,
+  alwaysGroups,
   type Command,
+  commandsOf,
   countsOf,
   type Family,
   leadOf,
   type Reading,
   type Standing,
 } from "./model.ts"
-import { agentsText, button, chip, meter, muted, plain, plural, since, when, wrapRuns } from "./parts.ts"
-import { filled, fit, type Row, type Run, rowText, widthOf } from "./rows.ts"
-import { commandText, familyText, type Node, nodeTarget } from "./tree.ts"
+import {
+  agentsText,
+  button,
+  chip,
+  clock,
+  meter,
+  muted,
+  plain,
+  plural,
+  since,
+  when,
+  wrapRuns,
+} from "./parts.ts"
+import { filled, fit, type Row, type Run, rowText, squeeze, widthOf } from "./rows.ts"
+import { commandText, familyText, type Node, nodeTarget, SECTION_TITLES } from "./tree.ts"
 
 /** `Still asks` and two spaces: the longest label. */
 export const LABEL = 12
@@ -30,20 +44,54 @@ interface Fact {
   keep: number
   /** The first line is a row of moments: it keeps its newest end on one row rather than wrapping. */
   newest?: boolean
+  /**
+   * Each line is one row: its first run (a command, a path) cut in the middle to fit, the rest — its
+   * standing — kept whole at the row's end. A list of commands reads down the card, one a row.
+   */
+  table?: boolean
 }
 
 /** A fact's rows at `width`: each line wrapped, a row of moments cut from its oldest end. */
 export function factLines(fact: Fact, width: number): Row[] {
+  if (fact.table) {
+    /** One width for every line's first cell, so the standings line up down the card. */
+    const rest = Math.max(0, ...fact.lines.map((line) => widthOf(rowText(line.slice(1)))))
+    return fact.lines.map((line) => tableRow(line, width, rest))
+  }
   return fact.lines.flatMap((line, at) =>
     at === 0 && fact.newest ? [fit(tail(line, width), width)] : wrapRuns(line, width),
   )
+}
+
+/**
+ * A table line in `width`: its first run cut in the middle and padded to the column every line of the
+ * table shares (`width` less the widest `rest`), then the rest whole.
+ */
+function tableRow(line: readonly Run[], width: number, restWidth: number): Row {
+  const [first, ...rest] = line
+  if (!first) return fit([], width)
+  const room = Math.max(4, width - restWidth - 1)
+  const text = squeeze(first.text, room)
+  return fit([{ ...first, text }, { text: " ".repeat(Math.max(0, room - widthOf(text))) }, ...rest], width)
+}
+
+/** How a command stands, in a few cells, as the tree's column says it. */
+function standingShort(command: Command): Run[] {
+  const { stand } = leadOf(command)
+  if (stand.kind === "trusted") return [{ text: "✓ trusted", tone: "success" }]
+  if (stand.kind === "widened") return [{ text: "✓ any", tone: "success" }]
+  if (stand.kind === "counting" && stand.expired) return [muted("expired")]
+  if (command.phase === "once") return [muted("○ once")]
+  return stand.kind === "counting"
+    ? [...meter(stand.have, stand.need, command.danger !== undefined), muted(` ${stand.have}/${stand.need}`)]
+    : []
 }
 
 export interface Button {
   key: string
   label: string
   off: boolean
-  action: "revoke" | "widen" | "copy"
+  action: "revoke" | "widen" | "copy" | "activity"
 }
 
 export interface CardParts {
@@ -58,9 +106,11 @@ export interface CardReading extends Reading {
   families: readonly Family[]
 }
 
-/** The buttons a node offers: `x`, `w` where a family can widen, `c`. */
+/** The buttons a node offers: `x`, `w` where a family can widen, `c`; today's strip, the activity. */
 export function buttonsOf(node: Node, families: readonly Family[]): Button[] {
+  if (node.kind === "today") return [{ key: "a", label: "Full activity", off: false, action: "activity" }]
   const target = nodeTarget(node)
+  if (!target) return []
   const x = revokeLabel(target)
   const out: Button[] = [{ key: "x", label: x.label, off: x.off, action: "revoke" }]
   if (node.kind !== "always") {
@@ -372,30 +422,18 @@ function familyCard(family: Family, reading: CardReading): CardParts {
           ],
         ]
   const facts: Fact[] = []
-  const list: Run[] = []
-  family.commands.forEach((command, at) => {
-    if (at > 0) list.push(muted(" · "))
-    list.push({
-      text: showSubject(command.permission, command.subject),
-      tone: command.phase === "answering" ? "success" : "text",
+  /** One command a line, its standing at the end of it: a list joined by `·` wrapped mid-command. */
+  if (family.commands.length > 0)
+    facts.push({
+      label: family.permission === "edit" ? "Files" : "Commands",
+      keep: 7,
+      lines: family.commands.map((command) => [
+        plain(showSubject(command.permission, command.subject)),
+        { text: "  " },
+        ...standingShort(command),
+      ]),
+      table: true,
     })
-  })
-  if (list.length > 0) facts.push({ label: "Commands", keep: 7, lines: [list] })
-  const best = family.commands.find((command) => command.phase === "learning")
-  if (best) {
-    const { stand, entry } = leadOf(best)
-    if (stand.kind === "counting")
-      facts.push({
-        label: "Closest",
-        keep: 5,
-        lines: [
-          [
-            plain(showSubject(best.permission, best.subject)),
-            muted(`, ${stand.have} of ${stand.need} for ${entry.agent}`),
-          ],
-        ],
-      })
-  }
   if (family.widened.length > 0)
     facts.push({ label: "Still asks", keep: 6, lines: [[muted(`${NOT_COVERED}.`)]] })
   const fam = familyFact(family, undefined, reading)
@@ -457,13 +495,122 @@ function alwaysCard(groups: readonly AlwaysGroup[], reading: CardReading): CardP
   }
 }
 
+/** Today's strip, selected: what Trust answered today, what is one approval away, and OpenCode's own. */
+function todayCard(reading: CardReading): CardParts {
+  const { history, now } = reading
+  const today = latestAnswers(history, 200).filter((answer) => dayOf(answer.at) === dayOf(now))
+  const facts: Fact[] = []
+  if (today.length > 0)
+    facts.push({
+      label: "Answered",
+      keep: 7,
+      table: true,
+      /** What and when; why it answered is the activity's to say, one key away. */
+      lines: today.map((answer) => [
+        plain(
+          `${answer.permission === "bash" ? "" : `${answer.permission} `}${answer.items
+            .map((item) => showSubject(answer.permission, item.subject))
+            .join(" && ")}`,
+        ),
+        { text: "  " },
+        muted(clock(answer.at, now)),
+      ]),
+    })
+  const almost = commandsOf(reading).filter((command) => {
+    const { stand } = leadOf(command)
+    return command.phase === "learning" && stand.kind === "counting" && stand.need - stand.have === 1
+  })
+  if (almost.length > 0)
+    facts.push({
+      label: "Almost",
+      keep: 5,
+      lines: [
+        [
+          { text: `${almost.length}`, tone: "warning", bold: true },
+          muted(` ${almost.length === 1 ? "is" : "are"} one approval away`),
+          ...(almost[0]
+            ? [muted(" · newest "), plain(showSubject(almost[0].permission, almost[0].subject))]
+            : []),
+        ],
+      ],
+    })
+  const always = alwaysGroups(reading.state)
+  if (always.length > 0)
+    facts.push({
+      label: "Watch",
+      keep: 4,
+      lines: [
+        [
+          { text: "! ", tone: "warning" },
+          muted(`OpenCode's own "always" for `),
+          plain(always.map((group) => group.patterns.join(" ")).join(", ")),
+        ],
+      ],
+    })
+  return {
+    title: [
+      { text: "Today", tone: "text", bold: true },
+      muted(
+        today.length > 0
+          ? `  ${plural(today.length, "prompt")} Trust answered for you`
+          : "  nothing answered yet",
+      ),
+    ],
+    standing: [],
+    facts,
+    buttons: [],
+  }
+}
+
+/** A kind's families seen once, folded: what they are, and that there is nothing to do with them yet. */
+function onceCard(node: Extract<Node, { kind: "once" }>, reading: CardReading): CardParts {
+  const commands = node.families.flatMap((family) => family.commands)
+  return {
+    title: [
+      { text: "Seen once", tone: "text", bold: true },
+      muted(`  ${SECTION_TITLES[node.section].toLowerCase()} · ${plural(commands.length, "approval")}`),
+    ],
+    standing: [],
+    facts: [
+      {
+        label: "Families",
+        keep: 7,
+        table: true,
+        lines: node.families.map((family) => [
+          plain(family.permission === "edit" ? family.family : familyText(family)),
+          { text: "  " },
+          muted(plural(family.commands.length, family.permission === "edit" ? "file" : "command")),
+        ]),
+      },
+      {
+        label: "Means",
+        keep: 5,
+        lines: [
+          [
+            muted(
+              `Approved once and not again: nothing to act on until one is approved ${reading.settings.threshold} times in a row. → opens them, / finds one.`,
+            ),
+          ],
+        ],
+      },
+    ],
+    buttons: [],
+  }
+}
+
 export function cardOf(node: Node, reading: CardReading): CardParts {
   const parts =
-    node.kind === "always"
-      ? alwaysCard(node.groups, reading)
-      : node.kind === "command"
-        ? commandCard(node.command, node.family, reading)
-        : familyCard(node.family, reading)
+    node.kind === "today"
+      ? todayCard(reading)
+      : node.kind === "once"
+        ? onceCard(node, reading)
+        : node.kind === "always"
+          ? alwaysCard(node.groups, reading)
+          : node.kind === "command"
+            ? commandCard(node.command, node.family, reading)
+            : node.kind === "family" || node.kind === "more"
+              ? familyCard(node.family, reading)
+              : { title: [], standing: [], facts: [], buttons: [] }
   return { ...parts, buttons: buttonsOf(node, reading.families) }
 }
 
@@ -523,14 +670,17 @@ export function cardRows(parts: CardParts, width: number, room: number, focus: n
     }
   })
   const rows: Row[] = [...title, ...stand]
-  if (air >= 1) rows.push(fit([], width))
+  if (air >= 1 && stand.length > 0) rows.push(fit([], width))
   facts.forEach((fact, index) => {
     rows.push(...factRows(fact, give[index] as number))
   })
-  /** The buttons sit right under the facts, and the card's spare room is below them. */
-  if (air >= 2) rows.push(fit([], width))
+  /** The card's spare room is above the buttons: they sit on its last row, where every card has them. */
+  if (parts.buttons.length === 0) {
+    while (rows.length < room) rows.push(fit([], width))
+    return rows.slice(0, room)
+  }
+  while (rows.length < room - 1) rows.push(fit([], width))
   rows.push(buttons)
-  while (rows.length < room) rows.push(fit([], width))
   return rows.slice(0, room)
 }
 

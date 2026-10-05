@@ -1,28 +1,31 @@
 /**
- * The screen `/trust` opens on: what Trust did for you, newest first, then what it is about to do.
+ * The activity, behind `a` in the ledger: what Trust did for you, newest first, then what it is about
+ * to do.
  *
- *    Trust · opencode-cockpit                                                   ● answering
+ *    Trust · opencode-cockpit · activity                                        ● answering
  *
  *    TODAY  Trust answered 4 prompts for you                       ▁▁▃▁▅▂█  last 7 days
- *   ▌09:41  ✓ git status --short       build     trusted since yesterday, 3 in a row
- *    09:40  ✓ ls -la                   general   in a family you widened: ls
+ *   ▌✓ 09:41  git status --short       build     trusted since yesterday, 3 in a row
+ *    ✓ 09:40  ls -la                   general   in a family you widened: ls
  *
  *    ALMOST THERE  one more approval and Trust answers these
- *     ○ bun --version                  build     ▰▰▱       2 of 3
- *     ○ git push origin feat/trust     build     ▰▰▰▰▰▱▱▱  5 of 8   dangerous
+ *    ○        bun --version            build     ▰▰▱       2 of 3
+ *    ○        git push origin feat/…   build     ▰▰▰▰▰▱▱▱  5 of 8   dangerous
  *
  *    ! WATCH OUT   OpenCode's own "always" approves more than it looks, until it restarts
- *     ! find *  sed *                  general   [enter] what it covers
+ *    !        find *  sed *            general   [enter] what it covers
  *
  *    RULES  11 trusted · 14 learning · 101 seen once                      l  Open the ledger
  *
- *    [enter] Why   [x] Revoke   [w] Trust Family   [l] Ledger   [p] Pause   [?] Keys   [esc] Close
+ *    [enter] Why   [x] Revoke   [w] Trust Family   [a] Ledger   [p] Pause   [?] Keys   [esc] Back
  *
- * Transparency is the point of Trust, so it leads with it: the question a person opens it with is
- * "what did it do while I was not looking?", and the first line answers it. What is close comes
- * next, because that is what will happen next; OpenCode's own broad approvals get a band of their
- * own, so they cannot be mistaken for Trust's rules; and managing rules is one key away, in the
- * ledger (explorer.ts). Every list is a window that follows the cursor, so a short dialog still
+ * One left edge: every row starts with its mark (`✓` answered, `○` close, `!` OpenCode's own), then
+ * the time column, then the command, so the three lists read as one. The agent has a column only
+ * when there is more than one; with one, the header names it and its chip is not repeated on every
+ * row. Paths are cut in the middle (`rows.squeeze`), so the file each command touched stays visible.
+ *
+ * The ledger (explorer.ts) is what `/trust` opens on; this is the "what happened" view, reached from
+ * its Today strip or `a`. Every list is a window that follows the cursor, so a short dialog still
  * reaches everything.
  */
 
@@ -62,7 +65,7 @@ import {
   sparkline,
   wrapRuns,
 } from "./parts.ts"
-import { cursorRow, cut, fit, type Row, type Run, spread, widthOf } from "./rows.ts"
+import { cursorRow, fit, type Row, type Run, spread, squeeze, widthOf } from "./rows.ts"
 
 export type ActivityItem =
   /** An answer Trust gave; `count` answers of the same line in a row are one item. */
@@ -87,8 +90,11 @@ export interface ActivityModel {
 /** Answers the feed holds: far more than a screen shows, for the cursor to scroll through. */
 const FEED_MAX = 60
 
+/** What was answered, as the other lists say it: `edit src/app.ts`, `webfetch …`, a command bare. */
 const labelOf = (answer: Answer) =>
-  answer.items.map((item) => showSubject(answer.permission, item.subject)).join(" && ")
+  `${answer.permission === "bash" ? "" : `${answer.permission} `}${answer.items
+    .map((item) => showSubject(answer.permission, item.subject))
+    .join(" && ")}`
 
 export function activityModel(input: Reading & { history: History }): ActivityModel {
   const { history, now } = input
@@ -226,10 +232,10 @@ export const ACTIVITY_KEYS: readonly KeyLine[] = [
   { keys: ["x"], does: "Revoke what answered, or forget a count still learning" },
   { keys: ["w"], does: "Trust any command of the family, or go back to exact rules" },
   { keys: ["c"], does: "Copy the rule as opencode.json config" },
-  { keys: ["l"], does: "Open the ledger: every rule, by family" },
-  { keys: ["/"], does: "Open the ledger and filter it" },
+  { keys: ["a", "l"], does: "Back to the ledger: every rule, by kind and family" },
+  { keys: ["/"], does: "Back to the ledger and filter it" },
   { keys: ["p"], does: "Pause Trust in this project, or resume it" },
-  { keys: ["?", "esc"], does: "Hide these keys; esc closes the dialog" },
+  { keys: ["?", "esc"], does: "Hide these keys; esc goes back to the ledger" },
 ]
 
 /** One section of the screen: a heading and the rows of its items, a window that follows the cursor. */
@@ -251,9 +257,19 @@ export function activityRows(input: ActivityInput): ActivityView {
     model.items.findIndex((item) => item.key === input.selected),
   )
   const item = model.items[index]
+  const columns = columnsOf(model, width, now)
   /** Paused, the badge alone does not say what that means: it keeps counting, and answers nothing. */
   const rows: Row[] = [
-    headerRow(input.project, state.paused, state.paused ? [muted("counting, answering nothing")] : [], width),
+    headerRow(
+      input.project,
+      state.paused,
+      state.paused
+        ? [muted("counting, answering nothing")]
+        : columns.only
+          ? [muted(`activity · all by ${columns.only}`)]
+          : [muted("activity")],
+      width,
+    ),
   ]
   const hits: Hit[] = []
 
@@ -265,7 +281,6 @@ export function activityRows(input: ActivityInput): ActivityView {
     return { rows, ...(item ? { item } : {}), model, hits }
   }
 
-  const columns = columnsOf(model, width, now)
   const sections: Section[] = []
 
   /* TODAY */
@@ -457,14 +472,16 @@ interface Columns {
   time: number
   /** Where every list's agent chip starts, so the chips read straight down the screen. */
   chipAt: number
-  /** The widest chip, padded to. */
+  /** The widest chip, padded to; 0 when there is one agent, and no chip is drawn. */
   chip: number
   /** The longest meter among what is close. */
   meter: number
+  /** The one agent every row is for, said once in the header instead of on every row. */
+  only?: string
 }
 
-const FEED_LEAD = 1 + 2 + 2
-const LIST_LEAD = 4
+/** ` ✓ ` and the time column, then two cells: where every list's command starts. */
+const rowLead = (columns: { time: number }) => 3 + columns.time + 2
 
 function columnsOf(model: ActivityModel, width: number, now: number): Columns {
   const time = Math.max(
@@ -478,21 +495,27 @@ function columnsOf(model: ActivityModel, width: number, now: number): Columns {
         ? leadOf(item.command).entry.agent
         : item.group.agent,
   )
-  const chipWidth = Math.max(0, ...agents.map((agent) => widthOf(agent) + 2))
+  const distinct = [...new Set(agents)]
+  const only = distinct.length === 1 ? distinct[0] : undefined
+  const chipWidth = only ? 0 : Math.max(0, ...agents.map((agent) => widthOf(agent) + 2))
+  const lead = 3 + time + 2
   const leads = model.items.map((item) => {
-    if (item.kind === "answer")
-      return FEED_LEAD + time + widthOf(labelOf(item.answer)) + (item.count > 1 ? 4 : 0)
+    if (item.kind === "answer") return lead + widthOf(labelOf(item.answer)) + (item.count > 1 ? 4 : 0)
     if (item.kind === "almost")
-      return LIST_LEAD + widthOf(showSubject(item.command.permission, item.command.subject))
-    return LIST_LEAD + widthOf(item.group.patterns.join("  "))
+      return lead + widthOf(showSubject(item.command.permission, item.command.subject))
+    return lead + widthOf(item.group.patterns.join("  "))
   })
   /** The commands get what they need up to about half the row; the reasons take the rest. */
-  const chipAt = Math.min(Math.max(24, ...leads.map((lead) => lead + 2)), Math.floor(width * 0.42))
+  /** Without an agent column the commands take more of the row. */
+  const chipAt = Math.min(
+    Math.max(24, ...leads.map((lead) => lead + 2)),
+    Math.floor(width * (only ? 0.55 : 0.42)),
+  )
   const meterWidth = Math.max(
     0,
     ...model.almost.map((item) => (item.kind === "almost" ? needOf(item.command) : 0)),
   )
-  return { time, chipAt, chip: chipWidth, meter: meterWidth }
+  return { time, chipAt, chip: chipWidth, meter: meterWidth, ...(only ? { only } : {}) }
 }
 
 function needOf(command: Command): number {
@@ -500,35 +523,40 @@ function needOf(command: Command): number {
   return stand.kind === "counting" ? stand.need : 0
 }
 
-/** `text` in exactly `room` columns: cut with `…`, or padded. */
+/** `text` in exactly `room` columns: its paths cut in the middle, or padded. */
 const cell = (text: string, room: number) => {
-  const shown = cut(text, room)
+  const shown = squeeze(text, room)
   return `${shown}${" ".repeat(Math.max(0, room - widthOf(shown)))}`
 }
 
+/** The agent's chip and two cells after it; nothing when there is one agent. */
 function chipCell(agent: string, columns: Columns): Run[] {
-  return [chip(agent), { text: " ".repeat(Math.max(0, columns.chip - widthOf(agent) - 2)) }]
+  if (columns.chip === 0) return []
+  return [chip(agent), { text: " ".repeat(Math.max(0, columns.chip - widthOf(agent) - 2)) }, { text: "  " }]
 }
 
 function itemRow(item: ActivityItem, input: ActivityInput, columns: Columns, width: number): Row {
+  const lead = rowLead(columns)
+  /** The mark, then the time column (blank on a list without times), as every row starts. */
+  const start = (mark: string, tone: Run["tone"], time = ""): Run[] => [
+    { text: " " },
+    { text: `${mark} `, tone },
+    muted(time.padStart(columns.time)),
+    { text: "  " },
+  ]
   if (item.kind === "answer") {
     const { answer } = item
-    const lead = FEED_LEAD + columns.time
     const count = item.count > 1 ? ` ${item.count}×` : ""
     const room = Math.max(4, columns.chipAt - lead - 2 - count.length)
-    const label = labelOf(answer)
+    const label = squeeze(labelOf(answer), room)
     return fit(
       [
-        { text: " " },
-        muted(clock(answer.at, input.now).padStart(columns.time)),
-        { text: "  " },
-        { text: "✓ ", tone: "success" },
-        plain(cut(label, room)),
+        ...start("✓", "success", clock(answer.at, input.now)),
+        plain(label),
         muted(count),
-        { text: " ".repeat(Math.max(0, room - widthOf(cut(label, room)))) },
+        { text: " ".repeat(Math.max(0, room - widthOf(label))) },
         { text: "  " },
         ...chipCell(answer.agent, columns),
-        { text: "  " },
         muted(answerWhy(answer, input)),
       ],
       width,
@@ -538,17 +566,15 @@ function itemRow(item: ActivityItem, input: ActivityInput, columns: Columns, wid
     const { command } = item
     const { stand, entry } = leadOf(command)
     const danger = command.danger !== undefined
-    const room = Math.max(4, columns.chipAt - LIST_LEAD - 2)
+    const room = Math.max(4, columns.chipAt - lead - 2)
     const counting = stand.kind === "counting" ? stand : undefined
     const name = `${command.permission === "bash" ? "" : `${command.permission} `}${showSubject(command.permission, command.subject)}`
     return fit(
       [
-        { text: "  " },
-        { text: "○ ", tone: danger ? "error" : "warning" },
+        ...start("○", danger ? "error" : "warning"),
         plain(cell(name, room)),
         { text: "  " },
         ...chipCell(entry.agent, columns),
-        { text: "  " },
         ...(counting ? meter(counting.have, counting.need, danger) : []),
         { text: " ".repeat(Math.max(0, columns.meter - (counting?.need ?? 0))) },
         muted(counting ? `  ${counting.have} of ${counting.need}` : ""),
@@ -558,11 +584,10 @@ function itemRow(item: ActivityItem, input: ActivityInput, columns: Columns, wid
     )
   }
   const { group } = item
-  const room = Math.max(4, columns.chipAt - LIST_LEAD - 2)
+  const room = Math.max(4, columns.chipAt - lead - 2)
   return fit(
     [
-      { text: "  " },
-      { text: "! ", tone: "warning" },
+      ...start("!", "warning"),
       plain(
         cell(
           `${group.permission === "bash" ? "" : `${group.permission} `}${group.patterns.join("  ")}`,
@@ -571,7 +596,6 @@ function itemRow(item: ActivityItem, input: ActivityInput, columns: Columns, wid
       ),
       { text: "  " },
       ...chipCell(group.agent, columns),
-      { text: "  " },
       ...(width - columns.chipAt - columns.chip > 26
         ? [muted(" "), keyRun("enter"), muted(" what it covers")]
         : []),
@@ -599,9 +623,9 @@ function hintsFor(item: ActivityItem | undefined, model: ActivityModel, paused: 
       ...(w.off ? { off: true } : {}),
     })
   }
-  hints.push({ key: "l", label: "Ledger", priority: 6 })
+  hints.push({ key: "a", label: "Ledger", priority: 6 })
   hints.push({ key: "p", label: paused ? "Resume" : "Pause", priority: paused ? 5.5 : 2 })
   hints.push({ key: "?", label: "Keys", priority: 4.5 })
-  hints.push(closeHint())
+  hints.push(closeHint("Back"))
   return hints
 }
