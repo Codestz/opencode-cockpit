@@ -82,6 +82,8 @@ export interface Turn {
   session?: string
   stdout: string
   stderr: string
+  /** False when the turn ran out its five minutes, or was killed. */
+  finished: boolean
 }
 
 export interface World {
@@ -150,6 +152,7 @@ export function turn(at: World, prompt: string, session?: string): Turn {
     session: all.find((event) => typeof event.sessionID === "string")?.sessionID,
     stdout,
     stderr: result.stderr.toString(),
+    finished: result.exitCode !== null && !result.signalCode,
   }
 }
 

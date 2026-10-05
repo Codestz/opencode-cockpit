@@ -4,6 +4,7 @@
  */
 
 import { join } from "node:path"
+import { turn } from "../measure-agent.ts"
 import { opencode, root, v2 } from "./harness.ts"
 import type { Install } from "./install.ts"
 
@@ -42,46 +43,18 @@ export function agentTurn(install: Install, asks: AgentAsk[]): void {
           ]
         : []),
   ].join(" ")
-  const args = [opencode, "run", ...(v2 ? ["--standalone", "--auto"] : []), "-m", "opencode/space-bunny-free"]
-  /** Bounded, and stdin closed: an open stdin or a permission prompt makes `opencode run` wait forever. */
-  const result = Bun.spawnSync([...args, "--format", "json", prompt], {
-    cwd: install.project,
+  const at = {
+    oc: { bin: opencode, version: "", v2 },
+    work: install.project,
+    project: install.project,
+    model: "opencode/space-bunny-free",
     env: install.env,
-    stdin: "ignore",
-    stdout: "pipe",
-    stderr: "pipe",
-    timeout: 300_000,
-  })
-  if (result.exitCode === null || result.signalCode)
-    throw new Error(`the agent turn never finished (5 min):\n${result.stdout.toString().slice(-3000)}`)
-  const events = result.stdout
-    .toString()
-    .split("\n")
-    .filter((line) => line.startsWith("{"))
-    .map((line) => JSON.parse(line) as { type: string; part?: Record<string, never> })
-  /** v2 runs plugin tools through Code Mode: the calls are listed on its `execute` part. */
-  const called = events
-    .filter((event) => event.type === "tool_use")
-    .flatMap((event) => {
-      const part = event.part as unknown as {
-        tool: string
-        state: {
-          status: string
-          metadata?: { metadata?: { toolCalls?: { tool: string; status: string }[] } }
-        }
-      }
-      return [
-        { tool: part.tool, status: part.state.status },
-        ...(part.state.metadata?.metadata?.toolCalls ?? []),
-      ]
-    })
-    .filter((call) => call.status === "completed")
-    .map((call) => call.tool)
-  const said = events
-    .filter((event) => event.type === "text")
-    .map((event) => (event.part as unknown as { text: string }).text)
-    .join("\n")
-  const report = `${result.stdout}\n${result.stderr}`.slice(-3000)
+  }
+  /** Bounded, and stdin closed: an open stdin or a permission prompt makes `opencode run` wait forever. */
+  const { calls, said, stdout, stderr, finished } = turn(at, prompt)
+  if (!finished) throw new Error(`the agent turn never finished (5 min):\n${stdout.slice(-3000)}`)
+  const called = calls.filter((call) => call.status === "completed").map((call) => call.tool)
+  const report = `${stdout}\n${stderr}`.slice(-3000)
   for (const { tool } of asks) {
     if (!called.includes(tool)) throw new Error(`the agent never completed ${tool}:\n${report}`)
   }
