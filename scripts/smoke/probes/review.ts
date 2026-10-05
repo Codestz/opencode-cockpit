@@ -26,11 +26,11 @@ export const review: Probe = {
     for (const [what, marker] of [
       ["the review panel never drew", "review"],
       ["the review panel drew no diff", "SMOKE-REVIEW"],
-      ["the review panel never named its old setting", '! settings: "review.sidebarOrder"'],
+      ["the review panel never named its broken setting", '"review.source" should be'],
     ] as const) {
       expect(drawn.includes(marker), what, drawn)
     }
-    pass("review drew its diff and named its old setting")
+    pass("review drew its diff and named its broken setting")
   },
   /** Palette-only: closed, it used to change nothing on screen; now it opens, full screen. */
   async palette() {

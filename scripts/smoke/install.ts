@@ -109,15 +109,13 @@ export async function prepare(mode: Mode): Promise<Install> {
   const serverEntries: string[] = []
   for (const entry of tuiEntries) if (await hasServer(entry)) serverEntries.push(entry)
   /**
-   * v1 reads `plugin` from opencode.json and tui.json; v2 reads `plugins` from opencode.json and
-   * cli.json (docs/opencode/v2.md). The same packages go in either way. The bundle goes where the
-   * docs put it: in both files on v1, and on v2 in opencode.json alone, which loads both its halves.
+   * Where the install docs put them, which is where `opencode plugin add` writes. v1 reads `plugin`
+   * from opencode.json (the agent side) and tui.json (the interface). v2 reads `plugins` from
+   * opencode.json and loads both halves of every entry there — the bundle and each bay alike — so
+   * every entry goes in opencode.json alone, and nothing in cli.json.
    */
   const files: [string, string, string, string[]][] = v2
-    ? [
-        ["opencode.json", "https://opencode.ai/config.json", "plugins", serverEntries],
-        ["cli.json", "https://opencode.ai/cli.json", "plugins", mode === "bundle" ? [] : tuiEntries],
-      ]
+    ? [["opencode.json", "https://opencode.ai/config.json", "plugins", tuiEntries]]
     : [
         ["opencode.json", "https://opencode.ai/config.json", "plugin", serverEntries],
         ["tui.json", "https://opencode.ai/tui.json", "plugin", tuiEntries],
@@ -163,8 +161,8 @@ export async function prepare(mode: Mode): Promise<Install> {
         ],
         commands: { smoke: { run: "printf 'COMMAND-RAN'", intervalMs: 250 } },
       },
-      /** An old name in Review's section: the pane has to say so in a `!` row. */
-      review: { sidebarOrder: 3 },
+      /** A value of the wrong kind in Review's section: the pane has to say so in a `!` row. */
+      review: { source: 5 },
     }),
   )
 
