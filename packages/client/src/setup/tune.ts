@@ -8,7 +8,7 @@
  */
 
 import { homedir } from "node:os"
-import { BAY_ABOUT, BAY_COMMANDS, DEFAULT_KEYS } from "../catalog.ts"
+import { BAY_ABOUT, BAY_COMMANDS, DEFAULT_KEYS } from "../settings/catalog.ts"
 import {
   findSections,
   type GitRun,
@@ -19,7 +19,7 @@ import {
   sectionText,
   type WriteAction,
   type Written,
-} from "../conventions.ts"
+} from "./conventions.ts"
 import { isObject } from "./installs.ts"
 import { CONVENTIONS_TOOL } from "./names.ts"
 import { type BayState, type ReportInput, readText, type SettingsReport } from "./report.ts"

@@ -10,7 +10,7 @@ import {
   sectionText,
   ticketPrefixes,
   writeSection,
-} from "../src/conventions.ts"
+} from "../src/setup/conventions.ts"
 
 /**
  * The second phase of /cockpit-setup writes into someone's own instructions file. What is tested is

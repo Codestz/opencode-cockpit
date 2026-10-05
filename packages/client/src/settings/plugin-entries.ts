@@ -6,7 +6,7 @@
  */
 
 import { basename } from "node:path"
-import { BAYS, type Bay, isBay } from "./settings.ts"
+import { BAYS, type Bay, isBay } from "./index.ts"
 
 /** The bundle's package, and the prefix every single bay's package carries. */
 export const BUNDLE = "opencode-cockpit"

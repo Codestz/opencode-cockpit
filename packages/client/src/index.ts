@@ -4,6 +4,6 @@ export {
   type ConnectionState,
   compareBuilds,
   type OutdatedDaemon,
-} from "./client.ts"
+} from "./daemon/client.ts"
+export type { SpawnOptions } from "./daemon/spawn.ts"
 export { claimedFeatures, claimFeature, duplicateFeatureMessage, type FeatureClaim } from "./feature.ts"
-export type { SpawnOptions } from "./spawn.ts"

@@ -5,9 +5,8 @@
 
 import { readFileSync } from "node:fs"
 import { homedir } from "node:os"
-import { bayKeys, type KeyInfo } from "../catalog.ts"
-import { bayNotices, uniqueNotices } from "../checks.ts"
-import { baysOfEntry } from "../plugin-entries.ts"
+import { bayKeys, type KeyInfo } from "../settings/catalog.ts"
+import { bayNotices, uniqueNotices } from "../settings/checks.ts"
 import {
   BAYS,
   type Bay,
@@ -18,7 +17,8 @@ import {
   type Settings,
   type SettingsNotice,
   type SettingsWhere,
-} from "../settings.ts"
+} from "../settings/index.ts"
+import { baysOfEntry } from "../settings/plugin-entries.ts"
 import { type HostFile, hostFilePaths, readHostFile } from "./host-blocks.ts"
 import { entryOptions, type Install, isObject, opencodeConfigPaths, readInstalls } from "./installs.ts"
 

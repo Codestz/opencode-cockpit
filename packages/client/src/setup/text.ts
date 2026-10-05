@@ -1,13 +1,13 @@
 /** The tool's answer: the report as text the agent acts on. */
 
-import { BAY_ABOUT, shownDefault } from "../catalog.ts"
+import { BAY_ABOUT, shownDefault } from "../settings/catalog.ts"
 import {
   isSidebarBay,
   OPTIONS_SOURCE,
   type Settings,
   type SettingsNotice,
   type SidebarBay,
-} from "../settings.ts"
+} from "../settings/index.ts"
 import { HOST_BLOCKS } from "./host-blocks.ts"
 import type { BayState, ResolvedKey, SettingsReport } from "./report.ts"
 

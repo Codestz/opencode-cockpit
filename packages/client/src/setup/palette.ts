@@ -1,8 +1,8 @@
 /** The interface: a palette entry that asks the agent to set Cockpit up. */
 
-import { briefAgent } from "../brief.ts"
 import { claimFeature } from "../feature.ts"
-import type { Host } from "../host.ts"
+import type { Host } from "../opencode/host.ts"
+import { briefAgent } from "./brief.ts"
 import { SETUP_PROMPT } from "./names.ts"
 
 /**

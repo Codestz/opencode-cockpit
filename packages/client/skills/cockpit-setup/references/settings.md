@@ -1,4 +1,4 @@
-<!-- Written by `bun packages/client/src/cli/reference.ts` from packages/client/src/catalog.ts. Do not edit by hand: a test fails when this file and the code disagree. -->
+<!-- Written by `bun packages/client/src/cli/reference.ts` from packages/client/src/settings/catalog.ts. Do not edit by hand: a test fails when this file and the code disagree. -->
 
 # Cockpit settings reference
 

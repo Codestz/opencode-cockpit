@@ -14,10 +14,10 @@
 import type { TuiDialogSelectOption, TuiPluginApi, TuiThemeCurrent } from "@opencode-ai/plugin/tui"
 import type { CliRenderer, KeyEvent } from "@opentui/core"
 import { createComponent, createRoot, getOwner, type JSX, type Owner, onCleanup } from "solid-js"
+import { cockpitVersion, createLog, type Log, silentLog } from "../log.ts"
+import { registerSetup } from "../setup/palette.ts"
 import { textElement } from "./elements.tsx"
-import { cockpitVersion, createLog, type Log, silentLog } from "./log.ts"
 import { registerServiceCheck } from "./service.ts"
-import { registerSetup } from "./setup/palette.ts"
 
 type V1Layer = Parameters<TuiPluginApi["keymap"]["registerLayer"]>[0]
 export type Layer = V1Layer
@@ -725,7 +725,7 @@ export function dualTui(id: string, start: Start) {
       opencodeVersion: opencode,
       cockpit: cockpitVersion(),
     })
-    /** `/cockpit-setup`: every entry offers it, the first in a window registers it (setup.ts). */
+    /** `/cockpit-setup`: every entry offers it, the first in a window registers it (setup/). */
     try {
       registerSetup(host, id)
     } catch (error) {

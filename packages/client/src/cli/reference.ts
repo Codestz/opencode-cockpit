@@ -9,8 +9,8 @@
 
 import { writeFileSync } from "node:fs"
 import { join } from "node:path"
-import { settingsReference } from "../catalog.ts"
-import { SETUP_SKILL_DIR } from "../setup.ts"
+import { settingsReference } from "../settings/catalog.ts"
+import { SETUP_SKILL_DIR } from "../setup/index.ts"
 
 const file = join(SETUP_SKILL_DIR, "references", "settings.md")
 writeFileSync(file, settingsReference())

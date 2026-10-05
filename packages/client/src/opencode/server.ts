@@ -21,9 +21,9 @@ import {
   type ToolDefinition,
   tool,
 } from "@opencode-ai/plugin"
-import { cockpitVersion, createLog, type Log, silentLog } from "./log.ts"
+import { cockpitVersion, createLog, type Log, silentLog } from "../log.ts"
+import { setupServer } from "../setup/server.ts"
 import { recordAgent } from "./service.ts"
-import { setupServer } from "./setup/server.ts"
 import { registerSurfaces, type Surface } from "./surfaces.ts"
 
 export { keyText, openText, type Surface, surfacesLine } from "./surfaces.ts"

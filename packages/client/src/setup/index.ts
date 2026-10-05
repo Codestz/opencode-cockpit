@@ -24,10 +24,10 @@
  * loads the other's code.
  */
 
+export { baysOfEntry } from "../settings/plugin-entries.ts"
 export { briefAgent } from "./brief.ts"
-export { baysOfEntry } from "./plugin-entries.ts"
-export { HOST_BLOCKS, type HostFile, hostFilePaths, readHostFile } from "./setup/host-blocks.ts"
-export { type Install, opencodeConfigPaths, readInstalls } from "./setup/installs.ts"
+export { HOST_BLOCKS, type HostFile, hostFilePaths, readHostFile } from "./host-blocks.ts"
+export { type Install, opencodeConfigPaths, readInstalls } from "./installs.ts"
 export {
   CONVENTIONS_TOOL,
   SETTINGS_TOOL,
@@ -35,9 +35,9 @@ export {
   SETUP_SKILL,
   SETUP_SKILL_DIR,
   SETUP_SLASH,
-} from "./setup/names.ts"
-export { registerSetup } from "./setup/palette.ts"
-export { offerPreview, previewCommands } from "./setup/previews.ts"
+} from "./names.ts"
+export { registerSetup } from "./palette.ts"
+export { offerPreview, previewCommands } from "./previews.ts"
 export {
   type BayState,
   type ReportInput,
@@ -45,7 +45,7 @@ export {
   type SettingsReport,
   type Source,
   settingsReport,
-} from "./setup/report.ts"
-export { setupServer } from "./setup/server.ts"
-export { blockState, noticeLine, settingsText } from "./setup/text.ts"
-export { bayCommands, conventionsReply, type TuneFacts, tuneFacts, tuneText } from "./setup/tune.ts"
+} from "./report.ts"
+export { setupServer } from "./server.ts"
+export { blockState, noticeLine, settingsText } from "./text.ts"
+export { bayCommands, conventionsReply, type TuneFacts, tuneFacts, tuneText } from "./tune.ts"

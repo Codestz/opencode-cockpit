@@ -32,9 +32,9 @@ import { readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { parseJsonc } from "./jsonc.ts"
-import { oldAtTop, oldInSection } from "./settings/old-names.ts"
+import { oldAtTop, oldInSection } from "./old-names.ts"
 
-export { OLD_NAMES } from "./settings/old-names.ts"
+export { OLD_NAMES } from "./old-names.ts"
 
 // ── Names ──────────────────────────────────────────────────────────────────────────────────────
 

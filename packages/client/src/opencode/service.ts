@@ -27,9 +27,9 @@ import { homedir } from "node:os"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { resolvePaths } from "@opencode-cockpit/protocol"
-import { claimFeature } from "./feature.ts"
+import { claimFeature } from "../feature.ts"
+import type { Log } from "../log.ts"
 import type { Host } from "./host.ts"
-import type { Log } from "./log.ts"
 
 export const RESTART_COMMAND = "opencode service restart"
 
@@ -48,7 +48,8 @@ export interface AgentRecord extends Install {
   startedAt: number
 }
 
-const PACKAGE_DIR = dirname(dirname(fileURLToPath(import.meta.url)))
+/** src/opencode/service.ts or dist/opencode/service.js: the package is two folders up. */
+const PACKAGE_DIR = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
 
 /** This package's install, read from disk. Undefined when it cannot be read. */
 export function readInstall(dir: string = PACKAGE_DIR): Install | undefined {

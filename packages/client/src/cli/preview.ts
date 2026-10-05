@@ -12,8 +12,8 @@
 
 import { readFileSync } from "node:fs"
 import { emptyBlock, GLYPH, type ToneRun } from "../design.ts"
-import { loadSettings, noticeText, type SettingsNotice } from "../settings.ts"
-import { settingsReport, settingsText } from "../setup.ts"
+import { loadSettings, noticeText, type SettingsNotice } from "../settings/index.ts"
+import { settingsReport, settingsText } from "../setup/index.ts"
 
 const HEX: Record<string, string> = {
   text: "#eeeeee",

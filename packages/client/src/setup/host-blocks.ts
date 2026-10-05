@@ -9,8 +9,8 @@
 
 import { homedir } from "node:os"
 import { join } from "node:path"
-import { parseJsonc } from "../jsonc.ts"
-import { pluginEntries } from "../plugin-entries.ts"
+import { parseJsonc } from "../settings/jsonc.ts"
+import { pluginEntries } from "../settings/plugin-entries.ts"
 import { isObject, opencodeDirs } from "./installs.ts"
 
 /** OpenCode's own sidebar blocks this talks about, and their plugin ids on each version. */

@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test"
 import { existsSync } from "node:fs"
 import { join } from "node:path"
-import { sectionText, writeSection } from "../src/conventions.ts"
 import { claimFeature } from "../src/feature.ts"
-import type { Host } from "../src/host.ts"
 import { silentLog } from "../src/log.ts"
-import type { ServerHost } from "../src/server.ts"
+import type { Host } from "../src/opencode/host.ts"
+import type { ServerHost } from "../src/opencode/server.ts"
+import { sectionText, writeSection } from "../src/setup/conventions.ts"
 import {
   baysOfEntry,
   briefAgent,
@@ -26,7 +26,7 @@ import {
   setupServer,
   tuneFacts,
   tuneText,
-} from "../src/setup.ts"
+} from "../src/setup/index.ts"
 
 /**
  * `cockpit_settings` is what the agent reads before and after it edits. What is tested is the facts

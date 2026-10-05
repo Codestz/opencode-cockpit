@@ -6,7 +6,7 @@ import {
   OLD_NAMES,
   orderOf,
   type SettingsWhere,
-} from "../src/settings.ts"
+} from "../src/settings/index.ts"
 
 /**
  * One loader for every bay: the files mean the same thing to all of them, a comment never drops a

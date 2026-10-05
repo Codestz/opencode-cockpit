@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 import type { ColorInput } from "@opentui/core"
 import type { JSX } from "solid-js"
-import { EMPTY_TEXT } from "./design.ts"
+import { EMPTY_TEXT } from "../design.ts"
 
 /**
  * Plain text as an element OpenCode 1 can place in one of its dialogs.

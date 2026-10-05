@@ -29,60 +29,60 @@
       "default": "./dist/feature.js"
     },
     "./host": {
-      "types": "./types/host.d.ts",
-      "default": "./dist/host.js"
+      "types": "./types/opencode/host.d.ts",
+      "default": "./dist/opencode/host.js"
     },
     "./server": {
-      "types": "./types/server.d.ts",
-      "default": "./dist/server.js"
+      "types": "./types/opencode/server.d.ts",
+      "default": "./dist/opencode/server.js"
     },
     "./log": {
       "types": "./types/log.d.ts",
       "default": "./dist/log.js"
     },
     "./sidebar": {
-      "types": "./types/sidebar.d.ts",
-      "default": "./dist/sidebar.js"
+      "types": "./types/opencode/sidebar.d.ts",
+      "default": "./dist/opencode/sidebar.js"
     },
     "./design": {
       "types": "./types/design.d.ts",
       "default": "./dist/design.js"
     },
     "./settings": {
-      "types": "./types/settings.d.ts",
-      "default": "./dist/settings.js"
+      "types": "./types/settings/index.d.ts",
+      "default": "./dist/settings/index.js"
     },
     "./catalog": {
-      "types": "./types/catalog.d.ts",
-      "default": "./dist/catalog.js"
+      "types": "./types/settings/catalog.d.ts",
+      "default": "./dist/settings/catalog.js"
     },
     "./setup": {
-      "types": "./types/setup.d.ts",
-      "default": "./dist/setup.js"
+      "types": "./types/setup/index.d.ts",
+      "default": "./dist/setup/index.js"
     },
     "./brief": {
-      "types": "./types/brief.d.ts",
-      "default": "./dist/brief.js"
+      "types": "./types/setup/brief.d.ts",
+      "default": "./dist/setup/brief.js"
     },
     "./jsonc": {
-      "types": "./types/jsonc.d.ts",
-      "default": "./dist/jsonc.js"
+      "types": "./types/settings/jsonc.d.ts",
+      "default": "./dist/settings/jsonc.js"
     },
     "./plugin-entries": {
-      "types": "./types/plugin-entries.d.ts",
-      "default": "./dist/plugin-entries.js"
+      "types": "./types/settings/plugin-entries.d.ts",
+      "default": "./dist/settings/plugin-entries.js"
     },
     "./opener": {
       "types": "./types/opener.d.ts",
       "default": "./dist/opener.js"
     },
     "./checks": {
-      "types": "./types/checks.d.ts",
-      "default": "./dist/checks.js"
+      "types": "./types/settings/checks.d.ts",
+      "default": "./dist/settings/checks.js"
     },
     "./service": {
-      "types": "./types/service.d.ts",
-      "default": "./dist/service.js"
+      "types": "./types/opencode/service.d.ts",
+      "default": "./dist/opencode/service.js"
     }
   },
   "files": [

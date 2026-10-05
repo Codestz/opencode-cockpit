@@ -12,7 +12,7 @@
  */
 
 import { bayKeys } from "./catalog.ts"
-import { BAYS, type Bay, baySettings, type Settings, type SettingsNotice } from "./settings.ts"
+import { BAYS, type Bay, baySettings, type Settings, type SettingsNotice } from "./index.ts"
 
 /** A bay's own check: every notice it draws for these settings and its plugin options. Pure. */
 export type SettingsCheck = (input: { settings: Settings; options?: unknown }) => SettingsNotice[]

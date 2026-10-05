@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import type { Host } from "../src/host.ts"
-import { orderedSidebar } from "../src/sidebar.ts"
+import type { Host } from "../src/opencode/host.ts"
+import { orderedSidebar } from "../src/opencode/sidebar.ts"
 
 describe("orderedSidebar", () => {
   test("sidebar blocks register in their order, everything else at once", () => {

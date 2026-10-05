@@ -7,7 +7,7 @@
  * ignored.
  */
 
-import { type Bay, SETUP_COMMAND, type SettingsNotice } from "../settings.ts"
+import { type Bay, SETUP_COMMAND, type SettingsNotice } from "./index.ts"
 
 /** Shell's keys that sat at the file's root before it had a section. */
 const ROOT_SHELL = ["watch", "kinds", "defaults", "lifecycle", "notify", "guidance", "listRunningShells"]

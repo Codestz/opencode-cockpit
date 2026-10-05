@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test"
-import { dualTui, fromV1, fromV2, layerToV2, onPaste, themeFromV2, type V2Context } from "../src/host.ts"
+import {
+  dualTui,
+  fromV1,
+  fromV2,
+  layerToV2,
+  onPaste,
+  themeFromV2,
+  type V2Context,
+} from "../src/opencode/host.ts"
 
 /**
  * The v2 half of the host, against a fake context shaped like OpenCode 2.0.15's (docs/opencode/v2.md).
