@@ -26,18 +26,12 @@ import { trustPaths } from "../core/paths.ts"
 import { rulesFrom } from "../core/rules.ts"
 import { configSnippet, type Outcome, revoke, type Target, widen, widenScope } from "../core/view/actions.ts"
 import { type ActivityView, activityRows, targetOf } from "../core/view/activity.ts"
-import {
-  ALWAYS_KEY,
-  type ExplorerView,
-  explorerRows,
-  type Node,
-  nodeTarget,
-  reveal,
-} from "../core/view/explorer.ts"
+import { type ExplorerView, explorerRows } from "../core/view/explorer.ts"
 import type { Family } from "../core/view/model.ts"
 import type { Hit } from "../core/view/parts.ts"
 import type { Row, Tone } from "../core/view/rows.ts"
 import { sidebarRows, tally } from "../core/view/sidebar.ts"
+import { ALWAYS_KEY, type Node, nodeTarget, reveal } from "../core/view/tree.ts"
 import { createJournal } from "./journal.ts"
 import { createSource } from "./source.ts"
 import { Dialog } from "./view/dialog.tsx"

@@ -22,9 +22,10 @@
 
 import { SAMPLE_NOW, SAMPLE_ROOT, SAMPLE_SETTINGS, SAMPLES } from "../core/sample.ts"
 import { activityRows } from "../core/view/activity.ts"
-import { explorerModel, explorerRows, type Node, reveal } from "../core/view/explorer.ts"
+import { explorerRows } from "../core/view/explorer.ts"
 import { type Fill, type Row, type Run, TINTS, type Tone } from "../core/view/rows.ts"
 import { sidebarRows } from "../core/view/sidebar.ts"
+import { explorerModel, type Node, reveal } from "../core/view/tree.ts"
 
 /** OpenCode's default theme, measured (docs/opencode/v2.md). The dialog is drawn on the panel colour. */
 const HEX: Record<Exclude<Tone, "ink">, string> = {

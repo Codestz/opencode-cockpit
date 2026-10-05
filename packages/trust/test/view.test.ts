@@ -4,19 +4,12 @@ import { DAY, type Event } from "../src/core/ledger.ts"
 import { SAMPLE_NOW, SAMPLE_SETTINGS, SAMPLES } from "../src/core/sample.ts"
 import { configSnippet, revoke, widen, widenScope } from "../src/core/view/actions.ts"
 import { activityModel, activityRows, answerWhy, targetOf } from "../src/core/view/activity.ts"
-import {
-  ALWAYS_KEY,
-  explorerModel,
-  explorerRows,
-  historyRuns,
-  type Node,
-  nodeTarget,
-  reveal,
-  TAIL,
-} from "../src/core/view/explorer.ts"
+import { historyRuns } from "../src/core/view/card.ts"
+import { explorerRows } from "../src/core/view/explorer.ts"
 import { countsOf } from "../src/core/view/model.ts"
 import { type Row, rowText, widthOf } from "../src/core/view/rows.ts"
 import { sidebarRows, tally } from "../src/core/view/sidebar.ts"
+import { ALWAYS_KEY, explorerModel, type Node, nodeTarget, reveal, TAIL } from "../src/core/view/tree.ts"
 
 const sidebarOf = (name: string, width: number, shown = false) => {
   const { engine, trouble } = (SAMPLES[name] as () => ReturnType<(typeof SAMPLES)["empty"]>)()
