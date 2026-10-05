@@ -391,9 +391,46 @@ function judge(argv: readonly string[]): string | undefined {
   return unwrapped.reason
 }
 
+/**
+ * Words that name production, as a whole word or a part of one (`db-prod`, `prod-eu`,
+ * `NODE_ENV=production`). Production costs more trust whatever the command does there, and its
+ * family is never widened: "trust any mcpx db-prod execute_sql" is not a rule anyone means to make.
+ */
+const PRODUCTION = new Set(["prod", "production", "prd", "live"])
+const namesProduction = (word: string) =>
+  word
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .some((part) => PRODUCTION.has(part))
+
+/**
+ * SQL that writes, in any program's argument — an MCP tool's `--sql`, a client's `-c`, a quoted
+ * statement. Read only in an argument of more than one word, so a subcommand called `drop` or a
+ * commit message that says "update readme" is not read as SQL; `update … set` has to say `set`.
+ */
+const WRITE_SQL =
+  /^\s*(?:(drop|truncate)\s+(?:table|database|schema|index|view)\b|(delete)\s+from\b|(update)\s+\S+\s+set\b|(insert)\s+into\b|(alter)\s+table\b|(create)\s+(?:table|database|schema|index|view)\b|(grant)\s+\S+.*\bon\b)/i
+function writesSql(argv: readonly string[]): string | undefined {
+  for (const word of argv) {
+    if (!/\s/.test(word)) continue
+    for (const statement of word.split(";")) {
+      const found = WRITE_SQL.exec(statement)
+      if (found)
+        return `sql ${found
+          .slice(1)
+          .find((part) => part !== undefined)
+          ?.toLowerCase()}`
+    }
+  }
+  return undefined
+}
+
 /** Why a command costs more trust, in a few words — or nothing when it costs the usual. */
 export function dangerOf(command: Command): string | undefined {
-  return judge(command.argv)
+  const found = judge(command.argv) ?? writesSql(command.argv)
+  if (found) return found
+  if (command.env.some((word) => namesProduction(word.slice(word.indexOf("=") + 1)))) return "production"
+  return command.argv.slice(1).some(namesProduction) ? "production" : undefined
 }
 
 export function dangerous(command: Command): boolean {

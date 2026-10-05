@@ -91,8 +91,8 @@ describe("the policy for a widened family", () => {
   })
 
   test("a dangerous command in a safe family still asks", () => {
-    expect(ask("docker compose -p prod down", [widened("docker compose down")]).answer).toBe(true)
-    expect(ask("docker compose -p prod down -v", [widened("docker compose down")]).answer).toBe(false)
+    expect(ask("docker compose -p dev down", [widened("docker compose -p dev down")]).answer).toBe(true)
+    expect(ask("docker compose -p dev down -v", [widened("docker compose -p dev down")]).answer).toBe(false)
   })
 
   test("every command on the line must be covered", () => {
