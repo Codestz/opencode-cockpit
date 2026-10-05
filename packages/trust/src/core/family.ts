@@ -11,14 +11,22 @@
  *
  * The rules, and why each one leans the way it does:
  *
- * - **Global flags are not part of the family**: `git -C /x status` is `git status`, and
- *   `docker compose -p prod down -v` is `docker compose down` — the flags change *where*, the
- *   subcommand says *what*. Read with danger.ts's own tables, so the two never disagree on where the
- *   subcommand is.
+ * - **The plain words after the program, up to three**: `mcpx db-local execute_sql`, `gh pr view`,
+ *   `npm run test`. Reading stops at the first argument — a number, a path, a file, quoted text — so
+ *   `cat a.json` and `cat b.json` are one family. No list of tools: any CLI reads the same way.
+ * - **So is the target**: a flag that says which one (`--context`, `--profile`, `-p`, `-n`, `--host`…)
+ *   with its value, and any word or env var that names an environment (`db-prod`,
+ *   `NODE_ENV=production`, a host with `dev` in it). `docker compose -p dev up` and `-p prod up` are
+ *   two families: a widening that covered both trusted production along with dev. Flags that say
+ *   nothing about the target (`git -C dir`, `-o wide`) are not part of it. Measured against the rule
+ *   this replaced (packages/trust/experiments/families): it merged 23 of 32 pairs that must stay
+ *   apart; this one merges none.
  * - **A wrapper is part of it**: `sudo ls` is not `ls`, and neither is `timeout 5 ls`. Trusting any
  *   `ls` must not quietly cover running it as root.
  * - **So is where it runs and what it is told**: `(in web) bun test` and `NODE_ENV=… npm run build`
  *   are their own families. A directory or an environment changes what the same words do.
+ * - **Too fine is the safe side**: `echo done` and `echo ok` are two families. That costs approvals,
+ *   never trust.
  * - **Redirections are not**: `ls > out.txt` groups under `ls` — but a widened family does not cover
  *   it (`outside`), because writing a file is not what "any ls" was agreed to mean.
  *
@@ -27,7 +35,7 @@
  */
 
 import { posix } from "node:path"
-import { COMPOSE_GLOBALS, dangerOf, subcommand, TOOL_GLOBALS, unwrapOnce } from "./danger.ts"
+import { dangerOf, subcommand, TOOL_GLOBALS, unwrapOnce } from "./danger.ts"
 import { canonical } from "./rules.ts"
 import { type Command, parse } from "./shell.ts"
 import { quote } from "./signature.ts"
@@ -93,100 +101,272 @@ function redirections(
 
 /* ─── families ───────────────────────────────────────────────────────────────────────────────── */
 
-/** Leading words that are not flags, at most `count` of them. */
-function lead(words: readonly string[], count: number): string[] {
+/** A plain word: a subcommand, a server, a script name. Not a flag, number, path, file or text. */
+const NAME = /^[A-Za-z][A-Za-z0-9_:-]*$/
+const isFlag = (word: string) => word.startsWith("-") && word !== "-" && word !== "--"
+
+/** The plain words a family keeps at most: `mcpx db-local execute_sql`, `gh pr view`. */
+const MAX_NAMES = 3
+
+/**
+ * Words that name an environment, as a whole word or a part of one: `db-prod`, `acme-staging`,
+ * `api.dev.acme.test`. `test` and `testing` count only in a flag's value: in an argument they are
+ * mostly a file name (`a.test.ts`).
+ */
+const ENV = new Set([
+  "prod",
+  "production",
+  "prd",
+  "live",
+  "staging",
+  "stage",
+  "stg",
+  "preprod",
+  "dev",
+  "develop",
+  "development",
+  "local",
+  "localhost",
+  "qa",
+  "uat",
+  "sandbox",
+  "test",
+  "testing",
+])
+export const envWords = (text: string): string[] =>
+  text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => ENV.has(word))
+const namesPlace = (text: string) => envWords(text).some((word) => word !== "test" && word !== "testing")
+
+/**
+ * The place a word names, if any: a URL's host, a host or a name (`db-prod`, `api.dev.acme.test`).
+ * A file path names no place — `~/.local/share/…` is not the local environment.
+ */
+function placeOf(word: string): string | undefined {
+  const url = /^[a-z]+:\/\/([^/]+)/i.exec(word)
+  const place = url ? (url[1] as string) : word.includes("/") ? undefined : word
+  return place !== undefined && namesPlace(place) ? place : undefined
+}
+
+/** Long flags whose value says which target a command acts on, whatever the tool. */
+const TARGET_FLAGS = new Set([
+  "context",
+  "kube-context",
+  "kubeconfig",
+  "profile",
+  "project",
+  "project-name",
+  "namespace",
+  "host",
+  "hostname",
+  "server",
+  "cluster",
+  "region",
+  "account",
+  "env",
+  "environment",
+  "stage",
+  "target",
+  "app",
+  "database",
+  "db",
+  "url",
+  "endpoint",
+  "workspace",
+  "file",
+  "config",
+  "org",
+  "team",
+  "site",
+  "tenant",
+])
+/** The short ones most tools give them: -p project, -n namespace, -h host, -a app, -c context, -f file, -e env. */
+const TARGET_SHORT = new Set(["p", "n", "h", "a", "c", "f", "e"])
+
+/**
+ * Standard utilities, which never take a subcommand: the word after them is an argument (`ls src`,
+ * `cat Makefile`, `echo done`), so their family is the program alone, plus any target or environment
+ * it names. Their short flags are their own (`grep -c` counts, `ls -a` lists all), never a target. A
+ * fixed list of what Unix ships, not of tools: any other CLI is read by the general rule.
+ */
+const UTILITIES = new Set([
+  "ls",
+  "cat",
+  "head",
+  "tail",
+  "wc",
+  "grep",
+  "egrep",
+  "fgrep",
+  "rg",
+  "ag",
+  "find",
+  "fd",
+  "echo",
+  "printf",
+  "pwd",
+  "which",
+  "whereis",
+  "type",
+  "file",
+  "stat",
+  "tree",
+  "du",
+  "df",
+  "sort",
+  "uniq",
+  "cut",
+  "tr",
+  "sed",
+  "awk",
+  "gawk",
+  "jq",
+  "yq",
+  "diff",
+  "cmp",
+  "less",
+  "more",
+  "touch",
+  "mkdir",
+  "cp",
+  "mv",
+  "ln",
+  "basename",
+  "dirname",
+  "realpath",
+  "readlink",
+  "date",
+  "sleep",
+  "true",
+  "false",
+  "test",
+  "xxd",
+  "od",
+  "hexdump",
+  "column",
+  "nl",
+  "tee",
+  "comm",
+  "join",
+  "paste",
+  "fold",
+  "fmt",
+  "rev",
+  "seq",
+  "yes",
+  "whoami",
+  "id",
+  "uname",
+  "hostname",
+  "uptime",
+  "ps",
+  "top",
+  "env",
+  "printenv",
+  "open",
+  "pbcopy",
+  "pbpaste",
+  "base64",
+  "md5",
+  "md5sum",
+  "shasum",
+  "sha256sum",
+  "zcat",
+  "gzip",
+  "gunzip",
+  "tar",
+  "zip",
+  "unzip",
+  "chmod",
+  "chown",
+])
+
+/**
+ * Flags before a subcommand that take a value and say nothing about the target — `git -C dir`,
+ * `npm -w pkg` — stepped over with their value, so the subcommand after them is still read.
+ */
+const VALUE_GLOBALS: Readonly<Record<string, readonly string[]>> = {
+  ...TOOL_GLOBALS,
+  npm: ["-w", "--workspace", "--prefix", "-C"],
+  pnpm: ["-F", "--filter", "-C", "--dir"],
+  yarn: ["--cwd"],
+  bun: ["--cwd"],
+  make: ["-C", "-f", "--file", "--directory"],
+}
+
+/**
+ * The flag at `i` when it names a target, with the words it keeps: `--context cluster-a`, `-p dev`,
+ * `--env=prod`, `--prod`. A value that starts with a digit is a count or a range (`-n 40`), never a
+ * target; a flag that is no target still counts when its value names an environment (`-d prod-db`).
+ */
+function targetAt(
+  args: readonly string[],
+  i: number,
+  shortTargets: boolean,
+): { words: string[]; skip: number } | undefined {
+  const word = args[i] as string
+  if (!isFlag(word)) return undefined
+  const eq = word.indexOf("=")
+  const name = (eq > 0 ? word.slice(0, eq) : word).replace(/^-+/, "")
+  const value = eq > 0 ? word.slice(eq + 1) : args[i + 1]
+  if (namesPlace(name)) return { words: [word], skip: 0 }
+  if (eq > 0 && placeOf(value ?? "") !== undefined) return { words: [word], skip: 0 }
+  const target = word.startsWith("--")
+    ? TARGET_FLAGS.has(name)
+    : shortTargets && name.length === 1 && TARGET_SHORT.has(name)
+  if (value === undefined || isFlag(value) || /^\d/.test(value)) return undefined
+  if (target) return eq > 0 ? { words: [word], skip: 0 } : { words: [word, value], skip: 1 }
+  return eq < 0 && placeOf(value) !== undefined ? { words: [word, value], skip: 1 } : undefined
+}
+
+/**
+ * The family words after the program, read in order: plain words (at most `MAX_NAMES`) and target flags
+ * with their values, until the first other flag or argument — `compose -p dev up` from
+ * `docker compose -p dev up -d`. Target flags and words naming an environment further on still count:
+ * `kubectl get pods -o wide -n prod` is `kubectl get pods -n prod`, `ssh -p 2222 prod-box` keeps
+ * `prod-box`, `curl https://api.dev.acme.test/x` keeps the host. A file path never counts.
+ */
+function walk(args: readonly string[], globals: readonly string[], limit: number): string[] {
   const out: string[] = []
-  for (const word of words) {
-    if (out.length >= count || word.startsWith("-")) break
+  let names = 0
+  let i = 0
+  for (; i < args.length; i++) {
+    const word = args[i] as string
+    const target = targetAt(args, i, limit > 0)
+    if (target) {
+      out.push(...target.words)
+      i += target.skip
+      continue
+    }
+    if (isFlag(word) && globals.includes(word.split("=")[0] as string)) {
+      if (!word.includes("=")) i++
+      continue
+    }
+    if (isFlag(word) || !NAME.test(word) || names >= limit) break
     out.push(word)
+    names++
+  }
+  for (; i < args.length; i++) {
+    const word = args[i] as string
+    const target = targetAt(args, i, limit > 0)
+    if (target) {
+      if (!out.includes(target.words[0] as string)) out.push(...target.words)
+      i += target.skip
+      continue
+    }
+    const place = isFlag(word) ? undefined : placeOf(word)
+    if (place !== undefined && !out.includes(place)) out.push(place)
   }
   return out
 }
 
-/** One subcommand word, or two after the ones listed: `git stash drop`, `npm run test`. */
-const pairs =
-  (...two: string[]) =>
-  (words: readonly string[]) =>
-    lead(words, two.includes(words[0] ?? "") ? 2 : 1)
-const one = (words: readonly string[]) => lead(words, 1)
-const two = (words: readonly string[]) => lead(words, 2)
-
-/** Docker's management commands: `docker container rm` is about containers, then what to do. */
-const OBJECTS = new Set([
-  "builder",
-  "buildx",
-  "config",
-  "container",
-  "context",
-  "image",
-  "manifest",
-  "network",
-  "node",
-  "plugin",
-  "secret",
-  "service",
-  "stack",
-  "swarm",
-  "system",
-  "trust",
-  "volume",
-])
-
-function container(words: readonly string[]): string[] {
-  if (words[0] === "compose") return ["compose", ...one(subcommand(words.slice(1), COMPOSE_GLOBALS))]
-  return lead(words, OBJECTS.has(words[0] ?? "") ? 2 : 1)
-}
-
-interface Tool {
-  /** Flags before the subcommand that take a value, besides danger.ts's own. */
-  globals?: readonly string[]
-  /** The subcommand words that belong to the family, from the words after the globals. */
-  take: (words: readonly string[]) => string[]
-}
-
 /**
- * Programs with subcommands. Anything not here is its program alone: `ls`, `echo`, `cat`. A package
- * manager's `run` keeps the script, because `npm run test` and `npm run deploy` are not one thing.
+ * The words that name a command's family: its wrappers, its program, and what `walk` keeps. Wrappers
+ * are part of it (`sudo ls` is not `ls`); redirections are not (`ls > out.txt` is `ls`, and a
+ * widening does not cover it: `outside`).
  */
-const TOOLS: Record<string, Tool> = {
-  git: {
-    take: pairs("stash", "remote", "submodule", "worktree", "notes", "bisect", "lfs", "sparse-checkout"),
-  },
-  docker: { take: container },
-  podman: { take: container },
-  nerdctl: { take: container },
-  "docker-compose": { take: one },
-  kubectl: { take: pairs("rollout", "config", "auth", "certificate", "set") },
-  helm: { take: pairs("repo", "plugin") },
-  gh: { take: two },
-  aws: { take: two },
-  gcloud: { take: two },
-  terraform: { take: pairs("state", "workspace") },
-  tofu: { take: pairs("state", "workspace") },
-  npm: { globals: ["-w", "--workspace", "--prefix", "-C"], take: pairs("run", "run-script", "exec") },
-  pnpm: { globals: ["-F", "--filter", "-C", "--dir"], take: pairs("run", "exec", "dlx") },
-  yarn: {
-    globals: ["--cwd"],
-    take: (words) =>
-      lead(words, words[0] === "workspace" ? 3 : ["run", "exec", "dlx"].includes(words[0] ?? "") ? 2 : 1),
-  },
-  bun: { globals: ["--cwd"], take: pairs("run", "x", "pm", "create") },
-  deno: { take: pairs("task") },
-  npx: { take: one },
-  bunx: { take: one },
-  pnpx: { take: one },
-  cargo: { take: one },
-  go: { take: pairs("mod", "work", "tool") },
-  pip: { take: one },
-  pip3: { take: one },
-  uv: { take: pairs("pip", "tool", "python") },
-  brew: { take: one },
-  systemctl: { take: one },
-  launchctl: { take: one },
-  make: { globals: ["-C", "-f", "--file", "--directory"], take: one },
-}
-
-/** The words that name a command's family, wrappers included, environment and redirections not. */
 function familyWords(argv: readonly string[], ops?: readonly number[]): string[] {
   let rest: readonly string[] = redirections(argv, ops).words
   const head: string[] = []
@@ -199,18 +379,16 @@ function familyWords(argv: readonly string[], ops?: readonly number[]): string[]
   const [program, ...args] = rest
   if (program === undefined) return head
   const name = posix.basename(program)
-  const tool = TOOLS[name]
-  if (!tool) return [...head, program]
-  const globals = [...(TOOL_GLOBALS[name] ?? []), ...(tool.globals ?? [])]
-  return [...head, program, ...tool.take(subcommand(args, globals))]
+  return [...head, program, ...walk(args, VALUE_GLOBALS[name] ?? [], UTILITIES.has(name) ? 0 : MAX_NAMES)]
 }
 
-/** `NODE_ENV=prod` as a family says it: the name, not the value. */
-const envName = (word: string) => `${word.slice(0, word.indexOf("="))}=…`
+/** `NODE_ENV=…`: the name, not the value — unless the value names an environment (`NODE_ENV=production`). */
+const envWord = (word: string) =>
+  namesPlace(word.slice(word.indexOf("=") + 1)) ? word : `${word.slice(0, word.indexOf("="))}=…`
 
 function bashFamily(command: Command, place: string | undefined): string {
   const words = [
-    ...command.env.map(envName),
+    ...command.env.map(envWord),
     ...familyWords(command.argv, command.redirects).map(quote),
   ].join(" ")
   return place === undefined ? words : `(in ${quote(place)}) ${words}`
@@ -248,7 +426,7 @@ export function widenable(permission: string, family: string): { ok: true } | { 
   if (name === "bash") {
     const command = familyCommand(family)
     if (!command || command.argv.length === 0) return { ok: false, why: "it cannot be read as one command" }
-    const danger = dangerOf({ env: [], argv: command.argv })
+    const danger = dangerOf(command)
     return danger
       ? {
           ok: false,

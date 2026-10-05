@@ -15,7 +15,8 @@
  * once — counts on a family's row, the standing itself on a command's.
  */
 
-import { showSubject } from "../family.ts"
+import { dangerOf } from "../danger.ts"
+import { readSubject, shown, showSubject } from "../family.ts"
 import type { Target } from "./actions.ts"
 import {
   type AlwaysGroup,
@@ -28,6 +29,7 @@ import {
   familiesOf,
   leadOf,
   type Reading,
+  stale,
 } from "./model.ts"
 import { badge, meter, muted, plain, plural } from "./parts.ts"
 import { cursorRow, fit, type Row, type Run, rowText, spread, squeeze, type Tone, widthOf } from "./rows.ts"
@@ -46,10 +48,32 @@ export const sectionOf = (permission: string): Section =>
 export type Node =
   /** Today's answers, the strip above the tree: selected, the card lists them. */
   | { kind: "today"; key: string; answers: number }
-  | { kind: "family"; key: string; family: Family; open: boolean }
-  | { kind: "command"; key: string; command: Command; family: Family; nested: boolean }
+  /** `depth`: folders above it; `prefix`: the words they already say, left out of its own label. */
+  | { kind: "family"; key: string; family: Family; open: boolean; depth: number; prefix: string }
+  | {
+      kind: "command"
+      key: string
+      command: Command
+      family: Family
+      nested: boolean
+      depth: number
+      prefix: string
+    }
+  /**
+   * Families that share their first words, as one folder: `mcpx`, then `db-local` under it. A folder
+   * is for reading only — `w` widens one family, never everything under a folder.
+   */
+  | {
+      kind: "group"
+      key: string
+      label: string
+      depth: number
+      prefix: string
+      families: Family[]
+      open: boolean
+    }
   /** The folded tail of an open family: `+ 3 more`. */
-  | { kind: "more"; key: string; family: Family; hidden: number }
+  | { kind: "more"; key: string; family: Family; hidden: number; depth: number }
   /** A kind's families seen only once, folded into one row. */
   | { kind: "once"; key: string; section: Section; families: Family[]; open: boolean }
   | { kind: "always"; key: string; groups: AlwaysGroup[] }
@@ -113,26 +137,106 @@ export function explorerModel(input: Reading & Tree & { today?: number }): Explo
     nodes.push({ kind: "today", key: TODAY_KEY, answers: input.today })
 
   /** A family's nodes: its row (or its one command), and when open its commands and `+ N more`. */
-  const familyNodes = (family: Family, listed: readonly Command[]): Node[] => {
+  const familyNodes = (family: Family, listed: readonly Command[], depth = 0, prefix = ""): Node[] => {
     if (single(family)) {
       const command = family.commands[0] as Command
-      return [{ kind: "command", key: commandNodeKey(command), command, family, nested: false }]
+      return [
+        { kind: "command", key: commandNodeKey(command), command, family, nested: false, depth, prefix },
+      ]
     }
     const open = needle !== "" || input.open.has(family.key)
-    const out: Node[] = [{ kind: "family", key: familyNodeKey(family), family, open }]
+    const out: Node[] = [{ kind: "family", key: familyNodeKey(family), family, open, depth, prefix }]
     if (!open) return out
     const whole = needle !== "" || input.full.has(family.key) || listed.length <= TAIL + 1
-    const shown = whole ? listed : listed.slice(0, TAIL)
-    for (const command of shown)
-      out.push({ kind: "command", key: commandNodeKey(command), command, family, nested: true })
+    const kept = whole ? listed : listed.slice(0, TAIL)
+    for (const command of kept)
+      out.push({
+        kind: "command",
+        key: commandNodeKey(command),
+        command,
+        family,
+        nested: true,
+        depth,
+        prefix,
+      })
     if (!whole)
-      out.push({ kind: "more", key: `m:${family.key}`, family, hidden: listed.length - shown.length })
+      out.push({ kind: "more", key: `m:${family.key}`, family, hidden: listed.length - kept.length, depth })
+    return out
+  }
+
+  /**
+   * Commands' families as folders by their first words: a word two or more families start with is a
+   * folder (`mcpx`), a run of single folders is one (`docker compose`), and a family alone at a level
+   * is its own row. Families keep their order (what answers first), a folder taking its first one's place.
+   */
+  const grouped = (
+    section: Section,
+    entries: readonly { family: Family; listed: readonly Command[]; units: string[] }[],
+    depth: number,
+    above: string[],
+    /** Folders above, for indenting: one folder can cover several words (`docker compose`). */
+    level = 0,
+  ): Node[] => {
+    const out: Node[] = []
+    const prefix = above.join(" ")
+    type Entry = (typeof entries)[number]
+    const buckets = new Map<string, Entry[]>()
+    const order: (string | Entry)[] = []
+    for (const entry of entries) {
+      const unit = entry.units[depth]
+      if (entry.units.length <= depth + 1 || unit === undefined) {
+        order.push(entry)
+        continue
+      }
+      const bucket = buckets.get(unit)
+      if (bucket) bucket.push(entry)
+      else {
+        buckets.set(unit, [entry])
+        order.push(unit)
+      }
+    }
+    for (const item of order) {
+      if (typeof item !== "string") {
+        out.push(...familyNodes(item.family, item.listed, level, prefix))
+        continue
+      }
+      const bucket = buckets.get(item) as Entry[]
+      if (bucket.length === 1) {
+        const only = bucket[0] as Entry
+        out.push(...familyNodes(only.family, only.listed, level, prefix))
+        continue
+      }
+      const label = [item]
+      let next = depth + 1
+      while (
+        bucket.every((entry) => entry.units.length > next + 1 && entry.units[next] === bucket[0]?.units[next])
+      ) {
+        label.push(bucket[0]?.units[next] as string)
+        next++
+      }
+      const path = [...above, ...label]
+      const key = groupNodeKey(section, path)
+      const open = needle !== "" || input.open.has(key)
+      out.push({
+        kind: "group",
+        key,
+        label: label.join(" "),
+        depth: level,
+        prefix: path.join(" "),
+        families: bucket.map((entry) => entry.family),
+        open,
+      })
+      if (open) out.push(...grouped(section, bucket, next, path, level + 1))
+    }
     return out
   }
 
   for (const section of SECTIONS) {
     const mine: Node[] = []
     const once: Family[] = []
+    const kept: { family: Family; listed: readonly Command[]; units: string[] }[] = []
+    /** Old widenings stand on their own, after the rest: no folder holds a family nothing falls in. */
+    const old: Family[] = []
     for (const family of families) {
       if (sectionOf(family.permission) !== section) continue
       const named = needle !== "" && familyText(family).toLowerCase().includes(needle)
@@ -142,8 +246,12 @@ export function explorerModel(input: Reading & Tree & { today?: number }): Explo
           : family.commands.filter((command) => commandText(command).toLowerCase().includes(needle))
       if (needle !== "" && listed.length === 0 && !named) continue
       if (needle === "" && seenOnce(family)) once.push(family)
-      else mine.push(...familyNodes(family, listed))
+      else if (stale(family)) old.push(family)
+      else kept.push({ family, listed, units: unitsOf(family) })
     }
+    if (section === "commands") mine.push(...grouped(section, kept, 0, []))
+    else for (const entry of kept) mine.push(...familyNodes(entry.family, entry.listed))
+    for (const family of old) mine.push(...familyNodes(family, family.commands))
     if (once.length === 1) mine.push(...familyNodes(once[0] as Family, (once[0] as Family).commands))
     else if (once.length > 1) {
       const key = onceNodeKey(section)
@@ -175,9 +283,9 @@ export function explorerModel(input: Reading & Tree & { today?: number }): Explo
   return { nodes, lines, families, commands, counts: countsOf(commands) }
 }
 
-/** What `x`, `w` and `c` act on, for a node. Today's strip and a `seen once` row act on nothing. */
+/** What `x`, `w` and `c` act on, for a node. Today's strip, a folder and a `seen once` row act on nothing. */
 export function nodeTarget(node: Node): Target | undefined {
-  if (node.kind === "today" || node.kind === "once") return undefined
+  if (node.kind === "today" || node.kind === "once" || node.kind === "group") return undefined
   if (node.kind === "always") return { kind: "always", groups: node.groups }
   if (node.kind === "command") return { kind: "command", command: node.command, family: node.family }
   return { kind: "family", family: node.family }
@@ -195,6 +303,10 @@ export function reveal(
     )
     if (at < 0) continue
     if (seenOnce(family)) tree.open.add(onceNodeKey(sectionOf(family.permission)))
+    /** Every folder it could sit in, open: the keys of each run of its first words. */
+    const units = unitsOf(family)
+    for (let end = 1; end < units.length; end++)
+      tree.open.add(groupNodeKey(sectionOf(family.permission), units.slice(0, end)))
     if (!single(family)) {
       tree.open.add(family.key)
       if (at >= TAIL && family.commands.length > TAIL + 1) tree.full.add(family.key)
@@ -232,6 +344,7 @@ function statusRuns(node: Node): Run[] {
       },
     ]
   if (node.kind === "once") return tallyRuns(node.families.flatMap((family) => family.commands))
+  if (node.kind === "group") return tallyRuns(node.families.flatMap((family) => family.commands))
   if (node.kind === "family") return tallyRuns(node.family.commands)
   const { command } = node
   const { stand } = leadOf(command)
@@ -258,16 +371,39 @@ export function treeRow(
 ): Row {
   const room = Math.max(4, width - statusWidth - badges - 2)
   let left: Run[]
+  const indent = "  ".repeat("depth" in node ? node.depth : 0)
   if (node.kind === "family") {
     const files =
       node.family.permission === "edit" ? [muted(`  ${plural(node.family.commands.length, "file")}`)] : []
-    const any = node.family.widened.length > 0 ? [{ text: " " }, badge("any", "success")] : []
-    const name = squeeze(rowFamilyText(node.family), room - 3 - widthOf(rowText([...files, ...any])))
+    const any = stale(node.family)
+      ? [{ text: " " }, badge("old", "warning")]
+      : node.family.widened.length > 0
+        ? [{ text: " " }, badge("any", "success")]
+        : []
+    const risk = familyRisk(node.family)
+    const marks = [...any, ...(risk ? [{ text: " " }, badge(risk, "error")] : [])]
+    const name = squeeze(
+      label(rowFamilyText(node.family), node.prefix),
+      room - 3 - indent.length - widthOf(rowText([...files, ...marks])),
+    )
     left = [
-      muted(` ${node.open ? "▾" : "▸"} `),
+      muted(` ${indent}${node.open ? "▾" : "▸"} `),
       { text: name, tone: seenOnce(node.family) ? "muted" : "text", bold: true },
-      ...any,
+      ...marks,
       ...files,
+    ]
+  } else if (node.kind === "group") {
+    /** Danger under a folder shows on the folder, so a closed `mcpx` or `git` still says it. */
+    const risk = folderRisk(node.families)
+    const marks = risk ? [{ text: " " }, badge(risk, "error")] : []
+    left = [
+      muted(` ${indent}${node.open ? "▾" : "▸"} `),
+      {
+        text: squeeze(node.label, room - 3 - indent.length - widthOf(rowText(marks))),
+        tone: "text",
+        bold: true,
+      },
+      ...marks,
     ]
   } else if (node.kind === "once") {
     const names = node.families.map((family) => rowFamilyText(family)).join("  ")
@@ -277,15 +413,15 @@ export function treeRow(
       ...(node.open ? [] : [muted(`  ${squeeze(names, Math.max(1, room - 14))}`)]),
     ]
   } else if (node.kind === "command") {
-    const indent = node.nested ? 5 : 3
+    const lead = (node.nested ? 5 : 3) + indent.length
     left = [
-      { text: " ".repeat(indent) },
+      { text: " ".repeat(lead) },
       {
-        text: squeeze(nestedText(node, room - indent), room - indent),
+        text: squeeze(nestedText(node, room - lead), room - lead),
         tone: node.command.phase === "once" ? "muted" : "text",
       },
     ]
-  } else if (node.kind === "more") left = [muted(`     + ${node.hidden} more`)]
+  } else if (node.kind === "more") left = [muted(`     ${indent}+ ${node.hidden} more`)]
   else if (node.kind === "always") left = [{ text: " ! ", tone: "warning" }, plain("OpenCode always")]
   else left = []
   const status = statusRuns(node)
@@ -309,11 +445,58 @@ export function treeRow(
  * words first — the heading above already says them: `… --short -uno`.
  */
 function nestedText(node: Extract<Node, { kind: "command" }>, room: number): string {
-  const text = rowCommandText(node.command)
+  const text = label(rowCommandText(node.command), node.prefix)
   if (widthOf(text) <= room || !node.nested) return text
-  const family = rowFamilyText(node.family)
+  const family = label(rowFamilyText(node.family), node.prefix)
   if (node.family.permission === "edit" && text.startsWith(family)) return text.slice(family.length)
   return text.startsWith(`${family} `) ? `…${text.slice(family.length)}` : text
+}
+
+/** `text` without the words the folders above it already say: `execute_sql` under `mcpx db-local`. */
+const label = (text: string, prefix: string) =>
+  prefix !== "" && text.startsWith(`${prefix} `) ? text.slice(prefix.length + 1) : text
+
+/**
+ * A family's first words, as folders read them: each word as shown, a flag with its value as one
+ * (`-p dev`), env vars first, and a place as `(in web)`. Only commands are foldered.
+ */
+export function unitsOf(family: Family): string[] {
+  if (family.permission !== "bash") return [family.family]
+  const read = readSubject(family.family)
+  if (!read) return [family.family]
+  const words = [...read.command.env, ...read.command.argv].map(shown)
+  const units: string[] = read.place === undefined ? [] : [`(in ${shown(read.place)})`]
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i] as string
+    const next = words[i + 1]
+    if (word.startsWith("-") && !word.includes("=") && next !== undefined && !next.startsWith("-")) {
+      units.push(`${word} ${next}`)
+      i++
+    } else units.push(word)
+  }
+  return units
+}
+
+export const groupNodeKey = (section: Section, words: readonly string[]): string =>
+  `g:${section}:${words.join(" ")}`
+
+/** Why a family can never be widened, as its badge: `prod`, or `!` for any other danger. */
+function familyRisk(family: Family): string | undefined {
+  if (family.permission !== "bash") return undefined
+  const read = readSubject(family.family)
+  const danger = read ? dangerOf(read.command) : undefined
+  return danger === undefined ? undefined : danger === "production" ? "prod" : "!"
+}
+
+/** The worst under a folder: `prod` before `!`, from a family or a command still learning. */
+function folderRisk(families: readonly Family[]): string | undefined {
+  const risks = families.flatMap((family) => [
+    familyRisk(family),
+    ...family.commands
+      .filter((command) => command.danger !== undefined && command.phase !== "answering")
+      .map((command) => (command.danger === "production" ? "prod" : "!")),
+  ])
+  return risks.includes("prod") ? "prod" : risks.includes("!") ? "!" : undefined
 }
 
 export const statusWidthOf = (nodes: readonly Node[], width: number) =>

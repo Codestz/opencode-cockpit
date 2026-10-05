@@ -34,28 +34,31 @@ describe("a command's family", () => {
     ["git status", "git status"],
     ["git status --short", "git status"],
     ["git -C /x status", "git status"],
-    ["git -c core.pager=less log", "git log"],
+    /** A `-c` reads as a target (a context, for most tools): a finer family, never a wider one. */
+    ["git -c core.pager=less log", "git -c core.pager=less log"],
     ["git stash drop", "git stash drop"],
     ["git stash list", "git stash list"],
-    ["git push origin main", "git push"],
-    ["docker compose -p cockpit up -d", "docker compose up"],
-    ["docker compose -p prod down -v", "docker compose down"],
-    ["docker compose -f a.yml -p x logs -f api", "docker compose logs"],
+    /** Pushing to `main` and to a feature branch are two families. */
+    ["git push origin main", "git push origin main"],
+    /** The project is the target: `-p dev up` and `-p prod up` were one family, and widening it trusted prod. */
+    ["docker compose -p cockpit up -d", "docker compose -p cockpit up"],
+    ["docker compose -p prod down -v", "docker compose -p prod down"],
+    ["docker compose -f a.yml -p x logs -f api", "docker compose -f a.yml -p x logs -f api"],
     ["docker run --rm -it alpine", "docker run"],
-    ["docker container rm x", "docker container rm"],
+    ["docker container rm x", "docker container rm x"],
     ["podman compose up", "podman compose up"],
-    ["kubectl -n prod get pods", "kubectl get"],
+    ["kubectl -n prod get pods", "kubectl -n prod get pods"],
     ["kubectl rollout restart deploy/x", "kubectl rollout restart"],
     ["npm run test", "npm run test"],
     ["npm run build", "npm run build"],
     ["npm test", "npm test"],
-    ["npm install left-pad", "npm install"],
+    ["npm install left-pad", "npm install left-pad"],
     ["pnpm --filter web run build", "pnpm run build"],
     ["yarn workspace web build", "yarn workspace web build"],
     ["bun test src/a.test.ts", "bun test"],
     ["bun run lint", "bun run lint"],
     ["terraform plan -out x", "terraform plan"],
-    ["terraform state rm x", "terraform state rm"],
+    ["terraform state rm x", "terraform state rm x"],
     ["cargo build --release", "cargo build"],
     ["go test ./...", "go test"],
     ["go mod tidy", "go mod tidy"],
@@ -68,7 +71,8 @@ describe("a command's family", () => {
     ["env FOO=1 ls", "env ls"],
     ["xargs rm", "xargs rm"],
     /** The environment's names, never its values; redirections are not part of it. */
-    ["NODE_ENV=prod npm run build", "NODE_ENV=… npm run build"],
+    /** A value that names an environment is kept: `NODE_ENV=prod` is not `NODE_ENV=dev`. */
+    ["NODE_ENV=prod npm run build", "NODE_ENV=prod npm run build"],
     ["ls > out.txt", "ls"],
     ["ls 2>&1", "ls"],
     ["ls 2> /dev/null", "ls"],
@@ -136,7 +140,9 @@ describe("what a widened family covers", () => {
   test("any command in it", () => {
     for (const line of ["ls", "ls -la", "ls -R docs", "ls -x src"])
       expect(covers("bash", "ls", subject(line))).toBe(true)
-    expect(covers("bash", "docker compose up", subject("docker compose -p x up -d"))).toBe(true)
+    expect(covers("bash", "docker compose -p x up", subject("docker compose -p x up -d"))).toBe(true)
+    /** Another project is another family: a widening for one never reaches the other. */
+    expect(covers("bash", "docker compose -p x up", subject("docker compose -p y up -d"))).toBe(false)
   })
 
   test("not another family", () => {
@@ -147,8 +153,10 @@ describe("what a widened family covers", () => {
 
   test("not a dangerous command inside a safe family", () => {
     expect(outside("bash", subject("docker compose -p prod down -v"))).toBe("dangerous (compose down -v)")
-    expect(covers("bash", "docker compose down", subject("docker compose -p prod down -v"))).toBe(false)
-    expect(covers("bash", "docker compose down", subject("docker compose -p prod down"))).toBe(true)
+    expect(covers("bash", "docker compose -p dev down", subject("docker compose -p dev down -v"))).toBe(false)
+    expect(covers("bash", "docker compose -p dev down", subject("docker compose -p dev down"))).toBe(true)
+    /** Anything that names production is dangerous, so no widening covers it. */
+    expect(outside("bash", subject("docker compose -p prod down"))).toBe("dangerous (production)")
     expect(covers("bash", "git stash drop", subject("git stash drop"))).toBe(false)
   })
 

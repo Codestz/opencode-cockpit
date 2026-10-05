@@ -110,7 +110,9 @@ describe("clusters, clouds and infrastructure", () => {
     "kubectl delete pod x": "kubectl delete",
     "kubectl -n prod delete pod x": "kubectl delete",
     "kubectl --context prod drain node-1": "kubectl drain",
-    "kubectl -n prod get pods": undefined,
+    /** Reading production is still production: it costs the higher count, and no widening covers it. */
+    "kubectl -n prod get pods": "production",
+    "kubectl -n staging get pods": undefined,
     "terraform destroy": "terraform destroy",
     "terraform apply -auto-approve": "terraform apply",
     "terraform -chdir=infra apply": "terraform apply",
@@ -197,4 +199,34 @@ describe("everyday commands stay ordinary", () => {
 
 test("environment prefixes do not hide a dangerous program", () => {
   expect(reason("NODE_ENV=production npm publish")).toBe("publish")
+})
+
+describe("production, wherever it is named", () => {
+  table({
+    'mcpx db-prod execute_sql --sql "select 1"': "production",
+    "docker compose -p prod up -d": "production",
+    "aws --profile production s3 ls": "production",
+    "ssh -p 2222 prod-box uptime": "production",
+    "mcpx db-local list_tables": undefined,
+    "ls products": undefined,
+    "git log --oneline": undefined,
+  })
+
+  test("an env var that names it", () => {
+    expect(dangerOf({ env: ["NODE_ENV=production"], argv: ["npm", "run", "build"] })).toBe("production")
+    expect(dangerOf({ env: ["NODE_ENV=development"], argv: ["npm", "run", "build"] })).toBeUndefined()
+  })
+})
+
+describe("SQL that writes, in any program's argument", () => {
+  table({
+    'mcpx db-local execute_sql --sql "delete from orders where id = 4"': "sql delete",
+    'mcpx db-local execute_sql --sql "update orders set paid = true"': "sql update",
+    'mcpx db-local execute_sql --sql "insert into orders values (1)"': "sql insert",
+    'mcpx db-local execute_sql --sql "select 1; drop table orders"': "sql drop",
+    'mcpx db-local execute_sql --sql "select * from orders"': undefined,
+    /** Not SQL: one word, or words that only start like it. */
+    'git commit -m "update readme"': undefined,
+    "acmectl drop cache": undefined,
+  })
 })

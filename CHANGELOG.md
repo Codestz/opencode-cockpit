@@ -6,6 +6,29 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Trust: a family is what a command does, and where.** `w` ("trust any …") used to widen a family
+  cut from a fixed table of known tools, so `mcpx db-local …` and `mcpx db-prod …` were one family,
+  and so were `docker compose -p dev …` and `-p prod …`. A family is now worked out for any CLI, no
+  table: the program and up to three plain words after it, plus the flags that name a target
+  (`-p`, `--context`, `--profile`, `-n`, `--project` …) with their values, and an environment variable
+  or a host that names an environment. `ls`, `cat`, `grep` and the like stay one family whatever they
+  read. Measured on 61 labelled pairs, the old rule merged 23 of 32 that must stay apart; this one
+  merges none.
+- **Trust: production and SQL writes cost more.** A command that names production (`prod`,
+  `production`, `prd`, `live` — in a flag, a host, a name or `NODE_ENV=…`) needs 8 approvals in a row
+  instead of 3, and its family is never widened. So does SQL that writes (`update … set`,
+  `delete from`, `insert into`, `drop`, `alter`, `create`, `truncate`, `grant`) in any argument — and
+  a widened family never answers it, so trusting `mcpx db-local execute_sql` still asks for its
+  `update`.
+- **Trust: families nest in the ledger.** Families that share their first words sit in a folder —
+  `mcpx` › `db-local` › `execute_sql` — opened with `→`. A folder is for reading: `w` widens one
+  family, never everything under a folder. A folder holding anything dangerous says so (`prod` or
+  `!`) while closed.
+- **Trust: old widenings are marked.** A family widened under the old rule no longer matches anything
+  (a family is matched whole); it shows as `old`, and `x` removes it.
+
 ## [0.10.1] - 2026-10-05
 
 ### Changed

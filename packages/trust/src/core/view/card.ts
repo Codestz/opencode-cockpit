@@ -17,6 +17,7 @@ import {
   leadOf,
   type Reading,
   type Standing,
+  stale,
 } from "./model.ts"
 import {
   agentsText,
@@ -400,8 +401,15 @@ const needOf = (settings: Thresholds, danger: boolean) =>
 
 function familyCard(family: Family, reading: CardReading): CardParts {
   const counts = countsOf(family.commands)
-  const standing: Run[][] =
-    family.widened.length > 0
+  const standing: Run[][] = stale(family)
+    ? family.widened.map((each) => [
+        { text: "Old", tone: "warning", bold: true },
+        plain(` ${anyOf(family.permission, family.family)}`),
+        muted(" for "),
+        chip(each.agent),
+        muted(` · widened ${when(reading.now - each.at)} · answers nothing now`),
+      ])
+    : family.widened.length > 0
       ? family.widened.map((each) => [
           { text: "✓ Any", tone: "success", bold: true },
           plain(` ${showSubject(family.permission, family.family)} …`),
@@ -434,14 +442,26 @@ function familyCard(family: Family, reading: CardReading): CardParts {
       ]),
       table: true,
     })
-  if (family.widened.length > 0)
+  if (stale(family))
+    facts.push({
+      label: "Old",
+      keep: 6,
+      lines: [
+        [
+          muted(
+            "No command you have run falls in it: it was widened under the old family rule, and a family now matches whole. [x] removes it.",
+          ),
+        ],
+      ],
+    })
+  else if (family.widened.length > 0)
     facts.push({ label: "Still asks", keep: 6, lines: [[muted(`${NOT_COVERED}.`)]] })
-  const fam = familyFact(family, undefined, reading)
+  const fam = stale(family) ? undefined : familyFact(family, undefined, reading)
   if (fam) facts.push({ ...fam, label: "Widen", lines: fam.lines.slice(1) })
   return {
     title: [
       { text: familyText(family), tone: "text", bold: true },
-      muted(`  family of ${plural(family.commands.length, "command")}`),
+      muted(stale(family) ? "  an old widening" : `  family of ${plural(family.commands.length, "command")}`),
     ],
     standing,
     facts,
@@ -598,19 +618,69 @@ function onceCard(node: Extract<Node, { kind: "once" }>, reading: CardReading): 
   }
 }
 
+/** A folder: the families under it and how each stands. `w` widens one of them, never the folder. */
+function groupCard(node: Extract<Node, { kind: "group" }>): CardParts {
+  const commands = node.families.flatMap((family) => family.commands)
+  const counts = countsOf(commands)
+  const name = (family: Family) => {
+    const text = familyText(family)
+    return text.startsWith(`${node.prefix} `) ? text.slice(node.prefix.length + 1) : text
+  }
+  return {
+    title: [
+      { text: node.prefix, tone: "text", bold: true },
+      muted(`  ${plural(node.families.length, "family", "families")}`),
+    ],
+    standing: [
+      [
+        { text: `${counts.trusted} trusted`, tone: counts.trusted > 0 ? "success" : "muted", bold: true },
+        muted(" · "),
+        { text: `${counts.learning} learning`, tone: counts.learning > 0 ? "warning" : "muted", bold: true },
+        muted(` · ${counts.once} seen once`),
+      ],
+    ],
+    facts: [
+      {
+        label: "Families",
+        keep: 7,
+        table: true,
+        lines: node.families.map((family) => [
+          plain(name(family)),
+          { text: "  " },
+          muted(plural(family.commands.length, "command")),
+        ]),
+      },
+      {
+        label: "Widen",
+        keep: 5,
+        lines: [
+          [
+            muted(
+              `one family at a time: → opens this, and w on a family trusts any command in it. Nothing trusts everything under ${node.prefix}.`,
+            ),
+          ],
+        ],
+      },
+    ],
+    buttons: [],
+  }
+}
+
 export function cardOf(node: Node, reading: CardReading): CardParts {
   const parts =
     node.kind === "today"
       ? todayCard(reading)
-      : node.kind === "once"
-        ? onceCard(node, reading)
-        : node.kind === "always"
-          ? alwaysCard(node.groups, reading)
-          : node.kind === "command"
-            ? commandCard(node.command, node.family, reading)
-            : node.kind === "family" || node.kind === "more"
-              ? familyCard(node.family, reading)
-              : { title: [], standing: [], facts: [], buttons: [] }
+      : node.kind === "group"
+        ? groupCard(node)
+        : node.kind === "once"
+          ? onceCard(node, reading)
+          : node.kind === "always"
+            ? alwaysCard(node.groups, reading)
+            : node.kind === "command"
+              ? commandCard(node.command, node.family, reading)
+              : node.kind === "family" || node.kind === "more"
+                ? familyCard(node.family, reading)
+                : { title: [], standing: [], facts: [], buttons: [] }
   return { ...parts, buttons: buttonsOf(node, reading.families) }
 }
 

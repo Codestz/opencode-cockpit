@@ -62,11 +62,16 @@ const ledger = (
   const reading = readingOf(name)
   const open = new Set<string>()
   const full = new Set<string>()
-  if (options.open === "all")
+  if (options.open === "all") {
     for (const family of explorerModel({ ...reading, open, full, filter: "" }).families) {
       open.add(family.key)
       full.add(family.key)
     }
+    /** Folders too, each level as the one above it opens. */
+    for (let level = 0; level < 4; level++)
+      for (const node of explorerModel({ ...reading, open, full, filter: "" }).nodes)
+        if (node.kind === "group") open.add(node.key)
+  }
   const filter = options.filter ?? ""
   const model = explorerModel({ ...reading, open, full, filter, today: 0 })
   const selected = (options.pick ?? ((nodes) => nodes.find((node) => node.kind !== "today")))(
@@ -355,7 +360,7 @@ describe("the ledger: families as a tree, a card for the selection", () => {
   })
 
   test("a dangerous command: a red meter, its badge, and a w that never widens", () => {
-    const view = ledger("dangerous", { pick: commandNode("git push origin feat/trust") })
+    const view = ledger("dangerous", { pick: commandNode("git push origin feat/trust"), open: "all" })
     const text = textOf(view.rows)
     expect(text).toContain("▰▰▰▰▰▱▱▱")
     expect(text).toMatch(/Dangerous +git push — 8 in a row instead of 3/)
@@ -420,7 +425,8 @@ describe("the ledger: families as a tree, a card for the selection", () => {
   })
 
   test("the footer: move, fold, card, filter, the activity, keys, and esc closes", () => {
-    expect(footerOf(ledger("busy", { width: 116 }).rows)).toBe(
+    const onCommand = (nodes: readonly Node[]) => nodes.find((node) => node.kind === "command")
+    expect(footerOf(ledger("busy", { width: 116, pick: onCommand }).rows)).toBe(
       " [↑/↓] Move   [←/→] Fold   [tab] Card   [/] Filter   [a] Activity   [p] Pause   [?] Keys   [esc] Close",
     )
   })
@@ -443,6 +449,19 @@ describe("acting on a selection", () => {
     ])
   })
 
+  test("an old widening nothing falls in: marked old, out of any folder, and x removes it", () => {
+    const old = (nodes: readonly Node[]) =>
+      nodes.find((node) => node.kind === "family" && node.family.family === "docker compose")
+    const view = ledger("storefront", { width: 116, height: 44, pick: old })
+    const row = view.rows.map(rowText).find((line) => / docker compose {2}old /.test(line))
+    expect(row).toBeDefined()
+    expect(view.node?.kind === "family" && view.node.depth).toBe(0)
+    expect(view.rows.map(rowText).join("\n")).toContain("x Remove")
+    const outcome = revoke(nodeTarget(view.node as Node), view, at)
+    expect(outcome.events.map((event) => event.type)).toEqual(["unwidened"])
+    expect(outcome.notice.text).toContain("Removed the old widening")
+  })
+
   test("x on an answer given through a widening stops the widening", () => {
     const reading = readingOf("busy")
     const model = activityModel(reading)
@@ -454,13 +473,13 @@ describe("acting on a selection", () => {
   })
 
   test("w on a safe command widens its family for its agent; on a dangerous one, nothing", () => {
-    const view = ledger("busy", { pick: commandNode("bun --version") })
+    const view = ledger("busy", { pick: commandNode("bun --version"), open: "all" })
     const families = view.model.families
     const ok = widen(widenScope(nodeTarget(view.node as Node), families), families, at)
     expect(ok.events).toEqual([
       { v: 1, at, type: "widened", permission: "bash", agent: "build", family: "bun" },
     ])
-    const danger = ledger("busy", { pick: commandNode("git push origin feat/trust") })
+    const danger = ledger("busy", { pick: commandNode("git push origin feat/trust"), open: "all" })
     const refused = widen(widenScope(nodeTarget(danger.node as Node), families), families, at)
     expect(refused.events).toEqual([])
     expect(refused.notice.text).toContain("dangerous")
@@ -558,7 +577,7 @@ describe("the ledger by kind: commands, edits, tools and fetches, OpenCode's own
     const columns = rows
       .map(rowText)
       .filter((line) => /tail -\d+ .*✓/.test(line))
-      .map((line) => line.indexOf("✓"))
+      .map((line) => line.lastIndexOf("✓"))
     expect(columns.length).toBeGreaterThanOrEqual(3)
     expect(new Set(columns).size).toBe(1)
   })
