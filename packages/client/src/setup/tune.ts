@@ -9,17 +9,9 @@
 
 import { homedir } from "node:os"
 import { BAY_ABOUT, BAY_COMMANDS, DEFAULT_KEYS } from "../settings/catalog.ts"
-import {
-  findSections,
-  type GitRun,
-  type InstructionFile,
-  type ProjectFacts,
-  projectFacts,
-  readInstructions,
-  sectionText,
-  type WriteAction,
-  type Written,
-} from "./conventions.ts"
+import { type InstructionFile, readInstructions } from "./conventions/instructions.ts"
+import { type GitRun, type ProjectFacts, projectFacts } from "./conventions/project.ts"
+import { findSections, sectionText, type WriteAction, type Written } from "./conventions/section.ts"
 import { isObject } from "./installs.ts"
 import { CONVENTIONS_TOOL } from "./names.ts"
 import { type BayState, type ReportInput, readText, type SettingsReport } from "./report.ts"

@@ -5,7 +5,7 @@ import { claimFeature } from "../src/feature.ts"
 import { silentLog } from "../src/log.ts"
 import type { Host } from "../src/opencode/host/index.ts"
 import type { ServerHost } from "../src/opencode/server/index.ts"
-import { sectionText, writeSection } from "../src/setup/conventions.ts"
+import { sectionText, writeSection } from "../src/setup/conventions/section.ts"
 import {
   baysOfEntry,
   briefAgent,
