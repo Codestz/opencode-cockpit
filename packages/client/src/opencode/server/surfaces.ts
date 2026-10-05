@@ -9,8 +9,8 @@
  * the first entry still loaded says the line for all of them.
  */
 
-import { DEFAULT_KEYS } from "../settings/catalog.ts"
-import type { Bay } from "../settings/index.ts"
+import { DEFAULT_KEYS } from "../../settings/catalog.ts"
+import type { Bay } from "../../settings/index.ts"
 
 /** What one bay shows the user, and where. */
 export interface Surface {

@@ -33,8 +33,8 @@
       "default": "./dist/opencode/host/index.js"
     },
     "./server": {
-      "types": "./types/opencode/server.d.ts",
-      "default": "./dist/opencode/server.js"
+      "types": "./types/opencode/server/index.d.ts",
+      "default": "./dist/opencode/server/index.js"
     },
     "./log": {
       "types": "./types/log.d.ts",

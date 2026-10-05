@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { readSkill } from "../src/opencode/server.ts"
+import { readSkill } from "../src/opencode/server/index.ts"
 import { BAY_ABOUT, bayKeys, settingsReference } from "../src/settings/catalog.ts"
 import { BAYS, SHARED_DEFAULTS } from "../src/settings/index.ts"
 import {

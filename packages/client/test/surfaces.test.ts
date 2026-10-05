@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { composeParts, dualServer, type ServerParts } from "../src/opencode/server.ts"
-import { keyText, openText, registerSurfaces, surfacesLine } from "../src/opencode/surfaces.ts"
+import { composeParts, dualServer, type ServerParts } from "../src/opencode/server/index.ts"
+import { keyText, openText, registerSurfaces, surfacesLine } from "../src/opencode/server/surfaces.ts"
 import { DEFAULT_KEYS } from "../src/settings/catalog.ts"
 
 /**

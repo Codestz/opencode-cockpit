@@ -19,7 +19,7 @@ import {
   toolToV2,
   v1ToolText,
   v2ToolCall,
-} from "../src/opencode/server.ts"
+} from "../src/opencode/server/index.ts"
 
 /**
  * The server half of running on both: one feature's tools and hooks, handed to v1 as hooks and to
