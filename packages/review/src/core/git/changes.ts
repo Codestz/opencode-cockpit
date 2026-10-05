@@ -16,8 +16,15 @@ export interface GitResult {
   base?: string
 }
 
-/** More than this and the pane is not the right tool — and reading them all would stall the TUI. */
-export const MAX_FILES = 200
+/**
+ * More than this and the pane is not the right tool — a generated folder, a `node_modules` git was
+ * never told to ignore — and drawing them all would stall the TUI.
+ *
+ * Measured on this repository (2026-10-04): a paint takes 4 ms at 200 files, 9 ms at 1,000 and 117 ms
+ * at 2,000; reading 1,000 files, eight at a time, about two seconds. At 200, a refactor that moved a
+ * package's files was already cut short, so the cap sits where a paint still fits in a frame.
+ */
+export const MAX_FILES = 1000
 /** A text file bigger than this is almost certainly not being read line by line. */
 export const MAX_BYTES = 400_000
 /**

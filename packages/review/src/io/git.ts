@@ -146,30 +146,49 @@ export async function worktreeChanges(cwd: string, git: RunGit = runGit): Promis
   const status = await git(["status", "--porcelain=v1", "-z", "--untracked-files=all"], cwd)
   if (!status.ok) return { files: [], errors: ["not a git repository"] }
 
-  const files: FileChange[] = []
-  const errors: string[] = []
+  const listed: { code: string; path: string; from: string | undefined }[] = []
   // NUL-separated so paths with spaces or quotes need no unescaping.
   const entries = status.out.split("\0")
   for (let index = 0; index < entries.length; index++) {
     const entry = entries[index] as string
     if (entry.length < 4) continue
     const code = entry.slice(0, 2)
-    const path = entry.slice(3)
     /**
      * A rename's "-z" form puts the old path in the next entry, with no code of its own. Read as an
      * entry, it became a file called whatever followed its first three characters.
      */
     const from = /[RC]/.test(code) ? entries[++index] : undefined
-    if (files.length >= MAX_FILES) {
-      errors.push(`more than ${MAX_FILES} files changed; showing the first ${MAX_FILES}`)
-      break
-    }
-    const change = statusChange(code, from)
+    listed.push({ code, path: entry.slice(3), from })
+  }
+  return decideAll(listed, async ({ code, path, from }) => {
     const before =
       code.includes("?") || code.includes("C") ? undefined : await readBlob(cwd, "HEAD", from ?? path)
-    const { file, error } = decide(path, before, await readWorking(cwd, path), change, from, "HEAD")
-    if (error) errors.push(error)
-    if (file) files.push(file)
+    return decide(path, before, await readWorking(cwd, path), statusChange(code, from), from, "HEAD")
+  })
+}
+
+/** Files read at once. One at a time, a two-hundred-file branch took 1.3 s to open; git is happy with more. */
+const AT_ONCE = 8
+
+/**
+ * Every file decided, in the order given, `AT_ONCE` at a time, until `MAX_FILES` of them are files to
+ * show — what was left out is said, in `errors`, like anything else that could not be shown.
+ */
+async function decideAll<T>(
+  items: readonly T[],
+  one: (item: T) => Promise<{ file?: FileChange; error?: string }>,
+): Promise<{ files: FileChange[]; errors: string[] }> {
+  const files: FileChange[] = []
+  const errors: string[] = []
+  for (let at = 0; at < items.length; at += AT_ONCE) {
+    for (const { file, error } of await Promise.all(items.slice(at, at + AT_ONCE).map(one))) {
+      if (files.length >= MAX_FILES) {
+        errors.push(`more than ${MAX_FILES} files changed; showing the first ${MAX_FILES}`)
+        return { files, errors }
+      }
+      if (error) errors.push(error)
+      if (file) files.push(file)
+    }
   }
   return { files, errors }
 }
@@ -284,19 +303,10 @@ export async function branchChanges(
   for (const path of fresh) if (!changed.has(path)) changed.set(path, { change: "added" })
   const paths = [...changed.keys()]
 
-  const files: FileChange[] = []
-  const errors: string[] = []
-  for (const path of paths) {
-    if (!path) continue
-    if (files.length >= MAX_FILES) {
-      errors.push(`more than ${MAX_FILES} files changed; showing the first ${MAX_FILES}`)
-      break
-    }
+  const { files, errors } = await decideAll(paths.filter(Boolean), async (path) => {
     const { change, from } = changed.get(path) ?? { change: undefined }
     const before = change === "added" ? undefined : await readBlob(cwd, fork, from ?? path)
-    const { file, error } = decide(path, before, await readWorking(cwd, path), change, from, fork)
-    if (error) errors.push(error)
-    if (file) files.push(file)
-  }
+    return decide(path, before, await readWorking(cwd, path), change, from, fork)
+  })
   return { files, errors, base: against }
 }
