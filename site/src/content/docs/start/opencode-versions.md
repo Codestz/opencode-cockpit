@@ -20,14 +20,14 @@ picks its own. Nothing to choose at install time.
 ## Installing on OpenCode 2
 
 ```sh
-opencode plugin add opencode-cockpit@0.10.0
+opencode plugin add opencode-cockpit@0.10.1
 ```
 
 That writes `"plugins"` in `opencode.json`, and OpenCode 2 loads **both halves** from there — the agent
 tools and the interface. A single bay works the same way:
 
 ```sh
-opencode plugin add @opencode-cockpit/shell@0.10.0
+opencode plugin add @opencode-cockpit/shell@0.10.1
 ```
 
 Then restart OpenCode's background service, which loads plugins only when it starts — after this
@@ -42,7 +42,7 @@ Options go in the entry as an object — the v2 spelling of v1's `[name, options
 ```json title="~/.config/opencode/opencode.json"
 {
   "plugins": [
-    { "package": "opencode-cockpit@0.10.0", "options": { "features": { "status": false } } }
+    { "package": "opencode-cockpit@0.10.1", "options": { "features": { "status": false } } }
   ]
 }
 ```
