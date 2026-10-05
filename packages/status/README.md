@@ -15,8 +15,8 @@ get it with every other bay through the `opencode-cockpit` bundle.
 ## Install
 
 ```sh
-opencode plugin @opencode-cockpit/status@0.10.1 --global --force     # OpenCode 1
-opencode plugin add @opencode-cockpit/status@0.10.1                   # OpenCode 2
+opencode plugin @opencode-cockpit/status@0.10.2 --global --force     # OpenCode 1
+opencode plugin add @opencode-cockpit/status@0.10.2                   # OpenCode 2
 ```
 
 On OpenCode 1 that writes both entries — the table in `tui.json`, and in `opencode.json` the agent

@@ -1,6 +1,6 @@
 {
   "name": "@opencode-cockpit/trust",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "description": "Permissions that learn: approve the same command enough times and it approves itself, visibly",
   "type": "module",
   "license": "MIT",
