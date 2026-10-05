@@ -6,6 +6,33 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Cockpit has a home: [cockpit.codestz.dev](https://cockpit.codestz.dev).** The docs are restyled
+  to match a new landing page, and every window on both is drawn live by the bays' own renderers
+  instead of a recording. The README is short and visitor-first, each package's README shows its bay
+  in a GIF made from that window, and every npm page links to its docs.
+- **A name Cockpit does not read is said the same way, whatever its age.** 0.9 kept recognising the
+  names from before it for one release; they are now unknown names like a typo. A top-level one is
+  `! settings: "statusline" is not a setting: did you mean "status"?` in Status's column and in
+  doctor; one inside a bay's section (`review.sidebarOrder`) is named by `/cockpit-setup`, like any
+  key the bay does not read. Their values were not read in 0.9 and still are not. The site's
+  configuration page keeps the table of old names and new ones, for anyone moving an old file.
+
+### Fixed
+
+- **Doctor checks Status's agent half too.** Status has had one since 0.9 (its `/status-setup`
+  command and skill), and doctor's list of bays with two halves did not know it; a test now fails
+  when a bay with an agent half is missing from it.
+
+### Removed
+
+- **`/statusline`.** Its name until 0.9, kept for one release; `/status-setup` is the command.
+- **Six entry points nothing imported:** `@opencode-cockpit/review/frame` (broken since it was
+  added: it pointed at a file that was never built there), `trail/core`, `trust/core`,
+  `updater/core`, `status/fixtures` and `client/elements`. Cockpit's own packages never used them;
+  `status/segment`, for your own segments, stays.
+
 ## [0.9.0] - 2026-10-04
 
 ### Added
