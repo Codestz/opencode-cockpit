@@ -10,7 +10,7 @@
  * writes, so neither can rot without a red test.
  */
 
-import { BAYS, type Bay, OLD_NAMES, SHARED_DEFAULTS, type SharedSettings, SIDEBAR_BAYS } from "./index.ts"
+import { BAYS, type Bay, SHARED_DEFAULTS, type SharedSettings, SIDEBAR_BAYS } from "./index.ts"
 
 export interface KeyInfo {
   key: string
@@ -454,19 +454,5 @@ export function settingsReference(): string {
     "- `hideWhenEmpty: true` keeps the block but draws nothing while there is nothing to list.",
     "",
     ...BAYS.flatMap((bay) => [`## \`${bay}\` — ${BAY_ABOUT[bay]}`, "", ...table(bay), ""]),
-    "## Names from before 0.9",
-    "",
-    "Not read at all. Each one found is a notice in `cockpit_settings` and a `!` row in its bay. In the",
-    "same file, move the value to the new name and remove the old one:",
-    "",
-    "| Old | New |",
-    "| --- | --- |",
-    ...OLD_NAMES.map((name) =>
-      name.new === "sidebar"
-        ? `| \`${name.old}\` | the top-level \`sidebar\` list (remove it) |`
-        : `| \`${name.old}\` | \`${name.new}\` |`,
-    ),
-    "| Status keys at the file's root (`preset`, `segments`, `enabled`…) | the same keys under `status` |",
-    "",
   ].join("\n")
 }

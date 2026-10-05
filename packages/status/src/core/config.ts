@@ -15,9 +15,9 @@ import {
  *
  *   ~/.config/opencode-cockpit/config.json  →  <project>/.cockpit.json  →  plugin-entry options
  *
- * Only `status` is read. `statusline` (the section's name until 0.9) and keys at the file's root are
- * old names: the loader recognises them and the bay draws a `!` row for each, but their values are
- * not read. A file that cannot be parsed is a notice too, never the end of the interface.
+ * Only `status` is read: not `statusline` (the section's name until 0.9), not keys at the file's
+ * root. A top-level name nothing reads is a `!` row; a file that cannot be parsed is a notice too,
+ * never the end of the interface.
  */
 
 /**

@@ -19,9 +19,9 @@
  *   (draw the block, a boolean), `sidebarRows`, `hideWhenEmpty`. Time keys carry their unit
  *   (`hideFinishedAfterMinutes`, `hideNestedAfterSeconds`).
  * - **One order**: the top-level `sidebar` list, and nothing else.
- * - **Old names are not read.** They are recognised, so each one is a notice — the bay draws it as a
- *   `!` row, doctor prints it, `cockpit_settings` lists it for the `cockpit-setup` skill to fix — and
- *   its value is ignored.
+ * - **Names from before 0.9 are not read**, nor recognised since 0.10: each is an unknown name like a
+ *   typo — doctor prints a top-level one, `cockpit_settings` lists every one for the `cockpit-setup`
+ *   skill to fix — and its value is ignored.
  * - **It never throws.** An unreadable file, a wrong type, an unknown name: a notice, and the
  *   defaults. A typo in a config should never cost you the interface.
  *
@@ -32,9 +32,6 @@ import { readFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"
 import { parseJsonc } from "./jsonc.ts"
-import { oldAtTop, oldInSection } from "./old-names.ts"
-
-export { OLD_NAMES } from "./old-names.ts"
 
 // ── Names ──────────────────────────────────────────────────────────────────────────────────────
 
@@ -56,9 +53,6 @@ export const PROJECT_FILE = ".cockpit.json"
 
 /** Where a notice from plugin-entry options says it came from. */
 export const OPTIONS_SOURCE = "plugin options"
-
-/** What every notice about an old name tells you to do. */
-export const SETUP_COMMAND = "/cockpit-setup"
 
 // ── The shape ──────────────────────────────────────────────────────────────────────────────────
 
@@ -117,8 +111,6 @@ export interface CockpitSettings {
 // ── Notices ────────────────────────────────────────────────────────────────────────────────────
 
 export type NoticeKind =
-  /** A name from before 0.9. Not read; `new` says what to write instead. */
-  | "old"
   /** Not read: an unknown name, or a key in the wrong place. */
   | "unread"
   /** The right name with the wrong kind of value; the default is used. */
@@ -128,8 +120,8 @@ export type NoticeKind =
 
 /**
  * Something about the settings worth fixing. `old` is the name as written, `new` the one to write
- * instead (when there is one). `text` says it in a sentence — `"statusline" is no longer read — run
- * /cockpit-setup` — for a bay's `!` row (`noticeText`) and doctor's fix line (`${file}: ${text}`).
+ * instead (when there is one). `text` says it in a sentence — `"stauts" is not a setting: did you mean
+ * "status"?` — for a bay's `!` row (`noticeText`) and doctor's fix line (`${file}: ${text}`).
  */
 export interface SettingsNotice {
   /** The bay whose block should say it. `cockpit` belongs to no one bay: a file, the top level. */
@@ -144,10 +136,6 @@ export interface SettingsNotice {
 
 /** The row a bay draws for a notice, after a `!` in the warning tone. */
 export const noticeText = (notice: SettingsNotice): string => `settings: ${notice.text}`
-
-// ── Old names ──────────────────────────────────────────────────────────────────────────────────
-//
-// Detection only, and removed in 0.10: `settings/old-names.ts`.
 
 // ── Small helpers ──────────────────────────────────────────────────────────────────────────────
 
@@ -225,7 +213,7 @@ export interface SettingsFile {
   error?: string
 }
 
-/** One file that was read: its sections, old names already taken out. */
+/** One file that was read: its sections, stray keys already taken out. */
 export interface SettingsLayer {
   path: string
   scope: "global" | "project"
@@ -269,10 +257,10 @@ function readText(path: string): string | undefined {
 }
 
 /**
- * One bay's section with its old keys taken out, each one noted. `prefix` is how a key is named in
- * a notice: `shell.` in a file, nothing in plugin options (where the keys are the bay's own).
+ * One bay's section with a `sidebar` list taken out, noted: the order is the top-level list. `prefix`
+ * is how a key is named in a notice: `shell.` in a file, nothing in plugin options.
  */
-function withoutOld(
+function withoutOrder(
   bay: Bay,
   section: Section,
   file: string,
@@ -281,7 +269,6 @@ function withoutOld(
 ): Section {
   const out: Section = {}
   for (const [key, value] of Object.entries(section)) {
-    if (oldInSection(bay, key, value, file, prefix, notes)) continue
     if (key === "sidebar" && Array.isArray(value)) {
       notes.push({
         bay,
@@ -400,7 +387,7 @@ function readFeatures(value: unknown, file: string, notes: SettingsNotice[]): Pa
   return out
 }
 
-/** One parsed file into its sections; every old name and stray key noted, and left out. */
+/** One parsed file into its sections; every stray key noted, and left out. */
 function readLayer(raw: Section, file: string, scope: SettingsLayer["scope"], notes: SettingsNotice[]) {
   const note = (notice: Omit<SettingsNotice, "file">) => notes.push({ file, ...notice })
   const sections: Partial<Record<Bay, Section>> = {}
@@ -409,10 +396,10 @@ function readLayer(raw: Section, file: string, scope: SettingsLayer["scope"], no
     if (key === "sidebar" || key === "features" || key === "$schema") continue
     if (isBay(key)) {
       if (isObject(value)) {
-        const section = withoutOld(key, value, file, `${key}.`, notes)
+        const section = withoutOrder(key, value, file, `${key}.`, notes)
         sections[key] = checkShared(key, section, file, `${key}.`, notes)
       } else note({ bay: key, kind: "invalid", old: key, text: `"${key}" should be an object of settings` })
-    } else if (!oldAtTop(key, value, note)) {
+    } else {
       const meant = closestName(key, TOP)
       note({
         bay: meant && isBay(meant) ? meant : "cockpit",
@@ -571,7 +558,7 @@ export function baySettings<T extends object = Record<never, never>>(
   }))
   const options = optionsSection(bay, input.options)
   if (options) {
-    const section = withoutOld(bay, options, OPTIONS_SOURCE, "", notices)
+    const section = withoutOrder(bay, options, OPTIONS_SOURCE, "", notices)
     sources.push({
       file: OPTIONS_SOURCE,
       prefix: "",

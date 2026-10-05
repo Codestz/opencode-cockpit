@@ -370,8 +370,8 @@ describe("the rest", () => {
     expect(found.Settings?.fix?.join()).toContain("gone.ts")
   })
 
-  /** Status reads modules from `status.modules` only; doctor agrees, and names the old places as such. */
-  test("modules under the old names are not checked: each is only the loader's notice", async () => {
+  /** Status reads modules from `status.modules` only; doctor agrees: elsewhere they are unknown names. */
+  test("modules under the old names are not checked: each is only an unknown name", async () => {
     const file = `${HOME}/.config/opencode-cockpit/config.json`
     const found = await checks({
       opencode: "2.0.15",
@@ -381,8 +381,8 @@ describe("the rest", () => {
     })
     const fix = found.Settings?.fix?.join("\n") ?? ""
     expect(fix).not.toContain("does not exist")
-    expect(fix).toContain(`${file}: "statusline" is no longer read — run /cockpit-setup`)
-    expect(fix).toContain(`${file}: "modules" at the top level is not read: it belongs in "status"`)
+    expect(fix).toContain(`${file}: "statusline" is not a setting: did you mean "status"?`)
+    expect(fix).toContain(`${file}: "modules" is not a setting`)
   })
 })
 
@@ -442,7 +442,7 @@ describe("Cockpit's settings", () => {
     expect(found.Settings?.fix?.[0]).toEndWith("the whole file is ignored")
   })
 
-  test("every old name and unknown sidebar entry is a fix line", async () => {
+  test("every unknown name and unknown sidebar entry is a fix line", async () => {
     const found = await checks({
       opencode: "2.0.18",
       files: {
@@ -457,10 +457,9 @@ describe("Cockpit's settings", () => {
     expect(found.Settings?.state).toBe("warn")
     expect(found.Settings?.summary).toBe("settings that are not read as written")
     expect(found.Settings?.fix).toEqual([
-      `${GLOBAL}: "statusline" is no longer read — run /cockpit-setup`,
-      `${GLOBAL}: "ui.dockHeight" is no longer read — run /cockpit-setup`,
+      `${GLOBAL}: "statusline" is not a setting: did you mean "status"?`,
+      `${GLOBAL}: "ui" is not a setting`,
       `${GLOBAL}: "shells" in "sidebar" is not a bay: did you mean "shell"? (status, subagents, shell, trail, trust)`,
-      `${PROJECT}: "trust.sidebarOrder" is no longer read — run /cockpit-setup`,
     ])
   })
 })

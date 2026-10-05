@@ -2,7 +2,7 @@
  * Every notice the bays draw, for what reports on the settings without being a bay: `cockpit_settings`
  * and doctor. "Notices: none" there has to mean no `!` row in any block after a restart.
  *
- * The loader knows the files, the old names and the shared keys; it does not know a bay's own words.
+ * The loader knows the files and the shared keys; it does not know a bay's own words.
  * So each bay's notices come from the bay: its keys' kinds through the loader with its defaults (the
  * catalog's, which a test holds equal to every bay's own), and — where a bay checks more than kinds,
  * as Status does its presets, surfaces and overrides — its own check, offered here the way a bay

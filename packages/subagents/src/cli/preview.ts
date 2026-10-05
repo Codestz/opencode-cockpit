@@ -88,7 +88,7 @@ const FIXTURES: Record<string, { changes: () => Change[]; root: string; about: s
 }
 
 /** A settings notice as the block draws it (client/settings `noticeText`), for `--notice`. */
-const NOTICE = 'settings: "subagents.hideFinishedAfter" is no longer read — run /cockpit-setup'
+const NOTICE = 'settings: "subagents.sidebarRows" should be a number; the default is used'
 
 const args = process.argv.slice(2)
 if (args.includes("--help") || args.includes("-h")) {

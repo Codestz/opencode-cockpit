@@ -18,10 +18,11 @@ guess any of that from memory.
 
 ## 2. Fix the notices first
 
-Old names are **not read**, so their values do nothing today: `"statusline"` → `"status"`, a
-bay-level `maxRows` → `sidebarRows`, Status keys at the file's root → under `"status"`, a
-`sidebarOrder` → removed (the order is the top-level `"sidebar"` list). Fix them in the file each
-notice names, keep everything else, and say what changed in one line each.
+Names from before 0.9 are **not read**, so their values do nothing today: `"statusline"` →
+`"status"`, a bay-level `maxRows` → `sidebarRows`, Status keys at the file's root → under
+`"status"`, a `sidebarOrder` → removed (the order is the top-level `"sidebar"` list). Fix them, and
+every other notice, in the file each names; keep everything else, and say what changed in one line
+each.
 
 ## 3. Offer a starting point
 

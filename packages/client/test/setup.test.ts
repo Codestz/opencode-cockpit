@@ -103,19 +103,10 @@ describe("previews", () => {
 })
 
 describe("what to fix", () => {
-  test("an old name says where its value goes", () => {
-    const { text } = report({ [GLOBAL]: { statusline: {}, ui: { sidebarRows: 3 } } })
-    expect(text).toContain(
-      `- ${GLOBAL}: "statusline" is no longer read. Move its value to "status" and remove "statusline".`,
-    )
-    expect(text).toContain(`"ui.sidebarRows" is no longer read. Move its value to "shell.sidebarRows"`)
-  })
-
-  test("an old place number points at the list, not at a name to copy it to", () => {
-    const { text } = report({ [PROJECT]: { review: { sidebarOrder: 3 } } })
-    expect(text).toContain(
-      `"review.sidebarOrder" is no longer read. Remove it; the order is the top-level "sidebar" list.`,
-    )
+  test("a name from before 0.9 is not a setting: the nearest one is offered", () => {
+    const { text } = report({ [GLOBAL]: { statusline: {}, review: { sidebarOrder: 3 } } })
+    expect(text).toContain(`- ${GLOBAL}: "statusline" is not a setting: did you mean "status"?`)
+    expect(text).toContain(`- ${GLOBAL}: "review.sidebarOrder" is not a setting of review.`)
   })
 
   test("a key no bay reads is a notice too, with the one it most likely meant", () => {

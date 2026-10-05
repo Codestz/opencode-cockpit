@@ -59,8 +59,7 @@ shows exactly what will change, and `enter` again does it.
 Once a day it checks the registry and, if something is behind, says so once:
 `2 plugin updates available. Run /plugins-update.` Turn that off with
 `{ "updater": { "updateCheck": false } }` in `~/.config/opencode-cockpit/config.json`. Shell's old
-`ui.updateCheck` is no longer read: a file that still has it gets a doctor line naming
-`updater.updateCheck`, and `/cockpit-setup` moves it.
+`ui.updateCheck` is not read: doctor says `"ui" is not a setting`, and `/cockpit-setup` moves it.
 
 ## What an update does
 

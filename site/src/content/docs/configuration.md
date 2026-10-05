@@ -21,8 +21,8 @@ get the defaults below.
 Type `/cockpit-setup`, or just ask — "make my sidebar quieter", "hide the shells block when it's
 empty", "move trail above subagents". The agent loads the `cockpit-setup` skill that ships with
 Cockpit and reads what is installed and written now with its `cockpit_settings` tool: every value
-and where it came from, anything from before 0.9 that is no longer read, OpenCode's own sidebar
-blocks. It fixes the old names first, offers a starting point (everything visible, quiet, minimal,
+and where it came from, every name it does not read, OpenCode's own sidebar blocks. It fixes those
+first, offers a starting point (everything visible, quiet, minimal,
 or Status as a line under the prompt), asks only what is left, one question at a time, writes the
 smallest file that does it, and checks it reads back with no notices. It asks before touching
 OpenCode's own files, and never suggests turning OpenCode's Todo block off. From the home screen the
@@ -237,13 +237,15 @@ See [Updater](/updater/overview/).
 
 ## Names from before 0.9
 
-0.9 gave every bay the same shape, so some names changed. **The old ones are not read.** Each one a
-file still carries is drawn as a `!` row in its bay's block, printed by
-[doctor](/help/doctor/), and fixed first by `/cockpit-setup`:
+0.9 gave every bay the same shape, so some names changed. **The old ones are not read**, and since
+0.10 they are names like any other Cockpit does not know: [doctor](/help/doctor/) and
+`/cockpit-setup` list each one, and a top-level one is a `!` row at the top of Status's column:
 
 ```
-! settings: "statusline" is no longer read — run /cockpit-setup
+! settings: "statusline" is not a setting: did you mean "status"?
 ```
+
+To move a file from before 0.9:
 
 | Before 0.9 | Now |
 | --- | --- |

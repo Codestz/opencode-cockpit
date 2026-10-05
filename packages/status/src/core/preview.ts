@@ -79,7 +79,7 @@ export interface PreviewInput {
   env?: Record<string, string | undefined>
   /**
    * A config's text — a file's, or a candidate piped on stdin. Read through the same loader as the
-   * TUI's, so its `status` section — comments, old names, `sidebarRows`, `override` and all — means
+   * TUI's, so its `status` section — comments, `sidebarRows`, `override` and all — means
    * here exactly what it will mean in OpenCode.
    */
   configText?: string

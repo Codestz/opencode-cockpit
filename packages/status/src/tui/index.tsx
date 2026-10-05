@@ -71,7 +71,7 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
     api.lifecycle.onDispose(() => store.dispose())
 
     /**
-     * The line's own trouble — a setting no longer read, a file that would not parse, a module that
+     * The line's own trouble — a setting not read, a file that would not parse, a module that
      * would not load — drawn once, as `!` rows above the first line, and for the whole session: the
      * toast is gone in ten seconds and the log is not where anyone looks at a line that seems to have
      * quietly done nothing. Status draws the notices that belong to no bay, too, being the one bay

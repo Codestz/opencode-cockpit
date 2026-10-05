@@ -137,7 +137,7 @@ const rows = layout(
     ...(args.includes("--settings")
       ? {
           settings: [
-            'settings: "review.sidebarOrder" is no longer read — run /cockpit-setup',
+            'settings: "review.keybinds" should be an object; the default is used',
             'settings: "review.source" should be a string; the default is used',
           ].slice(0, Number(flag("settings")) || 1),
         }

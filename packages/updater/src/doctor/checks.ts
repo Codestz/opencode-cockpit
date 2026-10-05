@@ -112,7 +112,7 @@ export interface ServiceFacts {
 export interface SettingsFacts {
   files: { path: string; error?: string }[]
   modules: { path: string; exists: boolean }[]
-  /** What the settings loader would tell a bay: old names, unknown sidebar entries, wrong types. */
+  /** What the settings loader would tell a bay: unknown names and sidebar entries, wrong types. */
   notices?: { file: string; text: string }[]
 }
 

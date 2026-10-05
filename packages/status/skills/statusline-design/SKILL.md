@@ -111,7 +111,7 @@ truncated; a track *was* being drawn and `panel` was the panel's own colour.
 | --- | --- |
 | Settings, every project | the `"status"` section of `~/.config/opencode-cockpit/config.json` |
 | Settings, one project | the `"status"` section of `<project>/.cockpit.json` |
-| Old names | `"statusline"`, Status keys at the file's root, a bay-level `maxRows`, `sidebarOrder`: not read; each is a `!` row. Write `"status"`, `sidebarRows`, and the top-level `"sidebar"` list |
+| Old names | `"statusline"`, Status keys at the file's root, a bay-level `maxRows`, `sidebarOrder`: not read. Write `"status"`, `sidebarRows`, and the top-level `"sidebar"` list |
 | Modules | anywhere — `~/.config/opencode-cockpit/modules/` needs no `node_modules` beside it |
 | Which plugins load | `~/.config/opencode/tui.json` |
 

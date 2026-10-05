@@ -185,10 +185,9 @@ skills; a window says so in a toast, and `npx opencode-cockpit@latest doctor` do
 
 One section per bay — `status`, `subagents`, `shell`, `trail`, `trust`, `review`, `updater` — with
 the same shared keys in each (`enabled`, `sidebar`, `sidebarRows`, `hideWhenEmpty`, `keybinds`). A
-project's file wins key by key; comments and trailing commas are fine. Names from before 0.9
-(`statusline`, Shell's keys at the root, `ui.*`, `sidebarOrder`) are no longer read: each is a `!`
-row in its bay's block, and `/cockpit-setup` fixes it. Every key, its default and the old names:
-[Configuration](https://github.com/Codestz/opencode-cockpit#configuration).
+project's file wins key by key; comments and trailing commas are fine. A name Cockpit does not read
+— a typo, or one from before 0.9 like `statusline` — is a notice in doctor and `/cockpit-setup`,
+which fixes it. Every key and its default: [Configuration](https://github.com/Codestz/opencode-cockpit#configuration).
 
 ## Troubleshooting
 

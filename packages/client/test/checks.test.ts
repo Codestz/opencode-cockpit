@@ -81,9 +81,9 @@ describe("cockpit_settings lists what the bays draw", () => {
 
 describe("bayNotices", () => {
   test("each notice once: the loader's are in the bay's list too", () => {
-    const settings = loadSettings(where({ status: { maxRows: 3 } }))
+    const settings = loadSettings(where({ status: { sidebar: ["status"] } }))
     const notices = bayNotices("status", settings, undefined, ({ settings }) => settings.notices)
-    expect(notices.filter((notice) => notice.text.includes("status.maxRows"))).toHaveLength(1)
+    expect(notices.filter((notice) => notice.text.includes("status.sidebar"))).toHaveLength(1)
   })
 
   test("plugin options are checked as the bay reads them", () => {

@@ -43,18 +43,18 @@ describe("a module that would not load", () => {
 
 describe("the rows a notice draws", () => {
   test("`!` in the warning tone, wrapped to the column, every row its full width", () => {
-    const rows = noticeRows(['settings: "statusline" is no longer read — run /cockpit-setup'], 24)
+    const rows = noticeRows(['settings: "stauts" is not a setting: did you mean "status"?'], 24)
     expect(rows.map((row) => segmentText(row).trimEnd())).toEqual([
-      '! settings: "statusline"',
-      "  is no longer read —",
-      "  run /cockpit-setup",
+      '! settings: "stauts" is',
+      "  not a setting: did you",
+      '  mean "status"?',
     ])
     expect(rows[0]?.runs[0]).toMatchObject({ text: "! ", tone: "warning" })
     for (const row of rows) expect(segmentText(row)).toHaveLength(24)
   })
 
   test("a wide surface keeps a notice to one row", () => {
-    expect(noticeRows(['settings: "statusline" is no longer read — run /cockpit-setup'], 120)).toHaveLength(1)
+    expect(noticeRows(['settings: "stauts" is not a setting: did you mean "status"?'], 120)).toHaveLength(1)
   })
 
   test("they outrank every segment, so a broken line still reports why", () => {

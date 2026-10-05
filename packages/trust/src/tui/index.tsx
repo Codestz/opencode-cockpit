@@ -144,7 +144,7 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
     const paint = () => {
       drawnAt = sidebarWidth()
       /**
-       * A setting in Trust's section that is not read — an old name, a value of the wrong kind — is
+       * A setting in Trust's section that is not read — a value of the wrong kind — is
        * a `!` row on top, for the session, until the file is fixed. Shown with the block hidden too:
        * like trouble, a setting that silently does nothing is what nobody would find otherwise.
        */

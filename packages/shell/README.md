@@ -208,9 +208,8 @@ unreadable file is ignored rather than fatal — a typo should never stop shells
 
 Where the block sits is the top-level `"sidebar"` list's to say (`["status", "subagents", "shell",
 "trail", "trust"]` by default). Before 0.9 these keys sat at the file's root, with the interface's
-under `ui`; those places are no longer read — the Shells block shows a `!` row naming the new key
-(`ui.historyMinutes` is now `hideFinishedAfterMinutes`, `ui.updateCheck` is `updater.updateCheck`),
-and `/cockpit-setup` fixes it.
+under `ui`; those places are not read (`ui.historyMinutes` is now `hideFinishedAfterMinutes`,
+`ui.updateCheck` is `updater.updateCheck`), and `/cockpit-setup` moves them.
 
 The same keys can go on the plugin entry instead, which wins over both files — handy for one-offs:
 
