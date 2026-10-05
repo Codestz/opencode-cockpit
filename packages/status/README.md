@@ -134,11 +134,10 @@ segment is a `!` row: `override "gti" matches no segment in the sidebar preset �
 
 Type it, or just ask ("put the statusline at the bottom"), and the agent sets the line up with you
 through the `status-setup` skill shipped in this package (`skills/status-setup/`): it reads what is
-written now with `cockpit_settings`, fixes old names first, offers a preset to start from, asks what
-you want, writes only what differs from the defaults, and checks the line in the preview that came
-with your install — `cockpit_settings` names it under Previews — never `bunx`, which fetches another
-release. `/statusline`, its name until 0.9, still works for one release and says the new
-name. Both come from Status's agent side (`@opencode-cockpit/status/server`), which the bundle
+written now with `cockpit_settings`, fixes what it cannot read first, offers a preset to start
+from, asks what you want, writes only what differs from the defaults, and checks the line in the
+preview that came with your install — `cockpit_settings` names it under Previews — never `bunx`,
+which fetches another release. It comes from Status's agent side (`@opencode-cockpit/status/server`), which the bundle
 includes and the package's install line adds.
 
 ## Looking at it before a restart
@@ -193,12 +192,12 @@ The keys every bay shares work here too: `enabled`, `sidebar` (`false` draws at 
 14, any other column's 8). Where the block sits among the others is the top-level `sidebar` list —
 `["status", "subagents", "shell", "trail", "trust"]` — and nowhere else.
 
-**What is not read says so.** `"statusline"` (the section's name before 0.9), Status's keys at the
-file's root, a bay-level `maxRows` (now `sidebarRows`) and `sidebarOrder` are no longer read; each is
-a `!` row at the top of the column, `! settings: "statusline" is no longer read — run
-/cockpit-setup`, until the file is fixed. So are a file that is not valid JSON, a top-level name
-nothing reads, an entry in the `sidebar` list that is not a bay, a value of the wrong kind, and a
-module that would not load.
+**What is not read says so.** A top-level name nothing reads is a `!` row at the top of the column
+— `! settings: "statusline" is not a setting: did you mean "status"?` for the section's name before
+0.9 — until the file is fixed. So are a file that is not valid JSON, an entry in the `sidebar` list
+that is not a bay, a value of the wrong kind, and a module that would not load. Status's keys at the
+file's root are not read either, nor a bay-level `maxRows` (now `sidebarRows`); `/cockpit-setup`
+names every key Status does not read.
 
 ### Surfaces
 

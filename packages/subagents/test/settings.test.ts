@@ -65,18 +65,13 @@ describe("settings", () => {
     expect(config.enabled).toBe(true)
   })
 
-  test("old names are not read: each is a notice naming the new one", () => {
+  /** Names from before 0.9 are unknown names now: /cockpit-setup and doctor say so, the block does not. */
+  test("old names are not read", () => {
     const { directory, env } = files({ subagents: { hideFinishedAfter: 5, sidebarOrder: 2 } })
     const { config, notices } = loadSubagents(directory, { hideNestedAfter: 9 }, env)
     expect(config.hideFinishedAfterMinutes).toBeUndefined()
     expect(config.hideNestedAfterSeconds).toBe(30)
-    expect(notices.map((notice) => [notice.old, notice.new])).toEqual(
-      expect.arrayContaining([
-        ["subagents.hideFinishedAfter", "subagents.hideFinishedAfterMinutes"],
-        ["subagents.sidebarOrder", "sidebar"],
-        ["hideNestedAfter", "subagents.hideNestedAfterSeconds"],
-      ]),
-    )
+    expect(notices).toEqual([])
   })
 
   test("a value of the wrong kind is the default, with a notice; the order is the `sidebar` list's", () => {

@@ -1,4 +1,4 @@
-import type { SegmentConfig } from "./config.ts"
+import type { SegmentConfig } from "./config/index.ts"
 import type { StatusContext } from "./context.ts"
 
 /**

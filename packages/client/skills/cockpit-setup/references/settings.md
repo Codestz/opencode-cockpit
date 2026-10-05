@@ -1,4 +1,4 @@
-<!-- Written by `bun packages/client/src/cli/reference.ts` from packages/client/src/catalog.ts. Do not edit by hand: a test fails when this file and the code disagree. -->
+<!-- Written by `bun packages/client/src/cli/reference.ts` from packages/client/src/settings/catalog.ts. Do not edit by hand: a test fails when this file and the code disagree. -->
 
 # Cockpit settings reference
 
@@ -121,28 +121,3 @@ Settings are read when OpenCode starts: a change applies after a restart.
 | --- | --- | --- | --- |
 | `enabled` | boolean | `true` | the bay runs at all, both halves. `false` turns it off entirely: no block, no commands, no tools |
 | `updateCheck` | boolean | `true` | check for plugin updates once a day and say so |
-
-## Names from before 0.9
-
-Not read at all. Each one found is a notice in `cockpit_settings` and a `!` row in its bay. In the
-same file, move the value to the new name and remove the old one:
-
-| Old | New |
-| --- | --- |
-| `statusline` | `status` |
-| `status.maxRows` | `status.sidebarRows` |
-| `watch` | `shell.watch` |
-| `kinds` | `shell.kinds` |
-| `defaults` | `shell.defaults` |
-| `lifecycle` | `shell.lifecycle` |
-| `notify` | `shell.notify` |
-| `guidance` | `shell.guidance` |
-| `listRunningShells` | `shell.listRunningShells` |
-| `ui.<key>` | `shell.<key>` |
-| `ui.historyMinutes` | `shell.hideFinishedAfterMinutes` |
-| `ui.updateCheck` | `updater.updateCheck` |
-| `ui.sidebarOrder` | the top-level `sidebar` list (remove it) |
-| `<bay>.sidebarOrder` | the top-level `sidebar` list (remove it) |
-| `subagents.hideFinishedAfter` | `subagents.hideFinishedAfterMinutes` |
-| `subagents.hideNestedAfter` | `subagents.hideNestedAfterSeconds` |
-| Status keys at the file's root (`preset`, `segments`, `enabled`…) | the same keys under `status` |

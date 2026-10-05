@@ -19,7 +19,7 @@ import { mkdtempSync, realpathSync, rmSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { brief, flag, measure, openCode, turn, world } from "../../../scripts/measure-agent.ts"
 import { reviewPaths } from "../src/core/store/paths.ts"
-import { createPersistence } from "../src/core/store/persist.ts"
+import { createPersistence } from "../src/io/persist.ts"
 
 const oc = openCode()
 const plugin = resolve(flag("--plugin") ?? join(import.meta.dir, ".."))

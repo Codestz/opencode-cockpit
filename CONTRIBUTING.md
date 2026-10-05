@@ -137,7 +137,10 @@ The router refuses methods missing from the contract, and handler params are typ
 Files are grouped by role, not by type, and entry points stay thin:
 
 - `core/` — pure logic with no I/O and no JSX, imported by both halves (finding, classifying,
-  formatting).
+  formatting). It never touches the filesystem, git, the network or another process; the clock or an
+  environment variable is fine as a parameter's default, which a test passes instead.
+- `io/` — what a bay reads and writes outside itself: its files, git, processes it spawns. Both halves
+  use it; it may import `core/`, never the other way round.
 - `core/config.ts` — one loader for every setting: global file → project `.cockpit.json` → plugin
   options, merged section-wise. Both halves call `loadConfig()` at startup and read from the result;
   nothing else parses config, and a broken file resolves to `{}` instead of throwing.
@@ -156,7 +159,7 @@ must carry explicit types or stay module-private, or `tsc` cannot name them in d
 1. `packages/<feature>` named `@opencode-cockpit/<feature>`, exporting `./server` and/or `./tui`
    whose default export is a plugin built from factories (`create<Feature>Server`,
    `create<Feature>Tui`) that accept a `source` label and start with `claimFeature`.
-2. Add it to `BAYS` in `packages/client/src/settings.ts` — the bundle's `FEATURES`, the settings
+2. Add it to `BAYS` in `packages/client/src/settings/index.ts` — the bundle's `FEATURES`, the settings
    file and doctor all read that one list — and call its factories in the bundle's `server.ts` /
    `tui.ts`.
 3. Add the directory to `PACKAGES` in `scripts/pack-check.ts` and to the publish loop in

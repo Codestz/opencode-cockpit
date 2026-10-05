@@ -155,9 +155,10 @@ terminal. Cockpit never restarts the service itself: that would cut every open w
 Settings merge global → project → plugin entry, and a `.cockpit.json` in the project wins over your
 global file, key by key. They are read when OpenCode starts, so a change applies after a restart.
 
-A setting Cockpit cannot use is never dropped in silence: a file that does not parse, a name from
-before 0.9 (`statusline`, `ui.*`, `sidebarOrder`…), a value of the wrong kind or a top-level name
-nothing reads is a `!` row in the bay's sidebar block and a line in doctor's **Settings** check.
+A setting Cockpit cannot use is never dropped in silence: a file that does not parse, a value of the
+wrong kind or a top-level name nothing reads (`statusline`, `ui`, a name from before 0.9) is a `!`
+row in the sidebar and a line in doctor's **Settings** check; a key a bay does not read
+(`review.sidebarOrder`) is named by `/cockpit-setup`.
 Comments and trailing commas are fine. To see every value and where it came from, ask the agent —
 `/cockpit-setup`, or "why is my shells block hidden?" — which reads them with `cockpit_settings`.
 

@@ -3,8 +3,7 @@
  *
  * Read through the loader every bay reads with (`@opencode-cockpit/client/settings`):
  * `~/.config/opencode-cockpit/config.json`, then the project's `.cockpit.json`, then plugin-entry
- * options, later wins. `ui.updateCheck`, the switch Shell's own notice had, is an old name: the
- * loader recognises it and doctor names the fix, but its value is not read.
+ * options, later wins. `ui.updateCheck`, the switch Shell's own notice had, is not read.
  */
 
 import { baySettings, type SettingsNotice } from "@opencode-cockpit/client/settings"

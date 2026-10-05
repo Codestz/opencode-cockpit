@@ -3,9 +3,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { toHunks } from "../../src/core/diff/hunks.ts"
-import { branchChanges, runGit, withCounts, worktreeChanges } from "../../src/core/git/sources.ts"
+import { withCounts } from "../../src/core/git/changes.ts"
 import type { FileChange } from "../../src/core/model/review.ts"
 import { hunkWhitespace } from "../../src/core/view/whitespace.ts"
+import { branchChanges, runGit, worktreeChanges } from "../../src/io/git.ts"
 
 /**
  * What happened to each file itself — created, deleted, moved — as git reports it, against a real

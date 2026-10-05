@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { join } from "node:path"
 import type { SessionSnapshot, StatusContext } from "../src/core/context.ts"
-import { loadCustomSegments } from "../src/core/custom.ts"
 import { buildSegments, type Segment, segmentText, segmentWidth } from "../src/core/segments.ts"
+import { loadCustomSegments } from "../src/io/custom.ts"
 
 /**
  * The shipped examples, loaded exactly the way a user's own module is. An example that does not

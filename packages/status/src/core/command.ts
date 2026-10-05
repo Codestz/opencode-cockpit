@@ -7,7 +7,7 @@
  */
 
 import { claudeCodeInput } from "./claude-code.ts"
-import type { CommandConfig } from "./config.ts"
+import type { CommandConfig } from "./config/index.ts"
 import type { StatusContext } from "./context.ts"
 
 /**
@@ -77,24 +77,5 @@ export function createRunner(config: CommandConfig, host: RunnerHost): CommandRu
     dispose() {
       disposed = true
     },
-  }
-}
-
-/** The real shell, used outside tests. */
-export async function execShell(command: string, stdin: string, timeoutMs: number): Promise<string> {
-  const proc = Bun.spawn(["/bin/sh", "-c", command], {
-    stdin: new TextEncoder().encode(stdin),
-    stdout: "pipe",
-    stderr: "ignore",
-    env: process.env,
-  })
-  const timer = setTimeout(() => proc.kill(), timeoutMs)
-  try {
-    const out = await new Response(proc.stdout).text()
-    const code = await proc.exited
-    if (code !== 0) throw new Error(`exit ${code}`)
-    return out
-  } finally {
-    clearTimeout(timer)
   }
 }

@@ -179,8 +179,8 @@ In the `subagents` section of `~/.config/opencode-cockpit/config.json`, or a pro
 | `enabled` | `true` | `false` switches both halves off; so does `features.subagents: false` |
 
 Where the block sits is the top-level `"sidebar"` list's to say. The names from before 0.9 —
-`hideFinishedAfter`, `hideNestedAfter`, `sidebarOrder` — are no longer read: the block shows a `!`
-row naming the new one, and `/cockpit-setup` fixes it. See
+`hideFinishedAfter`, `hideNestedAfter`, `sidebarOrder` — are not read; `/cockpit-setup` names them
+and fixes them. See
 [Configuration](/configuration/).
 
 ## Known limits

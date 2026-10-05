@@ -1,16 +1,14 @@
 import { describe, expect, test } from "bun:test"
+import { readInstructions } from "../src/setup/conventions/instructions.ts"
+import { projectFacts, repoOf, ticketPrefixes } from "../src/setup/conventions/project.ts"
 import {
   findSections,
-  projectFacts,
-  readInstructions,
-  repoOf,
   SECTION_END,
   SECTION_HEADING,
   SECTION_START,
   sectionText,
-  ticketPrefixes,
   writeSection,
-} from "../src/conventions.ts"
+} from "../src/setup/conventions/section.ts"
 
 /**
  * The second phase of /cockpit-setup writes into someone's own instructions file. What is tested is

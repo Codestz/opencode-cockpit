@@ -8,9 +8,9 @@
 
 import { homedir } from "node:os"
 import { join } from "node:path"
-import { parseJsonc } from "../jsonc.ts"
-import { baysOfEntry, pluginEntries } from "../plugin-entries.ts"
-import type { Bay } from "../settings.ts"
+import type { Bay } from "../settings/index.ts"
+import { parseJsonc } from "../settings/jsonc.ts"
+import { baysOfEntry, pluginEntries } from "../settings/plugin-entries.ts"
 
 export const isObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)

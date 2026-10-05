@@ -9,7 +9,7 @@ import { fit, fitColumn } from "../../../packages/status/src/core/render.ts"
 import { buildSegments } from "../../../packages/status/src/core/segments.ts"
 import type { Run } from "../paint.ts"
 
-/* SIDEBAR_SEGMENTS (status/src/core/config.ts), copied: config.ts reaches for the settings file. */
+/* SIDEBAR_SEGMENTS (status/src/core/config/lines.ts), copied: the config folder reaches for the settings file. */
 const SIDEBAR = ["title", { type: "context", style: "solid", width: 16, icon: "" }, { type: "session.status", priority: 95, icon: "", working: false }, "diagnostics", { type: "tokens", style: "row", icon: "" }, "in", "out", "cache", "write", "sep", "spend", "avail", "sep", "git"].map((e) => (typeof e === "string" ? { type: e } : e))
 const LINE = [{ type: "context", style: "bar", width: 14, icon: "" }, { type: "tokens", format: "tk {total}", icon: "" }, { type: "git.diff", icon: "" }, "todo", "session.status"].map((e) => (typeof e === "string" ? { type: e } : e))
 

@@ -84,7 +84,7 @@ export interface ViewState {
    */
   notice?: string
   /**
-   * Settings Review does not read — an old name, a value of the wrong kind — each a sentence
+   * Settings Review does not read — a value of the wrong kind — each a sentence
    * (`noticeText`). Review has no sidebar block to say them in, so the pane does: one `!` row in
    * place of the header's rule, for as long as the file is wrong, not a toast gone in ten seconds.
    */

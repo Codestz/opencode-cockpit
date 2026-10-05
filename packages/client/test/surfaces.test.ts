@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { DEFAULT_KEYS } from "../src/catalog.ts"
-import { composeParts, dualServer, type ServerParts } from "../src/server.ts"
-import { keyText, openText, registerSurfaces, surfacesLine } from "../src/surfaces.ts"
+import { composeParts, dualServer, type ServerParts } from "../src/opencode/server/index.ts"
+import { keyText, openText, registerSurfaces, surfacesLine } from "../src/opencode/server/surfaces.ts"
+import { DEFAULT_KEYS } from "../src/settings/catalog.ts"
 
 /**
  * The one Cockpit-wide line: where the user sees what the agent made, written from the bays that are

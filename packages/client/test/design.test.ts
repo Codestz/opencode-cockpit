@@ -192,12 +192,12 @@ describe("an empty sidebar block", () => {
     expect(rows.at(-1)?.[0]).toMatchObject({ text: "none yet", tone: "muted" })
   })
 
-  test("a warning wraps at spaces and keeps its fix", () => {
-    const rows = warnRows('settings: "statusline" is no longer read — run /cockpit-setup', 30)
+  test("a warning wraps at spaces", () => {
+    const rows = warnRows('settings: "stauts" is not a setting: did you mean "status"?', 30)
     expect(lines(rows)).toEqual([
-      '! settings: "statusline" is no',
-      "  longer read — run".padEnd(30),
-      "  /cockpit-setup".padEnd(30),
+      '! settings: "stauts" is not a ',
+      "  setting: did you mean".padEnd(30),
+      '  "status"?'.padEnd(30),
     ])
     expect(rows[0]?.[0]).toMatchObject({ text: "! ", tone: "warning" })
     expect(lines(warnRows("one two three four five six", 9, 2))).toEqual(["! one two", "  three…".padEnd(9)])

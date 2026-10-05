@@ -111,14 +111,13 @@ find:
 
 ## Let an agent draw it
 
-Type **`/status-setup`** in OpenCode (`/statusline` until 0.9), or just ask for the change. It draws
+Type **`/status-setup`** in OpenCode, or just ask for the change. It draws
 nothing: the agent loads the **`status-setup` skill** that ships with Status — the presets, every
 segment, the design rules this bay learned the expensive way, and the preview to check a line with —
 reads what is written now with `cockpit_settings`, and asks what you want it to show.
 
 For another agent, Claude Code for example, the same skill ships in the package, at
-`skills/status-setup/` — the design rules are in its `references/design.md`. (`skills/statusline-design/`,
-its name before 0.9, is kept for 0.9 for anyone who copied it, and removed in 0.10.)
+`skills/status-setup/` — the design rules are in its `references/design.md`.
 
 ```sh
 # Claude Code, for this project or for every project

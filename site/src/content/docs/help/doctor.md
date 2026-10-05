@@ -77,9 +77,10 @@ shell's processes with it), and a Cockpit home it can write to.
 
 **Settings.** `~/.config/opencode-cockpit/config.json` and the project's `.cockpit.json` parse
 (comments and trailing commas are fine; a file that does not is ignored whole, and the defaults
-apply), every setting is read as written — a name from before 0.9, a value of the wrong kind, a
-Status `override` that matches no segment are each listed, the same notices the bays draw as `!`
-rows — and every statusline module they list exists.
+apply), every setting is read as written — a top-level name nothing reads, a value of the wrong
+kind, a Status `override` that matches no segment are each listed, the same notices the bays draw as
+`!` rows — and every statusline module they list exists. A key a bay does not read inside its own
+section (`review.sidebarOrder`) is for `/cockpit-setup`, which names every one.
 
 ## For an issue
 

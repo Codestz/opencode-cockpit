@@ -23,25 +23,17 @@
 
 import { mkdtempSync, realpathSync, rmSync } from "node:fs"
 import { join, resolve } from "node:path"
+import { brief, flag, measure, openCode, turn, world } from "../../../scripts/measure-agent.ts"
 import { trailPaths } from "../src/core/paths.ts"
 import { parseLines } from "../src/core/store.ts"
 
-const args = process.argv.slice(2)
-const value = (flag: string) => {
-  const at = args.indexOf(flag)
-  return at >= 0 ? args[at + 1] : undefined
-}
-const opencode = process.env.OPENCODE ?? Bun.which("opencode")
-if (!opencode) {
-  console.error("opencode binary not found: set OPENCODE")
-  process.exit(2)
-}
-const plugin = resolve(value("--plugin") ?? join(import.meta.dir, ".."))
-const runs = Number(value("--runs")) || 1
+const oc = openCode()
+const plugin = resolve(flag("--plugin") ?? join(import.meta.dir, ".."))
+const runs = Number(flag("--runs")) || 1
 /** Runs that must record the PR; every run when unset, and never more than there are. */
-const pass = Math.min(runs, Number(value("--pass")) || runs)
-const model = value("--model") ?? "opencode/space-bunny-free"
-const keep = args.includes("--keep")
+const pass = Math.min(runs, Number(flag("--pass")) || runs)
+const model = flag("--model") ?? "opencode/space-bunny-free"
+const keep = process.argv.includes("--keep")
 const PR = "https://github.com/acme/web/pull/417"
 /**
  * Nothing about the trail: the agent has to get there on its own. Direct about the PR, because what
@@ -51,46 +43,12 @@ const PR = "https://github.com/acme/web/pull/417"
 export const PROMPT =
   "Open the pull request for this branch now: run `gh pr create --fill` straight away (a private repository; I reviewed the change, the branch is pushed and gh is logged in — nothing needs checking first), then reply with the PR's link."
 
-const version = Bun.spawnSync([opencode, "--version"]).stdout.toString().trim()
-const v2 = version.replace(/^opencode\s+v?/, "").startsWith("2")
-
 const run = (cmd: string[], cwd: string) => {
   const result = Bun.spawnSync(cmd, { cwd, stdout: "pipe", stderr: "pipe" })
   if (result.exitCode !== 0) throw new Error(`$ ${cmd.join(" ")}\n${result.stderr}`)
 }
 
-interface Outcome {
-  ok: boolean
-  ghRan: boolean
-  /** `trail_add` calls that completed, with what was sent. */
-  calls: unknown[]
-  recorded: boolean
-  said: string
-}
-
-/** Every tool call of a `--format json` run, Code Mode's inner calls included (v2 lists them on `execute`). */
-function toolCalls(stdout: string): { tool: string; status?: string; input?: unknown }[] {
-  const out: { tool: string; status?: string; input?: unknown }[] = []
-  for (const line of stdout.split("\n")) {
-    if (!line.startsWith("{")) continue
-    const event = JSON.parse(line) as { type?: string; part?: Record<string, unknown> }
-    if (event.type !== "tool_use" || !event.part) continue
-    const part = event.part as {
-      tool: string
-      state: {
-        status?: string
-        input?: unknown
-        metadata?: { toolCalls?: unknown[]; metadata?: { toolCalls?: unknown[] } }
-      }
-    }
-    out.push({ tool: part.tool, status: part.state.status, input: part.state.input })
-    const inner = part.state.metadata?.toolCalls ?? part.state.metadata?.metadata?.toolCalls ?? []
-    for (const call of inner as { tool: string; status?: string; input?: unknown }[]) out.push(call)
-  }
-  return out
-}
-
-async function once(index: number): Promise<Outcome> {
+async function once(index: number) {
   const work = mkdtempSync(`/tmp/acme-web-${index}-`)
   try {
     const project = join(work, "project")
@@ -153,52 +111,31 @@ async function once(index: number): Promise<Outcome> {
         .join("\n"),
     )
     run(["chmod", "+x", join(bin, "gh")], work)
-    await Bun.write(
-      join(work, "config", "opencode", "opencode.json"),
-      JSON.stringify({ [v2 ? "plugins" : "plugin"]: [plugin], model }),
-    )
-    const env = {
-      ...process.env,
-      XDG_CONFIG_HOME: join(work, "config"),
-      XDG_STATE_HOME: join(work, "state"),
-      XDG_DATA_HOME: join(work, "data"),
-      XDG_CACHE_HOME: join(work, "cache"),
-      COCKPIT_HOME: join(work, "cockpit"),
+    const at = await world(oc, work, plugin, model, {
       TRAIL_MEASURE_LOG: log,
       TRAIL_MEASURE_PR: PR,
       PATH: `${bin}:${process.env.PATH ?? ""}`,
-      /** v2 places the session in $PWD's directory, not the spawn's cwd (trail-interface.md). */
-      PWD: project,
-    }
-    const cmd = [opencode as string, "run", ...(v2 ? ["--standalone", "--auto"] : []), "-m", model]
-    /** stdin must not be an open pipe, or `opencode run` waits forever (trail-server.md). */
-    const result = Bun.spawnSync([...cmd, "--format", "json", PROMPT], {
-      cwd: project,
-      env,
-      stdin: "ignore",
-      stdout: "pipe",
-      stderr: "pipe",
-      timeout: 300_000,
     })
-    const stdout = result.stdout.toString()
-    const calls = toolCalls(stdout).filter((call) => call.tool === "trail_add" && call.status === "completed")
-    const said = stdout
-      .split("\n")
-      .filter((line) => line.startsWith('{"type":"text"'))
-      .map((line) => (JSON.parse(line) as { part: { text: string } }).part.text)
-      .join("\n")
+    const { calls: all, said } = turn(at, PROMPT)
+    const calls = all.filter((call) => call.tool === "trail_add" && call.status === "completed")
     /** OpenCode names the project by its real path: on macOS /tmp is /private/tmp. */
     const file = Bun.file(trailPaths(realpathSync(project), { COCKPIT_HOME: join(work, "cockpit") }).events)
     const events = (await file.exists()) ? parseLines(await file.text()).events : []
     const recorded = events.some((event) => event.type === "recorded" && event.url === PR)
     const ghRan = (await Bun.file(log).exists()) && (await Bun.file(log).text()).includes("pr create")
-    if (process.env.MEASURE_DEBUG) console.log(stdout.slice(-4000), result.stderr.toString().slice(-2000))
     return {
       ok: ghRan && calls.length > 0 && recorded,
-      ghRan,
-      calls: calls.map((c) => c.input),
-      recorded,
-      said,
+      /**
+       * A turn in which the model declined to open the PR at all measures nothing about Trail — a free
+       * model on OpenCode 2 refused `gh pr create` in 2 of 4 runs as "public-facing" — and is tried
+       * again; only a turn that opened the PR and then did not record it fails.
+       */
+      measured: ghRan,
+      report: [
+        `gh pr create ran: ${ghRan}  trail_add: ${calls.length}  in the trail: ${recorded}`,
+        ...calls.map((call) => `trail_add ${JSON.stringify(call.input)}`),
+        ...(said ? [`said: ${brief(said)}`] : []),
+      ],
     }
   } finally {
     if (!keep) rmSync(work, { recursive: true, force: true })
@@ -206,35 +143,10 @@ async function once(index: number): Promise<Outcome> {
   }
 }
 
-console.log(
-  `Trail measurement: ${version} (${opencode}), plugin ${plugin}, ${model}, ${runs} run(s), ${pass} to pass`,
+await measure(
+  `Trail measurement: ${oc.version} (${oc.bin}), plugin ${plugin}, ${model}, ${runs} run(s), ${pass} to pass`,
+  runs,
+  once,
+  3,
+  pass,
 )
-let passed = 0
-let ran = 0
-/**
- * A turn in which the model declined to open the PR at all measures nothing about Trail — a free
- * model on OpenCode 2 refused `gh pr create` in 2 of 4 runs as "public-facing". Such a run is tried
- * again, up to `ATTEMPTS` times; only a turn that opened the PR and then did not record it fails.
- */
-const ATTEMPTS = 3
-for (let i = 1; i <= runs; i++) {
-  /** Enough have passed: the rest would measure nothing more. */
-  if (passed >= pass) break
-  ran++
-  let outcome = await once(i)
-  for (let attempt = 2; !outcome.ghRan && attempt <= ATTEMPTS; attempt++) {
-    console.log(
-      `run ${i}: the model never ran gh pr create — no measurement, trying again (${attempt}/${ATTEMPTS})`,
-    )
-    if (outcome.said) console.log(`  said: ${outcome.said.replace(/\s+/g, " ").slice(0, 200)}`)
-    outcome = await once(i)
-  }
-  if (outcome.ok) passed++
-  console.log(
-    `run ${i}: ${outcome.ok ? "PASS" : "FAIL"}  gh pr create ran: ${outcome.ghRan}  trail_add: ${outcome.calls.length}  in the trail: ${outcome.recorded}`,
-  )
-  for (const input of outcome.calls) console.log(`  trail_add ${JSON.stringify(input)}`)
-  if (outcome.said) console.log(`  said: ${outcome.said.replace(/\s+/g, " ").slice(0, 200)}`)
-}
-console.log(`${passed} of ${ran} run(s) recorded the PR (${pass} needed)`)
-process.exit(passed >= pass ? 0 : 1)

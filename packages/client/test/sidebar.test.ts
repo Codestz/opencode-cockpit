@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import type { Host } from "../src/host.ts"
-import { orderedSidebar } from "../src/sidebar.ts"
+import type { Host } from "../src/opencode/host/index.ts"
+import { blockWidth, measureBlock, orderedSidebar } from "../src/opencode/sidebar.ts"
 
 describe("orderedSidebar", () => {
   test("sidebar blocks register in their order, everything else at once", () => {
@@ -24,5 +24,19 @@ describe("orderedSidebar", () => {
       "sidebar_content@150",
       "sidebar_content@170",
     ])
+  })
+})
+
+describe("a block's width", () => {
+  test("the container's, not the rows': a block stretched by a long row still draws at the sidebar's", () => {
+    expect(blockWidth({ width: 60, parent: { width: 36 } }, 200)).toBe(36)
+    expect(blockWidth({ width: 30, parent: { width: 36 } }, 200)).toBe(30)
+  })
+
+  test("before the first layout, a quarter of the window, between 20 and the widest guess", () => {
+    expect(blockWidth(undefined, 200)).toBe(40)
+    expect(blockWidth(undefined, 200, 30)).toBe(30)
+    expect(blockWidth({ width: 0, parent: { width: 0 } }, 60)).toBe(20)
+    expect(measureBlock(undefined)).toEqual({ parent: 0, own: 0, measured: 0 })
   })
 })

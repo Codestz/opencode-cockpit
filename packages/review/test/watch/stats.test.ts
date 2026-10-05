@@ -45,18 +45,20 @@ describe("the numbers, said in one line", () => {
  * The footer is two rows whatever it has to say, because the body's height is measured from it — a
  * footer that grew would shove the diff about every time something went wrong.
  */
-describe("what the footer says instead of the keys", () => {
+describe("what the footer says, and where", () => {
   const rows = (state: Parameters<typeof footerRows>[2]) => footerRows(80, { list: 20, diff: 57 }, state)
 
   test("keys, normally — bracketed, so a key is a shape rather than a word to parse", () => {
     expect(text(rows({ pane: "diff" })[1]?.runs ?? [])).toContain("[tab] Files")
   })
 
-  test("trouble wins the line, and still fits in two rows", () => {
+  /** A notice that stays — "more than N files changed" — took every key, the way out included. */
+  test("trouble takes the rule's row, the keys keep theirs, and it still fits in two rows", () => {
     const shown = rows({ pane: "diff", notice: "paint: bad row" })
     expect(shown).toHaveLength(2)
-    expect(text(shown[1]?.runs ?? [])).toContain("paint: bad row")
-    expect(text(shown[1]?.runs ?? [])).not.toContain("[tab]")
+    expect(text(shown[0]?.runs ?? [])).toContain("paint: bad row")
+    expect(text(shown[1]?.runs ?? [])).toContain("[tab]")
+    expect(text(shown[1]?.runs ?? [])).toContain("[esc]")
   })
 
   test("the numbers take it when you asked and nothing is wrong", () => {
@@ -65,13 +67,14 @@ describe("what the footer says instead of the keys", () => {
     expect(text(shown[1]?.runs ?? [])).toContain("paint")
   })
 
-  test("trouble outranks the numbers: a broken review is the more useful fact", () => {
+  test("trouble and the numbers both show: trouble above, where the rule was", () => {
     const shown = rows({
       pane: "diff",
       notice: "click: no such file",
       stats: statsRuns(createMeter(() => 0).snapshot()),
     })
-    expect(text(shown[1]?.runs ?? [])).toContain("no such file")
+    expect(text(shown[0]?.runs ?? [])).toContain("no such file")
+    expect(text(shown[1]?.runs ?? [])).toContain("paint")
   })
 })
 

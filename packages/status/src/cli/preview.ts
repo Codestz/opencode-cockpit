@@ -15,9 +15,9 @@
 
 import { readFileSync, watch } from "node:fs"
 import { homedir } from "node:os"
-import { budgetFile, readBudget } from "../core/budget.ts"
-import { type ResolvedLine, resolveLines, type Surface } from "../core/config.ts"
-import { loadCustomSegments, resolveModulePath } from "../core/custom.ts"
+import { budgetFile } from "../core/budget.ts"
+import { type ResolvedLine, resolveLines, type Surface } from "../core/config/index.ts"
+import { resolveModulePath } from "../core/custom.ts"
 import { FIXTURES, type FixtureName } from "../core/fixtures.ts"
 import { moduleNoticeText } from "../core/notices.ts"
 import {
@@ -29,6 +29,8 @@ import {
   SIDEBAR_WIDTH,
 } from "../core/preview.ts"
 import type { SegmentDef } from "../core/segments.ts"
+import { readBudget } from "../io/budget.ts"
+import { loadCustomSegments } from "../io/custom.ts"
 import { paintRuns as paintColour } from "./ansi.ts"
 
 const args = parseArgs(process.argv.slice(2))
@@ -84,8 +86,18 @@ const surface = flag("surface") as Surface | undefined
  * `override` — and draws the same `!` rows for what it will not read. A file that cannot be read
  * stops the preview: the defaults drawn in its place would look like a file that changed nothing.
  */
+/** The other file `--as` leaves in place, read as OpenCode reads it: missing or unreadable is none. */
+const readText = (path: string): string | undefined => {
+  try {
+    return readFileSync(path, "utf8")
+  } catch {
+    return undefined
+  }
+}
+
 function settings() {
-  if (stdinText !== undefined) return previewSettings({ directory, configText: stdinText, as, surface })
+  if (stdinText !== undefined)
+    return previewSettings({ directory, configText: stdinText, as, surface, readFile: readText })
   if (!configPath) return previewSettings({ directory, surface })
   let configText: string
   try {
@@ -94,7 +106,7 @@ function settings() {
     console.error(`  cannot read --config ${configPath}: ${(error as Error).message}`)
     process.exit(2)
   }
-  return previewSettings({ directory, configText, surface, ...(as ? { as } : {}) })
+  return previewSettings({ directory, configText, surface, ...(as ? { as, readFile: readText } : {}) })
 }
 
 /**

@@ -5,9 +5,9 @@ import {
   offerSettingsCheck,
   type SettingsCheck,
   uniqueNotices,
-} from "../src/checks.ts"
-import { loadSettings, type SettingsNotice } from "../src/settings.ts"
-import { settingsReport, settingsText } from "../src/setup.ts"
+} from "../src/settings/checks.ts"
+import { loadSettings, type SettingsNotice } from "../src/settings/index.ts"
+import { settingsReport, settingsText } from "../src/setup/index.ts"
 
 /**
  * "Notices: none" from `cockpit_settings` has to mean no `!` row in any block. The audit's case: the
@@ -81,9 +81,9 @@ describe("cockpit_settings lists what the bays draw", () => {
 
 describe("bayNotices", () => {
   test("each notice once: the loader's are in the bay's list too", () => {
-    const settings = loadSettings(where({ status: { maxRows: 3 } }))
+    const settings = loadSettings(where({ status: { sidebar: ["status"] } }))
     const notices = bayNotices("status", settings, undefined, ({ settings }) => settings.notices)
-    expect(notices.filter((notice) => notice.text.includes("status.maxRows"))).toHaveLength(1)
+    expect(notices.filter((notice) => notice.text.includes("status.sidebar"))).toHaveLength(1)
   })
 
   test("plugin options are checked as the bay reads them", () => {

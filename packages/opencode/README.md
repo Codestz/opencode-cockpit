@@ -104,7 +104,7 @@ keeping line numbers and highlighting matches — and output keeps the colours t
 | `ctrl+x p` · `/trust` | What Trust answered for you, and what it has learned |
 | `/plugins-update` | Every plugin you have installed: what runs, what is published, and an update checked against disk |
 | `/cockpit-setup` | The agent sets Cockpit up with you, with the `cockpit-setup` skill: which bays show, where, in what order — then, if you want, tunes it to how your project works |
-| `/status-setup` | The agent designs the Status line with you, with the `status-setup` skill (`/statusline` until 0.9) |
+| `/status-setup` | The agent designs the Status line with you, with the `status-setup` skill |
 
 Every key is the same on OpenCode 1 and 2, none of them is one of OpenCode's own, and each bay's
 `keybinds` changes it.
@@ -185,10 +185,9 @@ skills; a window says so in a toast, and `npx opencode-cockpit@latest doctor` do
 
 One section per bay — `status`, `subagents`, `shell`, `trail`, `trust`, `review`, `updater` — with
 the same shared keys in each (`enabled`, `sidebar`, `sidebarRows`, `hideWhenEmpty`, `keybinds`). A
-project's file wins key by key; comments and trailing commas are fine. Names from before 0.9
-(`statusline`, Shell's keys at the root, `ui.*`, `sidebarOrder`) are no longer read: each is a `!`
-row in its bay's block, and `/cockpit-setup` fixes it. Every key, its default and the old names:
-[Configuration](https://github.com/Codestz/opencode-cockpit#configuration).
+project's file wins key by key; comments and trailing commas are fine. A name Cockpit does not read
+— a typo, or one from before 0.9 like `statusline` — is a notice in doctor and `/cockpit-setup`,
+which fixes it. Every key and its default: [Configuration](https://github.com/Codestz/opencode-cockpit#configuration).
 
 ## Troubleshooting
 

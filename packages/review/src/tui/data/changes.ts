@@ -15,8 +15,9 @@
  */
 
 import type { Host } from "@opencode-cockpit/client/host"
-import { branchChanges, withCounts, worktreeChanges } from "../../core/git/sources.ts"
+import { withCounts } from "../../core/git/changes.ts"
 import type { ChangeSet, Source } from "../../core/model/review.ts"
+import { branchChanges, worktreeChanges } from "../../io/git.ts"
 
 export interface Loaded {
   changes: ChangeSet

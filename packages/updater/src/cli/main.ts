@@ -11,10 +11,10 @@ import { spawnSync } from "node:child_process"
 import { accessSync, constants, existsSync, mkdirSync, rmSync, statSync } from "node:fs"
 import { homedir } from "node:os"
 import { createInterface } from "node:readline/promises"
-import { nodeDisk } from "../core/disk.ts"
 import { fetchAllLatest, registryFrom } from "../core/registry.ts"
-import { runOpencode } from "../core/spawn.ts"
 import { doctor } from "../doctor/run.ts"
+import { nodeDisk } from "../io/disk.ts"
+import { runOpencode } from "../io/spawn.ts"
 import { update } from "./run.ts"
 
 function worktree(cwd: string): string | undefined {

@@ -59,13 +59,10 @@ describe("the daily notice setting", () => {
     expect(updateCheckEnabled(memoryDisk({}), where, undefined)).toBe(true)
   })
 
-  /** An old name is not read (0.9): it is a notice naming `updater.updateCheck`, and the check stays on. */
-  test("Shell's old `ui.updateCheck` is not read, and says what to write instead", () => {
+  /** A name from before 0.9 is not read: the check stays on. */
+  test("Shell's old `ui.updateCheck` is not read", () => {
     const disk = memoryDisk({ [GLOBAL]: '{"ui":{"updateCheck":false}}' })
     expect(updateCheckEnabled(disk, where, undefined)).toBe(true)
-    expect(updateCheck(disk, where, undefined).notices).toMatchObject([
-      { bay: "updater", kind: "old", old: "ui.updateCheck", new: "updater.updateCheck" },
-    ])
   })
 
   test("comments and trailing commas are fine, as in every bay", () => {

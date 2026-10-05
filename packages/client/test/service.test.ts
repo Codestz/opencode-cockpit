@@ -2,8 +2,8 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import { claimFeature } from "../src/feature.ts"
-import type { Host } from "../src/host.ts"
 import { silentLog } from "../src/log.ts"
+import type { Host } from "../src/opencode/host/index.ts"
 import {
   type AgentRecord,
   agentsDir,
@@ -21,7 +21,7 @@ import {
   serviceFile,
   servicePid,
   verdict,
-} from "../src/service.ts"
+} from "../src/opencode/service.ts"
 
 /**
  * A window compares the install it loaded with the one OpenCode 2's background service loaded, and

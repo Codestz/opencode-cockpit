@@ -9,7 +9,7 @@ import {
 import { loadReview } from "../core/config.ts"
 import { waitingOn } from "../core/model/thread.ts"
 import { reviewPaths } from "../core/store/paths.ts"
-import { createPersistence, type Persistence } from "../core/store/persist.ts"
+import { createPersistence, type Persistence } from "../io/persist.ts"
 import { createTools } from "./tools/index.ts"
 import type { FileContents } from "./tools/shared.ts"
 

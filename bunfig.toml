@@ -1,4 +1,7 @@
 [test]
+# Tests live in packages/; a worktree under .claude/ (an agent's) holds a second copy of them, and
+# running both at once collides on the real daemons and terminals they start.
+root = "packages"
 # Tests run real PTYs and a real daemon; shared CI runners can be slow to spawn processes.
 timeout = 20000
 preload = ["./scripts/test-env.ts"]

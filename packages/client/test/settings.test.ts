@@ -1,16 +1,9 @@
 import { describe, expect, test } from "bun:test"
-import {
-  baySettings,
-  closestName,
-  loadSettings,
-  OLD_NAMES,
-  orderOf,
-  type SettingsWhere,
-} from "../src/settings.ts"
+import { baySettings, closestName, loadSettings, orderOf, type SettingsWhere } from "../src/settings/index.ts"
 
 /**
  * One loader for every bay: the files mean the same thing to all of them, a comment never drops a
- * file, an old name says it is not read, and nothing a user writes can throw.
+ * file, an unknown name says it is not read, and nothing a user writes can throw.
  */
 
 const GLOBAL = "/home/me/.config/opencode-cockpit/config.json"
@@ -125,74 +118,33 @@ describe("reading the files", () => {
     )
     expect(loaded.config.enabled).toBe(true)
     expect(loaded.config.debug).toBe(false)
-    expect(loaded.notices.map((notice) => notice.text)).toEqual([
-      '"enabled" at the top level is not read: it belongs in "status"',
-      '"debug" at the top level is not read: it belongs in "status"',
+    const notices = loadSettings(where({ [GLOBAL]: { enabled: false, debug: true } })).notices
+    expect(notices.map((notice) => [notice.bay, notice.text])).toEqual([
+      ["cockpit", '"enabled" is not a setting'],
+      ["cockpit", '"debug" is not a setting'],
     ])
   })
 })
 
-describe("old names", () => {
-  /** Detection only: the value under an old name is ignored, the default applies, and it says so. */
-  test("each one is a notice, its value ignored and the default used", () => {
-    const loaded = (bay: Parameters<typeof baySettings>[0], file: object, defaults = {}) =>
-      baySettings(bay, defaults, { where: where({ [GLOBAL]: file }) })
-
-    const status = loaded("status", { statusline: { maxRows: 3, debug: true } }, { debug: false })
+describe("names from before 0.9", () => {
+  /** No longer recognised: one is an unknown name like any other, its value ignored. */
+  test("a top-level one is not a setting, and the nearest name is offered", () => {
+    const status = baySettings(
+      "status",
+      { debug: false },
+      { where: where({ [GLOBAL]: { statusline: { debug: true } } }) },
+    )
     expect(status.config.debug).toBe(false)
     expect(status.notices).toEqual([
       {
         bay: "status",
         file: GLOBAL,
-        kind: "old",
+        kind: "unread",
         old: "statusline",
         new: "status",
-        text: '"statusline" is no longer read — run /cockpit-setup',
+        text: '"statusline" is not a setting: did you mean "status"?',
       },
     ])
-
-    const shell = loaded(
-      "shell",
-      { watch: { auto: true }, ui: { dockHeight: 30, sidebarOrder: 1 } },
-      { dockHeight: 14 },
-    )
-    expect(shell.config.dockHeight).toBe(14)
-    expect(shell.config).not.toHaveProperty("watch")
-    expect(shell.notices.map((notice) => [notice.old, notice.new])).toEqual([
-      ["watch", "shell.watch"],
-      ["ui.dockHeight", "shell.dockHeight"],
-      ["ui.sidebarOrder", "sidebar"],
-    ])
-
-    const subagents = loaded("subagents", {
-      subagents: { hideFinishedAfter: 5, hideNestedAfter: 10, sidebarOrder: 3 },
-    })
-    expect(subagents.config).not.toHaveProperty("hideFinishedAfterMinutes")
-    expect(subagents.notices.map((notice) => notice.new)).toEqual([
-      "subagents.hideFinishedAfterMinutes",
-      "subagents.hideNestedAfterSeconds",
-      "sidebar",
-    ])
-
-    const maxRows = loaded("status", { status: { maxRows: 3 } })
-    expect(maxRows.config.sidebarRows).toBe(8)
-    expect(maxRows.notices[0]?.new).toBe("status.sidebarRows")
-
-    const updater = loaded("updater", { ui: { updateCheck: false } })
-    expect(updater.notices[0]).toMatchObject({ old: "ui.updateCheck", new: "updater.updateCheck" })
-  })
-
-  test("old names in plugin options too", () => {
-    const loaded = baySettings("subagents", {}, { where: where({}), options: { hideFinishedAfter: 5 } })
-    expect(loaded.notices).toEqual([
-      expect.objectContaining({ file: "plugin options", old: "hideFinishedAfter", kind: "old" }),
-    ])
-    expect(loaded.written).toEqual({})
-  })
-
-  test("the list is there for /cockpit-setup's brief", () => {
-    expect(OLD_NAMES).toContainEqual({ old: "statusline", new: "status" })
-    expect(OLD_NAMES).toContainEqual({ old: "<bay>.sidebarOrder", new: "sidebar" })
   })
 })
 
@@ -212,7 +164,6 @@ describe("the sidebar order", () => {
   test("a bay's old sidebarOrder no longer moves it", () => {
     const loaded = baySettings("trust", {}, { where: where({ [GLOBAL]: { trust: { sidebarOrder: 1 } } }) })
     expect(loaded.order).toBe(150)
-    expect(loaded.notices[0]).toMatchObject({ old: "trust.sidebarOrder", new: "sidebar", kind: "old" })
   })
 
   test("a project's list replaces the global one", () => {

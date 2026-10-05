@@ -1,6 +1,6 @@
 /** Reading a segment's own settings out of its config entry, safely. */
 
-import type { SegmentConfig } from "../config.ts"
+import type { SegmentConfig } from "../config/index.ts"
 import type { Piece, Run, Tone } from "../types.ts"
 
 export function num(config: SegmentConfig, key: string, fallback: number): number {

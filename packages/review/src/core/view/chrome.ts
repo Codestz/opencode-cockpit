@@ -3,7 +3,8 @@
  *
  * Fixed height, always: the body is measured from them, so a header or footer that grew by a row
  * would shove the diff about every time something happened. Everything either of them has to say —
- * trouble, the performance numbers, a selection — *replaces* what is there rather than adding to it.
+ * trouble, the performance numbers, a selection — *replaces* what is there rather than adding to it
+ * (trouble the footer's rule, so its keys stay).
  */
 
 import { closeHint, fitHints, GLYPH, HINT_GAP, type Hint, warnRows } from "@opencode-cockpit/client/design"
@@ -162,33 +163,40 @@ export function footerRows(
   const rule: Row = { runs: [{ text: "─".repeat(width), tone: "border" }] }
 
   /**
-   * One line, and a queue for it: trouble, then numbers, then the keys.
+   * Two rows, exactly, however much there is to say: the body's height is measured from them, so a
+   * footer that grew would push the diff about every time something went wrong.
    *
-   * The footer stays exactly two rows however much it has to say, because the body's height is measured
-   * from it — a footer that grew would push the diff about every time something went wrong.
+   * Trouble takes the rule's row, and the keys keep theirs. It used to take the keys' row — fine for a
+   * message that passes, but "more than N files changed" stays for the whole review, and with it every
+   * key, the way out included, was gone.
    */
-  if (state.notice) {
-    const trouble: Run[] = [
-      { text: ` ${GLYPH.warn} `, tone: "error", bold: true },
-      { text: state.notice, tone: "error" },
-    ]
-    return [rule, { runs: clipRuns(trouble, width, "none") }]
-  }
-  if (state.stats) return [rule, { runs: clipRuns([...state.stats], width, "none") }]
+  const top: Row = state.notice
+    ? {
+        runs: clipRuns(
+          [
+            { text: ` ${GLYPH.warn} `, tone: "error", bold: true },
+            { text: state.notice, tone: "error" },
+          ],
+          width,
+          "none",
+        ),
+      }
+    : rule
+  if (state.stats) return [top, { runs: clipRuns([...state.stats], width, "none") }]
   /** On the keys screen the only key worth a row is the way back to the review. */
-  if (state.keys) return [rule, { runs: keyRow([], [closeHint("Hide Keys")], width) }]
+  if (state.keys) return [top, { runs: keyRow([], [closeHint("Hide Keys")], width) }]
 
   /**
    * Nothing to review: only the keys that act. Moving, noting and marking have nothing to land on,
    * and a row that offers them anyway teaches that its keys do not always mean anything.
    */
-  if (empty) return [rule, { runs: keyRow([], [...sources, KEYS, close], width) }]
+  if (empty) return [top, { runs: keyRow([], [...sources, KEYS, close], width) }]
   /** A selection says how many lines it holds before the keys that act on them. */
   const lead: Run[] = selecting
     ? [{ text: `${lines} line${lines === 1 ? "" : "s"}`, tone: "accent", bold: true }]
     : []
   return [
-    rule,
+    top,
     {
       runs: keyRow(
         lead,

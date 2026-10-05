@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { parseJsonc } from "../src/jsonc.ts"
+import { parseJsonc } from "../src/settings/jsonc.ts"
 
 describe("parseJsonc", () => {
   test("drops comments and trailing commas, and leaves strings alone", () => {

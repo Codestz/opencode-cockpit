@@ -5,7 +5,6 @@
  * `sidebarRows: 14` capped at 8 — and could not tell whether the preview or the setting was wrong.
  */
 
-import { readFileSync } from "node:fs"
 import { type SettingsWhere, settingsPaths } from "@opencode-cockpit/client/settings"
 import type { Budget } from "./budget.ts"
 import {
@@ -16,7 +15,7 @@ import {
   type ResolvedLine,
   resolveLines,
   type Surface,
-} from "./config.ts"
+} from "./config/index.ts"
 import type { StatusContext } from "./context.ts"
 import { noticeRows } from "./notices.ts"
 import { fit, fitColumn } from "./render.ts"
@@ -80,7 +79,7 @@ export interface PreviewInput {
   env?: Record<string, string | undefined>
   /**
    * A config's text — a file's, or a candidate piped on stdin. Read through the same loader as the
-   * TUI's, so its `status` section — comments, old names, `sidebarRows`, `override` and all — means
+   * TUI's, so its `status` section — comments, `sidebarRows`, `override` and all — means
    * here exactly what it will mean in OpenCode.
    */
   configText?: string
@@ -90,7 +89,7 @@ export interface PreviewInput {
    * the text stands alone in place of the global config, with no project file beside it.
    */
   as?: ConfigAs
-  /** How the other file is read; the disk by default. */
+  /** How the other file is read, with `as` — the disk, in the preview CLI. */
   readFile?: (path: string) => string | undefined
   /** Draw on this surface whatever the settings say. */
   surface?: Surface
@@ -103,14 +102,6 @@ export interface PreviewSettings {
   target?: string
 }
 
-const fromDisk = (path: string): string | undefined => {
-  try {
-    return readFileSync(path, "utf8")
-  } catch {
-    return undefined
-  }
-}
-
 /** The settings and the lines the TUI would draw from them: `loadStatus`, then `resolveLines`. */
 export function previewSettings(input: PreviewInput): PreviewSettings {
   const env = input.env ? { env: input.env } : {}
@@ -119,7 +110,8 @@ export function previewSettings(input: PreviewInput): PreviewSettings {
   if (input.configText !== undefined && input.as) {
     const paths = settingsPaths({ directory: input.directory, ...env })
     target = input.as === "project" ? paths.project : paths.global
-    const readFile = input.readFile ?? fromDisk
+    const readFile = input.readFile
+    if (!readFile) throw new Error("previewSettings: `as` reads the other file, so it needs readFile")
     where = { ...where, read: (path) => (path === target ? input.configText : readFile(path)) }
   } else if (input.configText !== undefined) {
     // With no `directory` the loader asks for one file, the global one: this is it.

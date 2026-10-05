@@ -10,6 +10,7 @@ import {
   warnRows,
 } from "@opencode-cockpit/client/design"
 import type { Host } from "@opencode-cockpit/client/host"
+import { blockWidth } from "@opencode-cockpit/client/sidebar"
 import type { BoxRenderable } from "@opentui/core"
 import { createEffect, createMemo, createSignal, For, Show } from "solid-js"
 import { fold, sidebarRow } from "../lib/sidebar.ts"
@@ -79,12 +80,7 @@ export function SidebarShells(props: SidebarProps) {
   const width = createMemo(() => {
     props.store.now()
     resized()
-    const parent = (block?.parent as { width?: number } | null | undefined)?.width ?? 0
-    const own = block?.width ?? 0
-    const measured = parent >= 12 ? Math.min(parent, own >= 12 ? own : parent) : own
-    return measured >= 12
-      ? measured
-      : Math.max(20, Math.min(30, Math.floor(props.api.renderer.width / 4) - 2))
+    return blockWidth(block, props.api.renderer.width, 30)
   })
 
   const counts = createMemo(() => summaryRuns(tally(), Math.max(8, width() - "Shells ".length)))

@@ -1,5 +1,5 @@
 import { BUILTINS } from "./builtins/index.ts"
-import type { SegmentConfig } from "./config.ts"
+import type { SegmentConfig } from "./config/index.ts"
 import type { StatusContext } from "./context.ts"
 import type { Piece, Pieces, Run, Segment, SegmentDef, Tone } from "./types.ts"
 

@@ -1,7 +1,7 @@
 /** How the session is going: work outstanding, work in progress, time spent. */
 
 import { toneOf } from "@opencode-cockpit/client/design"
-import type { SegmentConfig } from "../config.ts"
+import type { SegmentConfig } from "../config/index.ts"
 import { todoRemaining } from "../context.ts"
 import { duration, preciseDuration } from "../format.ts"
 import type { SegmentDef } from "../types.ts"

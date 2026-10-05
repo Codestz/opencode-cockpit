@@ -6,7 +6,7 @@ import type { ToolDefinition } from "@opencode-ai/plugin"
 import { createTools } from "../../src/agent/tools/index.ts"
 import type { Thread } from "../../src/core/model/thread.ts"
 import { reviewPaths } from "../../src/core/store/paths.ts"
-import { createPersistence } from "../../src/core/store/persist.ts"
+import { createPersistence } from "../../src/io/persist.ts"
 
 /**
  * The half the person never sees.

@@ -93,7 +93,8 @@ describe("config", () => {
     expect(config.dockHeight).toBe(14)
   })
 
-  test("the old places are not read: root keys, `ui`, `ui.historyMinutes` — each a notice", () => {
+  /** Names from before 0.9 are unknown names now: /cockpit-setup and doctor say so, the block does not. */
+  test("the old places are not read: root keys, `ui`, `ui.historyMinutes`", () => {
     const { directory, env } = files({
       guidance: false,
       ui: { dockHeight: 30, historyMinutes: 5, sidebarOrder: 1 },
@@ -103,16 +104,7 @@ describe("config", () => {
     expect(config.dockHeight).toBe(14)
     expect(config.hideFinishedAfterMinutes).toBe(30)
     expect(config.sidebarRows).toBe(5)
-    expect(notices.map((notice) => [notice.old, notice.new])).toEqual(
-      expect.arrayContaining([
-        ["guidance", "shell.guidance"],
-        ["ui.dockHeight", "shell.dockHeight"],
-        ["ui.historyMinutes", "shell.hideFinishedAfterMinutes"],
-        ["ui.sidebarOrder", "sidebar"],
-        ["ui.sidebarRows", "shell.sidebarRows"],
-      ]),
-    )
-    for (const notice of notices) expect(notice.text).toContain("/cockpit-setup")
+    expect(notices).toEqual([])
   })
 
   test("a value of the wrong kind is the default, and an unknown view is the screen", () => {

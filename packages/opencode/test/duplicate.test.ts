@@ -55,7 +55,7 @@ describe("configured twice in one OpenCode instance", () => {
     const config = {} as { command?: Record<string, unknown>; skills?: { paths: string[] } }
     await (standalone as { config?: (c: unknown) => Promise<void> }).config?.(config)
     await (fromBundle as { config?: (c: unknown) => Promise<void> }).config?.(config)
-    expect(Object.keys(config.command ?? {}).sort()).toEqual(["cockpit-setup", "status-setup", "statusline"])
+    expect(Object.keys(config.command ?? {}).sort()).toEqual(["cockpit-setup", "status-setup"])
     expect(config.skills?.paths.map((path) => path.split("/").at(-1)).sort()).toEqual([
       "cockpit-setup",
       "status-setup",

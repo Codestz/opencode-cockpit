@@ -1,8 +1,8 @@
 import type { Host } from "@opencode-cockpit/client/host"
 import { type Accessor, createMemo, createRoot, createSignal } from "solid-js"
-import { BUDGET_EVERY_MS, type Budget, budgetFile, readBudget } from "../../core/budget.ts"
-import { type CommandRunner, createRunner, execShell } from "../../core/command.ts"
-import { resolveLines, type StatusConfig } from "../../core/config.ts"
+import { BUDGET_EVERY_MS, type Budget, budgetFile } from "../../core/budget.ts"
+import { type CommandRunner, createRunner } from "../../core/command.ts"
+import { resolveLines, type StatusConfig } from "../../core/config/index.ts"
 import type { StatusContext } from "../../core/context.ts"
 import {
   branchDiffCommand,
@@ -12,6 +12,8 @@ import {
   wantsBranchDiff,
   wantsDiff,
 } from "../../core/diff.ts"
+import { readBudget } from "../../io/budget.ts"
+import { execShell } from "../../io/command.ts"
 
 /**
  * Keeps one snapshot of OpenCode's state for every line to read. One memo rather than one per

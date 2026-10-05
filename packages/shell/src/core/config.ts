@@ -9,8 +9,7 @@ import type { WatchRule } from "@opencode-cockpit/protocol/shell"
  *   ~/.config/opencode-cockpit/config.json  →  <project>/.cockpit.json  →  plugin-entry options
  *
  * Only the `shell` section of a file is read. Shell's keys used to sit at the file's root, with the
- * interface's under `ui`; those are no longer read, and each one found is a notice naming the new
- * place (drawn in the Shells block, and by doctor). Everything is optional, and an unreadable or
+ * interface's under `ui`; those are not read (`/cockpit-setup` and doctor name them). Everything is optional, and an unreadable or
  * invalid file is ignored rather than fatal: a typo in a config should never stop shells from working.
  */
 export interface ShellConfig {

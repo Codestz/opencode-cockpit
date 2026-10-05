@@ -7,7 +7,7 @@
  */
 
 import type { Thread } from "../../core/model/thread.ts"
-import type { Persistence } from "../../core/store/persist.ts"
+import type { Persistence } from "../../io/persist.ts"
 
 /** Where `describe` lives now: submit sends the same prose when the agent has no tools. */
 export { describeThread as describe } from "../../core/model/thread.ts"

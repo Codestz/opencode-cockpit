@@ -10,7 +10,7 @@ import {
   resolveLines,
   SIDEBAR_SEGMENTS,
   type StatusConfig,
-} from "../src/core/config.ts"
+} from "../src/core/config/index.ts"
 import { FIXTURES } from "../src/core/fixtures.ts"
 import { fitColumn } from "../src/core/render.ts"
 import { buildSegments, findSegment } from "../src/core/segments.ts"
@@ -75,33 +75,26 @@ describe("reading the config", () => {
 })
 
 /**
- * 0.9 renamed the section and stopped reading the file's root as Status's. Neither is read, and
- * neither is silent: each is a `!` row, which is how a 0.8 config learns what changed.
+ * 0.9 renamed the section and stopped reading the file's root as Status's; 0.10 stopped recognising
+ * the old names. Neither is read: each is a name like any other that nothing reads.
  */
-describe("old names", () => {
-  test("`statusline` is not read: it is a notice that names the fix", () => {
+describe("names from before 0.9", () => {
+  test("`statusline` is not read: it is a notice that offers `status`", () => {
     const loaded = load({ [GLOBAL]: { statusline: { separator: " | " } } })
     expect(loaded.config.separator).toBeUndefined()
-    expect(loaded.notices).toEqual(['settings: "statusline" is no longer read — run /cockpit-setup'])
+    expect(loaded.notices).toEqual(['settings: "statusline" is not a setting: did you mean "status"?'])
   })
 
-  test("keys at the file's root are not Status's, and say where they belong", () => {
+  test("keys at the file's root are not Status's", () => {
     const loaded = load({ [GLOBAL]: { enabled: false, debug: true } })
     expect(loaded.config.enabled).toBeUndefined()
-    expect(loaded.notices).toContain(
-      'settings: "enabled" at the top level is not read: it belongs in "status"',
-    )
+    expect(loaded.notices).toContain('settings: "enabled" is not a setting')
   })
 
-  test("a bay-level `maxRows` is `sidebarRows` now; inside `lines` it is still `maxRows`", () => {
+  test("a bay-level `maxRows` is not read; inside `lines` it is still `maxRows`", () => {
     const loaded = load({ [GLOBAL]: { status: { maxRows: 4, lines: [{ surface: "sidebar", maxRows: 3 }] } } })
-    expect(loaded.notices).toEqual(['settings: "status.maxRows" is no longer read — run /cockpit-setup'])
+    expect(loaded.config.sidebarRows).toBeUndefined()
     expect(resolveLines(loaded.config)[0]?.maxRows).toBe(3)
-  })
-
-  test("`sidebarOrder` is the top-level `sidebar` list now", () => {
-    const loaded = load({ [GLOBAL]: { status: { sidebarOrder: 120 } } })
-    expect(loaded.notices).toEqual(['settings: "status.sidebarOrder" is no longer read — run /cockpit-setup'])
   })
 })
 

@@ -93,7 +93,7 @@ function fitRow(row: Row, width: number): Row {
 // --- the sidebar ---------------------------------------------------------------------------------
 
 /** A settings notice as the block draws it (client/settings `noticeText`), for `--notice`. */
-const NOTICE = 'settings: "ui.historyMinutes" is no longer read — run /cockpit-setup'
+const NOTICE = 'settings: "shell.dockHeight" should be a number; the default is used'
 
 interface SidebarState {
   /** Expanded by a click on `+ N more`. */

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { bayOf, baysOfEntry, pluginEntries } from "../src/plugin-entries.ts"
-import { BAYS } from "../src/settings.ts"
+import { BAYS } from "../src/settings/index.ts"
+import { bayOf, baysOfEntry, pluginEntries } from "../src/settings/plugin-entries.ts"
 
 describe("Cockpit's plugin entries (one reader for /cockpit-setup and doctor)", () => {
   test("every spelling of an entry, v1's and v2's", () => {

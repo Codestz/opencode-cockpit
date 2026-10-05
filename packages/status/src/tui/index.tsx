@@ -6,12 +6,12 @@ import { dualTui, type Host } from "@opencode-cockpit/client/host"
 import type { BoxRenderable } from "@opentui/core"
 import { createMemo } from "solid-js"
 import pkg from "../../package.json" with { type: "json" }
-import { asSegmentConfig, loadStatus, type ResolvedLine, resolveLines } from "../core/config.ts"
-import { loadCustomSegments } from "../core/custom.ts"
+import { asSegmentConfig, loadStatus, type ResolvedLine, resolveLines } from "../core/config/index.ts"
 import { moduleNoticeText, noticeRows, overflowNotice } from "../core/notices.ts"
 import { fit, fitColumn } from "../core/render.ts"
 import { buildSegments, type SegmentDef } from "../core/segments.ts"
 import { SETUP_PROMPT } from "../core/setup.ts"
+import { loadCustomSegments } from "../io/custom.ts"
 import { StatusLine } from "./components/statusline.tsx"
 import { buildContext } from "./state/snapshot.ts"
 import { createStatusStore } from "./state/store.ts"
@@ -71,7 +71,7 @@ export function createStatusTui({ source = STATUS_PACKAGE }: { source?: string }
     api.lifecycle.onDispose(() => store.dispose())
 
     /**
-     * The line's own trouble — a setting no longer read, a file that would not parse, a module that
+     * The line's own trouble — a setting not read, a file that would not parse, a module that
      * would not load — drawn once, as `!` rows above the first line, and for the whole session: the
      * toast is gone in ten seconds and the log is not where anyone looks at a line that seems to have
      * quietly done nothing. Status draws the notices that belong to no bay, too, being the one bay

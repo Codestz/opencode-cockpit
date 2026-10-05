@@ -214,8 +214,8 @@ In the bundle's entry (`"trust": { … }`), this package's own, or the `trust` s
 | `keybinds` | `{ "cockpit.trust.ledger": "<leader>p" }` | The key that opens the ledger |
 
 Where the block sits is the top-level `"sidebar"` list's to say — Trust last by default; a
-`trust.sidebarOrder` from before 0.9 is no longer read, and is a `!` row in the block until
-`/cockpit-setup` removes it. A setting Trust cannot use (`"threshold": "3"`) is a `!` row too. See
+`trust.sidebarOrder` from before 0.9 is not read, and `/cockpit-setup` removes it. A setting Trust
+cannot use (`"threshold": "3"`) is a `!` row in the block. See
 [Configuration](https://cockpit.codestz.dev/configuration/).
 
 The ledger lives outside the project, in

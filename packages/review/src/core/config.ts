@@ -33,7 +33,7 @@ export const DEFAULTS = { variant: "right" as Variant, source: "worktree" as Sou
 
 export interface LoadedReview {
   config: ReviewConfig
-  /** Settings to fix: an old name, a wrong kind, a value Review does not know. */
+  /** Settings to fix: a wrong kind, a value Review does not know. */
   notices: SettingsNotice[]
 }
 

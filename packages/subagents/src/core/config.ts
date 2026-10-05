@@ -6,7 +6,7 @@
  * Only the `subagents` section of a file is read, by both halves: the interface's keys and the
  * agent's `guidance` sit in one place instead of in `tui.json` and `opencode.json` apart. Before 0.9
  * the bay read no file at all. An old name (`hideFinishedAfter`, `hideNestedAfter`, `sidebarOrder`)
- * is not read; it is a notice naming the new one, drawn in the Subagents block.
+ * is not read.
  */
 
 import { baySettings, type SettingsNotice } from "@opencode-cockpit/client/settings"

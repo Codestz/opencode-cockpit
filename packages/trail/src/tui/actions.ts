@@ -5,12 +5,12 @@
 
 import type { Host } from "@opencode-cockpit/client/host"
 import type { Log } from "@opencode-cockpit/client/log"
-import type { Journal } from "../core/journal.ts"
 import { arrange, conversationThings } from "../core/model.ts"
 import type { TrailPaths } from "../core/paths.ts"
 import type { Event } from "../core/store.ts"
 import { markdownOf } from "../core/text.ts"
 import { linkArgs, runAdd } from "../core/tools.ts"
+import type { Journal } from "../io/journal.ts"
 import { openUrl } from "./open.ts"
 import type { Live } from "./paint.ts"
 import type { Sessions } from "./source.ts"

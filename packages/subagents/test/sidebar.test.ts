@@ -455,7 +455,7 @@ describe("names", () => {
 })
 
 describe("present when empty", () => {
-  const NOTICE = 'settings: "subagents.hideFinishedAfter" is no longer read — run /cockpit-setup'
+  const NOTICE = 'settings: "subagents.sidebarRows" should be a number; the default is used'
   const empty = (extra: Partial<SidebarInput> = {}) =>
     sidebarLines({ nodes: [], width: 30, now: SAMPLE_NOW, frame: 0, ...extra }).map((line) =>
       rowText(line.row),
@@ -481,7 +481,7 @@ describe("present when empty", () => {
     expect(empty({ hideWhenEmpty: true })).toEqual([])
     const rows = empty({ hideWhenEmpty: true, notices: [NOTICE] })
     expect(rows[0]?.trimEnd()).toBe("Subagents")
-    expect(rows.join(" ")).toContain("/cockpit-setup")
+    expect(rows.join(" ").replace(/\s+/g, " ")).toContain("the default is used")
   })
 
   test("a settings notice is said in the block, wrapped, its fix kept, at every width", () => {
@@ -493,7 +493,7 @@ describe("present when empty", () => {
       for (const row of rows) expect(widthOf(row)).toBe(width)
       const at = rows.findIndex((row) => row.startsWith("! settings"))
       expect(at).toBeGreaterThan(2)
-      expect(rows.slice(at).join(" ")).toContain("/cockpit-setup")
+      expect(rows.slice(at).join(" ").replace(/\s+/g, " ")).toContain("the default is used")
     }
   })
 })

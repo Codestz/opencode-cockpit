@@ -82,6 +82,8 @@ export interface Turn {
   session?: string
   stdout: string
   stderr: string
+  /** False when the turn ran out its five minutes, or was killed. */
+  finished: boolean
 }
 
 export interface World {
@@ -150,6 +152,7 @@ export function turn(at: World, prompt: string, session?: string): Turn {
     session: all.find((event) => typeof event.sessionID === "string")?.sessionID,
     stdout,
     stderr: result.stderr.toString(),
+    finished: result.exitCode !== null && !result.signalCode,
   }
 }
 
@@ -166,16 +169,23 @@ export function stopDaemon(cockpitHome: string): void {
 /** A run's text, short, on one line. */
 export const brief = (text: string, room = 200) => text.replace(/\s+/g, " ").slice(0, room)
 
-/** Runs one measurement `runs` times, each tried again while it measured nothing; exits 0 when all passed. */
+/**
+ * Runs one measurement `runs` times, each tried again while it measured nothing; exits 0 when `pass`
+ * of them passed — every run, unless a bay settles for fewer (a free model misses some turns). It
+ * stops as soon as enough have passed: the rest would measure nothing more.
+ */
 export async function measure<T extends { ok: boolean; measured: boolean; report: string[] }>(
   title: string,
   runs: number,
   once: (index: number) => Promise<T>,
   attempts = 3,
+  pass = runs,
 ): Promise<never> {
   console.log(title)
   let passed = 0
-  for (let i = 1; i <= runs; i++) {
+  let ran = 0
+  for (let i = 1; i <= runs && passed < pass; i++) {
+    ran++
     let outcome = await once(i)
     for (let attempt = 2; !outcome.measured && attempt <= attempts; attempt++) {
       console.log(`run ${i}: the model did nothing this measures — trying again (${attempt}/${attempts})`)
@@ -186,6 +196,6 @@ export async function measure<T extends { ok: boolean; measured: boolean; report
     console.log(`run ${i}: ${outcome.ok ? "PASS" : outcome.measured ? "FAIL" : "NOTHING MEASURED"}`)
     for (const line of outcome.report) console.log(`  ${line}`)
   }
-  console.log(`${passed} of ${runs} passed`)
-  process.exit(passed === runs ? 0 : 1)
+  console.log(`${passed} of ${ran} passed${pass < runs ? ` (${pass} needed)` : ""}`)
+  process.exit(passed >= pass ? 0 : 1)
 }

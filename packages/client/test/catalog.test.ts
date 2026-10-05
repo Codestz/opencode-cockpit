@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "node:fs"
 import { join } from "node:path"
-import { BAY_ABOUT, bayKeys, settingsReference } from "../src/catalog.ts"
-import { readSkill } from "../src/server.ts"
-import { BAYS, SHARED_DEFAULTS } from "../src/settings.ts"
+import { readSkill } from "../src/opencode/server/index.ts"
+import { BAY_ABOUT, bayKeys, settingsReference } from "../src/settings/catalog.ts"
+import { BAYS, SHARED_DEFAULTS } from "../src/settings/index.ts"
 import {
   CONVENTIONS_TOOL,
   HOST_BLOCKS,
@@ -11,7 +11,7 @@ import {
   SETUP_SKILL,
   SETUP_SKILL_DIR,
   settingsReport,
-} from "../src/setup.ts"
+} from "../src/setup/index.ts"
 
 /**
  * The `cockpit-setup` skill is static text shipped beside code that changes. These are what keep it

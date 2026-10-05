@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { budgetFile, parseBudget } from "../src/core/budget.ts"
-import { asSegmentConfig, PRESETS, resolveLines, SIDEBAR_SEGMENTS } from "../src/core/config.ts"
+import { asSegmentConfig, PRESETS, resolveLines, SIDEBAR_SEGMENTS } from "../src/core/config/index.ts"
 import type { SessionSnapshot, StatusContext } from "../src/core/context.ts"
 import { branchDiffCommand, wantsBranchDiff, wantsDiff } from "../src/core/diff.ts"
 import { FIXTURES } from "../src/core/fixtures.ts"

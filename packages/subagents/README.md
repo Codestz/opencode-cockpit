@@ -116,8 +116,7 @@ own), which wins over both files.
 
 Where the block sits is the top-level `"sidebar"` list's to say (`["status", "subagents", "shell",
 "trail", "trust"]` by default). The names from before 0.9 — `hideFinishedAfter`, `hideNestedAfter`,
-`sidebarOrder` — are no longer read: the block shows a `!` row naming the new one, and
-`/cockpit-setup` fixes it.
+`sidebarOrder` — are not read; `/cockpit-setup` names them and fixes them.
 
 ## See it without OpenCode
 

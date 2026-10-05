@@ -3,7 +3,7 @@
  *
  * Everything else here follows the rule that a segment with nothing to say says nothing — which is
  * right for data and wrong for the line's own failures. A module that would not load, a setting that
- * is no longer read and a column that ran out of rows all end as *segments that are simply not
+ * is not read and a column that ran out of rows all end as *segments that are simply not
  * there*, indistinguishable from a segment that had nothing to report, and the only notice any of
  * them got was a toast that is gone in ten seconds. Each cost a debugging session to tell apart from
  * a bug in the module itself.

@@ -301,5 +301,4 @@ The top-level `"sidebar"` list says, for every bay at once — Status first by d
 ```
 
 That puts the table under the shells. It has no effect on the bottom surface, where there is nothing
-to share the row with. A `sidebarOrder` in the `status` section is no longer read; it is a `!` row
-pointing here. See [Configuration](/configuration/#the-sidebar-order).
+to share the row with. A `sidebarOrder` in the `status` section is not read. See [Configuration](/configuration/#the-sidebar-order).

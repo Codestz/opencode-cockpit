@@ -2,9 +2,10 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs"
 import { join } from "node:path"
 import type { StatusContext } from "../src/core/context.ts"
-import { type CustomModule, loadCustomSegments, resolveModulePath } from "../src/core/custom.ts"
+import { type CustomModule, resolveModulePath } from "../src/core/custom.ts"
 import { fitColumn } from "../src/core/render.ts"
 import { buildSegments, type Segment, segmentText } from "../src/core/segments.ts"
+import { loadCustomSegments } from "../src/io/custom.ts"
 
 const ctx = (over: Partial<StatusContext> = {}): StatusContext => ({
   now: 60_000,

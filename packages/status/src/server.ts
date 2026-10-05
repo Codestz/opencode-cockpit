@@ -16,8 +16,8 @@ import { offerSettingsCheck } from "@opencode-cockpit/client/checks"
 import { claimFeature } from "@opencode-cockpit/client/feature"
 import { dualServer, type ServerStart } from "@opencode-cockpit/client/server"
 import { offerPreview } from "@opencode-cockpit/client/setup"
-import { statusNotices } from "./core/config.ts"
-import { OLD_PROMPT, OLD_SLASH, SETUP_PROMPT, SETUP_SKILL_DIR, SETUP_SLASH } from "./core/setup.ts"
+import { statusNotices } from "./core/config/index.ts"
+import { SETUP_PROMPT, SETUP_SKILL_DIR, SETUP_SLASH } from "./core/setup.ts"
 
 const STATUS_PACKAGE = "@opencode-cockpit/status"
 
@@ -40,16 +40,6 @@ export function createStatusServer({ source = STATUS_PACKAGE }: { source?: strin
           name: SETUP_SLASH,
           description: "design the Status bay's line with the agent: what it shows, where",
           prompt: SETUP_PROMPT,
-        },
-        /**
-         * The old name, for one release (removed in 0.10): a command of its own, because neither
-         * OpenCode tells a command which of its names was typed, so only its own line can say it was
-         * renamed — and it says so first, in the message the person sees in the conversation.
-         */
-        {
-          name: OLD_SLASH,
-          description: `renamed: use /${SETUP_SLASH}`,
-          prompt: OLD_PROMPT,
         },
       ],
       dispose: () => claim.release(),

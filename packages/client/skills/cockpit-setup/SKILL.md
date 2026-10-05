@@ -1,6 +1,6 @@
 ---
 name: cockpit-setup
-description: Set up opencode-cockpit ("Cockpit") with the user — which of its bays run, which show a block in OpenCode's sidebar, in what order, how quiet they are when empty — fix settings from before 0.9, and, when they want it, tune Cockpit to how they work (a tour of its keys and the project's conventions (dev server, ticket keys) written to AGENTS.md). Use it whenever the user runs /cockpit-setup or asks to configure, tidy or change Cockpit or its sidebar, even in passing - "make my sidebar quieter", "hide the shells block when it's empty", "move trail above subagents", "turn subagents off", "show trust in the sidebar", "configure cockpit", "tell cockpit our dev server is bun dev", "our tickets are COM-…", or a question about ~/.config/opencode-cockpit/config.json or .cockpit.json. To design what the Status line itself shows, use the status-setup skill instead.
+description: Set up opencode-cockpit ("Cockpit") with the user — which of its bays run, which show a block in OpenCode's sidebar, in what order, how quiet they are when empty — fix settings it cannot read, and, when they want it, tune Cockpit to how they work (a tour of its keys and the project's conventions (dev server, ticket keys) written to AGENTS.md). Use it whenever the user runs /cockpit-setup or asks to configure, tidy or change Cockpit or its sidebar, even in passing - "make my sidebar quieter", "hide the shells block when it's empty", "move trail above subagents", "turn subagents off", "show trust in the sidebar", "configure cockpit", "tell cockpit our dev server is bun dev", "our tickets are COM-…", or a question about ~/.config/opencode-cockpit/config.json or .cockpit.json. To design what the Status line itself shows, use the status-setup skill instead.
 ---
 
 # Setting up Cockpit
@@ -25,11 +25,12 @@ If the tool is not there, Cockpit's agent side is not loaded: say so, and point 
 
 ## 2. Fix the notices first
 
-If the tool lists notices, fix them before anything else, in the file each one names: move the value
-to the new name and remove the old key (an old order number is just removed — the order is the
-top-level `sidebar` list). These names are **not read**, so the value under each is doing nothing
-today. Tell the person what you changed in one line each, e.g. `"statusline" → "status"`. Keep their
-comments and every other key.
+If the tool lists notices, fix them before anything else, in the file each one names. A key that is
+not a setting is **not read**, so the value under it is doing nothing today: when the notice says
+what was meant (`did you mean "status"?`), move the value there; otherwise ask the person. A value of
+the wrong kind falls back to the default — write it in the kind the notice asks for. Tell the person
+what you changed in one line each, e.g. `"statusline" → "status"`. Keep their comments and every
+other key.
 
 ## 3. Offer a starting point
 

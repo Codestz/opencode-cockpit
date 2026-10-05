@@ -1,13 +1,13 @@
 /** The tool's answer: the report as text the agent acts on. */
 
-import { BAY_ABOUT, shownDefault } from "../catalog.ts"
+import { BAY_ABOUT, shownDefault } from "../settings/catalog.ts"
 import {
   isSidebarBay,
   OPTIONS_SOURCE,
   type Settings,
   type SettingsNotice,
   type SidebarBay,
-} from "../settings.ts"
+} from "../settings/index.ts"
 import { HOST_BLOCKS } from "./host-blocks.ts"
 import type { BayState, ResolvedKey, SettingsReport } from "./report.ts"
 
@@ -31,18 +31,10 @@ export function blockState(state: BayState): string {
   return value("hideWhenEmpty") === true ? "shown, hidden while empty" : "shown, `none yet` while empty"
 }
 
-/**
- * One notice as a line to act on. An old name says what to write instead; the order's old numbers
- * have no new name to copy to, because the order is the list now.
- */
+/** One notice as a line to act on. */
 export function noticeLine(notice: SettingsNotice): string {
   const where = notice.file === OPTIONS_SOURCE ? "plugin options" : notice.file
-  if (notice.kind === "old" && notice.old && notice.new) {
-    if (notice.new === "sidebar")
-      return `- ${where}: "${notice.old}" is no longer read. Remove it; the order is the top-level "sidebar" list.`
-    return `- ${where}: "${notice.old}" is no longer read. Move its value to "${notice.new}" and remove "${notice.old}".`
-  }
-  const text = notice.text.replace(/ — run \/cockpit-setup$/, "")
+  const { text } = notice
   /** A bay's own words may end in a question (`did you mean "git"?`): no full stop after it. */
   return `- ${where}: ${text}${/[.?!]$/.test(text) ? "" : "."}`
 }

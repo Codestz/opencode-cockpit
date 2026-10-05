@@ -15,7 +15,7 @@ const changes = {
   source: "worktree" as const,
   files: [{ path: "src/a.ts", before: "a\n", after: "a\nb\n", additions: 1, deletions: 0 }],
 }
-const OLD = 'settings: "review.sidebarOrder" is no longer read — run /cockpit-setup'
+const OLD = 'settings: "review.keybinds" should be an object; the default is used'
 const text = (row: Row | undefined) => row?.runs.map((run) => run.text).join("") ?? ""
 const draw = (settings?: string[]) =>
   layout(

@@ -2,9 +2,9 @@ import { describe, expect, test } from "bun:test"
 import { appendFileSync, mkdtempSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { createJournal } from "../src/core/journal.ts"
 import { trailPaths } from "../src/core/paths.ts"
 import { type Event, emptyState, serialize } from "../src/core/store.ts"
+import { createJournal } from "../src/io/journal.ts"
 
 const paths = () => trailPaths("/work/app", { COCKPIT_HOME: mkdtempSync(join(tmpdir(), "trail-journal-")) })
 const event = (id: string, url = `https://github.com/a/b/pull/${id}`): Event => ({

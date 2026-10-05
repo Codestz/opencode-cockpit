@@ -12,8 +12,8 @@
 
 import { readFileSync } from "node:fs"
 import { emptyBlock, GLYPH, type ToneRun } from "../design.ts"
-import { loadSettings, noticeText, type SettingsNotice } from "../settings.ts"
-import { settingsReport, settingsText } from "../setup.ts"
+import { loadSettings, noticeText, type SettingsNotice } from "../settings/index.ts"
+import { settingsReport, settingsText } from "../setup/index.ts"
 
 const HEX: Record<string, string> = {
   text: "#eeeeee",
@@ -54,7 +54,7 @@ const widths = arg("--width") ? [Number(arg("--width"))] : [24, 36]
 const config = arg("--config")
 const sample = {
   statusline: { preset: "sidebar" },
-  shell: { sidebarOrder: 170 },
+  shell: { sidebar: [1] },
   sidebar: ["status", "shells", "trust"],
 }
 const settings = loadSettings({
