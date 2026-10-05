@@ -11,6 +11,12 @@
  */
 
 import { BAYS, type Bay, SHARED_DEFAULTS, type SharedSettings, SIDEBAR_BAYS } from "./index.ts"
+import { REVIEW_KEYS } from "./keys/review.ts"
+import { SHELL_KEYS } from "./keys/shell.ts"
+import { STATUS_KEYS } from "./keys/status.ts"
+import { SUBAGENTS_KEYS } from "./keys/subagents.ts"
+import { TRUST_KEYS } from "./keys/trust.ts"
+import { UPDATER_KEYS } from "./keys/updater.ts"
 
 export interface KeyInfo {
   key: string
@@ -139,243 +145,17 @@ export const BAY_COMMANDS: Readonly<Record<Bay, readonly BayCommand[]>> = {
 }
 
 /**
- * Each bay's own keys. Defaults must equal what the bay hands `baySettings` — tested in
+ * Each bay's own keys, a file each in `keys/`. Defaults must equal what the bay hands `baySettings` — tested in
  * `packages/opencode/test/catalog.test.ts` against every bay's own `DEFAULTS`.
  */
 export const OWN_KEYS: Readonly<Record<Bay, readonly KeyInfo[]>> = {
-  status: [
-    {
-      key: "surface",
-      type: '"sidebar" | "bottom"',
-      default: undefined,
-      defaultText: '"sidebar"',
-      about: 'where the line draws; `"sidebar": false` says `"bottom"` too',
-    },
-    {
-      key: "preset",
-      type: "string",
-      default: undefined,
-      defaultText: "the surface's own: `sidebar` in the sidebar, `default` at the bottom",
-      about: "a whole line by name; anything written beside it wins. The `status-setup` skill has them all",
-    },
-    {
-      key: "segments",
-      type: "list",
-      default: undefined,
-      defaultText: "the preset's",
-      about:
-        "the line's parts, built-ins or your own — the whole list, replacing the preset's. To change a row or two, `override`",
-    },
-    {
-      key: "override",
-      type: "object",
-      default: undefined,
-      defaultText: "none",
-      about:
-        'changes to the preset\'s segments by name, the rest kept: `false` drops one, a name swaps it, an object merges into its settings — `{ "git": { "against": "branch" } }`',
-    },
-    {
-      key: "lines",
-      type: "list",
-      default: undefined,
-      defaultText: "one line",
-      about: "more than one line, each with its own `surface`, `segments`, `maxRows`…",
-    },
-    {
-      key: "separator",
-      type: "string",
-      default: undefined,
-      defaultText: '`" │ "` across, nothing down',
-      about: "drawn between segments",
-    },
-    {
-      key: "stack",
-      type: '"horizontal" | "vertical"',
-      default: undefined,
-      defaultText: "vertical in the sidebar",
-      about: "segments across or down",
-    },
-    {
-      key: "icons",
-      type: "boolean",
-      default: true,
-      about: "built-in icons; off for a terminal missing the glyphs",
-    },
-    {
-      key: "debug",
-      type: "boolean",
-      default: false,
-      about: "draw a placeholder where a segment said nothing",
-    },
-    {
-      key: "paddingLeft",
-      type: "number",
-      default: undefined,
-      defaultText: "3 at the bottom, 0 in the sidebar",
-      about: "columns of space left of the line",
-    },
-    {
-      key: "paddingRight",
-      type: "number",
-      default: undefined,
-      defaultText: "2 at the bottom, 0 in the sidebar",
-      about: "columns of space right of the line",
-    },
-    {
-      key: "paddingTop",
-      type: "number",
-      default: undefined,
-      defaultText: "0",
-      about: "rows of space above the line",
-    },
-    {
-      key: "paddingBottom",
-      type: "number",
-      default: undefined,
-      defaultText: "1 at the bottom, 0 in the sidebar",
-      about: "rows of space below the line",
-    },
-    {
-      key: "commands",
-      type: "object",
-      default: undefined,
-      defaultText: "none",
-      about: "shell commands usable as segments — a Claude Code statusline script works unchanged",
-    },
-    {
-      key: "modules",
-      type: "string[]",
-      default: undefined,
-      defaultText: "none",
-      about: "your own segments in TypeScript; a project's add to the global ones",
-    },
-  ],
-  subagents: [
-    {
-      key: "hideFinishedAfterMinutes",
-      type: "number",
-      default: undefined,
-      defaultText: "unset: kept for the conversation",
-      about: "minutes a finished subagent stays in the sidebar (still reachable from `/subagents`)",
-    },
-    {
-      key: "hideNestedAfterSeconds",
-      type: "number",
-      default: 30,
-      about: "seconds a finished nested subagent stays in the sidebar; negative keeps them",
-    },
-    {
-      key: "guidance",
-      type: "boolean",
-      default: true,
-      about: "tell the agent how to follow, wait on and read its subagents (system prompt)",
-    },
-  ],
-  shell: [
-    {
-      key: "hideFinishedAfterMinutes",
-      type: "number",
-      default: 30,
-      about: "minutes a finished shell stays in the folded views",
-    },
-    { key: "dockHeight", type: "number", default: 14, about: "rows of the shells panel under the chat" },
-    {
-      key: "dockOpen",
-      type: "boolean",
-      default: undefined,
-      defaultText: "as you last left it",
-      about: "the panel starts open",
-    },
-    {
-      key: "defaultView",
-      type: '"screen" | "log"',
-      default: "screen",
-      about: "what the console opens on: the live screen or the clean log",
-    },
-    { key: "colors", type: "boolean", default: true, about: "paint the colours programs print" },
-    {
-      key: "guidance",
-      type: "boolean",
-      default: true,
-      about: "tell the agent how to use shells (system prompt, ~120 tokens)",
-    },
-    {
-      key: "listRunningShells",
-      type: "number",
-      default: 15,
-      about: "running shells named in the system prompt each turn; `0` off",
-    },
-    {
-      key: "lifecycle",
-      type: "object",
-      default: {},
-      defaultText: '`onExit: "stopMine"`, `orphanAfterMinutes: 60`, `removeFinishedAfterMinutes: 30`',
-      about:
-        'when shells end: `onExit` (`"stopMine"` or `"keep"`, which survives a restart) and the two timers',
-    },
-    {
-      key: "defaults",
-      type: "object",
-      default: {},
-      defaultText: "none",
-      about:
-        "applied to every shell the agent starts: `watch`, `logFile`, `idleTimeoutSeconds`, `timeoutSeconds`, `notifyOnExit`",
-    },
-    {
-      key: "notify",
-      type: "object",
-      default: {},
-      defaultText: "`exit: true`, `watch: true`, `tailLines: 15`",
-      about: "what may interrupt the agent",
-    },
-    {
-      key: "watch",
-      type: "object",
-      default: {},
-      defaultText: "`auto: false`",
-      about: "health watching: `presets` (your own rules), `auto` (attach one to every shell)",
-    },
-    {
-      key: "kinds",
-      type: "object",
-      default: {},
-      defaultText: "none",
-      about: "your own shell categories, name → regular expression on the command",
-    },
-  ],
+  status: STATUS_KEYS,
+  subagents: SUBAGENTS_KEYS,
+  shell: SHELL_KEYS,
   trail: [],
-  trust: [
-    {
-      key: "threshold",
-      type: "number",
-      default: 3,
-      about: "approvals in a row, by you, before Trust answers",
-    },
-    { key: "dangerExtra", type: "number", default: 5, about: "what a dangerous command costs on top" },
-    {
-      key: "expireDays",
-      type: "number",
-      default: 30,
-      about: "days unused before trust has to be earned again; `0` never",
-    },
-  ],
-  review: [
-    { key: "variant", type: '"right" | "full"', default: "right", about: "where the pane opens" },
-    {
-      key: "source",
-      type: '"worktree" | "branch"',
-      default: "worktree",
-      about: "what it reviews on open: uncommitted work, or the whole branch",
-    },
-  ],
-  updater: [
-    {
-      key: "updateCheck",
-      type: "boolean",
-      default: true,
-      about: "check for plugin updates once a day and say so",
-    },
-  ],
+  trust: TRUST_KEYS,
+  review: REVIEW_KEYS,
+  updater: UPDATER_KEYS,
 }
 
 /** Status's block holds up to 14 rows with its `sidebar` preset; the loader's 8 is any other column's. */
