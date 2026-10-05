@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { existsSync, readdirSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 import { memoryDisk } from "../src/core/disk.ts"
-import { ago, type Check, SERVER_BAYS } from "../src/doctor/checks.ts"
+import { ago, type Check, EMPTY_SERVER_BAYS, SERVER_BAYS } from "../src/doctor/checks.ts"
 import type { DoctorIo } from "../src/doctor/gather.ts"
 import { doctor } from "../src/doctor/run.ts"
 
@@ -628,7 +628,7 @@ describe("OpenCode 2's background service (it keeps the plugin code it started w
 
 describe("the bays doctor knows", () => {
   test("every bay it checks for an agent half publishes one", () => {
-    for (const bay of SERVER_BAYS) {
+    for (const bay of [...SERVER_BAYS, ...EMPTY_SERVER_BAYS]) {
       const manifest = JSON.parse(
         readFileSync(join(import.meta.dir, "..", "..", bay, "package.json"), "utf8"),
       )
@@ -645,6 +645,6 @@ describe("the bays doctor knows", () => {
       const manifest = JSON.parse(readFileSync(join(packages, dir, "package.json"), "utf8"))
       return Object.keys(manifest.exports ?? {}).includes("./server")
     })
-    expect([...SERVER_BAYS].sort()).toEqual(withServer.sort())
+    expect([...SERVER_BAYS, ...EMPTY_SERVER_BAYS].sort()).toEqual(withServer.sort())
   })
 })

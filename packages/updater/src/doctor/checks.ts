@@ -26,6 +26,11 @@ export interface Check {
 
 /** Bays whose agent half doctor checks is loaded beside the interface's (`doctor.test.ts` checks it). */
 export const SERVER_BAYS: readonly Bay[] = ["shell", "status", "review", "subagents", "trail"]
+/**
+ * Bays whose agent half has nothing of its own: it is there so OpenCode 2 loads the interface. On
+ * OpenCode 1, where each half has its own file, the interface alone is the whole bay — not checked.
+ */
+export const EMPTY_SERVER_BAYS: readonly Bay[] = ["trust", "updater"]
 
 /** Where a config file sits in OpenCode's split: agent plugins or interface plugins. */
 export type Half = "server" | "tui"

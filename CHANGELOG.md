@@ -21,6 +21,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **Trust and the updater load on OpenCode 2 when installed on their own.** OpenCode 2 sets up a
+  plugin's interface only once its agent half has loaded, and these two had none — so
+  `opencode plugin add @opencode-cockpit/trust` (or `/updater`), as the install docs say, loaded
+  nothing at all. Each now has an agent half with nothing of its own; with it, `/cockpit-setup`
+  works from either alone, too. The bundle was never affected.
 - **Doctor checks Status's agent half too.** Status has had one since 0.9 (its `/status-setup`
   command and skill), and doctor's list of bays with two halves did not know it; a test now fails
   when a bay with an agent half is missing from it.
