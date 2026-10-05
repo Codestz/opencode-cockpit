@@ -4,6 +4,7 @@ import { defaultKeys } from "@opencode-cockpit/client/catalog"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
 import { bindingLookup, dualTui, type Host, type Layer, onPaste } from "@opencode-cockpit/client/host"
 import { noticeText } from "@opencode-cockpit/client/settings"
+import { blockWidth, measureBlock } from "@opencode-cockpit/client/sidebar"
 import type { BoxRenderable } from "@opentui/core"
 import { createSignal } from "solid-js"
 import { loadSubagents, type SubagentsConfig } from "../core/config.ts"
@@ -146,18 +147,12 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
      */
     let told = 0
     const sidebarWidth = () => {
-      /**
-       * The container the host gave the block, not the block: rows wider than the sidebar stretch the
-       * block with them, so its own width only ever agreed with the guess.
-       */
-      const parent = (block?.parent as { width?: number } | null | undefined)?.width ?? 0
-      const own = block?.width ?? 0
-      const measured = parent >= 12 ? Math.min(parent, own >= 12 ? own : parent) : own
+      const { measured, own, parent } = measureBlock(block)
       if (measured !== told) {
         told = measured
         log.debug("sidebar width", { measured, own, parent, window: api.renderer.width })
       }
-      return measured >= 12 ? measured : Math.max(20, Math.min(40, Math.floor(api.renderer.width / 4) - 2))
+      return blockWidth(block, api.renderer.width)
     }
     const busy = (session: Session) => session.status === "running" || session.status === "starting"
     const working = () => nodes().some(({ session }) => busy(session) || session.status === "waiting")

@@ -7,6 +7,7 @@
 
 import type { Host } from "@opencode-cockpit/client/host"
 import type { Log } from "@opencode-cockpit/client/log"
+import { blockWidth } from "@opencode-cockpit/client/sidebar"
 import type { BoxRenderable } from "@opentui/core"
 import { type Accessor, createSignal } from "solid-js"
 import type { TrailSettings } from "../core/config.ts"
@@ -72,13 +73,7 @@ export function createPainter(input: {
   let said = ""
   let sidebarView: SidebarView = { rows: [], hits: [] }
   let shown: DialogView | undefined
-  const sidebarWidth = () => {
-    /** The container the host gave the block, as Subagents measures it: the block's own width follows its rows. */
-    const parent = (block?.parent as { width?: number } | null | undefined)?.width ?? 0
-    const own = block?.width ?? 0
-    const measured = parent >= 12 ? Math.min(parent, own >= 12 ? own : parent) : own
-    return measured >= 12 ? measured : Math.max(20, Math.min(40, Math.floor(api.renderer.width / 4) - 2))
-  }
+  const sidebarWidth = () => blockWidth(block, api.renderer.width)
 
   const paint = () => {
     drawnAt = sidebarWidth()

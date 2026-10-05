@@ -14,6 +14,7 @@ import { warnRows } from "@opencode-cockpit/client/design"
 import { claimFeature, duplicateFeatureMessage } from "@opencode-cockpit/client/feature"
 import { bindingLookup, dualTui, type Host, type Layer } from "@opencode-cockpit/client/host"
 import { noticeText } from "@opencode-cockpit/client/settings"
+import { blockWidth } from "@opencode-cockpit/client/sidebar"
 import type { BoxRenderable } from "@opentui/core"
 import { createSignal } from "solid-js"
 import { commandOf, type Seen } from "../core/adapt/seen.ts"
@@ -101,13 +102,7 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
     let block: BoxRenderable | undefined
     let drawnAt = 0
     let said = ""
-    const sidebarWidth = () => {
-      /** The container the host gave the block, as Subagents measures it: the block's own width follows its rows. */
-      const parent = (block?.parent as { width?: number } | null | undefined)?.width ?? 0
-      const own = block?.width ?? 0
-      const measured = parent >= 12 ? Math.min(parent, own >= 12 ? own : parent) : own
-      return measured >= 12 ? measured : Math.max(20, Math.min(40, Math.floor(api.renderer.width / 4) - 2))
-    }
+    const sidebarWidth = () => blockWidth(block, api.renderer.width)
 
     /**
      * The dialog: the activity `/trust` opens on, and the ledger behind `l`. Each keeps its own cursor
