@@ -6,6 +6,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Trust: `/trust` opens on the ledger, and the ledger reads in order.** The ledger and the activity
+  read as disorder in a busy project; both are rebuilt around what you came to do.
+  - **The ledger first.** What Trust holds, and where you act on it, is what `/trust` opens on.
+    Today's answers are one row above it: select it and the card lists them; `a` (or `enter` on it)
+    opens the full activity, and `esc` comes back.
+  - **Grouped by kind, then by family.** Commands, Edits, Tools & fetches and OpenCode's own each have a
+    heading, the current one kept at the top as the list scrolls. Every edit sits under its folder,
+    one row per folder with its file count, instead of scattered between commands.
+  - **What was seen once is folded away.** Families approved once and never again — most of a busy
+    ledger — are one `seen once` row per kind; `→` opens it and `/` still finds them.
+  - **One column, one shape.** Every row ends in the same column: `✓` trusted, `▰` learning, `○` seen
+    once. A family's card lists one command a line with its standing, and its buttons sit on its last
+    row.
+  - **Paths cut in the middle.** `tail -10 ~/…/events.ndjson`, not `~/.local/share/opencode-cockpit/…`
+    five times with the file name cut off.
+  - **The activity lines up.** Every row starts with its mark, then the time, then the command; with one
+    agent, the header names it once instead of a chip on every row.
+
 ## [0.10.0] - 2026-10-05
 
 ### Changed
