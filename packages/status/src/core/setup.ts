@@ -13,13 +13,9 @@ import { fileURLToPath } from "node:url"
 export const SETUP_SKILL = "status-setup"
 /** The command, by the name it has had since 0.9. */
 export const SETUP_SLASH = "status-setup"
-/** Its name until 0.9, kept one release as a command that says the new one. Removed in 0.10. */
-export const OLD_SLASH = "statusline"
 
-/** What either command, and the palette, hands the agent. */
+/** What the command, and the palette, hands the agent. */
 export const SETUP_PROMPT = "Use the status-setup skill to help me set up the Status bay."
-/** The old name says its new one where the person reads it: first in the line it sends. */
-export const OLD_PROMPT = `/${OLD_SLASH} is now /${SETUP_SLASH}. ${SETUP_PROMPT}`
 
 /** Where the skill sits in this package: `src/core/` and `dist/core/` are both two levels under its root. */
 export const SETUP_SKILL_DIR = fileURLToPath(new URL(`../../skills/${SETUP_SKILL}`, import.meta.url))

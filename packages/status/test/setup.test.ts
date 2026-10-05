@@ -13,7 +13,7 @@ import {
   type StatusConfig,
 } from "../src/core/config.ts"
 import { SEGMENT_ABOUT, statusReference } from "../src/core/reference.ts"
-import { OLD_PROMPT, SETUP_PROMPT, SETUP_SKILL, SETUP_SKILL_DIR } from "../src/core/setup.ts"
+import { SETUP_PROMPT, SETUP_SKILL, SETUP_SKILL_DIR } from "../src/core/setup.ts"
 import { createStatusServer } from "../src/server.ts"
 
 /**
@@ -50,7 +50,7 @@ describe("the skill", () => {
     expect(parsed?.name).toBe(SETUP_SKILL)
     const description = parsed?.description ?? ""
     expect(description.length).toBeLessThan(1024)
-    for (const trigger of ["/status-setup", "/statusline", "Claude Code statusline", "at the bottom"])
+    for (const trigger of ["/status-setup", "Claude Code statusline", "at the bottom"])
       expect(description).toContain(trigger)
     expect(skill).toContain("`cockpit_settings`")
     expect(skill).toContain("(references/settings.md)")
@@ -144,14 +144,12 @@ describe("the agent side", () => {
   const host = () =>
     ({ version: 1, directory: "/work/app", scope: {}, log: { info() {}, warn() {} } }) as never
 
-  test("the skill and both commands, the old one saying the new name first", async () => {
+  test("the skill and its command", async () => {
     const parts = await createStatusServer()(host(), {})
     expect(parts.skills).toEqual([{ dir: SETUP_SKILL_DIR }])
     expect(parts.commands?.map((command) => [command.name, command.prompt])).toEqual([
       ["status-setup", SETUP_PROMPT],
-      ["statusline", OLD_PROMPT],
     ])
-    expect(OLD_PROMPT.startsWith("/statusline is now /status-setup.")).toBe(true)
   })
 
   test("the bundle and this package side by side register them once", async () => {

@@ -104,7 +104,7 @@ keeping line numbers and highlighting matches — and output keeps the colours t
 | `ctrl+x p` · `/trust` | What Trust answered for you, and what it has learned |
 | `/plugins-update` | Every plugin you have installed: what runs, what is published, and an update checked against disk |
 | `/cockpit-setup` | The agent sets Cockpit up with you, with the `cockpit-setup` skill: which bays show, where, in what order — then, if you want, tunes it to how your project works |
-| `/status-setup` | The agent designs the Status line with you, with the `status-setup` skill (`/statusline` until 0.9) |
+| `/status-setup` | The agent designs the Status line with you, with the `status-setup` skill |
 
 Every key is the same on OpenCode 1 and 2, none of them is one of OpenCode's own, and each bay's
 `keybinds` changes it.

@@ -134,11 +134,10 @@ segment is a `!` row: `override "gti" matches no segment in the sidebar preset �
 
 Type it, or just ask ("put the statusline at the bottom"), and the agent sets the line up with you
 through the `status-setup` skill shipped in this package (`skills/status-setup/`): it reads what is
-written now with `cockpit_settings`, fixes what it cannot read first, offers a preset to start from, asks what
-you want, writes only what differs from the defaults, and checks the line in the preview that came
-with your install — `cockpit_settings` names it under Previews — never `bunx`, which fetches another
-release. `/statusline`, its name until 0.9, still works for one release and says the new
-name. Both come from Status's agent side (`@opencode-cockpit/status/server`), which the bundle
+written now with `cockpit_settings`, fixes what it cannot read first, offers a preset to start
+from, asks what you want, writes only what differs from the defaults, and checks the line in the
+preview that came with your install — `cockpit_settings` names it under Previews — never `bunx`,
+which fetches another release. It comes from Status's agent side (`@opencode-cockpit/status/server`), which the bundle
 includes and the package's install line adds.
 
 ## Looking at it before a restart

@@ -145,8 +145,8 @@ export async function prepare(mode: Mode): Promise<Install> {
    * proves the line drew at all, and a command segment proves the whole pipeline -- spawn, parse,
    * repaint -- works from a published build.
    *
-   * The global file carries the section's name from before 0.9, `statusline`: it is no longer read,
-   * and Status has to say so in a `!` row instead of drawing as if nothing had been written.
+   * The global file carries the section's name from before 0.9, `statusline`: it is not read, and
+   * Status has to say so in a `!` row instead of drawing as if nothing had been written.
    */
   await Bun.write(
     join(config, "opencode-cockpit", "config.json"),

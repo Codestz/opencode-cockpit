@@ -1,5 +1,5 @@
 /**
- * Status: the statusline draws from a published build and names a section from before 0.9; its setup
+ * Status: the statusline draws from a published build and names a section nothing reads; its setup
  * command is offered once; and its sidebar table flags an MCP server that failed, and only that one.
  */
 
@@ -10,12 +10,10 @@ import type { Probe } from "../probe.ts"
 
 /** The Status table's token row, which only a conversation with a reply in it fills. */
 export const TOKENS_ROW = / tokens [\d.]+k? · \d+%/
-/** `/statusline`'s line, which says the new name first, and the skill it names, loaded. */
-const STATUS_SKILL_USED = [
-  /\/statusline is now \/status-setup\. Use the status-setup skill/,
-  /Skill "status-setup"/,
-]
-const OLD_SECTION = `! settings: "statusline" is no longer read`
+/** `/status-setup`'s line, and the skill it names, loaded. */
+const STATUS_SKILL_USED = [/Use the status-setup skill/, /Skill "status-setup"/]
+/** The section's name before 0.9: not a setting now, and the nearest one offered. */
+const OLD_SECTION = `! settings: "statusline" is not a`
 /** A minimal stdio MCP server: answers initialize, lists one tool, runs it. Run with Bun. */
 const OK_MCP = `import { createInterface } from "node:readline"
 const send = (msg) => process.stdout.write(JSON.stringify(msg) + "\\n")
@@ -70,22 +68,21 @@ export const status: Probe = {
     pass("/status-setup offered once as it was typed")
     if (!agent) return
     /**
-     * AGENT=1: Status's command under its old name, kept for a release as a command of its own whose
-     * line says the new name first, and the skill it names loaded. In the conversation the subagent run
-     * left open, last, because it starts a turn. `/status-setup` sends the same line without the note.
+     * AGENT=1: the command sends its line and the skill it names is loaded. In the conversation the
+     * subagent run left open, last, because it starts a turn.
      */
     /** Whatever an earlier step left in the prompt goes first, or the name is typed after it. */
     await type("\x15", 300)
-    await shipped("statusline")
-    const old = await seen(120_000, STATUS_SKILL_USED)
+    await shipped("status-setup")
+    const used = await seen(120_000, STATUS_SKILL_USED)
     /** The skill asks a question next; `esc` dismisses it so nothing is left waiting. */
     await type("\x1b", 1000)
     expect(
-      old.all,
-      `/statusline never ran the status-setup skill with its new name said (missing ${old.missing.join(", ")})`,
-      old.last,
+      used.all,
+      `/status-setup never ran the status-setup skill (missing ${used.missing.join(", ")})`,
+      used.last,
     )
-    pass("/statusline ran the status-setup skill, saying its new name")
+    pass("/status-setup ran the status-setup skill")
   },
   /**
    * Status's `diagnostics` row in the sidebar table, on both versions (#34: OpenCode 2 hands a
@@ -137,7 +134,7 @@ export const status: Probe = {
   empty(drawn) {
     expect(TOKENS_ROW.test(rightHalf(drawn)), "the sidebar never drew the Status table's tokens row", drawn)
     expect(
-      rightHalf(drawn).includes(`! settings: "statusline" is no longer`),
+      rightHalf(drawn).includes(OLD_SECTION),
       `the sidebar never named the old "statusline" section`,
       drawn,
     )

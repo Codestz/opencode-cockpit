@@ -1,6 +1,6 @@
 ---
 name: status-setup
-description: Set up or design the Status bay of opencode-cockpit (its statusline) with the user - the table in the sidebar or a line under the prompt, which segments it shows, a preset, a shell command or Claude Code statusline script as a segment, or a TypeScript segment module. Use it whenever the user runs /status-setup or /statusline, or asks to change what the statusline or the Status table shows, e.g. "put the statusline at the bottom", "show the model and cost", "use my Claude Code statusline", "make the status table shorter", "show git against the branch", "hide the write row", or edits the "status" section of config.json or .cockpit.json. For which Cockpit blocks show and in what order, use the cockpit-setup skill.
+description: Set up or design the Status bay of opencode-cockpit (its statusline) with the user - the table in the sidebar or a line under the prompt, which segments it shows, a preset, a shell command or Claude Code statusline script as a segment, or a TypeScript segment module. Use it whenever the user runs /status-setup, or asks to change what the statusline or the Status table shows, e.g. "put the statusline at the bottom", "show the model and cost", "use my Claude Code statusline", "make the status table shorter", "show git against the branch", "hide the write row", or edits the "status" section of config.json or .cockpit.json. For which Cockpit blocks show and in what order, use the cockpit-setup skill.
 ---
 
 # Setting up the Status bay
