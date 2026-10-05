@@ -167,8 +167,8 @@ export function createLedger(input: {
     const at = node()
     if (!at || at.kind === "always" || at.kind === "today") return
     dialog.notice = undefined
-    /** A kind's `seen once` row opens and folds like a family, by its own key. */
-    if (at.kind === "once") {
+    /** A kind's `seen once` row and a folder open and fold like a family, by their own key. */
+    if (at.kind === "once" || at.kind === "group") {
       if (dialog.opened.has(at.key) && way !== "open") dialog.opened.delete(at.key)
       else if (!dialog.opened.has(at.key) && way !== "close") dialog.opened.add(at.key)
       return draw()

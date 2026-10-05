@@ -152,6 +152,12 @@ export interface Family {
   lastAt: number
 }
 
+/**
+ * A widening no command falls in any more: most often one made under the old family rule ("any docker
+ * compose"), which now answers nothing, since a family is matched whole. `x` removes it.
+ */
+export const stale = (family: Family): boolean => family.widened.length > 0 && family.commands.length === 0
+
 export const familyKey = (permission: string, family: string): string => JSON.stringify([permission, family])
 
 /** Where a family sorts: what answers, then what learns, then what is dangerous, then what was seen once. */

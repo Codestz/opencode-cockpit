@@ -7,7 +7,7 @@
 import { anyOf, readSubject, showSubject, widenable } from "../family.ts"
 import type { Answer } from "../history.ts"
 import type { Event } from "../ledger.ts"
-import { type AlwaysGroup, type Command, type Family, leadOf, type Reading } from "./model.ts"
+import { type AlwaysGroup, type Command, type Family, leadOf, type Reading, stale } from "./model.ts"
 import { agentsText, plural } from "./parts.ts"
 import type { Tone } from "./rows.ts"
 
@@ -44,6 +44,7 @@ export function revokeLabel(target: Target): { label: string; off: boolean } {
   if (target.kind === "always") return { label: "Revoke", off: true }
   if (target.kind === "answer") return { label: "Revoke", off: false }
   if (target.kind === "family") {
+    if (stale(target.family)) return { label: "Remove", off: false }
     const answering =
       target.family.widened.length > 0 || target.family.commands.some((c) => c.phase === "answering")
     return { label: answering ? "Revoke all" : "Forget all", off: false }
@@ -139,8 +140,9 @@ export function revoke(target: Target, reading: Reading, at: number): Outcome {
   return {
     events: stamp(events, at),
     notice: {
-      text:
-        answering > 0 || family.widened.length > 0
+      text: stale(family)
+        ? `Removed the old widening: ${anyOf(family.permission, family.family)} is gone.`
+        : answering > 0 || family.widened.length > 0
           ? `Revoked ${plural(family.commands.length, "command")} in ${name}${
               family.widened.length > 0 ? ", and its widening" : ""
             } — each is asked again until approved ${threshold}× in a row.`
