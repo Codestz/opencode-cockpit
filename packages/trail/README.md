@@ -13,8 +13,8 @@ through the bundle, where it is on by default (`features.trail: false` turns it 
 OpenCode 1.18+ and 2.0.15+.
 
 ```sh
-opencode plugin @opencode-cockpit/trail@0.10.2 --global --force     # OpenCode 1
-opencode plugin add @opencode-cockpit/trail@0.10.2                   # OpenCode 2
+opencode plugin @opencode-cockpit/trail@0.11.0 --global --force     # OpenCode 1
+opencode plugin add @opencode-cockpit/trail@0.11.0                   # OpenCode 2
 ```
 
 **Setup: none.** No account, no token, no list of tools to configure. The agent already knows what

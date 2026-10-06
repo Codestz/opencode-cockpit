@@ -273,7 +273,7 @@ off — it is OpenCode's setting, in OpenCode's file, and the name differs by ve
 ```
 
 ```jsonc title="OpenCode 2 — ~/.config/opencode/cli.json"
-{ "plugins": ["opencode-cockpit@0.10.2", "-opencode.sidebar.context"] }
+{ "plugins": ["opencode-cockpit@0.11.0", "-opencode.sidebar.context"] }
 ```
 
 The other blocks switch the same way, by these ids. Hiding them is a matter of taste: Status's table

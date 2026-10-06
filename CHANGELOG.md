@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-10-06
+
 ### Added
 
 - **Trust learns reads as families.** One day of real use answered 1.4% of prompts automatically:
@@ -1218,7 +1220,8 @@ All notable changes to this project are documented here. The format follows
 - Daemon lifecycle: on-demand start, single instance under concurrent starts, idle shutdown,
   replacement of outdated idle daemons, orphan reaping after crashes.
 
-[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.10.2...HEAD
+[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/Codestz/opencode-cockpit/compare/v0.10.2...v0.11.0
 [0.10.2]: https://github.com/Codestz/opencode-cockpit/compare/v0.10.1...v0.10.2
 [0.10.1]: https://github.com/Codestz/opencode-cockpit/compare/v0.10.0...v0.10.1
 [0.10.0]: https://github.com/Codestz/opencode-cockpit/compare/v0.9.0...v0.10.0

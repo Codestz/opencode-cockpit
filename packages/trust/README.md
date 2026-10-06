@@ -13,8 +13,8 @@ Part of [opencode-cockpit](https://github.com/Codestz/opencode-cockpit). Install
 through the bundle. Works on OpenCode 1.18+ and 2.0.15+.
 
 ```sh
-opencode plugin @opencode-cockpit/trust@0.10.2 --global --force     # OpenCode 1
-opencode plugin add @opencode-cockpit/trust@0.10.2                   # OpenCode 2
+opencode plugin @opencode-cockpit/trust@0.11.0 --global --force     # OpenCode 1
+opencode plugin add @opencode-cockpit/trust@0.11.0                   # OpenCode 2
 ```
 
 It only acts where OpenCode asks you — a `"bash": "ask"` (or `"permission": "ask"`) in
