@@ -30,19 +30,40 @@ the request.
 | `git  status` (spacing), `git 'status'` (quoting) | yes |
 | `git status -s` | no — another argument |
 | `cd web && git status` | no — another directory |
-| `git status` run by the `general` agent | no — another agent |
+| `git status` run by the `general` agent | yes — trust is the project's, whichever agent asks |
 
 A line with several commands counts for each, and is answered only when **every** one is trusted or
 allowed by your config: `git status && rm -rf build` waits for you even when `git status` is
 trusted. Anything that cannot be read for certain is always asked and never counted: `$(…)`,
 backticks, `$VAR`, `eval`, `sh -c`, a pipe into a shell, a heredoc.
 
-Other permissions have their own "same": an edit by its file, a web fetch by its host, a subagent by
-its type. `external_directory` and `doom_loop` are never answered.
+An approval by any agent counts towards the one rule: you give permission for the work in a project,
+not for one agent in it. The ledger still records which agent asked.
+
+## OpenCode's own tools
+
+Every permission OpenCode 1.18.33's tools ask, and what Trust counts each by. They only reach Trust
+when your config sets them to `ask`.
+
+| Permission (tool) | Counted by | Family | Learned by itself | Suggested |
+| --- | --- | --- | --- | --- |
+| `bash` | the command, exactly | program and subcommand (`git status`) | its plain reads | yes |
+| `edit` (`edit`, `write`, `apply_patch`) | the file | its folder (`src/`) | no | yes |
+| `read` | the file | its folder (`read src/`) | yes | yes |
+| `glob`, `grep` | the pattern | the whole tool (`any grep`) | yes | yes |
+| `websearch` | the query | the whole tool | no — a query leaves the machine | yes |
+| `webfetch` | the host | — | no | no |
+| `todowrite`, `lsp` | one rule | — | no | no |
+| `skill`, `task` | the skill, the subagent type | — | no | no |
+| `external_directory`, `doom_loop` | never answered | | | |
+
+A `read` of a file that may hold secrets (`.env`, a key, `~/.ssh`) is OpenCode's own default ask, and
+stays yours to answer however often you approve it.
 
 ## Earned, and lost
 
-- **Three approvals in a row** (`threshold`) and it is trusted.
+- **Three approvals in a row** (`threshold`) and it is trusted — or, for a command that only reads,
+  its whole family is ([below](#reads-are-learned-as-a-family)).
 - **A reject resets** the count to nothing.
 - **Dangerous commands cost more** — `threshold + dangerExtra`, eight by default: `rm`, `rmdir`,
   `dd`, `kill`, `chmod -R`, `git push`, `git reset --hard`, `git clean`, `git checkout -- …`,
@@ -52,6 +73,59 @@ its type. `external_directory` and `doom_loop` are never answered.
 - **Unused for 30 days** (`expireDays`), it has to be earned again.
 - **Only your approvals count.** Trust's own answers do not, and nor does any reply faster than
   300ms — nobody reads a prompt that fast; OpenCode's `--auto` answers in about 20ms.
+
+## Reads are learned as a family
+
+An exact rule rarely repeats in real work: `head -3` on a new file, `rg` for a new word, one new
+command in a line of five, and the whole line asks again. So a command that **only reads** counts
+twice — for itself, and for its family. Three approved `head`s on three files, and any `head` that
+only reads is answered, by a family Trust learned. `glob`, `grep` and `read` (by folder) are learned
+the same way. The ledger marks the family
+`reads` and its commands `✓ read`.
+
+What reads: `ls`, `cat`, `head`, `tail`, `wc`, `grep`, `rg`, `fd`, `echo`, `jq`, `sort`, `cut`,
+`diff`, `stat`, `eza` and the like; a `sed` whose script only prints (`sed -n 1,80p`, `s/a/b/g` —
+never `w`, `e` or `-i`); a `git` that only looks (`status`, `log`, `diff`, `show`, `blame`,
+`branch --show-current`, `stash list`, `worktree list`, `remote -v`, `config --get` …). It is an
+allowlist: a program not on it is not a read, and keeps earning trust one command at a time.
+
+A learned family covers plain reads only — never:
+
+- a command with an env var or a wrapper in front (`LD_PRELOAD=… ls`, `sudo cat`, `xargs head`);
+- one that writes: a redirection (`ls > out.txt`) or a flag (`sort -o`, `tree -o`, `uniq a b`);
+- one that runs something: `rg --pre`, `fd -x`, `git --ext-diff`;
+- anything dangerous;
+- a file that may hold secrets: `.env`, `*.pem`, `*.key`, `id_rsa`, `~/.ssh`, `~/.aws`,
+  `credentials` — `cat README.md` is in a learned `cat`, `cat .env` asks.
+
+A reject of a read in the family starts it over; a reject of something it never covers
+(`head .env`) does not. Unused for `expireDays`, it is gone. `w` on it — "Forget head reads" — takes
+it back, until enough reads in a row teach it again. `"learnReads": false` turns it off: then only
+the families you widen answer.
+
+`awk`, `find`, `less` and `xargs` are not reads: their scripts and actions can write or run.
+
+## Secrets stay out of the ledger
+
+A command is written to the ledger, shown on screen and logged. A secret in it is replaced first,
+with a keyed hash: `GITHUB_TOKEN=‹#3fa9c2› gh api …`. Masked:
+
+- an env value under a name that says secret (`TOKEN`, `KEY`, `SECRET`, `PASSWORD`, `AUTH` …), or
+  that looks generated, or is long;
+- the value of `--token`, `--password`, `--api-key` and the like, and of `export NAME=…`;
+- `Authorization:`, `Cookie:` and `X-Api-Key:` headers, `Bearer …`, and the password in
+  `postgres://user:pass@host`;
+- tokens by their shape, wherever they are: `sk-…`, `ghp_…`, `github_pat_…`, `xoxb-…`, `AKIA…`,
+  `shpat_…`, a JWT.
+
+Two different tokens stay two commands: trust earned with one is not trust for another. A masked
+value keeps the environment it names — `DATABASE_URL=‹#a1b2c3 prod›` — so a production URL still
+costs more and never shares a family with dev. `NODE_ENV=production` and `PORT=3000` stay as they
+are. The key is per project, in `mask.key` beside the ledger, readable by you alone, so a short
+password cannot be found by hashing guesses. OpenCode's own "always" patterns are masked too.
+
+The ledger is only ever appended: lines written before 0.11 keep what they held. Delete them from
+`events.ndjson` by hand if you want them gone.
 
 ## Your config always wins
 
@@ -91,40 +165,37 @@ cannot get in before OpenCode's own handler.
 
 ## What Trust did
 
-`/trust`, `ctrl+x p`, or "Trust" in the palette opens on what Trust did for you, newest first, and
-what it is about to do:
+`/trust`, `ctrl+x p`, or "Trust" in the palette opens on [the ledger](#the-ledger), with today's
+answers as a strip above it; `a` opens them in full — what Trust did for you, newest first, and what
+it is about to do:
 
 <Live scene="trust" caption="Trust" />
 
 ```
-
- Trust · app                                                                           ● answering
+ Trust · app                                                                activity   ● answering
 
  TODAY  Trust answered 5 prompts for you                                       ▂▁▅▂█▄█  last 7 days
-▌20:31  ✓ git status --short               build     trusted since Sep 16, 3 in a row
- 20:30  ✓ ls -la                           general   trusted since Sep 16, 3 in a row
- 20:21  ✓ bun test                         build     trusted since Sep 16, 3 in a row
- 20:13  ✓ git status --short && echo tr…   build     both commands trusted
- 19:43  ✓ cat src/app.ts                   general   in a family you widened: cat
+▌✓ 20:31  git status --short               build     trusted since Sep 16, 3 in a row
+ ✓ 20:30  ls -la                           general   trusted since Sep 16, 3 in a row
+ ✓ 20:21  bun test                         build     trusted since Sep 16, 3 in a row
+ ✓ 20:13  git status --short && echo tr…   build     both commands trusted
+ ✓ 19:43  cat src/app.ts                   general   in a family you widened: any cat …
 
  ALMOST THERE  closest first
-  ○ bun --version                          build     ▰▰▱       2 of 3
-  ○ git status --short -uno                general   ▰▰▱       2 of 3
-  ○ head -60                               general   ▰▰▱       2 of 3
-  ○ head -40                               general   ▰▰▱       2 of 3
-  ○ git push origin feat/trust             build     ▰▰▰▰▰▱▱▱  5 of 8   dangerous
+ ○        bun --version                              ▰▰▱       2 of 3
+ ○        git push origin feat/trust                 ▰▰▰▰▰▱▱▱  5 of 8   dangerous
 
   ! WATCH OUT   OpenCode's own "always" approves more than it looks, until it restarts
-  ! find . *  sort -rn *                   general    [enter] what it covers
+ !        find . *  sort -rn *             general    [enter] what it covers
 
- RULES  8 trusted · 5 learning · 7 seen once                                     l Open the ledger
+ RULES  8 trusted · 2 learning · 6 seen once                                     l Open the ledger
 
- [enter] Why   [x] Revoke   [w] Trust Family   [l] Ledger   [p] Pause   [?] Keys   [esc] Close
+ [enter] Why   [x] Revoke   [w] Trust Family   [a] Ledger   [p] Pause   [?] Keys   [esc] Back
 ```
 
-- **Today** lists every answer Trust gave in this project, from any window: when, for which agent,
-  and why in a few words — the approvals that earned it and when, both commands of a line trusted,
-  or the family you widened. One line answered again and again is one row with a count. With
+- **Today** lists every answer Trust gave in this project, from any window: when, the agent it
+  answered, and why in a few words — the approvals that earned it and when, both commands of a line
+  trusted, the family you widened, or the reads it learned. One line answered again and again is one row with a count. With
   nothing today, the latest answers from earlier days, with their day. The sparkline is answers per
   day for the last week, each scaled to the busiest.
 - **Almost there** is what is still learning, closest first and a dangerous command last: a meter
@@ -135,8 +206,8 @@ what it is about to do:
 - **Rules** counts the project: trusted, learning, and seen once — the commands approved a single
   time that mostly never come back.
 
-`enter` on any row shows why: that rule's card in the ledger. `l`, or a click on the button, opens
-the ledger; `esc` there comes back here, and `esc` here closes.
+`enter` on any row shows why: that rule's card in the ledger. `a`, `l`, or a click on the button,
+goes back to the ledger.
 
 ## The ledger
 
@@ -146,33 +217,36 @@ no details key to find:
 <Live scene="trust-ledger" caption="the ledger" size={11} height={360} />
 
 ```
- Trust · app                                    8 trusted · 5 learning · 7 seen once   ● answering
+ Trust · app                                    8 trusted · 2 learning · 6 seen once   ● answering
+ Today  ✓ 5 answered · last 20:31 git status --short                                  [a] Activity
 ────────────────────────────────────────┬───────────────────────────────────────────────────────────
- FAMILIES                    1–15 of 18 │ git status --short
- ▾ git status              1 ✓  1 ○     │ ✓ Trusted for  build  · answered 8×
-▌    … --short             ✓ trusted 8× │
-     … --short -uno        ▰▰▱ 2 of 3   │  Exactly     git status --short
-   ls -la                  ✓ trusted 2× │  Still asks  git status · git status --short > out.txt ·
-   bun test                ✓ trusted 2× │              any other argument
-   echo trust-test         ✓ trusted 3× │  History     ✓ 7d  ✓ 7d  ✓ 7d  → trusted  answered 8×
- ▸ cat  any                2 ✓          │              3 approvals in a row, all yours
- ▸ head                    1 ✓  3 ○     │  Family      git status · 2 commands, 1 trusted
-   edit src/app.ts         ✓ trusted 2× │              [w] trusts any git status … for build, not
-   bun --version           ▰▰▱ 2 of 3   │              one by one
-   git push origin fe…  !  ▰▰▰▰▰▱▱▱ 5/8 │  Expires     if unused for 30 days
-   pwd                     ▰▱▱ 1 of 3   │
-   sed -n 1,40p src/a…     ▰▱▱ 1 of 3   │  x Revoke    w Trust any git status    c Copy rule
-   wc -l src/app.ts        ▰▱▱ 1 of 3   │
-   sort -rn                ▰▱▱ 1 of 3   │
+ COMMANDS                      / filter │ cat src/app.ts
+ ▸ git  !                 1 ✓  1 ▰      │ ✓ Answered · through any cat …
+ ▸ ls  reads              1 ✓           │
+   bun test               ✓ trusted     │  Exactly     cat src/app.ts
+ ▸ echo  reads            1 ✓           │  Still asks  dangerous ones, and any that write a file or
+ ▾ cat  any               2 ✓           │              run another program.
+▌    cat src/app.ts       ✓ any         │  History     answered 1×
+     cat package.json     ✓ any         │              answered through any cat …, not by its own
+ ▸ head  reads            1 ✓           │              count · last asked by general
+   bun --version          ▰▰▱ 2/3       │  Family      cat · 2 commands, 2 trusted
+ ▸ seen once  pwd  sed  … 6 ○           │              any cat … trusted 7d ago · [w] undoes it
+                                        │
+ EDITS                                  │
+ ▸ src/  1 file           1 ✓           │
+                                        │
+ ! OpenCode always        2 broad rules │
+                                        │  x Revoke    w Undo any cat    c Copy rule
 ────────────────────────────────────────┴───────────────────────────────────────────────────────────
- [↑/↓] Move   [←/→] Fold   [tab] Card   [/] Filter   [p] Pause   [?] Keys   [esc] Back
+ [↑/↓] Move   [←/→] Fold   [tab] Card   [/] Filter   [a] Activity   [?] Keys   …   [esc] Close
 ```
 
-The card holds the command whole, on a raised panel; where each agent stands on it; the exact text
-and what still asks; the **history** that earned it — each approval with how long ago, `→ trusted`
-where the streak reached the threshold, then how often Trust answered it; its family and what `w`
-would do; when it expires. Its buttons can be clicked, or reached with `tab`. Below 90 columns the
-card moves under the tree, with the selection kept in view above it. `/` filters the tree by text.
+The card holds the command whole, on a raised panel; how it stands; the exact text and what still
+asks; the **history** that earned it — each approval with how long ago, `→ trusted` where the streak
+reached the threshold, then how often Trust answered it, and which agent asked it last; its family
+and what `w` would do; when it expires. Its buttons can be clicked, or reached with `tab`. Below 90
+columns the card moves under the tree, with the selection kept in view above it. `/` filters the
+tree by text.
 
 ### Families
 
@@ -192,12 +266,14 @@ two families.
 | `NODE_ENV=prod npm run build` | `NODE_ENV=… npm run build` |
 | `ls > out.txt` | `ls` |
 | edit `src/app.ts` | `edit src/` |
+| read `src/app.ts` | `read src/` |
+| grep `createServer`, glob `**/*.ts` | `grep`, `glob` — the tool |
 
 A family with one command is drawn as that row; the others start folded, with how many of their
 commands are trusted (`✓`) and how many are not yet (`○`). `space`, `enter` or `→` opens one, listing
 its first three commands and `+ N more`; `←` folds it, or from a command inside it goes to its heading.
-A command appears once, however many agents approved it: the card lists each agent's standing — a
-command trusted for build and two of three for general is one row, and two lines on its card.
+A command appears once, however many agents asked it: approvals by `build` and by `general` add up to
+one rule, the project's.
 
 ### Exactly
 
@@ -209,20 +285,51 @@ hyphens", "hyphen, greater-than" for `->`.
 
 ### Trusting a whole family
 
-`w` trusts any command in the family, for the agent of the selected rule. It is the one way trust
-gets wider than what you approved, and only you do it — it is written to the ledger like everything
-else. From then on any `ls …` is answered for that agent, **except**:
+`w` trusts any command in the family, in this project. It is the one way trust gets wider than what
+you approved, other than the reads Trust learns, and only you do it — it is written to the ledger
+like everything else. From then on any `ls …` is answered, **except**:
 
 - a dangerous command — `docker compose down -v` is not covered by `docker compose down`;
 - one that writes a file through a redirection — `ls > out.txt` (`2>/dev/null` and `2>&1` write
-  nothing, and are covered);
-- one that runs another program — `find -exec`, `git -c …`;
+  nothing, and are covered) — or through a flag: `sed -i`, `perl -i`, `awk -i inplace`, `sort -o`,
+  `tee file`, `curl -o`, `wget`, `tar x`, `unzip`, `find -delete`;
+- one that runs another program — `find -exec`, `git -c …`, `rg --pre`, `fd -x`;
 - a line that cannot be read, and anything a specific `ask` in your config matches.
 
 A dangerous family — `git push`, `rm`, `kubectl delete`, `sudo …` — can never be widened: `w` says
 why and does nothing. `w` again, or `x` on the family, goes back to exact rules. An answer through a
 widened family says so: `✓ widened` in the ledger, "in a family you widened" in the activity, `● ls -x · any ls` in the sidebar, the family in
 the log. Widening does not expire; undo it when you no longer want it.
+
+### Suggested families
+
+Everything that is not a read widens only when you press `w` — and the ledger says when it is worth
+it. When approvals across two or more commands of a family reach the threshold, the family is listed
+under **SUGGESTED** at the top of the ledger:
+
+```
+ Trust · app                                   13 trusted · 1 learning · 5 seen once   ● answering
+ Today  ✓ 4 answered · last 15:54 head -60 src/routes.ts                              [a] Activity
+────────────────────────────────────────┬───────────────────────────────────────────────────────────
+ SUGGESTED                     / filter │ mcpx db-local execute_sql  family of 3 commands
+▌★ any mcpx db-local…?     3 in 3       │ ★ Suggested · 3 approvals in a row across 3 commands
+                                        │
+ COMMANDS                               │  Widen       [w] trusts any mcpx db-local execute_sql … —
+ ▸ head  reads             5 ✓  1 ○     │              except dangerous ones, ones that write a file
+ ▸ sed  reads              4 ✓  1 ○     │              and ones that run another program. [d] stops
+ ▸ rg  reads               4 ✓          │              suggesting it.
+   mcpx db-prod execu…  !  ▰▰▱▱▱▱▱▱ 2/8 │  Today       3 approvals of yours today were in it — [w] …
+ ▸ mcpx db-local exec…     3 ○          │  Commands    mcpx db-local execute_sql --sql "se…  ○ once
+                                        │
+                                        │  w Trust any mcpx db-local execu…    d Dismiss
+────────────────────────────────────────┴───────────────────────────────────────────────────────────
+ [↑/↓] Move   [←/→] Fold   [tab] Card   [/] Filter   [a] Activity   [?] Keys   …   [esc] Close
+```
+
+Its card says how many approvals in a row across how many commands, and how many of today's approvals
+were in it. `w` widens it, with the same exceptions as any widening; `d` dismisses it, for good. A dangerous family — `mcpx db-prod …`, `git push` — is never
+suggested, and a widening you undo is not suggested again. A suggestion never widens anything by
+itself.
 
 ### Keys
 
@@ -235,7 +342,7 @@ On the activity:
 | `x` | Revoke what answered (the rule, or the widening that answered it); forget a count still learning |
 | `w` | Trust any command in the family, or undo it |
 | `c` | Copy it as an `opencode.json` rule, to paste yourself |
-| `l`, click on the button | Open the ledger |
+| `a`, `l`, click on the button | Back to the ledger |
 | `/` | Open the ledger and filter it |
 | `p` | Pause Trust in this project — it keeps counting and answers nothing; again to resume |
 | `?` | Every key, one line each |
@@ -249,9 +356,10 @@ In the ledger:
 | `←` `h` / `→` `l` | Fold / open a family — on a command inside one, go to its heading |
 | `space` `enter` | Open or fold a family; on `+ N more`, list the rest |
 | `tab` | Into the card's buttons and back; `←` `→` choose one, `enter` presses it |
-| `x` | Revoke a command for every agent; on a family, every command in it and its widening. Still learning, it forgets the count |
-| `w` | Trust any command in the family, or undo it |
-| `c` | Copy it as an `opencode.json` rule — a family as `"ls *": "allow"`, which config cannot limit to one agent |
+| `x` | Revoke a command; on a family, every command in it and its widening. Still learning, it forgets the count |
+| `w` | Trust any command in the family, or undo it; on a learned family, forget it |
+| `d` | Dismiss a suggestion: it is not suggested again in this project |
+| `c` | Copy it as an `opencode.json` rule — a family as `"ls *": "allow"` |
 | `/` | Filter by text; `enter` keeps it, `esc` clears it |
 | `p` | Pause or resume |
 | `?` | Every key, one line each |
@@ -267,6 +375,7 @@ In the bundle's entry (`"trust": { … }`), the package's own, or the `trust` se
 | `threshold` | `3` | Approvals in a row, by you, before Trust answers |
 | `dangerExtra` | `5` | What a dangerous command costs on top |
 | `expireDays` | `30` | Days unused before trust has to be earned again; `0` never |
+| `learnReads` | `true` | Learn a family of plain reads by itself (`head`, `rg`, `git status` …); `false` leaves families to `w` |
 | `enabled` | `true` | `false` turns Trust off |
 | `sidebar` | `false` | Show the block in the sidebar. The palette's "Show or hide Trust in the sidebar" flips it for the session |
 | `sidebarRows` | `3` | Answers listed in the sidebar |
@@ -280,8 +389,9 @@ Where the block sits is the top-level `"sidebar"` list's to say — Trust last b
 
 `~/.local/share/opencode-cockpit/trust/<project>-<hash>/events.ndjson` — outside the project, so it
 never turns up in `git status` or travels to anyone who clones the repository. One line per event
-(asked, approved by you, rejected, answered by Trust, revoked, paused), only ever appended, and shared
-by every OpenCode window on the project. `$COCKPIT_HOME` or `$XDG_DATA_HOME` move it.
+(asked, approved by you, rejected, answered by Trust, revoked, widened, dismissed, paused), only ever
+appended, and shared by every OpenCode window on the project. `$COCKPIT_HOME` or `$XDG_DATA_HOME`
+move it. Beside it, `mask.key` is the key secrets are hashed with; it is never in the ledger.
 
 ## See it without OpenCode
 
@@ -290,6 +400,7 @@ bunx @opencode-cockpit/trust preview
 ```
 
 Draws the sidebar block, the activity and the ledger from sample projects — a busy week, a new
-project, a paused one, dangerous commands on their way, a widened family — in your terminal.
+project, a paused one, dangerous commands on their way, a widened family, reads learned and a
+family suggested (`--sample learning`) — in your terminal.
 `--view activity` or `--view ledger` draws one screen, `--columns` and `--rows` another size, and
 `--html` a page to judge the colours in a browser.
