@@ -11,6 +11,7 @@ import type { Engine } from "../core/engine.ts"
 import type { Request } from "../core/keys.ts"
 import type { Event } from "../core/ledger.ts"
 import { rulesFrom } from "../core/rules.ts"
+import type { Hasher } from "../core/secret.ts"
 import type { Live } from "./paint.ts"
 import { createSource } from "./source.ts"
 
@@ -34,11 +35,13 @@ export function createRequests(input: {
   log: Log
   engine: Engine
   directory: string
+  /** Secrets in a signature are hashed with this project's key (key.ts). */
+  hash: Hasher
   live: Live
   write: (events: readonly Event[]) => void
   draw: () => void
 }): Requests {
-  const { api, log, engine, directory, live, write, draw } = input
+  const { api, log, engine, directory, hash, live, write, draw } = input
   /** OpenCode's config as its `config.get` returned it; undefined until read, and Trust stays out. */
   let opencodeConfig: unknown
   let rulesReady = false
@@ -106,7 +109,7 @@ export function createRequests(input: {
       agents.get(request.sessionID) ?? feed.agent(request.sessionID, request.messageID) ?? "unknown"
     const { judgement, event } = engine.ask({
       request,
-      context: { ...call, root: directory },
+      context: { ...call, root: directory, hash },
       agent,
       rules: rulesFrom(opencodeConfig, agent),
       at,

@@ -1,6 +1,6 @@
 /**
  * The ledger's tree: what Trust holds, by what was asked — commands, edits, tools and fetches — then
- * by family, a command one row in its family whatever its agents say.
+ * by family, a command one row in its family.
  *
  * **Kinds before families.** One list ordered only by standing put `edit packages/api/…` between
  * `git status` and `jq`, and three edits in three folders read as three unrelated rows. Each kind
@@ -17,6 +17,7 @@
 
 import { dangerOf } from "../danger.ts"
 import { readSubject, shown, showSubject } from "../family.ts"
+import { type Suggestion, suggestionsOf } from "../suggest.ts"
 import type { Target } from "./actions.ts"
 import {
   type AlwaysGroup,
@@ -34,10 +35,11 @@ import {
 import { badge, meter, muted, plain, plural } from "./parts.ts"
 import { cursorRow, fit, type Row, type Run, rowText, spread, squeeze, type Tone, widthOf } from "./rows.ts"
 
-/** The kinds a ledger is grouped by, in the order they are listed. */
-export type Section = "commands" | "edits" | "tools"
+/** The kinds a ledger is grouped by, in the order they are listed; suggestions above them all. */
+export type Section = "suggested" | "commands" | "edits" | "tools"
 export const SECTIONS: readonly Section[] = ["commands", "edits", "tools"]
 export const SECTION_TITLES: Record<Section, string> = {
+  suggested: "SUGGESTED",
   commands: "COMMANDS",
   edits: "EDITS",
   tools: "TOOLS & FETCHES",
@@ -48,6 +50,8 @@ export const sectionOf = (permission: string): Section =>
 export type Node =
   /** Today's answers, the strip above the tree: selected, the card lists them. */
   | { kind: "today"; key: string; answers: number }
+  /** A family Trust suggests widening (suggest.ts): `w` widens it, `d` dismisses it. */
+  | { kind: "suggest"; key: string; suggestion: Suggestion }
   /** `depth`: folders above it; `prefix`: the words they already say, left out of its own label. */
   | { kind: "family"; key: string; family: Family; open: boolean; depth: number; prefix: string }
   | {
@@ -119,8 +123,11 @@ const seenOnce = (family: Family) =>
 
 export const commandText = (command: Command) =>
   `${command.permission === "bash" ? "" : `${command.permission} `}${showSubject(command.permission, command.subject)}`
+/** A family as its heading says it: `head`, `read src/`, and a whole tool (`*`) as its name alone — `grep`. */
 export const familyText = (family: Family) =>
-  `${family.permission === "bash" ? "" : `${family.permission} `}${showSubject(family.permission, family.family)}`
+  family.family === "*"
+    ? family.permission
+    : `${family.permission === "bash" ? "" : `${family.permission} `}${showSubject(family.permission, family.family)}`
 
 /** A command as its row says it: under Edits the path alone, the heading says what kind it is. */
 const rowCommandText = (command: Command) =>
@@ -231,6 +238,16 @@ export function explorerModel(input: Reading & Tree & { today?: number }): Explo
     return out
   }
 
+  if (needle === "") {
+    const suggested = suggestionsOf(input, families)
+    if (suggested.length > 0) lines.push({ kind: "heading", section: "suggested" })
+    for (const suggestion of suggested) {
+      const node: Node = { kind: "suggest", key: `s:${suggestion.key}`, suggestion }
+      nodes.push(node)
+      lines.push({ kind: "node", node })
+    }
+  }
+
   for (const section of SECTIONS) {
     const mine: Node[] = []
     const once: Family[] = []
@@ -287,6 +304,7 @@ export function explorerModel(input: Reading & Tree & { today?: number }): Explo
 export function nodeTarget(node: Node): Target | undefined {
   if (node.kind === "today" || node.kind === "once" || node.kind === "group") return undefined
   if (node.kind === "always") return { kind: "always", groups: node.groups }
+  if (node.kind === "suggest") return { kind: "family", family: node.suggestion.family, suggested: true }
   if (node.kind === "command") return { kind: "command", command: node.command, family: node.family }
   return { kind: "family", family: node.family }
 }
@@ -343,13 +361,15 @@ function statusRuns(node: Node): Run[] {
         tone: "warning",
       },
     ]
+  if (node.kind === "suggest")
+    return [{ text: `${node.suggestion.approvals} in ${node.suggestion.commands}`, tone: "warning" }]
   if (node.kind === "once") return tallyRuns(node.families.flatMap((family) => family.commands))
   if (node.kind === "group") return tallyRuns(node.families.flatMap((family) => family.commands))
   if (node.kind === "family") return tallyRuns(node.family.commands)
   const { command } = node
   const { stand } = leadOf(command)
   if (stand.kind === "trusted") return [{ text: "✓ trusted", tone: "success" }]
-  if (stand.kind === "widened") return [{ text: "✓ any", tone: "success" }]
+  if (stand.kind === "widened") return [{ text: stand.learned ? "✓ read" : "✓ any", tone: "success" }]
   if (stand.expired) return [muted("expired")]
   if (command.phase === "once") return [muted("○ once")]
   return [
@@ -378,7 +398,10 @@ export function treeRow(
     const any = stale(node.family)
       ? [{ text: " " }, badge("old", "warning")]
       : node.family.widened.length > 0
-        ? [{ text: " " }, badge("any", "success")]
+        ? [
+            { text: " " },
+            badge(node.family.widened.every((each) => each.learned) ? "reads" : "any", "success"),
+          ]
         : []
     const risk = familyRisk(node.family)
     const marks = [...any, ...(risk ? [{ text: " " }, badge(risk, "error")] : [])]
@@ -423,7 +446,13 @@ export function treeRow(
     ]
   } else if (node.kind === "more") left = [muted(`     ${indent}+ ${node.hidden} more`)]
   else if (node.kind === "always") left = [{ text: " ! ", tone: "warning" }, plain("OpenCode always")]
-  else left = []
+  else if (node.kind === "suggest") {
+    left = [
+      { text: " ★ ", tone: "warning" },
+      plain(squeeze(`any ${rowFamilyText(node.suggestion.family)}`, Math.max(4, room - 4))),
+      muted("?"),
+    ]
+  } else left = []
   const status = statusRuns(node)
   const danger =
     node.kind === "command" && node.command.danger !== undefined && node.command.phase !== "answering"

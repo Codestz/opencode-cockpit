@@ -11,16 +11,17 @@
  * 3. **Is every part trusted, or allowed by config?** One untrusted command in a line is enough to
  *    ask: `git status && rm -rf build` is not half-approved. A part is trusted by its own count, or
  *    by a family you widened for this agent — unless it is one a widening never covers (dangerous,
- *    writing a file, running another program: `family.outside`). Config's `ask` was settled in 2, so
- *    it still wins over a widening.
+ *    writing a file, by redirection or by flag, running another program: `family.outside`) — or by a
+ *    family of reads Trust learned for this agent, which covers plain reads only (effect.ts). Config's
+ *    `ask` was settled in 2, so it still wins over both.
  *
  * The answer always carries what an approval of the request would count towards, so a person's
  * approval of a request Trust declined is counted against exactly what Trust looked at.
  */
 
-import { familyOf, outside } from "./family.ts"
+import { anyOf, familyOf, notReadSubject, outside } from "./family.ts"
 import { type Context, type Request, subjectsOf } from "./keys.ts"
-import { type Item, keyOf, type State, standing, type Thresholds } from "./ledger.ts"
+import { type Item, keyOf, live, type State, standing, type Thresholds } from "./ledger.ts"
 import { type ConfigRule, describeRule, gate } from "./rules.ts"
 
 export interface Progress {
@@ -31,6 +32,8 @@ export interface Progress {
   trusted: boolean
   /** Trusted through this widened family rather than by its own count. */
   via?: string
+  /** The family in `via` is one Trust learned from your approvals of reads in it. */
+  learned?: true
 }
 
 export interface Judgement {
@@ -58,7 +61,7 @@ export interface DecideInput {
 const left = (why: string): Judgement => ({ answer: false, why, items: [], progress: [] })
 
 export function decide(input: DecideInput): Judgement {
-  const { request, context, agent, rules, state, settings, now } = input
+  const { request, context, rules, state, settings, now } = input
   const keyed = subjectsOf(request, context)
   if (keyed.kind !== "subjects") return left(keyed.why)
 
@@ -76,9 +79,12 @@ export function decide(input: DecideInput): Judgement {
   for (const subject of keyed.subjects) {
     /** Allowed by config, all of it: not Trust's to count, and no reason to ask. */
     if (subject.texts.every((text) => gate(rules, request.permission, text).kind === "allowed")) continue
-    const found = state.entries.get(keyOf(request.permission, agent, subject.subject))
+    const found = state.entries.get(keyOf(request.permission, subject.subject))
     const where = standing(found, subject.danger, settings, now)
-    const via = where.trusted ? undefined : widenedFor(state, request.permission, agent, subject.subject)
+    const through = where.trusted
+      ? undefined
+      : widenedFor(state, request.permission, subject.subject, settings, now)
+    const via = through?.family
     progress.push({
       subject: subject.subject,
       ...(subject.danger ? { danger: subject.danger } : {}),
@@ -86,6 +92,7 @@ export function decide(input: DecideInput): Judgement {
       need: where.need,
       trusted: where.trusted || via !== undefined,
       ...(via !== undefined ? { via } : {}),
+      ...(through?.learned ? { learned: true as const } : {}),
     })
   }
   const items: Item[] = progress.map(({ subject, danger }) => (danger ? { subject, danger } : { subject }))
@@ -112,10 +119,11 @@ export function decide(input: DecideInput): Judgement {
   if (state.paused) return { answer: false, why: "Trust is paused in this project", items, progress }
   const only = progress[0] as Progress
   /** An answer records which widening gave it, so the ledger can say "any ls" answered `ls -R`. */
-  const answered: Item[] = progress.map(({ subject, danger, via }) => ({
+  const answered: Item[] = progress.map(({ subject, danger, via, learned }) => ({
     subject,
     ...(danger ? { danger } : {}),
     ...(via !== undefined ? { via } : {}),
+    ...(learned ? { learned } : {}),
   }))
   const widened = progress.filter((each) => each.via !== undefined)
   return {
@@ -123,20 +131,34 @@ export function decide(input: DecideInput): Judgement {
     why:
       progress.length === 1
         ? only.via !== undefined
-          ? `in a family you widened: ${only.via}`
+          ? only.learned
+            ? `a read Trust learned: ${anyOf(request.permission, only.via)}`
+            : `in a family you widened: ${anyOf(request.permission, only.via)}`
           : `approved by you ${only.have}× in a row${only.danger ? ` (dangerous: ${only.danger})` : ""}`
         : widened.length > 0
-          ? `all ${progress.length} commands trusted (${widened.length} by a family you widened)`
+          ? `all ${progress.length} commands trusted (${widened.length} through a family)`
           : `all ${progress.length} commands approved enough times in a row`,
     items: answered,
     progress,
   }
 }
 
-/** The family this subject is answered through, when you widened it for this agent and it covers it. */
-function widenedFor(state: State, permission: string, agent: string, subject: string): string | undefined {
+/**
+ * The family this subject is answered through, for this agent: one you widened covers what a widening
+ * covers (`outside`); one Trust learned covers plain reads only (`notReadSubject`).
+ */
+export function widenedFor(
+  state: State,
+  permission: string,
+  subject: string,
+  settings: Thresholds,
+  now: number,
+): { family: string; learned?: true } | undefined {
   if (state.widened.size === 0) return undefined
   const family = familyOf(permission, subject)
-  if (!state.widened.has(keyOf(permission, agent, family))) return undefined
-  return outside(permission, subject) === undefined ? family : undefined
+  const found = state.widened.get(keyOf(permission, family))
+  if (!found || !live(found, settings, now)) return undefined
+  if (found.learned)
+    return notReadSubject(permission, subject) === undefined ? { family, learned: true } : undefined
+  return outside(permission, subject) === undefined ? { family } : undefined
 }

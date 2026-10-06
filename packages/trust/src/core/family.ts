@@ -7,7 +7,9 @@
  * exact lines does not say "you trust ls". A family is the part of a command that names *what it
  * does*: the program, and for a tool with subcommands, the subcommand (`git status`, `docker compose
  * up`, `npm run test`). The ledger groups by it, and it is the one unit a person can widen trust to,
- * on purpose (`w` in the ledger) — never Trust by itself (docs/roadmap/trust.md).
+ * on purpose (`w` in the ledger). Trust learns one kind of family by itself — plain reads, and only
+ * the reads in it (`notReadSubject`, effect.ts); every other widening is a person's (docs/roadmap/trust.md).
+ * It suggests them (suggest.ts); it never makes them.
  *
  * The rules, and why each one leans the way it does:
  *
@@ -36,6 +38,8 @@
 
 import { posix } from "node:path"
 import { dangerOf, subcommand, TOOL_GLOBALS, unwrapOnce } from "./danger.ts"
+import { GIT_READS, notRead, runsByFlag, sensitive, writesByFlag } from "./effect.ts"
+import { envWords } from "./env.ts"
 import { canonical } from "./rules.ts"
 import { type Command, parse } from "./shell.ts"
 import { quote } from "./signature.ts"
@@ -108,36 +112,6 @@ const isFlag = (word: string) => word.startsWith("-") && word !== "-" && word !=
 /** The plain words a family keeps at most: `mcpx db-local execute_sql`, `gh pr view`. */
 const MAX_NAMES = 3
 
-/**
- * Words that name an environment, as a whole word or a part of one: `db-prod`, `acme-staging`,
- * `api.dev.acme.test`. `test` and `testing` count only in a flag's value: in an argument they are
- * mostly a file name (`a.test.ts`).
- */
-const ENV = new Set([
-  "prod",
-  "production",
-  "prd",
-  "live",
-  "staging",
-  "stage",
-  "stg",
-  "preprod",
-  "dev",
-  "develop",
-  "development",
-  "local",
-  "localhost",
-  "qa",
-  "uat",
-  "sandbox",
-  "test",
-  "testing",
-])
-export const envWords = (text: string): string[] =>
-  text
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((word) => ENV.has(word))
 const namesPlace = (text: string) => envWords(text).some((word) => word !== "test" && word !== "testing")
 
 /**
@@ -379,7 +353,35 @@ function familyWords(argv: readonly string[], ops?: readonly number[]): string[]
   const [program, ...args] = rest
   if (program === undefined) return head
   const name = posix.basename(program)
-  return [...head, program, ...walk(args, VALUE_GLOBALS[name] ?? [], UTILITIES.has(name) ? 0 : MAX_NAMES)]
+  return [...head, program, ...walk(args, VALUE_GLOBALS[name] ?? [], namesFor(name, args))]
+}
+
+/** `git` subcommands that take one of their own: `git stash list`, `git worktree add`. */
+const GIT_NESTED = new Set([
+  "stash",
+  "worktree",
+  "remote",
+  "submodule",
+  "notes",
+  "bisect",
+  "lfs",
+  "sparse-checkout",
+])
+
+/**
+ * Plain words a family keeps after the program. A utility's are its input (`cat a.json`): none. After
+ * a git subcommand that only looks, they are refs and paths — `git show abc123`, `git merge-base feat
+ * origin/main` — so one `git show` is one family, not one per commit. A git subcommand that changes
+ * things keeps its words: pushing to `main` and to a feature branch stay two families.
+ */
+function namesFor(name: string, args: readonly string[]): number {
+  if (UTILITIES.has(name)) return 0
+  if (name === "git") {
+    const sub = subcommand(args, TOOL_GLOBALS.git)[0] ?? ""
+    if (GIT_NESTED.has(sub)) return 2
+    if (GIT_READS.has(sub)) return 1
+  }
+  return MAX_NAMES
 }
 
 /** `NODE_ENV=…`: the name, not the value — unless the value names an environment (`NODE_ENV=production`). */
@@ -404,12 +406,20 @@ export function familyOf(permission: string, subject: string): string {
     const read = readSubject(subject)
     return read && read.command.argv.length > 0 ? bashFamily(read.command, read.place) : subject
   }
-  if (name === "edit") {
+  if (name === "edit" || name === "read") {
     const folder = posix.dirname(subject)
     return folder === "." ? "./" : folder.endsWith("/") ? folder : `${folder}/`
   }
+  /** A search and a web query are new words every time: the tool is the family (`any grep`). */
+  if (WHOLE_TOOL.has(name)) return "*"
   return subject
 }
+
+/** OpenCode tools whose every request is new text — a glob, a regex, a query — so one family each. */
+const WHOLE_TOOL = new Set(["glob", "grep", "websearch"])
+
+/** OpenCode's own tools that only read the project: learned like a command that only reads. */
+const READ_TOOLS = new Set(["read", "glob", "grep", "list", "lsp"])
 
 /** The family's own words as a command, for judging the family itself. */
 function familyCommand(family: string): Command | undefined {
@@ -436,7 +446,7 @@ export function widenable(permission: string, family: string): { ok: true } | { 
         }
       : { ok: true }
   }
-  if (name === "edit") return { ok: true }
+  if (name === "edit" || name === "read" || WHOLE_TOOL.has(name)) return { ok: true }
   if (name === "webfetch") return { ok: false, why: "a fetch rule already covers the whole host" }
   if (name === "task") return { ok: false, why: "an agent type is already one rule" }
   return { ok: false, why: `a ${name} rule is already as wide as it goes` }
@@ -452,6 +462,7 @@ function runsAnother(argv: readonly string[]): boolean {
   }
   const [program, ...args] = rest
   if (program === undefined) return false
+  if (runsByFlag(rest)) return true
   const name = posix.basename(program)
   if (name === "find") return args.some((arg) => ["-exec", "-execdir", "-ok", "-okdir"].includes(arg))
   if (name === "git") {
@@ -474,6 +485,8 @@ export function outside(permission: string, subject: string): string | undefined
   const danger = dangerOf(read.command)
   if (danger) return `dangerous (${danger})`
   if (redirections(read.command.argv, read.command.redirects).writes.length > 0) return "it writes to a file"
+  const writes = writesByFlag(read.command.argv)
+  if (writes) return `it writes to a file (${writes})`
   if (runsAnother(read.command.argv)) return "it runs another program"
   return undefined
 }
@@ -481,6 +494,21 @@ export function outside(permission: string, subject: string): string | undefined
 /** A widened `family` answers `subject`. */
 export const covers = (permission: string, family: string, subject: string): boolean =>
   familyOf(permission, subject) === family && outside(permission, subject) === undefined
+
+/**
+ * Why a learned family would still ask about this subject — or nothing when it is a plain read
+ * (effect.ts). Narrower than `outside`: a family Trust learned by itself covers reads only, so
+ * `head -3 a.txt` is in a learned `head` and `head .env` or `head -3 a > b` are not.
+ */
+export function notReadSubject(permission: string, subject: string): string | undefined {
+  const name = canonical(permission)
+  if (READ_TOOLS.has(name))
+    return name === "read" && sensitive(subject) ? `${subject} may hold secrets` : undefined
+  if (name !== "bash") return `a ${name} is not a read`
+  const read = readSubject(subject)
+  if (!read) return "it cannot be read as one command"
+  return notRead(read.command, redirections(read.command.argv, read.command.redirects).writes)
+}
 
 /* ─── showing it ─────────────────────────────────────────────────────────────────────────────── */
 
@@ -609,7 +637,9 @@ export function showSubject(permission: string, subject: string): string {
 /** `any ls …`, `any file in src/`: what a widened family answers, in words. */
 export function anyOf(permission: string, family: string): string {
   const name = canonical(permission)
-  if (name === "edit") return family === "./" ? "any file at the project's top" : `any file in ${family}`
+  if (name === "edit" || name === "read")
+    return family === "./" ? "any file at the project's top" : `any file in ${family}`
+  if (family === "*") return `any ${name}`
   return `any ${showSubject(name, family)} …`
 }
 

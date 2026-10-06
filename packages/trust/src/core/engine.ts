@@ -20,6 +20,7 @@ import type { Context, Request } from "./keys.ts"
 import { apply, type Event, emptyState, type FoldOptions, type State, type Thresholds } from "./ledger.ts"
 import { decide, type Judgement } from "./policy.ts"
 import type { ConfigRule } from "./rules.ts"
+import { maskPattern, plainHash } from "./secret.ts"
 
 /** Faster than this, nobody read the prompt. Measured: auto mode 15–22ms, a person 1.2s and up. */
 export const PERSON_MS = 300
@@ -78,6 +79,8 @@ export interface Answered {
 export interface EngineOptions extends Thresholds {
   /** Answers by Trust kept for the sidebar. */
   keep?: number
+  /** Learn families of plain reads (config `learnReads`). Default true. */
+  learnReads?: boolean
 }
 
 export interface Engine {
@@ -119,7 +122,10 @@ export interface Engine {
 
 export function createEngine(initial: EngineOptions): Engine {
   let options = initial
-  const foldOptions = (): FoldOptions => ({ expireMs: options.expireDays * 86_400_000 })
+  const foldOptions = (): FoldOptions => ({
+    expireMs: options.expireDays * 86_400_000,
+    ...(options.learnReads !== false ? { threshold: options.threshold } : {}),
+  })
   let events: Event[] = []
   let state = emptyState()
   let history = emptyHistory()
@@ -169,7 +175,14 @@ export function createEngine(initial: EngineOptions): Engine {
     },
     ask({ request, context, agent, rules, at }) {
       const judgement = decide({ request, context, agent, rules, state, settings: options, now: at })
-      const entry: Pending = { request, agent, askedAt: at, judgement }
+      /** OpenCode's "always" is written to the ledger as given: a secret in it is masked first. */
+      const kept = request.always.length
+        ? {
+            ...request,
+            always: request.always.map((pattern) => maskPattern(pattern, context.hash ?? plainHash)),
+          }
+        : request
+      const entry: Pending = { request: kept, agent, askedAt: at, judgement }
       pending.set(request.id, entry)
       if (judgement.answer) {
         ours.set(request.id, entry)

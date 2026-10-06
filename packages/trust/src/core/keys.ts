@@ -7,17 +7,21 @@
  * | --- | --- | --- |
  * | `bash` (v2 `shell`) | command, by its exact signature | `git status`, `(in web) bun test` |
  * | `edit` | file path | `src/app.ts` |
+ * | `read` | file path — never one that may hold secrets | `src/app.ts` |
+ * | `glob`, `grep`, `websearch` | pattern, regex, query | `**\/*.ts` |
  * | `webfetch` | host | `docs.example.com` |
  * | `task` (v2 `subagent`) | agent type | `explore` |
  * | `external_directory`, `doom_loop` | — never answered | |
  * | anything else | the request's patterns, together | `opencode_read_mcp_resource` `*` |
  *
- * The key a count is kept under is the subject *and* the permission *and* the agent: trust earned
- * by `build` running `git push` is not trust for `general` to run it.
+ * The key a count is kept under is the subject and the permission — not the agent (ledger.keyOf):
+ * trust is the project's, so `git status` approved while `build` ran is `git status` for every agent.
  */
 
 import { dangerOf } from "./danger.ts"
+import { sensitive } from "./effect.ts"
 import { canonical } from "./rules.ts"
+import type { Hasher } from "./secret.ts"
 import { type Command, parse } from "./shell.ts"
 import { signature } from "./signature.ts"
 
@@ -44,6 +48,8 @@ export interface Context {
   workdir?: string
   /** The project's directory: signatures name places relative to it. */
   root: string
+  /** How a secret's value is hashed in a signature (secret.ts): keyed per project. Default: unkeyed. */
+  hash?: Hasher
 }
 
 export interface Subject {
@@ -87,7 +93,7 @@ function bash(request: Request, context: Context): Keyed {
     const placed = withWorkdir(command, context.workdir)
     const danger = dangerOf(placed)
     return {
-      subject: signature(placed, context.root),
+      subject: signature(placed, context.root, context.hash),
       texts: [written(command)],
       ...(danger ? { danger } : {}),
     }
@@ -128,7 +134,13 @@ export function subjectsOf(request: Request, context: Context): Keyed {
     }
     return { kind: "subjects", subjects: dedupe(subjects), patterns: request.patterns }
   }
-  if (permission === "edit" || permission === "task")
+  /**
+   * A read of a file that may hold secrets is OpenCode's own default ask (`*.env`): it is asked on
+   * purpose, so it stays yours to answer however often you approve it.
+   */
+  if (permission === "read" && request.patterns.some(sensitive))
+    return { kind: "never", why: "a file that may hold secrets — always yours to answer" }
+  if (permission === "edit" || permission === "read" || permission === "task")
     return {
       kind: "subjects",
       subjects: dedupe(request.patterns.map((p) => ({ subject: p, texts: [p] }))),

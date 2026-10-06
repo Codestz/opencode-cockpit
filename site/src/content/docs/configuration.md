@@ -215,6 +215,7 @@ See [Trust](/trust/overview/#settings).
 | `threshold` | Approvals in a row, by you, before Trust answers | `3` |
 | `dangerExtra` | What a dangerous command costs on top | `5` |
 | `expireDays` | Days unused before trust has to be earned again; `0` never | `30` |
+| `learnReads` | Learn a family of plain reads by itself (`head`, `rg`, `git status` …); `false` leaves families to `w` | `true` |
 
 Its block is off by default: `"sidebar": true` shows it, and the palette flips it for the session.
 

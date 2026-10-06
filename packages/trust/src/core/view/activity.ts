@@ -6,7 +6,7 @@
  *
  *    TODAY  Trust answered 4 prompts for you                       ▁▁▃▁▅▂█  last 7 days
  *   ▌✓ 09:41  git status --short       build     trusted since yesterday, 3 in a row
- *    ✓ 09:40  ls -la                   general   in a family you widened: ls
+ *    ✓ 09:40  ls -la                   general   in a family you widened: any ls …
  *
  *    ALMOST THERE  one more approval and Trust answers these
  *    ○        bun --version            build     ▰▰▱       2 of 3
@@ -20,9 +20,10 @@
  *    [enter] Why   [x] Revoke   [w] Trust Family   [a] Ledger   [p] Pause   [?] Keys   [esc] Back
  *
  * One left edge: every row starts with its mark (`✓` answered, `○` close, `!` OpenCode's own), then
- * the time column, then the command, so the three lists read as one. The agent has a column only
- * when there is more than one; with one, the header names it and its chip is not repeated on every
- * row. Paths are cut in the middle (`rows.squeeze`), so the file each command touched stays visible.
+ * the time column, then the command, so the three lists read as one. Trust is the project's, so an
+ * agent is history here: which one an answer went to, whose session an "always" came from. It has a
+ * column only when there is more than one; with one, the header names it. A command still counting
+ * has no chip: its count is every agent's. Paths are cut in the middle (`rows.squeeze`), so the file each command touched stays visible.
  *
  * The ledger (explorer.ts) is what `/trust` opens on; this is the "what happened" view, reached from
  * its Today strip or `a`. Every list is a window that follows the cursor, so a short dialog still
@@ -30,7 +31,7 @@
  */
 
 import { closeHint, type Hint } from "@opencode-cockpit/client/design"
-import { showSubject } from "../family.ts"
+import { anyOf, showSubject } from "../family.ts"
 import { type Answer, answersPerDay, dayOf, earned, type History, latestAnswers } from "../history.ts"
 import { keyOf, needFor } from "../ledger.ts"
 import { revokeLabel, type Target, widenLabel, widenScope } from "./actions.ts"
@@ -145,7 +146,7 @@ export function activityModel(input: Reading & { history: History }): ActivityMo
   }
 }
 
-/** Approvals still to go for the agent closest to trusting it. */
+/** Approvals still to go before Trust answers it. */
 function distanceOf(command: Command): number {
   const { stand } = leadOf(command)
   return stand.kind === "counting" ? (stand.expired ? Number.MAX_SAFE_INTEGER : stand.need - stand.have) : 0
@@ -183,16 +184,24 @@ export function answerWhy(answer: Answer, reading: Reading & { history: History 
   const count = answer.items.length
   if (count > 1) {
     if (widened.length === 0) return count === 2 ? "both commands trusted" : `all ${count} commands trusted`
+    const whose = widened.every((item) => item.learned)
+      ? "Trust learned"
+      : widened.some((item) => item.learned)
+        ? "learned or widened"
+        : "you widened"
     if (count === 2)
       return widened.length === 2
-        ? "both through families you widened"
-        : "both trusted, one through a family you widened"
-    return `all ${count} trusted, ${widened.length} through a family you widened`
+        ? `both through families ${whose}`
+        : `both trusted, one through a family ${whose}`
+    return `all ${count} trusted, ${widened.length} through a family ${whose}`
   }
   const item = answer.items[0]
   if (!item) return answer.rule
-  if (item.via !== undefined) return `in a family you widened: ${showSubject(answer.permission, item.via)}`
-  const marks = history.marks.get(keyOf(answer.permission, answer.agent, item.subject)) ?? []
+  if (item.via !== undefined)
+    return item.learned
+      ? `a read Trust learned: ${anyOf(answer.permission, item.via)}`
+      : `in a family you widened: ${anyOf(answer.permission, item.via)}`
+  const marks = history.marks.get(keyOf(answer.permission, item.subject)) ?? []
   const need = needFor(item.danger, settings)
   const got = earned(marks, need, settings.expireDays * 86_400_000, answer.at)
   if (got.since === undefined) return answer.rule
@@ -310,7 +319,7 @@ export function activityRows(input: ActivityInput): ActivityView {
           quiet: wrapRuns(
             [
               muted(
-                `Approve the same command ${settings.threshold} times in a row and Trust answers it from then on — that exact command, for that agent.`,
+                `Approve the same command ${settings.threshold} times in a row and Trust answers it from then on — that exact command, in this project.`,
               ),
             ],
             Math.max(1, width - 3),
@@ -488,12 +497,8 @@ function columnsOf(model: ActivityModel, width: number, now: number): Columns {
     5,
     ...model.feed.map((item) => (item.kind === "answer" ? clock(item.answer.at, now).length : 0)),
   )
-  const agents = model.items.map((item) =>
-    item.kind === "answer"
-      ? item.answer.agent
-      : item.kind === "almost"
-        ? leadOf(item.command).entry.agent
-        : item.group.agent,
+  const agents = model.items.flatMap((item) =>
+    item.kind === "answer" ? [item.answer.agent] : item.kind === "always" ? [item.group.agent] : [],
   )
   const distinct = [...new Set(agents)]
   const only = distinct.length === 1 ? distinct[0] : undefined
@@ -529,9 +534,10 @@ const cell = (text: string, room: number) => {
   return `${shown}${" ".repeat(Math.max(0, room - widthOf(shown)))}`
 }
 
-/** The agent's chip and two cells after it; nothing when there is one agent. */
-function chipCell(agent: string, columns: Columns): Run[] {
+/** The agent's chip and two cells after it; blank for a row no agent owns; nothing when there is one agent. */
+function chipCell(agent: string | undefined, columns: Columns): Run[] {
   if (columns.chip === 0) return []
+  if (agent === undefined) return [{ text: " ".repeat(columns.chip + 2) }]
   return [chip(agent), { text: " ".repeat(Math.max(0, columns.chip - widthOf(agent) - 2)) }, { text: "  " }]
 }
 
@@ -564,7 +570,7 @@ function itemRow(item: ActivityItem, input: ActivityInput, columns: Columns, wid
   }
   if (item.kind === "almost") {
     const { command } = item
-    const { stand, entry } = leadOf(command)
+    const { stand } = leadOf(command)
     const danger = command.danger !== undefined
     const room = Math.max(4, columns.chipAt - lead - 2)
     const counting = stand.kind === "counting" ? stand : undefined
@@ -574,7 +580,7 @@ function itemRow(item: ActivityItem, input: ActivityInput, columns: Columns, wid
         ...start("○", danger ? "error" : "warning"),
         plain(cell(name, room)),
         { text: "  " },
-        ...chipCell(entry.agent, columns),
+        ...chipCell(undefined, columns),
         ...(counting ? meter(counting.have, counting.need, danger) : []),
         { text: " ".repeat(Math.max(0, columns.meter - (counting?.need ?? 0))) },
         muted(counting ? `  ${counting.have} of ${counting.need}` : ""),

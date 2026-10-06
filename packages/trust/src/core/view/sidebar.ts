@@ -52,15 +52,15 @@ export interface SidebarInput {
   project?: Tally
 }
 
-/** Commands in the project's ledger: trusted by some agent, or on their way there. */
+/** Commands in the project's ledger: trusted, or on their way there. */
 export interface Tally {
   trusted: number
   counting: number
 }
 
 /**
- * One count per command, however many agents it was approved for — as the ledger lists them: trusted
- * when any agent trusts it, counting when none does yet but one has approvals that still count.
+ * One count per command — as the ledger lists them: trusted when Trust answers it, counting when it
+ * has approvals that still count.
  */
 export function tally(state: State, settings: Thresholds, now: number): Tally {
   const commands = new Map<string, boolean>()
@@ -108,7 +108,7 @@ export function labelOf(permission: string, label: string): Row {
 /** How often Trust answered this in all: the least of its parts, since a line is answered whole. */
 function times(state: State, answered: Answered): number {
   const counts = answered.subjects.map(
-    (subject) => state.entries.get(keyOf(answered.permission, answered.agent, subject))?.autos ?? 0,
+    (subject) => state.entries.get(keyOf(answered.permission, subject))?.autos ?? 0,
   )
   return Math.max(1, counts.length > 0 ? Math.min(...counts) : 1)
 }

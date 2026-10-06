@@ -6,6 +6,78 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Trust learns reads as families.** One day of real use answered 1.4% of prompts automatically:
+  most lines carry a command never seen before (`head -3` on a new file, `rg` for a new word), so an
+  exact rule rarely repeats. A command that only reads — `ls`, `cat`, `head`, `tail`, `wc`, `grep`,
+  `rg`, `fd`, `echo`, `jq`, `sort`, `eza`, a `sed` whose script only prints (`sed -n 1,80p`), a `git`
+  that only looks (`status`, `log`, `diff`, `show`, `branch --show-current`, `stash list`,
+  `worktree list`, `config --get` …) — now counts towards its family too: three approved `head`s on
+  three files, and any `head` that only reads is answered. A learned family covers
+  plain reads only — never a command with an env var or a wrapper in front, a redirection or a flag
+  that writes (`sort -o`, `tree -o`), a flag that runs something (`rg --pre`, `fd -x`), anything
+  dangerous, or a file that may hold secrets (`.env`, `*.pem`, `id_rsa`, `~/.ssh`, `~/.aws`,
+  `credentials`). A reject of a read in the family starts it over; a reject of `head .env`, which it
+  never covers, does not. It expires like any rule, and `w` on it forgets it. The ledger marks it
+  `reads` and its commands `✓ read`. `"trust": { "learnReads": false }` turns it off.
+- **Trust suggests families to widen** ([#45](https://github.com/Codestz/opencode-cockpit/issues/45)).
+  Everything that is not a read still widens only when you press `w` — and now the ledger says when
+  it is worth it: when approvals across two or more commands of a family reach the threshold, the
+  family is listed under **SUGGESTED** at the top of `/trust` (`★ any mcpx db-local execute_sql?`), its card saying how many of today's
+  approvals were in it. `w` widens it; `d` dismisses it for good. A dangerous family is never
+  suggested, and undoing a widening does not bring its suggestion back.
+- **Trust handles OpenCode's own tools by what they do** — read from OpenCode 1.18.33's tools, every
+  permission they ask. `read` is counted by file and learned by folder, like an edit; `glob` and
+  `grep` send a new pattern every time, so an exact rule never repeated — each is now one family,
+  learned as a read (any `grep`, after three). `websearch` is one family too, suggested and never
+  learned: a query leaves the machine. A `read` of a file that may hold secrets (`.env`, a key) is
+  OpenCode's own default ask and now always yours to answer, however often you approve it.
+  `todowrite`, `lsp`, `skill`, `task` and `webfetch` keep one rule each, as before.
+- **`trust preview --sample learning`**: a morning with learned reads, a suggestion, and a secret file
+  and a production query still asking.
+
+### Changed
+
+- **Trust is a project's, not an agent's.** A count was kept per agent, so `ls` approved three times
+  while `build` ran asked again for `general`, for `explore`, for every subagent. You give permission
+  for the work in a project: an approval by any agent now counts towards the one rule, and a
+  widening, a learned family and a suggestion are the project's. The ledger still records which
+  agent asked, and the activity shows it. Ledgers from before fold into the new scope as they are —
+  widenings made for one agent now hold for all.
+
+- **Trust: a widened family no longer covers flag-driven writes**
+  ([#44](https://github.com/Codestz/opencode-cockpit/issues/44)). A widening left out a command that
+  writes a file through a redirection, and nothing else: a widened `sed` answered every `sed -i`. It
+  now also leaves out the flags that make a program write — `sed -i`, `perl -i`, `awk -i inplace`,
+  `sort -o`, `tee file`, `curl -o`, `wget`, `tar x`/`c`, `unzip`, `find -delete` — and those that make
+  it run another program — `rg --pre`, `fd -x`, `sort --compress-program`, `git --ext-diff`. Still a
+  list, so still a decision you make.
+- **Trust: a git command that only looks is one family per subcommand.** `git show abc123` and
+  `git show def456` were two families, and so was every `git merge-base` with its branches: the words
+  after the subcommand were read as names, and on one real day 20 `git` families never repeated. After
+  a subcommand that only looks (`show`, `log`, `diff`, `rev-parse`, `merge-base` …) they are refs and
+  paths now, so `git show` is one family. A subcommand that changes things keeps its words: pushing to
+  `main` and to a feature branch stay two families.
+- **Measured** on one user's real day (434 requests, replayed): 0.10.2 answered 1.4%; 0.11 answers
+  22.4% the first day and 35.9% the second; with every suggestion accepted, 31.1% and 54.8%. No
+  dangerous command was answered in any of them.
+
+### Security
+
+- **Trust keeps secrets out of its ledger.** A command was written to the ledger as run, so
+  `GITHUB_TOKEN=ghp_… gh api …` kept the token on disk, on screen and in the log. A secret value is
+  now a keyed hash — `GITHUB_TOKEN=‹#3fa9c2›` — before any of that: an env value under a name that
+  says secret (`TOKEN`, `KEY`, `SECRET`, `PASSWORD` …) or that looks generated, the value of
+  `--token`, `--password` and the like, `Authorization:` and `Cookie:` headers, `Bearer …`, the
+  password in `postgres://user:pass@host`, and tokens by their shape (`sk-…`, `ghp_…`,
+  `github_pat_…`, `xoxb-…`, `AKIA…`, `shpat_…`, a JWT). Two different tokens stay two commands. A
+  masked value keeps the environment it names — `DATABASE_URL=‹#a1b2c3 prod›` — so production still
+  costs more and never shares a family with dev. The key is per project, in `mask.key` beside the
+  ledger, readable by you alone; OpenCode's own "always" patterns are masked too. The ledger is only
+  ever appended, so lines written before 0.11 keep what they held: delete them from `events.ndjson`
+  by hand if you want them gone.
+
 ## [0.10.2] - 2026-10-05
 
 ### Changed

@@ -35,7 +35,7 @@ export interface Answer {
 }
 
 export interface History {
-  /** By `keyOf(permission, agent, subject)`, oldest first. */
+  /** By `keyOf(permission, subject)`, oldest first. */
   marks: Map<string, Mark[]>
   /** Oldest first, the last `ANSWERS`. */
   answers: Answer[]
@@ -86,7 +86,7 @@ export function note(history: History, event: Event, settled: ReadonlySet<string
     case "auto": {
       if (settled.has(event.request)) return
       for (const item of event.items) {
-        const key = keyOf(event.permission, event.agent, item.subject)
+        const key = keyOf(event.permission, item.subject)
         mark(
           history,
           key,
@@ -115,7 +115,7 @@ export function note(history: History, event: Event, settled: ReadonlySet<string
       return
     }
     case "revoked":
-      mark(history, keyOf(event.permission, event.agent, event.subject), { kind: "revoked", at: event.at })
+      mark(history, keyOf(event.permission, event.subject), { kind: "revoked", at: event.at })
       return
     default:
       return

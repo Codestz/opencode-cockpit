@@ -158,10 +158,11 @@ describe("what is the same thing", () => {
     ])
   })
 
-  test("the agent is part of it", () => {
+  test("the agent is not: trust is the project's, whichever agent asked", () => {
     const w = world()
-    w.approve("git status", 3, { agent: "build" })
-    expect(w.ask("git status", { agent: "general" }).judgement.answer).toBe(false)
+    w.approve("git status", 2, { agent: "build" })
+    w.approve("git status", 1, { agent: "general" })
+    expect(w.ask("git status", { agent: "explore" }).judgement.answer).toBe(true)
     expect(w.ask("git status", { agent: "build" }).judgement.answer).toBe(true)
   })
 

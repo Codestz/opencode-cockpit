@@ -105,6 +105,7 @@ Settings are read when OpenCode starts: a change applies after a restart.
 | `threshold` | number | `3` | approvals in a row, by you, before Trust answers |
 | `dangerExtra` | number | `5` | what a dangerous command costs on top |
 | `expireDays` | number | `30` | days unused before trust has to be earned again; `0` never |
+| `learnReads` | boolean | `true` | learn a family of plain reads (`head`, `rg`, `git log`…) from your approvals; `false` leaves families to `w` |
 
 ## `review` — the pane for reviewing changes; no sidebar block
 

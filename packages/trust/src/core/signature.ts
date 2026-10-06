@@ -10,6 +10,7 @@
  */
 
 import { posix } from "node:path"
+import { type Hasher, maskArgv, maskAssignment, plainHash } from "./secret.ts"
 import type { Command } from "./shell.ts"
 
 /** Words that need no quotes to read back as themselves. */
@@ -33,13 +34,15 @@ export function place(cwd: string | undefined, root: string | undefined): string
   return relative
 }
 
-export function signature(command: Command, root?: string): string {
+export function signature(command: Command, root?: string, hash: Hasher = plainHash): string {
   const where = place(command.cwd, root)
   /** A redirection is written bare and an argument quoted, so `echo > x` and `echo '>' x` differ. */
   const ops = new Set(command.redirects ?? [])
+  /** A secret never reaches the ledger: its value is a keyed hash from here on (secret.ts). */
+  const argv = maskArgv(command.argv, hash, ops)
   const words = [
-    ...command.env.map(quote),
-    ...command.argv.map((word, i) => (ops.has(i) ? word : quote(word))),
+    ...command.env.map((word) => quote(maskAssignment(word, hash))),
+    ...argv.map((word, i) => (ops.has(i) ? word : quote(word))),
   ].join(" ")
   return where === undefined ? words : `(in ${quote(where)}) ${words}`
 }

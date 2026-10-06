@@ -10,7 +10,15 @@ import type { Host, Layer } from "@opencode-cockpit/client/host"
 import type { Log } from "@opencode-cockpit/client/log"
 import type { Engine } from "../core/engine.ts"
 import type { Event } from "../core/ledger.ts"
-import { configSnippet, type Outcome, revoke, type Target, widen, widenScope } from "../core/view/actions.ts"
+import {
+  configSnippet,
+  dismiss,
+  type Outcome,
+  revoke,
+  type Target,
+  widen,
+  widenScope,
+} from "../core/view/actions.ts"
 import { targetOf } from "../core/view/activity.ts"
 import type { Family } from "../core/view/model.ts"
 import type { Hit } from "../core/view/parts.ts"
@@ -65,7 +73,7 @@ export function createLedger(input: {
         events: outcome.events.map((event) =>
           event.type === "revoked"
             ? { type: event.type, agent: event.agent, subject: event.subject }
-            : event.type === "widened" || event.type === "unwidened"
+            : event.type === "widened" || event.type === "unwidened" || event.type === "dismissed"
               ? { type: event.type, agent: event.agent, family: event.family }
               : { type: event.type },
         ),
@@ -80,7 +88,11 @@ export function createLedger(input: {
 
   const widenSelected = () => {
     const now = selected()
-    if (now) act("widen", widen(widenScope(now.target, now.families), now.families, Date.now()))
+    if (now) act("widen", widen(widenScope(now.target, now.families), Date.now()))
+  }
+
+  const dismissSelected = () => {
+    act("dismissed", dismiss(selected()?.target, Date.now()))
   }
 
   const copy = () => {
@@ -165,7 +177,7 @@ export function createLedger(input: {
    */
   const fold = (way: "toggle" | "open" | "close" = "toggle") => {
     const at = node()
-    if (!at || at.kind === "always" || at.kind === "today") return
+    if (!at || at.kind === "always" || at.kind === "today" || at.kind === "suggest") return
     dialog.notice = undefined
     /** A kind's `seen once` row and a folder open and fold like a family, by their own key. */
     if (at.kind === "once" || at.kind === "group") {
@@ -197,6 +209,7 @@ export function createLedger(input: {
   const press = (action: string) => {
     if (action === "revoke") revokeSelected()
     else if (action === "widen") widenSelected()
+    else if (action === "dismiss") dismissSelected()
     else if (action === "copy") copy()
     else if (action === "ledger") toLedger()
     else if (action === "activity") toActivity()
@@ -211,7 +224,7 @@ export function createLedger(input: {
     }
     const at = node()
     if (at?.kind === "today") return toActivity()
-    if (at?.kind === "command" || at?.kind === "always") {
+    if (at?.kind === "command" || at?.kind === "always" || at?.kind === "suggest") {
       if (buttons().length > 0) dialog.button = 0
       return draw()
     }
@@ -311,6 +324,7 @@ export function createLedger(input: {
         title: "Trust the whole family, or undo it",
         run: listed(() => widenSelected()),
       },
+      { name: "cockpit.trust.dismiss", title: "Dismiss a suggestion", run: listed(() => dismissSelected()) },
       { name: "cockpit.trust.copy", title: "Copy as config", run: listed(() => copy()) },
       { name: "cockpit.trust.togglePause", title: "Pause or resume", run: listed(() => togglePause()) },
       { name: "cockpit.trust.close", title: "Close", run: () => api.ui.dialog.clear() },
@@ -329,6 +343,7 @@ export function createLedger(input: {
       { key: "?,shift+/", cmd: "cockpit.trust.keys" },
       { key: "x", cmd: "cockpit.trust.revoke" },
       { key: "w", cmd: "cockpit.trust.widen" },
+      { key: "d", cmd: "cockpit.trust.dismiss" },
       { key: "c", cmd: "cockpit.trust.copy" },
       { key: "p", cmd: "cockpit.trust.togglePause" },
       { key: "q", cmd: "cockpit.trust.close" },

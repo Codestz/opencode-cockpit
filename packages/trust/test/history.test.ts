@@ -25,7 +25,7 @@ const auto = (at: number, subject = "ls"): Event => ({
   ...about(subject),
 })
 const marksOf = (engine: ReturnType<typeof createEngine>, subject = "ls") =>
-  engine.history.marks.get(JSON.stringify(["bash", "build", subject])) ?? []
+  engine.history.marks.get(JSON.stringify(["bash", subject])) ?? []
 
 describe("history: when things happened, beside the state", () => {
   test("a rule's moments, a run of answers as one with a count", () => {
