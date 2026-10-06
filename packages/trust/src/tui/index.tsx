@@ -18,6 +18,7 @@ import { createEngine } from "../core/engine.ts"
 import type { Event } from "../core/ledger.ts"
 import { trustPaths } from "../core/paths.ts"
 import { createJournal } from "./journal.ts"
+import { maskHasher } from "./key.ts"
 import { createLedger } from "./ledger.tsx"
 import { closedDialog, createPainter, type Live } from "./paint.ts"
 import { createRequests } from "./requests.ts"
@@ -98,7 +99,8 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
         })
     }
 
-    const requests = createRequests({ api, log, engine, directory, live, write, draw })
+    const hash = maskHasher(paths, log)
+    const requests = createRequests({ api, log, engine, directory, hash, live, write, draw })
     const ledger = createLedger({
       api,
       log,

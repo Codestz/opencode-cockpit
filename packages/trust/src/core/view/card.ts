@@ -6,7 +6,8 @@
 import { anyOf, narrower, outside, redirected, showSubject, spelledWords, widenable } from "../family.ts"
 import { dayOf, earned, type History, latestAnswers, type Mark } from "../history.ts"
 import { keyOf, type Thresholds } from "../ledger.ts"
-import { NOT_COVERED, revokeLabel, widenLabel, widenScope } from "./actions.ts"
+import type { Suggestion } from "../suggest.ts"
+import { EXCEPT, NOT_COVERED, NOT_READ, revokeLabel, type Target, widenLabel, widenScope } from "./actions.ts"
 import {
   type AlwaysGroup,
   alwaysGroups,
@@ -16,22 +17,11 @@ import {
   type Family,
   leadOf,
   type Reading,
+  type Stand,
   type Standing,
   stale,
 } from "./model.ts"
-import {
-  agentsText,
-  button,
-  chip,
-  clock,
-  meter,
-  muted,
-  plain,
-  plural,
-  since,
-  when,
-  wrapRuns,
-} from "./parts.ts"
+import { button, chip, clock, meter, muted, plain, plural, since, when, wrapRuns } from "./parts.ts"
 import { filled, fit, type Row, type Run, rowText, squeeze, widthOf } from "./rows.ts"
 import { commandText, familyText, type Node, nodeTarget, SECTION_TITLES } from "./tree.ts"
 
@@ -80,7 +70,7 @@ function tableRow(line: readonly Run[], width: number, restWidth: number): Row {
 function standingShort(command: Command): Run[] {
   const { stand } = leadOf(command)
   if (stand.kind === "trusted") return [{ text: "✓ trusted", tone: "success" }]
-  if (stand.kind === "widened") return [{ text: "✓ any", tone: "success" }]
+  if (stand.kind === "widened") return [{ text: stand.learned ? "✓ read" : "✓ any", tone: "success" }]
   if (stand.kind === "counting" && stand.expired) return [muted("expired")]
   if (command.phase === "once") return [muted("○ once")]
   return stand.kind === "counting"
@@ -92,7 +82,7 @@ export interface Button {
   key: string
   label: string
   off: boolean
-  action: "revoke" | "widen" | "copy" | "activity"
+  action: "revoke" | "widen" | "dismiss" | "copy" | "activity"
 }
 
 export interface CardParts {
@@ -110,6 +100,13 @@ export interface CardReading extends Reading {
 /** The buttons a node offers: `x`, `w` where a family can widen, `c`; today's strip, the activity. */
 export function buttonsOf(node: Node, families: readonly Family[]): Button[] {
   if (node.kind === "today") return [{ key: "a", label: "Full activity", off: false, action: "activity" }]
+  if (node.kind === "suggest") {
+    const w = widenLabel(widenScope(nodeTarget(node) as Target, families))
+    return [
+      { key: "w", label: w.label, off: w.off, action: "widen" },
+      { key: "d", label: "Dismiss", off: false, action: "dismiss" },
+    ]
+  }
   const target = nodeTarget(node)
   if (!target) return []
   const x = revokeLabel(target)
@@ -144,8 +141,9 @@ function exactly(command: Command): Fact {
 }
 
 /** What still asks once a command is trusted exactly: a smaller one, and the same into a file. */
-function stillAsks(command: Command, widened: boolean): Fact {
-  if (widened) return { label: "Still asks", keep: 6, lines: [[muted(`${NOT_COVERED}.`)]] }
+function stillAsks(command: Command, stand: Stand): Fact {
+  if (stand.kind === "widened")
+    return { label: "Still asks", keep: 6, lines: [[muted(`${stand.learned ? NOT_READ : NOT_COVERED}.`)]] }
   if (command.permission === "edit")
     return { label: "Still asks", keep: 6, lines: [[muted("any other file")]] }
   if (command.permission !== "bash")
@@ -229,7 +227,13 @@ function historySaid(standing: Standing, marks: readonly Mark[], reading: CardRe
     return [muted(`${got.streak} ${got.streak === 1 ? "approval" : "approvals"} in a row, all yours`)]
   }
   if (stand.kind === "widened")
-    return [muted(`answered through ${anyOf(entry.permission, stand.family)}, not by its own count`)]
+    return [
+      muted(
+        stand.learned
+          ? `a plain read, answered through ${showSubject(entry.permission, stand.family)} reads Trust learned from your approvals`
+          : `answered through ${anyOf(entry.permission, stand.family)}, not by its own count`,
+      ),
+    ]
   if (stand.expired) return [muted(`unused over ${settings.expireDays} days, so it counts again from 0`)]
   const got = earned(marks, stand.need, expireMs)
   const left = stand.need - stand.have
@@ -242,44 +246,32 @@ function historySaid(standing: Standing, marks: readonly Mark[], reading: CardRe
   return [muted(`${stand.have} in a row, all yours · ${left} more and Trust answers it`)]
 }
 
-/** One agent's standing, on the card's panel. */
+/** The command's standing in the project, on the card's panel. */
 function standingRuns(standing: Standing, danger: boolean): Run[] {
   const { entry, stand } = standing
   if (stand.kind === "trusted")
     return [
       { text: "✓ Trusted", tone: "success", bold: true },
-      muted(" for "),
-      chip(entry.agent),
       muted(entry.autos > 0 ? ` · answered ${entry.autos}×` : " · ready, not used yet"),
     ]
   if (stand.kind === "widened")
     return [
       { text: "✓ Answered", tone: "success", bold: true },
-      muted(" for "),
-      chip(entry.agent),
-      muted(` · through ${anyOf(entry.permission, stand.family)}`),
+      muted(
+        stand.learned
+          ? ` · a read, through learned ${showSubject(entry.permission, stand.family)}`
+          : ` · through ${anyOf(entry.permission, stand.family)}`,
+      ),
     ]
-  if (stand.expired)
-    return [
-      { text: "○ Expired", tone: "muted", bold: true },
-      muted(" for "),
-      chip(entry.agent),
-      muted(" · counting from 0"),
-    ]
+  if (stand.expired) return [{ text: "○ Expired", tone: "muted", bold: true }, muted(" · counting from 0")]
   return [
     ...meter(stand.have, stand.need, danger),
     { text: ` ${stand.have} of ${stand.need}`, tone: "text", bold: true },
-    muted(" for "),
-    chip(entry.agent),
     muted(stand.have <= 1 && entry.autos === 0 ? " · seen once" : ` · ${stand.need - stand.have} more to go`),
   ]
 }
 
-function familyFact(
-  family: Family | undefined,
-  command: Command | undefined,
-  reading: CardReading,
-): Fact | undefined {
+function familyFact(family: Family | undefined, reading: CardReading): Fact | undefined {
   if (!family) return undefined
   const trusted = family.commands.filter((each) => each.phase === "answering").length
   const name = familyText(family)
@@ -287,25 +279,23 @@ function familyFact(
     plain(name),
     muted(` · ${plural(family.commands.length, "command")}, ${trusted} trusted`),
   ]
-  const agent = command
-    ? leadOf(command).entry.agent
-    : family.commands[0]
-      ? leadOf(family.commands[0]).entry.agent
-      : undefined
-  const widenedFor = family.widened.filter((each) => agent === undefined || each.agent === agent)
-  if (widenedFor.length > 0) {
-    const at = Math.max(...widenedFor.map((each) => each.at))
+  if (family.widened.length > 0) {
+    const at = Math.max(...family.widened.map((each) => each.at))
+    const learned = family.widened.every((each) => each.learned)
     return {
       label: "Family",
       keep: 4,
       lines: [
         head,
-        [
-          plain(anyOf(family.permission, family.family)),
-          muted(
-            ` trusted for ${agentsText(widenedFor.map((each) => each.agent))} ${when(reading.now - at)} · [w] undoes it`,
-          ),
-        ],
+        learned
+          ? [
+              plain(`${anyOf(family.permission, family.family)} read`),
+              muted(` learned ${when(reading.now - at)} from your approvals · [w] forgets it`),
+            ]
+          : [
+              plain(anyOf(family.permission, family.family)),
+              muted(` trusted ${when(reading.now - at)} · [w] undoes it`),
+            ],
       ],
     }
   }
@@ -319,7 +309,7 @@ function familyFact(
       [
         muted("[w] trusts "),
         plain(anyOf(family.permission, family.family)),
-        muted(` for ${agent ?? "this agent"}${family.commands.length > 1 ? ", not one by one" : ""}`),
+        muted(family.commands.length > 1 ? ", not one by one" : ""),
       ],
     ],
   }
@@ -330,21 +320,20 @@ function commandCard(command: Command, family: Family | undefined, reading: Card
   const lead = leadOf(command)
   const danger = command.danger !== undefined
   const expireMs = settings.expireDays * 86_400_000
-  const marks = history.marks.get(keyOf(command.permission, lead.entry.agent, command.subject)) ?? []
+  const marks = history.marks.get(keyOf(command.permission, command.subject)) ?? []
   const need =
     lead.stand.kind === "counting"
       ? lead.stand.need
       : settings.threshold + (danger ? settings.dangerExtra : 0)
   const facts: Fact[] = [exactly(command)]
-  if (command.phase === "answering") facts.push(stillAsks(command, lead.stand.kind === "widened"))
-  const many = command.standings.length > 1
+  if (command.phase === "answering") facts.push(stillAsks(command, lead.stand))
   facts.push({
     label: "History",
     keep: 7,
     newest: true,
     lines: [
       marks.length > 0 ? historyRuns(marks, need, expireMs, now) : [muted("—")],
-      [...(many ? [chip(lead.entry.agent), { text: " " }] : []), ...historySaid(lead, marks, reading)],
+      [...historySaid(lead, marks, reading), muted(` · last asked by ${lead.entry.agent}`)],
     ],
   })
   if (danger && command.phase !== "answering") {
@@ -362,7 +351,7 @@ function commandCard(command: Command, family: Family | undefined, reading: Card
     })
   }
   const why = outside(command.permission, command.subject)
-  if (family && why !== undefined && family.widened.some((each) => each.agent === lead.entry.agent))
+  if (family && why !== undefined && family.widened.length > 0)
     facts.push({
       label: "Widened",
       keep: 5,
@@ -370,7 +359,7 @@ function commandCard(command: Command, family: Family | undefined, reading: Card
         [muted("but "), plain(anyOf(command.permission, family.family)), muted(` leaves it out: ${why}`)],
       ],
     })
-  const fam = familyFact(family, command, reading)
+  const fam = familyFact(family, reading)
   if (fam) facts.push(fam)
   if (lead.stand.kind === "trusted" && settings.expireDays > 0) {
     const left = Math.max(0, Math.ceil((lead.entry.lastAt + expireMs - now) / 86_400_000))
@@ -405,17 +394,17 @@ function familyCard(family: Family, reading: CardReading): CardParts {
     ? family.widened.map((each) => [
         { text: "Old", tone: "warning", bold: true },
         plain(` ${anyOf(family.permission, family.family)}`),
-        muted(" for "),
-        chip(each.agent),
         muted(` · widened ${when(reading.now - each.at)} · answers nothing now`),
       ])
     : family.widened.length > 0
       ? family.widened.map((each) => [
           { text: "✓ Any", tone: "success", bold: true },
           plain(` ${showSubject(family.permission, family.family)} …`),
-          muted(" trusted for "),
-          chip(each.agent),
-          muted(` · you widened it ${when(reading.now - each.at)}`),
+          muted(
+            each.learned
+              ? ` reads · learned from your approvals ${when(reading.now - each.at)}`
+              : ` · you widened it ${when(reading.now - each.at)}`,
+          ),
         ])
       : [
           [
@@ -455,8 +444,12 @@ function familyCard(family: Family, reading: CardReading): CardParts {
       ],
     })
   else if (family.widened.length > 0)
-    facts.push({ label: "Still asks", keep: 6, lines: [[muted(`${NOT_COVERED}.`)]] })
-  const fam = stale(family) ? undefined : familyFact(family, undefined, reading)
+    facts.push({
+      label: "Still asks",
+      keep: 6,
+      lines: [[muted(`${family.widened.every((each) => each.learned) ? NOT_READ : NOT_COVERED}.`)]],
+    })
+  const fam = stale(family) ? undefined : familyFact(family, reading)
   if (fam) facts.push({ ...fam, label: "Widen", lines: fam.lines.slice(1) })
   return {
     title: [
@@ -666,6 +659,57 @@ function groupCard(node: Extract<Node, { kind: "group" }>): CardParts {
   }
 }
 
+/** A suggestion, selected: what crossed the threshold, what `w` would answer and what it never will. */
+function suggestCard(suggestion: Suggestion, reading: CardReading): CardParts {
+  const { family, approvals, commands } = suggestion
+  const parts = familyCard(family, reading)
+  /** What `w` would have saved today: your approvals in the family since midnight. */
+  const midnight = dayOf(reading.now)
+  const today = family.commands
+    .flatMap((command) => command.standings)
+    .flatMap(({ entry }) => reading.history.marks.get(entry.key) ?? [])
+    .filter((each) => each.kind === "approved" && each.at >= midnight).length
+  return {
+    ...parts,
+    /** The family's own `Widen` says what `w` does in general; this card says it for the suggestion. */
+    standing: [
+      [
+        { text: "★ Suggested", tone: "warning", bold: true },
+        muted(` · ${plural(approvals, "approval")} in a row across ${plural(commands, "command")}`),
+      ],
+    ],
+    facts: [
+      {
+        label: "Widen",
+        keep: 6,
+        lines: [
+          [
+            muted("[w] trusts "),
+            plain(anyOf(family.permission, family.family)),
+            muted(`${family.permission === "bash" ? ` — ${EXCEPT}` : ""}. [d] stops suggesting it.`),
+          ],
+        ],
+      },
+      ...(today > 0
+        ? [
+            {
+              label: "Today",
+              keep: 5,
+              lines: [
+                [
+                  muted(
+                    `${plural(today, "approval")} of yours today ${today === 1 ? "was" : "were"} in it — [w] answers prompts like ${today === 1 ? "it" : "them"} from now on`,
+                  ),
+                ],
+              ],
+            },
+          ]
+        : []),
+      ...parts.facts.filter((fact) => fact.label !== "Widen"),
+    ],
+  }
+}
+
 export function cardOf(node: Node, reading: CardReading): CardParts {
   const parts =
     node.kind === "today"
@@ -680,7 +724,9 @@ export function cardOf(node: Node, reading: CardReading): CardParts {
               ? commandCard(node.command, node.family, reading)
               : node.kind === "family" || node.kind === "more"
                 ? familyCard(node.family, reading)
-                : { title: [], standing: [], facts: [], buttons: [] }
+                : node.kind === "suggest"
+                  ? suggestCard(node.suggestion, reading)
+                  : { title: [], standing: [], facts: [], buttons: [] }
   return { ...parts, buttons: buttonsOf(node, reading.families) }
 }
 

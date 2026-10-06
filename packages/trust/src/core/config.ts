@@ -23,6 +23,11 @@ export interface TrustConfig {
   /** Days a trusted command may go unused before it has to be earned again. Default 30; 0 never. */
   expireDays?: number
   /**
+   * Learn a family of plain reads by itself: `threshold` approvals in a row of `head …`, any file, and
+   * any `head` that only reads is answered (core/effect.ts). Default true; false leaves families to `w`.
+   */
+  learnReads?: boolean
+  /**
    * Whether Trust draws a block in the sidebar. Default false: the sidebar already carries the
    * statusline, subagents and shells, and Trust works the same without it — `/trust` opens the
    * ledger, and the palette's "Show or hide Trust in the sidebar" brings the block back for the session.
@@ -39,6 +44,7 @@ export interface TrustSettings {
   threshold: number
   dangerExtra: number
   expireDays: number
+  learnReads: boolean
   sidebar: boolean
   sidebarRows: number
 }
@@ -48,6 +54,7 @@ export const DEFAULTS: TrustSettings = {
   threshold: 3,
   dangerExtra: 5,
   expireDays: 30,
+  learnReads: true,
   sidebar: false,
   sidebarRows: 3,
 }
@@ -57,6 +64,7 @@ const KEYS = [
   "threshold",
   "dangerExtra",
   "expireDays",
+  "learnReads",
   "sidebar",
   "sidebarRows",
   "keybinds",
@@ -126,6 +134,7 @@ export function resolveSettings(config: TrustConfig): TrustSettings {
     threshold: whole(config.threshold, DEFAULTS.threshold, 1),
     dangerExtra: whole(config.dangerExtra, DEFAULTS.dangerExtra, 0),
     expireDays: whole(config.expireDays, DEFAULTS.expireDays, 0),
+    learnReads: config.learnReads !== false,
     sidebar: config.sidebar === true,
     sidebarRows: whole(config.sidebarRows, DEFAULTS.sidebarRows, 0),
   }

@@ -16,6 +16,13 @@ export const SAMPLE_ROOT = "/work/app"
 export const SAMPLE_NOW = 1_790_300_000_000
 export const SAMPLE_SETTINGS = { threshold: 3, dangerExtra: 5, expireDays: 30, keep: 20 }
 
+/**
+ * The ledgers the screenshots were taken from were made before Trust learned reads (0.11): replayed
+ * with learning on, half their commands would be answered by a learned family and the layouts they
+ * exist to show — a family's `+ N more`, a column of meters — would be gone. `learning` shows 0.11.
+ */
+const BEFORE_0_11 = { ...SAMPLE_SETTINGS, learnReads: false }
+
 export interface Sample {
   engine: Engine
   trouble?: string
@@ -26,8 +33,12 @@ const RULES = rulesFrom({
 })
 
 /** Runs `script` on a fresh engine; `record` gets every event it loads, in order — a ledger file's lines. */
-function build(script: (step: Steps) => void, record?: Event[]): Engine {
-  const real = createEngine(SAMPLE_SETTINGS)
+function build(
+  script: (step: Steps) => void,
+  record?: Event[],
+  settings: typeof SAMPLE_SETTINGS & { learnReads?: boolean } = SAMPLE_SETTINGS,
+): Engine {
+  const real = createEngine(settings)
   const engine: Engine = Object.create(real)
   engine.load = (events, options) => {
     record?.push(...events)
@@ -97,6 +108,30 @@ interface Steps {
   pending: (line: string) => void
   /** You pressed `w` on a family: the only way a `widened` event is ever made. */
   widen: (family: string, agent: string, permission?: string) => void
+}
+
+/**
+ * A morning with 0.11: an orchestrator reading a codebase. Three `head`s, `rg`s and `sed -n`s on three
+ * files each, and each family is learned — the fourth of each is answered by itself. `head .env` is
+ * a read of a secret and still asks; `sed -i` writes and counts on its own. Three different local
+ * queries make `mcpx db-local execute_sql` a suggestion; the production one never will be.
+ */
+function learning(s: Steps): void {
+  const orchestrator = (line: string, times = 1) => s.approve(line, times, "once", "bash", "orchestrator")
+  s.at(SAMPLE_NOW - 5 * 3_600_000)
+  for (const file of ["src/app.ts", "src/server.ts", "README.md"]) {
+    orchestrator(`head -40 ${file}`)
+    orchestrator(`rg -n createServer ${file}`)
+    orchestrator(`sed -n 1,80p ${file}`)
+  }
+  for (const line of ["head -20 src/db.ts", "rg -n session src/auth.ts", "sed -n 40,120p src/db.ts"])
+    s.auto(line, 1, "bash", "orchestrator")
+  orchestrator("head .env")
+  orchestrator("sed -i s/old/new/ src/app.ts")
+  for (const query of ["select 1", "select count(*) from users", "select id from orders limit 5"])
+    orchestrator(`mcpx db-local execute_sql --sql "${query}"`)
+  orchestrator('mcpx db-prod execute_sql --sql "select count(*) from users"', 2)
+  s.auto("head -60 src/routes.ts", 1, "bash", "orchestrator")
 }
 
 /** The `crowded` afternoon, as steps: the oldest first, so the newest are what the ledger leads with. */
@@ -305,6 +340,9 @@ export const SAMPLES: Record<string, () => Sample> = {
    */
   busy: () => ({ engine: build(week) }),
 
+  /** 0.11: reads learned as families, a widening suggested, a secret file and production still asking. */
+  learning: () => ({ engine: build(learning) }),
+
   /** Dangerous commands on their way: each needs eight in a row, and none of their families widens. */
   dangerous: () => ({
     engine: build((s) => {
@@ -357,14 +395,14 @@ export const SAMPLES: Record<string, () => Sample> = {
    * approved once, families half trusted and half counting, a family widened by hand, dangerous rules
    * on their way, a long `find`, the `---` a font merges, and OpenCode's own "always" twice.
    */
-  crowded: () => ({ engine: build(crowd) }),
+  crowded: () => ({ engine: build(crowd, undefined, BEFORE_0_11) }),
 
   /** The project the ledger's redesign was drawn from: kinds, folders of edits, a long tail seen once. */
-  storefront: () => ({ engine: build(storefront) }),
+  storefront: () => ({ engine: build(storefront, undefined, BEFORE_0_11) }),
 
   /** The same afternoon, paused: the dialog has to say it before anything else. */
   "crowded-paused": () => {
-    const engine = build(crowd)
+    const engine = build(crowd, undefined, BEFORE_0_11)
     engine.load([{ v: 1, at: SAMPLE_NOW - 60_000, type: "paused" }])
     return { engine }
   },

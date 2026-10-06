@@ -21,6 +21,8 @@ export interface TrustPaths {
   dir: string
   /** The append-only ledger: one event per line. */
   events: string
+  /** The key secrets are hashed with in signatures (core/secret.ts): beside the ledger, never in it. */
+  key: string
 }
 
 /** Anything that is not plainly a filename becomes a dash. */
@@ -49,5 +51,5 @@ export function trustPaths(
     env.COCKPIT_HOME ??
     join(env.XDG_DATA_HOME ?? join(env.HOME ?? homedir(), ".local", "share"), "opencode-cockpit")
   const dir = join(base, "trust", `${projectSlug(directory)}-${shortHash(directory)}`)
-  return { dir, events: join(dir, "events.ndjson") }
+  return { dir, events: join(dir, "events.ndjson"), key: join(dir, "mask.key") }
 }

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
 import { createEngine } from "../src/core/engine.ts"
-import { DAY, type Event } from "../src/core/ledger.ts"
+import { ANY_AGENT, DAY, type Event } from "../src/core/ledger.ts"
 import { SAMPLE_NOW, SAMPLE_SETTINGS, SAMPLES } from "../src/core/sample.ts"
-import { configSnippet, revoke, widen, widenScope } from "../src/core/view/actions.ts"
+import { configSnippet, NOT_READ, revoke, widen, widenScope } from "../src/core/view/actions.ts"
 import { activityModel, activityRows, answerWhy, targetOf } from "../src/core/view/activity.ts"
 import { historyRuns } from "../src/core/view/card.ts"
 import { explorerRows } from "../src/core/view/explorer.ts"
@@ -240,7 +240,7 @@ describe("the week, as the activity reads it", () => {
 
   test("a rule's moments read back as how it earned its trust", () => {
     const { history } = readingOf("busy")
-    const marks = history.marks.get(JSON.stringify(["bash", "build", "git status --short"])) ?? []
+    const marks = history.marks.get(JSON.stringify(["bash", "git status --short"])) ?? []
     const text = historyRuns(marks, 3, 30 * DAY, SAMPLE_NOW)
       .map((run) => run.text)
       .join("")
@@ -266,7 +266,7 @@ describe("the activity: what Trust did, then what it is about to do", () => {
       item.kind === "answer" ? answerWhy(item.answer, reading) : "",
     )
     expect(said).toContain("both commands trusted")
-    expect(said).toContain("in a family you widened: cat")
+    expect(said).toContain("in a family you widened: any cat …")
     expect(said.some((each) => /^trusted .*, 3 in a row$/.test(each))).toBe(true)
   })
 
@@ -321,7 +321,8 @@ describe("the ledger: families as a tree, a card for the selection", () => {
   test("a family opens to its first commands and folds the rest into + N more", () => {
     const reading = readingOf("crowded")
     const families = explorerModel({ ...reading, open: new Set(), full: new Set(), filter: "" }).families
-    const head = families.find((family) => family.family === "head")
+    /** The biggest family: which one it is moves as Trust learns families of reads. */
+    const head = [...families].sort((a, b) => b.commands.length - a.commands.length)[0]
     expect(head?.commands.length).toBeGreaterThan(TAIL + 1)
     const open = new Set([head?.key ?? ""])
     const nodes = explorerModel({ ...reading, open, full: new Set(), filter: "" }).nodes
@@ -340,23 +341,28 @@ describe("the ledger: families as a tree, a card for the selection", () => {
     expect(nodes.some((node) => node.key === key)).toBe(true)
   })
 
-  test("the card: the command, each agent's standing, the history that earned it, the buttons", () => {
+  test("the card: the command, its standing in the project, the history that earned it, the buttons", () => {
     const view = ledger("busy", { pick: commandNode("git status --short"), open: "all" })
     const text = textOf(view.rows)
-    expect(text).toContain("✓ Trusted for  build  · answered")
+    expect(text).toContain("✓ Trusted · answered")
+    expect(text).not.toContain("Trusted for")
+    /** Who asked is history, said once and small — it wraps beside the tree, so only its start is read. */
+    expect(text).toContain("last asked")
     expect(text).toMatch(/History +✓ \d+d {2}✓ \d+d {2}✓ \d+d {2}→ trusted/)
     expect(text).toContain("3 approvals in a row, all yours")
     expect(text).toMatch(/Still asks +git status · git status --short > out\.txt/)
     expect(text).toContain(" x Revoke ")
-    expect(text).toContain(" w Trust any git status ")
+    /** `git status` is a read: three of them in a row taught Trust the family, so `w` forgets it. */
+    expect(text).toContain(" w Forget git status reads ")
     expect(text).toContain(" c Copy rule ")
   })
 
-  test("a command trusted for one agent and counting for another: one row, both standings", () => {
+  test("a command approved while different agents ran: one row, one standing — the project's", () => {
     const view = ledger("crowded", { pick: commandNode("git status --short"), open: "all" })
+    expect(view.node?.kind === "command" && view.node.command.standings).toHaveLength(1)
     const text = textOf(view.rows)
-    expect(text).toContain("✓ Trusted for  build ")
-    expect(text).toContain("for  general ")
+    expect(text).toContain("✓ Trusted")
+    expect(text).not.toMatch(/for {2}(build|general) /)
   })
 
   test("a dangerous command: a red meter, its badge, and a w that never widens", () => {
@@ -371,7 +377,7 @@ describe("the ledger: families as a tree, a card for the selection", () => {
     const view = ledger("families", {
       pick: (nodes) => nodes.find((node) => node.kind === "family" && node.family.widened.length > 0),
     })
-    expect(textOf(view.rows)).toMatch(/✓ Any ls … trusted for {2}general /)
+    expect(textOf(view.rows)).toMatch(/✓ Any ls … · you widened it /)
     expect(view.buttons.find((each) => each.key === "w")?.label).toBe("Undo any ls")
   })
 
@@ -440,13 +446,13 @@ describe("the ledger: families as a tree, a card for the selection", () => {
 
 describe("acting on a selection", () => {
   const at = SAMPLE_NOW + 1
-  test("x on a trusted command revokes it for every agent", () => {
+  test("x on a trusted command revokes it in the project: one event, by no agent in particular", () => {
     const view = ledger("crowded", { pick: commandNode("git status --short"), open: "all" })
     const outcome = revoke(nodeTarget(view.node as Node), view, at)
-    expect(outcome.events.map((event) => event.type === "revoked" && event.agent).sort()).toEqual([
-      "build",
-      "general",
+    expect(outcome.events).toEqual([
+      { v: 1, at, type: "revoked", permission: "bash", agent: ANY_AGENT, subject: "git status --short" },
     ])
+    expect(outcome.notice.text).not.toMatch(/ for | as /)
   })
 
   test("an old widening nothing falls in: marked old, out of any folder, and x removes it", () => {
@@ -468,30 +474,31 @@ describe("acting on a selection", () => {
     const item = model.feed.find((each) => each.kind === "answer" && each.answer.items.some((i) => i.via))
     const outcome = revoke(targetOf(item as NonNullable<typeof item>, model), reading, at)
     expect(outcome.events).toEqual([
-      { v: 1, at, type: "unwidened", permission: "bash", agent: "general", family: "cat" },
+      { v: 1, at, type: "unwidened", permission: "bash", agent: ANY_AGENT, family: "cat" },
     ])
   })
 
-  test("w on a safe command widens its family for its agent; on a dangerous one, nothing", () => {
+  test("w on a safe command widens its family in the project; on a dangerous one, nothing", () => {
     const view = ledger("busy", { pick: commandNode("bun --version"), open: "all" })
     const families = view.model.families
-    const ok = widen(widenScope(nodeTarget(view.node as Node), families), families, at)
+    const ok = widen(widenScope(nodeTarget(view.node as Node), families), at)
     expect(ok.events).toEqual([
-      { v: 1, at, type: "widened", permission: "bash", agent: "build", family: "bun" },
+      { v: 1, at, type: "widened", permission: "bash", agent: ANY_AGENT, family: "bun" },
     ])
+    expect(ok.notice.text).not.toContain(" for ")
     const danger = ledger("busy", { pick: commandNode("git push origin feat/trust"), open: "all" })
-    const refused = widen(widenScope(nodeTarget(danger.node as Node), families), families, at)
+    const refused = widen(widenScope(nodeTarget(danger.node as Node), families), at)
     expect(refused.events).toEqual([])
     expect(refused.notice.text).toContain("dangerous")
   })
 
-  test("c on a widened family is a wildcard, and says config cannot name the agent", () => {
+  test("c on a widened family is a wildcard, and says config allows more than the widening", () => {
     const view = ledger("families", {
       pick: (nodes) => nodes.find((node) => node.kind === "family" && node.family.widened.length > 0),
     })
     const snippet = configSnippet(nodeTarget(view.node as Node))
     expect(snippet.text).toBe(JSON.stringify({ permission: { bash: { "ls *": "allow" } } }))
-    expect(snippet.note).toContain("config cannot say which agent")
+    expect(snippet.note).toContain("even the ones Trust still asks about")
   })
 })
 
@@ -537,7 +544,9 @@ describe("the ledger by kind: commands, edits, tools and fetches, OpenCode's own
 
   test("each kind has one heading, in a fixed order, OpenCode's own last", () => {
     const headings = model().lines.flatMap((line) => (line.kind === "heading" ? [line.section] : []))
-    expect(headings).toEqual(["commands", "edits", "tools"])
+    /** Suggestions, when there are any, come first: they are what is waiting for you. */
+    expect(headings.filter((section) => section !== "suggested")).toEqual(["commands", "edits", "tools"])
+    expect(headings.indexOf("suggested")).toBeLessThanOrEqual(0)
     expect(model().nodes.at(-1)?.kind).toBe("always")
   })
 
@@ -580,5 +589,98 @@ describe("the ledger by kind: commands, edits, tools and fetches, OpenCode's own
       .map((line) => line.lastIndexOf("✓"))
     expect(columns.length).toBeGreaterThanOrEqual(3)
     expect(new Set(columns).size).toBe(1)
+  })
+})
+
+describe("0.11: families of reads Trust learned, and widenings it suggests", () => {
+  const familyNode = (name: string) => (nodes: readonly Node[]) =>
+    nodes.find((node) => node.kind === "family" && node.family.family === name)
+
+  test("a learned family's row says reads, its commands ✓ read", () => {
+    const text = textOf(ledger("learning", { open: "all", width: 120, height: 40 }).rows)
+    expect(text).toMatch(/▾ head {2}reads/)
+    expect(text).toMatch(/head -60 src\/routes\.ts +✓ read/)
+  })
+
+  test("its card: w forgets it, and what it never answers", () => {
+    const text = textOf(
+      ledger("learning", { pick: familyNode("head"), open: "all", width: 120, height: 40 }).rows,
+    )
+    expect(text).toContain(" w Forget head reads ")
+    expect(text).toContain("reads · learned from your approvals")
+    expect(text.replace(/\s+│\s+/g, " ").replace(/\s+/g, " ")).toContain(NOT_READ.slice(0, 40))
+  })
+
+  test("a suggestion is the first stop, with w and d", () => {
+    const view = ledger("learning", { width: 120, height: 30 })
+    expect(view.node?.kind).toBe("suggest")
+    const text = textOf(view.rows)
+    expect(text).toContain("SUGGESTED")
+    expect(text).toContain("★ Suggested · 3 approvals in a row across 3 commands")
+    expect(text).toMatch(/★ any mcpx db-local exec\S*\?/)
+    expect(text).toContain(" d Dismiss ")
+  })
+
+  test("a secret file and production still ask", () => {
+    const text = textOf(ledger("learning", { open: "all", width: 120, height: 40 }).rows)
+    expect(text).toMatch(/head \.env +○ once/)
+    expect(text).toMatch(/mcpx db-prod execute_sql.*2\/8/)
+  })
+})
+
+describe("0.11: OpenCode's own read tools, learned as the project's", () => {
+  /** Three searches with nothing in common, and three files read in one folder, by two agents. */
+  const ask = (permission: string, subject: string, at: number): Event => ({
+    v: 1,
+    at,
+    type: "approved",
+    request: `per_${permission}_${at}`,
+    session: "ses_1",
+    permission,
+    agent: at % 2 ? "build" : "general",
+    items: [{ subject }],
+  })
+  const events: Event[] = [
+    ask("grep", "createServer", 1),
+    ask("grep", "session\\(", 2),
+    ask("grep", "TODO", 3),
+    ask("read", "src/a.ts", 4),
+    ask("read", "src/b.ts", 5),
+    ask("read", "src/c.ts", 6),
+  ]
+  const engine = createEngine({ ...SAMPLE_SETTINGS })
+  engine.load(events)
+  const reading = { state: engine.state, settings: SAMPLE_SETTINGS, now: 10, history: engine.history }
+
+  test("a whole tool is its name, a folder of reads is `read src/`, both marked `reads`", () => {
+    const rows = explorerRows({
+      ...reading,
+      width: 100,
+      height: 24,
+      project: "app",
+      open: new Set(),
+      full: new Set(),
+      filter: "",
+    }).rows.map(rowText)
+    expect(rows.some((row) => /▸ grep {2}reads/.test(row))).toBe(true)
+    expect(rows.some((row) => /▸ read src\/ {2}reads/.test(row))).toBe(true)
+    expect(rows.join("\n")).not.toContain("grep *")
+  })
+
+  test("an answer through it says `any grep`, never `*`", () => {
+    const answer = {
+      at: 11,
+      request: "per_x",
+      permission: "grep",
+      agent: "explore",
+      label: "anything",
+      subjects: ["anything"],
+      items: [{ subject: "anything", via: "*", learned: true as const }],
+      why: "",
+      rule: "",
+    }
+    expect(answerWhy(answer as Parameters<typeof answerWhy>[0], reading)).toBe(
+      "a read Trust learned: any grep",
+    )
   })
 })

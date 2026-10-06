@@ -63,12 +63,12 @@ describe("the policy for a widened family", () => {
   test("a variant never approved is answered, and says which family answered", () => {
     const judged = ask("ls -R docs", [widened("ls")])
     expect(judged.answer).toBe(true)
-    expect(judged.why).toBe("in a family you widened: ls")
+    expect(judged.why).toBe("in a family you widened: any ls …")
     expect(judged.items).toEqual([{ subject: "ls -R docs", via: "ls" }])
   })
 
-  test("only for the agent it was widened for", () => {
-    expect(ask("ls -la", [widened("ls")], { agent: "build" }).answer).toBe(false)
+  test("for every agent: a widening is the project's, whoever it was widened while", () => {
+    expect(ask("ls -la", [widened("ls")], { agent: "build" }).answer).toBe(true)
   })
 
   test("not another family, nor the same words somewhere else or as root", () => {
@@ -132,9 +132,9 @@ describe("widenings in the ledger file", () => {
       FOLD,
     )
     expect([...state.widened.keys()].sort()).toEqual(
-      [keyOf("bash", "build", "ls"), keyOf("bash", "general", "git status")].sort(),
+      [keyOf("bash", "ls"), keyOf("bash", "git status")].sort(),
     )
-    expect(state.widened.get(keyOf("bash", "build", "ls"))?.at).toBe(5)
+    expect(state.widened.get(keyOf("bash", "ls"))?.at).toBe(5)
   })
 
   test("written and read back whole; a torn last line is waited for, not lost", () => {
@@ -181,7 +181,7 @@ describe("an answer through a widening", () => {
     const auto = engine.answered("per_x", 120)
     expect(auto).toMatchObject({
       type: "auto",
-      rule: "in a family you widened: ls",
+      rule: "in a family you widened: any ls …",
       items: [{ subject: "ls -x", via: "ls" }],
     })
     if (auto) engine.load([auto])

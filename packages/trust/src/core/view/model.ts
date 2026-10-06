@@ -1,23 +1,16 @@
 /**
- * What both Trust screens read: every command Trust has counted, once, with where each agent stands
+ * What both Trust screens read: every command Trust has counted, once, with where it stands
  * on it; the families they group into; and the three numbers that sum a project up.
  *
  * **One command, one place.** The ledger used to split a family by section, so `head -30` was under
  * Answers while `head` was also under Learning and its details repeated. Here a command is one
- * `Command` whatever its agents say about it — trusted for one, two of three for another — and a
+ * `Command`, whichever agents asked it — a rule is the project's (ledger.keyOf) — and a
  * family one `Family`. The screens draw each once.
  */
 
-import { familyOf, outside } from "../family.ts"
-import {
-  type Always,
-  type Entry,
-  keyOf,
-  type State,
-  standing,
-  type Thresholds,
-  type Widened,
-} from "../ledger.ts"
+import { familyOf } from "../family.ts"
+import { type Always, type Entry, type State, standing, type Thresholds, type Widened } from "../ledger.ts"
+import { widenedFor } from "../policy.ts"
 
 export interface Reading {
   state: State
@@ -25,22 +18,18 @@ export interface Reading {
   now: number
 }
 
-/** Where one agent stands on one command. */
+/** Where a command stands in the project. */
 export type Stand =
   | { kind: "trusted" }
-  /** Not trusted by its own count, answered through a family you widened. */
-  | { kind: "widened"; family: string }
+  /** Not trusted by its own count, answered through a family you widened — or Trust learned. */
+  | { kind: "widened"; family: string; learned?: true }
   | { kind: "counting"; have: number; need: number; expired: boolean }
 
 export function standOf(entry: Entry, { state, settings, now }: Reading): Stand {
   const where = standing(entry, entry.danger, settings, now)
   if (where.trusted) return { kind: "trusted" }
-  const family = familyOf(entry.permission, entry.subject)
-  if (
-    state.widened.has(keyOf(entry.permission, entry.agent, family)) &&
-    outside(entry.permission, entry.subject) === undefined
-  )
-    return { kind: "widened", family }
+  const through = widenedFor(state, entry.permission, entry.subject, settings, now)
+  if (through) return { kind: "widened", ...through }
   return { kind: "counting", have: where.have, need: where.need, expired: where.expired }
 }
 
@@ -50,32 +39,32 @@ export const answers = (stand: Stand): boolean => stand.kind !== "counting"
 export const distance = (stand: Stand): number =>
   stand.kind !== "counting" ? 0 : stand.expired ? Number.MAX_SAFE_INTEGER : stand.need - stand.have
 
-/** One agent's standing on a command. */
+/** A command's standing: its entry (the project's), and where that puts it. */
 export interface Standing {
   entry: Entry
   stand: Stand
 }
 
 /**
- * Where a command is, all agents together:
- * - `answering`: Trust answers it for at least one agent;
+ * Where a command is:
+ * - `answering`: Trust answers it;
  * - `learning`: counting, with approvals that matter (two in a row, or answered before);
  * - `once`: approved once and never again — most never come back, so they are kept out of the way.
  */
 export type Phase = "answering" | "learning" | "once"
 
 export interface Command {
-  /** `[permission, subject]`, the same for every agent. */
+  /** `[permission, subject]`. */
   key: string
   permission: string
   subject: string
   family: string
-  /** Every agent's standing, the one that answers first, then the closest to it. */
+  /** Its standing — one, since a rule is the project's; a list so a ledger never has to say so twice. */
   standings: Standing[]
   phase: Phase
   /** Today's reading of why it costs more, as of the last time it was asked. */
   danger?: string
-  /** The last approval or answer, any agent. */
+  /** The last approval or answer. */
   lastAt: number
 }
 
@@ -85,7 +74,7 @@ export const commandKey = (permission: string, subject: string): string =>
 /** The standing the command is drawn by: the one that answers, else the closest. */
 export const leadOf = (command: Command): Standing => command.standings[0] as Standing
 
-/** Approvals the closest agent still needs. */
+/** Approvals still needed. */
 export const closeness = (command: Command): number => distance(leadOf(command).stand)
 
 function phaseOf(standings: readonly Standing[]): Phase {
@@ -147,7 +136,7 @@ export interface Family {
   family: string
   /** Its commands, `byPhase`. */
   commands: Command[]
-  /** The agents you trusted the whole family for. */
+  /** The widening on it, when you widened it or Trust learned it (at most one: it is the project's). */
   widened: Widened[]
   lastAt: number
 }

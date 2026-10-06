@@ -16,4 +16,11 @@ export const TRUST_KEYS: readonly KeyInfo[] = [
     default: 30,
     about: "days unused before trust has to be earned again; `0` never",
   },
+  {
+    key: "learnReads",
+    type: "boolean",
+    default: true,
+    about:
+      "learn a family of plain reads (`head`, `rg`, `git log`…) from your approvals; `false` leaves families to `w`",
+  },
 ]

@@ -20,10 +20,10 @@
  *
  * **A command is one row.** The list it replaced split a family into what answers and what learns, so
  * `head -30` was in one section while `head` was in the other, and the details repeated. Here a family
- * is one fold, like a folder in an editor, and a command one row in it whatever its agents say; the
- * card lists each agent's standing.
+ * is one fold, like a folder in an editor, and a command one row in it; the card says where it stands
+ * in the project — whichever agent asked, a rule is the project's.
  *
- * **The card is the explanation.** The command whole, on a raised panel; where each agent stands; the
+ * **The card is the explanation.** The command whole, on a raised panel; where it stands; the
  * exact text and what still asks; the approvals that earned it (history.ts); its family and what `w`
  * would do; and the actions as buttons you can click or reach with `tab`.
  *
@@ -205,7 +205,7 @@ export function explorerRows(input: ExplorerInput): ExplorerView {
   const nothing =
     input.filter !== ""
       ? `Nothing matches "${input.filter}". esc clears the filter.`
-      : `Nothing learned yet. Approve the same command ${input.settings.threshold} times in a row and Trust answers it for you from then on — that exact command, for that agent. A dangerous one takes ${input.settings.threshold + input.settings.dangerExtra}.`
+      : `Nothing learned yet. Approve the same command ${input.settings.threshold} times in a row and Trust answers it for you from then on — that exact command, in this project, whichever agent runs it. A dangerous one takes ${input.settings.threshold + input.settings.dangerExtra}.`
   if (lines.length === 0)
     treeLines.push(fit([muted(input.filter !== "" ? "   No match." : "   Nothing yet.")], treeWidth))
   /** Which node each tree row draws, for clicks. */

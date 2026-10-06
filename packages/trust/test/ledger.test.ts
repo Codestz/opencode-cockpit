@@ -35,8 +35,8 @@ function ev(
   } as Event
 }
 
-const entryOf = (state: ReturnType<typeof emptyState>, subject: string, agent = "build") =>
-  state.entries.get(keyOf("bash", agent, subject))
+const entryOf = (state: ReturnType<typeof emptyState>, subject: string) =>
+  state.entries.get(keyOf("bash", subject))
 
 describe("the fold", () => {
   test("approvals in a row add up; a reject resets", () => {
@@ -99,10 +99,14 @@ describe("the fold", () => {
     expect(state.paused).toBe(false)
   })
 
-  test("the agent is part of the key", () => {
-    const state = applyAll(emptyState(), [ev("approved", "ls", 1, { agent: "general" })], FOLD)
-    expect(entryOf(state, "ls", "build")).toBeUndefined()
-    expect(entryOf(state, "ls", "general")?.streak).toBe(1)
+  test("the agent is not part of the key: approvals by any agent add up, the last one is kept", () => {
+    const state = applyAll(
+      emptyState(),
+      [ev("approved", "ls", 1, { agent: "general" }), ev("approved", "ls", 2, { agent: "build" })],
+      FOLD,
+    )
+    expect(entryOf(state, "ls")?.streak).toBe(2)
+    expect(entryOf(state, "ls")?.agent).toBe("build")
   })
 
   test("OpenCode's own always is kept to show", () => {
