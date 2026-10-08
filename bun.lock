@@ -19,7 +19,7 @@
       "name": "@opencode-cockpit/client",
       "version": "0.11.0",
       "dependencies": {
-        "@opencode-ai/plugin": "1.18.33",
+        "@opencode-ai/plugin": "1.18.34",
         "@opencode-cockpit/protocol": "workspace:*",
       },
       "devDependencies": {
@@ -45,7 +45,7 @@
         "opencode-cockpit": "./dist/bin.js",
       },
       "dependencies": {
-        "@opencode-ai/plugin": "1.18.33",
+        "@opencode-ai/plugin": "1.18.34",
         "@opencode-cockpit/client": "workspace:*",
         "@opencode-cockpit/review": "workspace:*",
         "@opencode-cockpit/shell": "workspace:*",
@@ -74,7 +74,7 @@
         "review": "./dist/cli/preview.js",
       },
       "dependencies": {
-        "@opencode-ai/plugin": "1.18.33",
+        "@opencode-ai/plugin": "1.18.34",
         "@opencode-cockpit/client": "workspace:*",
       },
       "devDependencies": {
@@ -92,7 +92,7 @@
         "shell": "./dist/cli/preview.js",
       },
       "dependencies": {
-        "@opencode-ai/plugin": "1.18.33",
+        "@opencode-ai/plugin": "1.18.34",
         "@opencode-cockpit/client": "workspace:*",
         "@opencode-cockpit/daemon": "workspace:*",
         "@opencode-cockpit/protocol": "workspace:*",
@@ -112,7 +112,7 @@
         "status": "./dist/cli/preview.js",
       },
       "dependencies": {
-        "@opencode-ai/plugin": "1.18.33",
+        "@opencode-ai/plugin": "1.18.34",
         "@opencode-cockpit/client": "workspace:*",
       },
       "devDependencies": {
@@ -130,7 +130,7 @@
         "subagents": "./dist/cli/preview.js",
       },
       "dependencies": {
-        "@opencode-ai/plugin": "1.18.33",
+        "@opencode-ai/plugin": "1.18.34",
         "@opencode-cockpit/client": "workspace:*",
       },
       "devDependencies": {
@@ -148,7 +148,7 @@
         "trail": "./dist/cli/preview.js",
       },
       "dependencies": {
-        "@opencode-ai/plugin": "1.18.33",
+        "@opencode-ai/plugin": "1.18.34",
         "@opencode-cockpit/client": "workspace:*",
       },
       "devDependencies": {
@@ -166,7 +166,7 @@
         "trust": "./dist/cli/preview.js",
       },
       "dependencies": {
-        "@opencode-ai/plugin": "1.18.33",
+        "@opencode-ai/plugin": "1.18.34",
         "@opencode-cockpit/client": "workspace:*",
       },
       "devDependencies": {
@@ -184,7 +184,7 @@
         "updater": "./dist/cli/update.js",
       },
       "dependencies": {
-        "@opencode-ai/plugin": "1.18.33",
+        "@opencode-ai/plugin": "1.18.34",
         "@opencode-cockpit/client": "workspace:*",
       },
       "devDependencies": {
@@ -296,9 +296,9 @@
 
     "@msgpackr-extract/msgpackr-extract-win32-x64": ["@msgpackr-extract/msgpackr-extract-win32-x64@3.0.4", "", { "os": "win32", "cpu": "x64" }, "sha512-CmCXPQrkbwExx3j946/PtHWHbYJiCRBRDl4BlkRQcJB/YOwQxJRTpoo7aTsortjgoJ1x7opzTSxn7C+ASSLVjQ=="],
 
-    "@opencode-ai/plugin": ["@opencode-ai/plugin@1.18.33", "", { "dependencies": { "@ai-sdk/provider": "3.0.8", "@opencode-ai/sdk": "1.18.33", "effect": "4.0.0-beta.83", "zod": "4.1.8" }, "peerDependencies": { "@opentui/core": ">=0.4.5", "@opentui/keymap": ">=0.4.5", "@opentui/solid": ">=0.4.5" }, "optionalPeers": ["@opentui/core", "@opentui/keymap", "@opentui/solid"] }, "sha512-fmhqCBJvNt+Vfbx6ckKP19S3xwMBhUXLCBQaK92R4wnv3wsWTZYkJQwYf2egiWfJNOl47jhs3vP7uQkl0mvHQw=="],
+    "@opencode-ai/plugin": ["@opencode-ai/plugin@1.18.34", "", { "dependencies": { "@ai-sdk/provider": "3.0.8", "@opencode-ai/sdk": "1.18.34", "effect": "4.0.0-beta.83", "zod": "4.1.8" }, "peerDependencies": { "@opentui/core": ">=0.4.5", "@opentui/keymap": ">=0.4.5", "@opentui/solid": ">=0.4.5" }, "optionalPeers": ["@opentui/core", "@opentui/keymap", "@opentui/solid"] }, "sha512-bC1EBL/QJ6LpC7liKZXr5JA+oa9qDAwTzpEgPxPsx1pbIUdhKOqg3/yoPEQgoa4YdO3hsgCWNFmbDE/DeOl/Ug=="],
 
-    "@opencode-ai/sdk": ["@opencode-ai/sdk@1.18.33", "", { "dependencies": { "cross-spawn": "7.0.6" } }, "sha512-Nyurky9+AA2tvZ6my8UtO5pxPoXxrNypqjeEqMshBGiR542glOy+KE1Y+3lwWU+Z6HC/hSmrdXNbX81+qiuTzg=="],
+    "@opencode-ai/sdk": ["@opencode-ai/sdk@1.18.34", "", { "dependencies": { "cross-spawn": "7.0.6" } }, "sha512-R9QWUpcngtdQ6FCixz7NC6n1WsSho6CEuRUzYHz/CzZcp3miSklDzXkm0oDwXVCnuEu+ANoeM0f6RDp51kOMzQ=="],
 
     "@opencode-cockpit/client": ["@opencode-cockpit/client@workspace:packages/client"],
 
