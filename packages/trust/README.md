@@ -55,10 +55,35 @@ only reach Trust when your config sets them to `ask`.
 | `webfetch` | the host | — | no | no |
 | `todowrite`, `lsp` | one rule | — | no | no |
 | `skill`, `task` | the skill, the subagent type | — | no | no |
-| `external_directory`, `doom_loop` | never answered | | | |
+| `external_directory` | the folder | the folder; the temp dir as one (`$TMPDIR`) | no | yes — and only a widened folder answers it |
+| `doom_loop` | never answered | | | |
 
 A `read` of a file that may hold secrets (`.env`, a key, `~/.ssh`) is OpenCode's own default ask, and
 stays yours to answer however often you approve it.
+
+## Folders outside the project
+
+Before a tool reads or writes outside the project, OpenCode asks `external_directory` for the folder.
+Trust counts those approvals by folder, like any other — and **never answers one by its count**:
+approving a folder three times still leaves the next one to you. What answers it is a folder you
+widened with `w`, and it covers the folders under it, never the ones beside it.
+
+Most of those prompts are the agent's scratch space in the OS temp dir (`/var/folders/…/T/opencode/…`
+on macOS, `/tmp/…` elsewhere), so the temp dir is **one family**, `$TMPDIR`, whatever name a tool
+gives it (`/var/…` or `/private/var/…`, `/tmp` or `/private/tmp`). Once your approvals across two or
+more of its folders reach the threshold, the ledger suggests it:
+
+```
+ ★ any folder in $TMPDIR?      14 in 6     │ outside $TMPDIR/  family of 6 folders
+                                           │ ★ Suggested · approved 14× across 6 folders in your temp directory
+                                           │  Widen   [w] lets Trust answer reads and writes there from now on —
+                                           │          any folder in $TMPDIR; a folder that may hold secrets still asks.
+```
+
+Never suggested and never widened, however often you approve them: `/`, your home folder and the
+folders above it, `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.config`, `~/.kube`, `~/.docker`, `/etc`, any
+folder that may hold secrets, and a folder that holds the project — widening it would answer for every
+project beside this one. A request naming one of them is always yours, and is not counted.
 
 ## Reads are learned as a family
 
@@ -192,7 +217,8 @@ Today's answers are one strip above it; `a` opens them in full.
 - **A family** is the program, or the program and its subcommand for tools that have them:
   `git status`, `docker compose up` (`-p prod` and other global flags are not part of it),
   `npm run test` (the script is). A wrapper is: `sudo ls` is not `ls`. So is where it runs and the
-  environment it is given: `(in web) bun test`, `NODE_ENV=… npm run build`. An edit's family, and a
+  environment it is given: `bun test  in web`, `NODE_ENV=… npm run build` — the command first, where
+  it ran after it, muted and short, so a narrow row never cuts the program. An edit's family, and a
   read's, is its folder; a `grep` or a `glob` is one family, the tool.
 - **`w` trusts the whole family**, in this project — on purpose, never by itself. Any `ls …` is
   then answered, **except** a dangerous command, one that writes a file through a redirection

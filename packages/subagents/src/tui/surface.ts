@@ -16,8 +16,17 @@ export interface Surface {
   keys?: boolean
   /** Half the window, or all of it. Remembered. */
   full: boolean
-  /** A message being typed, at the foot of the pane. */
+  /** The message in the box at the foot of the pane, typed so far: kept when you stop typing. */
   draft?: string
+  /** Keys go into the box (`tab`, a click on it) rather than to the pane; esc gives them back. */
+  typing?: boolean
+  /** The cursor in the draft, as an index into it; its end when unset. */
+  caret?: number
+  /**
+   * Permissions answered from the pane, by request id, until the host says they were: hidden from
+   * the card while the answer is on its way, and back on it with the error when it failed.
+   */
+  replies: Map<string, { error?: string }>
   notice?: string
   /** Calls shown whole rather than their first lines. */
   whole: Set<string>

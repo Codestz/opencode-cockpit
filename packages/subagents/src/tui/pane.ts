@@ -1,12 +1,14 @@
 /**
  * The pane: one subagent at a time, half the window or all of it. Opening and closing it, moving
  * between subagents and through the items, folding, scrolling, stopping, removing, moving to the
- * background — and the keys it takes only while it is up.
+ * background, answering the permission it is held on — and the keys it takes only while it is up.
  */
 
 import type { Host, Layer } from "@opencode-cockpit/client/host"
 import type { Log } from "@opencode-cockpit/client/log"
 import { applyAll, type Model, type Node, type Session } from "../core/model/model.ts"
+import type { Act } from "../core/view/foot.ts"
+import type { Answers } from "./answers.ts"
 import type { Messages } from "./messages.ts"
 import type { Painter } from "./paint.ts"
 import type { Source } from "./source.ts"
@@ -22,7 +24,8 @@ export interface Pane {
   open(id: string): void
   close(): void
   scroll(by: number): void
-  click(y: number): void
+  /** A click at this row of the pane — and this column of it, when the host says. */
+  click(y: number, x?: number): void
   /** From anywhere: the working subagent, or the latest one, of the conversation on screen. */
   openLatest(): void
   clearFinished(): void
@@ -37,6 +40,7 @@ export function createPane(input: {
   surface: Surface
   painter: Painter
   messages: Messages
+  answers: Answers
   feed: Source
   /** Subagents removed from the list by hand, kept across restarts. */
   hidden: Set<string>
@@ -49,7 +53,7 @@ export function createPane(input: {
   follow: () => void
   set: (change: Partial<Surface>) => void
 }): Pane {
-  const { api, log, model, surface, painter, messages, feed, hidden, saveHidden, isHidden } = input
+  const { api, log, model, surface, painter, messages, answers, feed, hidden, saveHidden, isHidden } = input
   const { nodes, opened, busy, follow, set } = input
   const draw = painter.draw
   let disposeKeys: (() => void) | undefined
@@ -69,6 +73,8 @@ export function createPane(input: {
     log.debug("close", { id: surface.open })
     surface.open = undefined
     surface.draft = undefined
+    surface.caret = undefined
+    surface.typing = false
     dropKeys()
     clearInterval(fast)
     fast = undefined
@@ -80,12 +86,22 @@ export function createPane(input: {
     if (!model.sessions.has(id)) return
     log.debug("open", { id, full: surface.full })
     const same = surface.open === id
+    /** A draft is for the subagent it was typed to: another one opens with an empty box. */
     Object.assign(surface, {
       open: id,
       notice: undefined,
       stopping: undefined,
-      draft: undefined,
-      ...(same ? {} : { top: undefined, selected: undefined, details: false, keys: false }),
+      typing: false,
+      ...(same
+        ? {}
+        : {
+            top: undefined,
+            selected: undefined,
+            details: false,
+            keys: false,
+            draft: undefined,
+            caret: undefined,
+          }),
     })
     takeKeys()
     fast ??= setInterval(() => {
@@ -179,9 +195,27 @@ export function createPane(input: {
     draw()
   }
 
-  const click = (y: number) => {
+  /** The box starts typing; the card's answers answer, as their keys do. */
+  const act = (what: Act) => (what === "focus" ? messages.focus() : answers.reply(what))
+
+  /**
+   * A click on part of the foot does what it says; anywhere else it opens or folds the item there,
+   * and a click off the box while typing gives the keys back to the pane. Without a column, a row
+   * with one thing to click on (the box) still works; the card's row of answers needs the column.
+   */
+  const click = (y: number, x?: number) => {
     const shown = painter.shown()
-    if (!shown || surface.draft !== undefined) return
+    if (!shown) return
+    const hits = shown.hits[y] ?? []
+    const hit =
+      x === undefined
+        ? hits.length === 1
+          ? hits[0]
+          : undefined
+        : hits.find((each) => x >= each.from && x < each.to)
+    if (hit) return act(hit.act)
+    if (hits.length > 0) return
+    if (surface.typing) messages.blur()
     const key = shown.items[y]
     if (key) toggle(key)
   }
@@ -337,10 +371,21 @@ export function createPane(input: {
     commands: [
       { name: "cockpit.subagents.next", title: "Next subagent", run: () => step(1) },
       { name: "cockpit.subagents.prev", title: "Previous subagent", run: () => step(-1) },
+      { name: "cockpit.subagents.message", title: "Message this subagent", run: () => messages.focus() },
       {
-        name: "cockpit.subagents.message",
-        title: "Message this subagent",
-        run: () => messages.startMessage(),
+        name: "cockpit.subagents.allowOnce",
+        title: "Allow the permission once",
+        run: () => answers.reply("once"),
+      },
+      {
+        name: "cockpit.subagents.allowAlways",
+        title: "Allow the permission always",
+        run: () => answers.reply("always"),
+      },
+      {
+        name: "cockpit.subagents.reject",
+        title: "Reject the permission",
+        run: () => answers.reply("reject"),
       },
       { name: "cockpit.subagents.stop", title: "Stop, or remove from the list", run: () => stopOrRemove() },
       {
@@ -400,7 +445,11 @@ export function createPane(input: {
     bindings: [
       { key: "],right", cmd: "cockpit.subagents.next" },
       { key: "[,left", cmd: "cockpit.subagents.prev" },
-      { key: "m", cmd: "cockpit.subagents.message" },
+      { key: "tab", cmd: "cockpit.subagents.message" },
+      /** The card's answers (core/view/foot.ts): only a request on the card gives them anything to do. */
+      { key: "y", cmd: "cockpit.subagents.allowOnce" },
+      { key: "shift+y", cmd: "cockpit.subagents.allowAlways" },
+      { key: "n", cmd: "cockpit.subagents.reject" },
       { key: "x", cmd: "cockpit.subagents.stop" },
       { key: "shift+x", cmd: "cockpit.subagents.clear" },
       { key: "b", cmd: "cockpit.subagents.background" },

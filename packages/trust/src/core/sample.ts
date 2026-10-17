@@ -7,9 +7,10 @@
  * engine actually produces rather than what a hand-written state hoped it would.
  */
 
+import { homedir, tmpdir } from "node:os"
 import { createEngine, type Engine } from "./engine.ts"
 import type { Request } from "./keys.ts"
-import { DAY, type Event } from "./ledger.ts"
+import { ANY_AGENT, DAY, type Event } from "./ledger.ts"
 import { rulesFrom } from "./rules.ts"
 
 export const SAMPLE_ROOT = "/work/app"
@@ -29,7 +30,12 @@ export interface Sample {
 }
 
 const RULES = rulesFrom({
-  permission: { bash: { "*": "ask", "npm publish *": "ask" }, edit: "ask", webfetch: "ask" },
+  permission: {
+    bash: { "*": "ask", "npm publish *": "ask" },
+    edit: "ask",
+    webfetch: "ask",
+    external_directory: "ask",
+  },
 })
 
 /** Runs `script` on a fresh engine; `record` gets every event it loads, in order — a ledger file's lines. */
@@ -132,6 +138,33 @@ function learning(s: Steps): void {
     orchestrator(`mcpx db-local execute_sql --sql "${query}"`)
   orchestrator('mcpx db-prod execute_sql --sql "select count(*) from users"', 2)
   s.auto("head -60 src/routes.ts", 1, "bash", "orchestrator")
+}
+
+/**
+ * Work that leaves the project, as a user's ledger showed it: tests run after `cd packages/api`, a
+ * script run from a folder in the home directory, and the agent's scratch folders in the temp dir —
+ * fourteen approvals across six of them, which Trust suggests widening as one, `$TMPDIR`. Another
+ * repository was widened by hand, and a folder under it is answered.
+ */
+function elsewhere(s: Steps): void {
+  s.at(SAMPLE_NOW - 4 * 3_600_000)
+  const api = "cd packages/api && TZ=UTC npx vitest run"
+  s.approve(`${api} src/routes.test.ts`, 2)
+  s.approve(`${api} src/auth.test.ts`, 1)
+  s.approve("npx vitest run", 3)
+  s.auto("npx vitest run", 2)
+  const scripts = `${homedir()}/work/support-data-uploader/scripts`
+  s.approve(`cd ${scripts} && TZ=America/Bogota python3 upload.py --dry-run --batch 2024-09`, 2)
+  const temp = tmpdir().replace(/\/+$/, "")
+  const scratch = ["a1b2c3", "d4e5f6", "g7h8i9", "j1k2l3", "m4n5o6", "p7q8r9"]
+  scratch.forEach((id, at) => {
+    s.approve(`${temp}/opencode/${id}/*`, at < 2 ? 3 : 2, "once", "external_directory")
+  })
+  const other = `${homedir()}/work/other-repo/`
+  s.approve(`${other}*`, 2, "once", "external_directory")
+  s.at(SAMPLE_NOW - 3_600_000)
+  s.widen(other, ANY_AGENT, "external_directory")
+  s.auto(`${other}src/*`, 1, "external_directory")
 }
 
 /** The `crowded` afternoon, as steps: the oldest first, so the newest are what the ledger leads with. */
@@ -342,6 +375,9 @@ export const SAMPLES: Record<string, () => Sample> = {
 
   /** 0.11: reads learned as families, a widening suggested, a secret file and production still asking. */
   learning: () => ({ engine: build(learning) }),
+
+  /** 0.12: commands run from another folder, and folders outside the project — the temp dir suggested. */
+  elsewhere: () => ({ engine: build(elsewhere) }),
 
   /** Dangerous commands on their way: each needs eight in a row, and none of their families widens. */
   dangerous: () => ({

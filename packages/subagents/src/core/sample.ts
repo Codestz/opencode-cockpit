@@ -180,7 +180,17 @@ export function sample(): Change[] {
       input: { command: "npm test -- login" },
       at: t(58),
     },
-    { type: "status", id: "ses_login", status: "waiting", at: t(58) },
+    {
+      type: "permission",
+      id: "ses_login",
+      request: "per_login_test",
+      state: "asked",
+      permission: "bash",
+      patterns: ["npm test -- login"],
+      always: ["npm test *"],
+      call: "l3",
+      at: t(58),
+    },
     { type: "usage", id: "ses_login", tokens: 3900, cost: 0.003, at: t(58) },
 
     {

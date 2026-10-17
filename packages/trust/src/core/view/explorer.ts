@@ -33,7 +33,7 @@
  */
 
 import { closeHint, type Hint } from "@opencode-cockpit/client/design"
-import { showSubject } from "../family.ts"
+import { lineShown, placed } from "../family.ts"
 import { dayOf, type History, latestAnswers } from "../history.ts"
 import {
   type Button,
@@ -298,7 +298,12 @@ function todayRow(
       ]
     : [muted("nothing answered yet")]
   const label = last
-    ? `${last.permission === "bash" ? "" : `${last.permission} `}${last.items.map((item) => showSubject(last.permission, item.subject)).join(" && ")}`
+    ? placed(
+        lineShown(
+          last.permission,
+          last.items.map((item) => item.subject),
+        ),
+      )
     : ""
   const room = Math.max(0, width - widthOf([...lead, ...said, ...right].map((run) => run.text).join("")) - 2)
   const row = spread([...lead, ...said, ...(label ? [plain(squeeze(label, room))] : [])], right, width)

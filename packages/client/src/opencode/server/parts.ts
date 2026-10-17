@@ -67,6 +67,39 @@ export interface ToolCall {
 }
 
 /**
+ * A tool call about to run, as `toolBefore` hears of it: what the model sent, before the tool reads
+ * it — and before any permission it asks for. OpenCode 2 only.
+ */
+export interface ToolStart {
+  sessionID: string
+  tool: string
+  callID: string
+  /** What the model sent. */
+  args: unknown
+  agent?: string
+  messageID?: string
+}
+
+/**
+ * A permission OpenCode 2 is about to ask the person for, as `permission` hears of it: after config
+ * left it at "ask" and before any request exists, so nothing has been drawn yet. Measured from 2.0.18's
+ * own `Permission.evaluate` (docs/opencode/permissions.md). There is no request id yet — and no `save`,
+ * OpenCode's own "always", which only the request it then makes carries.
+ */
+export interface PermissionAsk {
+  sessionID: string
+  /** The agent asking (`build`, `general`, `explore`…). */
+  agent?: string
+  /** As OpenCode 2 names it: `shell`, `edit`, `read`, `subagent`… */
+  action: string
+  /** What config was matched against: a shell request's commands, a path, a URL. */
+  resources: string[]
+  /** The tool call asking, when a tool asks: the `callID` its `toolBefore` came with. */
+  callID?: string
+  messageID?: string
+}
+
+/**
  * A skill shipped in a package: the folder holding its `SKILL.md`, whose frontmatter names it. OpenCode 1
  * reads the folder (`skills.paths`), OpenCode 2 is handed the file's text (`ctx.skill`): either way the
  * skill's files stay in the installed package and nothing is written to the user's config
@@ -103,6 +136,18 @@ export interface ServerParts {
    * what a tool answered and cannot change it. A throw is logged and never reaches the call.
    */
   toolAfter?: (call: ToolCall) => Promise<void> | void
+  /**
+   * Every tool call about to run, with what the model sent. OpenCode 2 only: v1's
+   * `tool.execute.before` is not wired, since nothing here needs it there. Read-only, like `toolAfter`.
+   */
+  toolBefore?: (call: ToolStart) => Promise<void> | void
+  /**
+   * A permission about to be asked: "allow" answers it before OpenCode makes a request, so no prompt
+   * is ever drawn; anything else leaves it to the person. OpenCode 2 only — v1's `permission.ask`
+   * hook is declared and never called, so a feature answers there from the interface instead. A
+   * throw, or a hook that never settles, must never cost the request: it is logged and left asked.
+   */
+  permission?: (request: PermissionAsk) => Promise<"allow" | undefined>
   sessionDeleted?: (sessionID: string) => Promise<void>
   /** Every event, as the host sends it: v1's `{ type, properties }`, v2's `{ type, data }`. */
   event?: (event: unknown) => Promise<void> | void
@@ -159,6 +204,42 @@ export function composeParts(parts: ServerParts[]): ServerParts {
               }
             }
             if (failed) throw failed.error
+          },
+        }
+      : {}),
+    ...(any("toolBefore")
+      ? {
+          toolBefore: async (call: ToolStart) => {
+            let failed: { error: unknown } | undefined
+            for (const part of parts) {
+              try {
+                await part.toolBefore?.(call)
+              } catch (error) {
+                failed ??= { error }
+              }
+            }
+            if (failed) throw failed.error
+          },
+        }
+      : {}),
+    ...(any("permission")
+      ? {
+          /**
+           * Allowed when any feature allows it: a feature can only answer for the person, never
+           * refuse for them, so one saying nothing leaves the next free to answer. A failure is
+           * reported only when nobody answered.
+           */
+          permission: async (request: PermissionAsk) => {
+            let failed: { error: unknown } | undefined
+            for (const part of parts) {
+              try {
+                if ((await part.permission?.(request)) === "allow") return "allow" as const
+              } catch (error) {
+                failed ??= { error }
+              }
+            }
+            if (failed) throw failed.error
+            return undefined
           },
         }
       : {}),

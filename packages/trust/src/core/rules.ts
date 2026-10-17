@@ -128,6 +128,43 @@ export function rulesFrom(config: unknown, agent?: string): ConfigRule[] {
   return [...documents.flatMap(own), ...documents.flatMap((document) => agentRules(document, agent))]
 }
 
+/** The keys of a config document `rulesFrom` reads, and the per-agent blocks it reads them in. */
+const RULE_KEYS = ["permission", "permissions"] as const
+const AGENT_KEYS = ["mode", "agent", "agents"] as const
+
+function rulesOnly(document: Json): Json {
+  const out: Json = {}
+  for (const key of RULE_KEYS) if (document[key] !== undefined) out[key] = document[key]
+  for (const key of AGENT_KEYS) {
+    const agents = obj(document[key])
+    if (!agents) continue
+    const kept: Json = {}
+    for (const [name, value] of Object.entries(agents)) {
+      const agent = obj(value)
+      const rules = agent ? rulesOnly({ permission: agent.permission, permissions: agent.permissions }) : {}
+      if (Object.keys(rules).length > 0) kept[name] = rules
+    }
+    if (Object.keys(kept).length > 0) out[key] = kept
+  }
+  return out
+}
+
+/**
+ * A config as `config.get` returned it, with nothing but what `rulesFrom` reads: the permissions, at
+ * the top and per agent. For writing it down (tui/snapshot.ts) — a config also holds providers and
+ * their keys, which have no business in another file. `rulesFrom` reads the result exactly as it
+ * reads the whole.
+ */
+export function rulesConfig(config: unknown): unknown {
+  if (Array.isArray(config))
+    return config.flatMap((entry) => {
+      const info = obj(obj(entry)?.info)
+      return info ? [{ type: "document", info: rulesOnly(info) }] : []
+    })
+  const document = obj(config)
+  return document ? rulesOnly(document) : {}
+}
+
 /** The rule that decides `text` for `permission`, as OpenCode picks it: the last that matches. */
 export function evaluate(
   rules: readonly ConfigRule[],

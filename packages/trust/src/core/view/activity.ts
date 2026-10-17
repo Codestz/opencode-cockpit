@@ -31,7 +31,7 @@
  */
 
 import { closeHint, type Hint } from "@opencode-cockpit/client/design"
-import { anyOf, showSubject } from "../family.ts"
+import { anyOf, lineShown, placed, type Shown } from "../family.ts"
 import { type Answer, answersPerDay, dayOf, earned, type History, latestAnswers } from "../history.ts"
 import { keyOf, needFor } from "../ledger.ts"
 import { revokeLabel, type Target, widenLabel, widenScope } from "./actions.ts"
@@ -62,11 +62,12 @@ import {
   meter,
   muted,
   plain,
+  shownRuns,
   since,
   sparkline,
   wrapRuns,
 } from "./parts.ts"
-import { cursorRow, fit, type Row, type Run, spread, squeeze, widthOf } from "./rows.ts"
+import { cursorRow, fit, type Row, type Run, rowText, spread, squeeze, widthOf } from "./rows.ts"
 
 export type ActivityItem =
   /** An answer Trust gave; `count` answers of the same line in a row are one item. */
@@ -92,10 +93,12 @@ export interface ActivityModel {
 const FEED_MAX = 60
 
 /** What was answered, as the other lists say it: `edit src/app.ts`, `webfetch …`, a command bare. */
-const labelOf = (answer: Answer) =>
-  `${answer.permission === "bash" ? "" : `${answer.permission} `}${answer.items
-    .map((item) => showSubject(answer.permission, item.subject))
-    .join(" && ")}`
+const shownOfAnswer = (answer: Answer): Shown =>
+  lineShown(
+    answer.permission,
+    answer.items.map((item) => item.subject),
+  )
+const labelOf = (answer: Answer) => placed(shownOfAnswer(answer))
 
 export function activityModel(input: Reading & { history: History }): ActivityModel {
   const { history, now } = input
@@ -119,8 +122,9 @@ export function activityModel(input: Reading & { history: History }): ActivityMo
     if (feed.length >= FEED_MAX) break
     feed.push({ kind: "answer", key: `a:${answer.request}`, answer, count: 1 })
   }
+  /** On their way to being trusted: a folder outside the project never is by its count, so is not here. */
   const almost: ActivityItem[] = commands
-    .filter((command) => command.phase === "learning")
+    .filter((command) => command.phase === "learning" && !yours(command))
     .sort(
       (a, b) =>
         Number(a.danger !== undefined) - Number(b.danger !== undefined) ||
@@ -144,6 +148,11 @@ export function activityModel(input: Reading & { history: History }): ActivityMo
     commands,
     families,
   }
+}
+
+const yours = (command: Command) => {
+  const { stand } = leadOf(command)
+  return stand.kind === "counting" && stand.yours === true
 }
 
 /** Approvals still to go before Trust answers it. */
@@ -507,7 +516,7 @@ function columnsOf(model: ActivityModel, width: number, now: number): Columns {
   const leads = model.items.map((item) => {
     if (item.kind === "answer") return lead + widthOf(labelOf(item.answer)) + (item.count > 1 ? 4 : 0)
     if (item.kind === "almost")
-      return lead + widthOf(showSubject(item.command.permission, item.command.subject))
+      return lead + widthOf(placed(lineShown(item.command.permission, [item.command.subject])))
     return lead + widthOf(item.group.patterns.join("  "))
   })
   /** The commands get what they need up to about half the row; the reasons take the rest. */
@@ -554,13 +563,13 @@ function itemRow(item: ActivityItem, input: ActivityInput, columns: Columns, wid
     const { answer } = item
     const count = item.count > 1 ? ` ${item.count}×` : ""
     const room = Math.max(4, columns.chipAt - lead - 2 - count.length)
-    const label = squeeze(labelOf(answer), room)
+    const label = shownRuns(shownOfAnswer(answer), room)
     return fit(
       [
         ...start("✓", "success", clock(answer.at, input.now)),
-        plain(label),
+        ...label,
         muted(count),
-        { text: " ".repeat(Math.max(0, room - widthOf(label))) },
+        { text: " ".repeat(Math.max(0, room - widthOf(rowText(label)))) },
         { text: "  " },
         ...chipCell(answer.agent, columns),
         muted(answerWhy(answer, input)),
@@ -574,11 +583,12 @@ function itemRow(item: ActivityItem, input: ActivityInput, columns: Columns, wid
     const danger = command.danger !== undefined
     const room = Math.max(4, columns.chipAt - lead - 2)
     const counting = stand.kind === "counting" ? stand : undefined
-    const name = `${command.permission === "bash" ? "" : `${command.permission} `}${showSubject(command.permission, command.subject)}`
+    const name = shownRuns(lineShown(command.permission, [command.subject]), room)
     return fit(
       [
         ...start("○", danger ? "error" : "warning"),
-        plain(cell(name, room)),
+        ...name,
+        { text: " ".repeat(Math.max(0, room - widthOf(rowText(name)))) },
         { text: "  " },
         ...chipCell(undefined, columns),
         ...(counting ? meter(counting.have, counting.need, danger) : []),

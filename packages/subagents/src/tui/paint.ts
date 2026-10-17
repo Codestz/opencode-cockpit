@@ -13,6 +13,7 @@ import type { SubagentsConfig } from "../core/config.ts"
 import type { Model, Node, Session } from "../core/model/model.ts"
 import { createScreenCache, type Screen, screenRows } from "../core/view/screen.ts"
 import { type SidebarLine, sidebarLines } from "../core/view/sidebar.ts"
+import { cardOf } from "./answers.ts"
 import { createRowPool, type RowPool, solidSurface } from "./render.ts"
 import type { Surface } from "./surface.ts"
 
@@ -135,6 +136,8 @@ export function createPainter(input: {
       if (session && show) {
         const launcher = session.parentID ? model.sessions.get(session.parentID)?.agent : undefined
         const started = performance.now()
+        /** Answered from here and not yet heard back about: off the card, unless the answer failed. */
+        const card = cardOf(session, surface.replies)
         const screen = screenRows({
           cache,
           session,
@@ -154,7 +157,14 @@ export function createPainter(input: {
           whole: surface.whole,
           yours: (entry) => yours.has(`${session.id}:${entry.text}`),
           reveal: surface.reveal === true,
-          ...(surface.draft !== undefined ? { input: { draft: surface.draft, busy: busy(session) } } : {}),
+          prompt: {
+            draft: surface.draft ?? "",
+            ...(surface.caret !== undefined ? { caret: surface.caret } : {}),
+            focused: surface.typing === true,
+            busy: busy(session),
+          },
+          pending: card.pending,
+          ...(card.error ? { replyError: card.error } : {}),
           ...(surface.notice ? { notice: surface.notice } : {}),
         })
         /** Scrolled back to the end: follow the run again. */
@@ -168,7 +178,7 @@ export function createPainter(input: {
         const took = performance.now() - started
         /** A paint past a frame is worth knowing about; the run's size says why. */
         if (took > 16) log.debug("slow paint", { ms: Math.round(took), entries: session.entries.length })
-        /** The prompt's cursor would otherwise blink through the pane, as it did over Review. */
+        /** OpenCode's prompt's cursor would otherwise blink through the pane, as it did over Review. */
         setTimeout(() => {
           if (surface.open) api.renderer.setCursorPosition(0, 0, false)
         }, 0)

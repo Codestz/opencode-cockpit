@@ -4,7 +4,8 @@
  * in the ledger is ever changed in place.
  */
 
-import { anyOf, readSubject, showSubject, widenable } from "../family.ts"
+import { anyOf, readSubject, shownOf, showSubject, widenable } from "../family.ts"
+import { OUTSIDE, TEMP_DIR, TEMP_FAMILY } from "../folders.ts"
 import type { Answer } from "../history.ts"
 import { ANY_AGENT, type Event, type Widened } from "../ledger.ts"
 import { type AlwaysGroup, type Command, type Family, type Reading, stale } from "./model.ts"
@@ -194,7 +195,7 @@ function familyOfAnswer(answer: Answer, families: readonly Family[]): string | u
 
 /** The family's name in a button: commands stay lowercase, where it runs is left to the card. */
 export function familyLabel(permission: string, family: string): string {
-  const text = permission === "bash" ? showSubject("bash", family).replace(/^\(in .*?\) /, "") : family
+  const text = permission === "edit" ? family : shownOf(permission, family).text
   return text.length > 20 ? `${text.slice(0, 19)}…` : text
 }
 
@@ -268,7 +269,13 @@ export function configSnippet(target: Target): { text: string; note?: string } {
       : [target.command.permission, target.command.subject]
   const placed = subject.match(/^\(in [^)]*\) (.*)$/s)
   const pattern =
-    permission === "webfetch" ? `https://${subject}/*` : placed ? (placed[1] as string) : subject
+    permission === "webfetch"
+      ? `https://${subject}/*`
+      : permission === OUTSIDE
+        ? `${subject}*`
+        : placed
+          ? (placed[1] as string)
+          : subject
   const text = JSON.stringify({ permission: { [permission]: { [pattern]: "allow" } } })
   return placed
     ? { text, note: "a config rule cannot say where a command runs: this one allows it anywhere" }
@@ -287,6 +294,9 @@ function familySnippet(family: Family): { text: string; note?: string } {
     }
   } else if (family.permission === "edit") {
     pattern = `${family.family === "./" ? "" : family.family}*`
+    notes.push("its * reaches into subfolders too")
+  } else if (family.permission === OUTSIDE) {
+    pattern = family.family === TEMP_FAMILY ? `${TEMP_DIR}/*` : `${family.family}*`
     notes.push("its * reaches into subfolders too")
   } else if (family.permission === "webfetch") pattern = `https://${family.family}/*`
   const any = anyOf(family.permission, family.family)

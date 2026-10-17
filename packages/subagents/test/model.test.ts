@@ -182,3 +182,146 @@ describe("what a subagent is doing now", () => {
     ])
   })
 })
+
+/**
+ * A permission a subagent is held on, from each OpenCode's own events (docs/opencode/permissions.md):
+ * kept per session so the pane's card can answer it, gone once anyone answers it or the run ends.
+ */
+describe("held on a permission", () => {
+  const at = 5_000
+  /** A subagent at work, running a shell command it now has to ask about. */
+  const working: Change[] = [
+    { type: "session", id: "c", parentID: "p", agent: "general", title: "Fix the login test", at },
+    { type: "status", id: "c", status: "busy", at },
+    {
+      type: "tool",
+      id: "c",
+      call: "call_1",
+      name: "bash",
+      state: "running",
+      input: { command: "npm test" },
+      at,
+    },
+  ]
+  const v1Asked = (id: string, command: string) => ({
+    type: "permission.asked",
+    properties: {
+      id,
+      sessionID: "c",
+      permission: "bash",
+      patterns: [command],
+      always: [`${command.split(" ")[0]} *`],
+      metadata: {},
+      tool: { messageID: "msg_1", callID: "call_1" },
+    },
+  })
+  const v1Replied = (requestID: string) => ({
+    type: "permission.replied",
+    properties: { sessionID: "c", requestID, reply: "once" },
+  })
+  const v2Asked = (id: string, command: string) => ({
+    name: "permission.asked",
+    details: {
+      data: {
+        id,
+        sessionID: "c",
+        action: "shell",
+        resources: [command],
+        save: [`${command.split(" ")[0]} *`],
+        metadata: {},
+        message: "msg_1",
+        source: { type: "tool", messageID: "msg_1", id: "call_1" },
+      },
+    },
+  })
+  const v2Replied = (requestID: string) => ({
+    name: "permission.replied",
+    details: { data: { sessionID: "c", requestID, reply: "once" } },
+  })
+
+  for (const version of [1, 2] as const) {
+    const translate = () => (version === 1 ? createV1Translator() : createV2Translator())
+    const asked = version === 1 ? v1Asked : v2Asked
+    const replied = version === 1 ? v1Replied : v2Replied
+
+    test(`OpenCode ${version}: an ask is kept with what it is for, and the run waits`, () => {
+      const t = translate()
+      const model = applyAll(emptyModel(), [...working, ...t.event(asked("per_1", "npm test"), at + 1)])
+      const sub = model.sessions.get("c")
+      expect(sub?.status).toBe("waiting")
+      expect(sub?.pending).toEqual([
+        {
+          id: "per_1",
+          sessionID: "c",
+          permission: version === 1 ? "bash" : "shell",
+          patterns: ["npm test"],
+          always: ["npm *"],
+          call: "call_1",
+          message: "msg_1",
+          at: at + 1,
+        },
+      ])
+      expect(activityOf(sub as NonNullable<typeof sub>).text).toBe("waiting for permission")
+    })
+
+    test(`OpenCode ${version}: one of two answered still waits; both answered, it works again`, () => {
+      const t = translate()
+      const model = applyAll(emptyModel(), [
+        ...working,
+        ...t.event(asked("per_1", "npm test"), at + 1),
+        ...t.event(asked("per_2", "npm run lint"), at + 2),
+        ...t.event(replied("per_1"), at + 3),
+      ])
+      const sub = model.sessions.get("c")
+      expect(sub?.pending.map((ask) => ask.id)).toEqual(["per_2"])
+      expect(sub?.status).toBe("waiting")
+      applyAll(model, t.event(replied("per_2"), at + 4))
+      expect(sub?.pending).toEqual([])
+      expect(sub?.status).toBe("running")
+    })
+  }
+
+  test("a run that ends drops what it was held on", () => {
+    for (const end of [
+      { type: "status", id: "c", status: "idle", at: at + 9 },
+      { type: "status", id: "c", status: "failed", error: "aborted", at: at + 9 },
+    ] as Change[]) {
+      const model = applyAll(emptyModel(), [
+        ...working,
+        ...createV1Translator().event(v1Asked("per_1", "npm test"), at + 1),
+        end,
+      ])
+      expect(model.sessions.get("c")?.pending).toEqual([])
+    }
+  })
+
+  test("an answer to a request asked before we loaded still frees the run", () => {
+    const model = applyAll(emptyModel(), [
+      ...working,
+      { type: "status", id: "c", status: "waiting", at: at + 1 },
+      ...createV2Translator().event(v2Replied("per_old"), at + 2),
+    ])
+    expect(model.sessions.get("c")?.status).toBe("running")
+  })
+
+  test("both OpenCodes name the model, whose it is and its variant", () => {
+    const v1 = createV1Translator().session({
+      id: "c",
+      title: "Fix it (@general subagent)",
+      model: { id: "space-bunny-free", providerID: "opencode", variant: "high" },
+    })
+    const v2 = createV2Translator().event(
+      {
+        name: "session.step.started",
+        details: { data: { sessionID: "c", agent: "general", model: { id: "gpt-5", providerID: "openai" } } },
+      },
+      at,
+    )
+    expect(applyAll(emptyModel(), v1).sessions.get("c")).toMatchObject({
+      model: "space-bunny-free",
+      provider: "opencode",
+      variant: "high",
+    })
+    expect(applyAll(emptyModel(), v2).sessions.get("c")).toMatchObject({ model: "gpt-5", provider: "openai" })
+  })
+})

@@ -13,13 +13,15 @@
  *    by a family you widened for this agent — unless it is one a widening never covers (dangerous,
  *    writing a file, by redirection or by flag, running another program: `family.outside`) — or by a
  *    family of reads Trust learned for this agent, which covers plain reads only (effect.ts). Config's
- *    `ask` was settled in 2, so it still wins over both.
+ *    `ask` was settled in 2, so it still wins over both. A folder outside the project is never trusted
+ *    by its count — only a folder you widened answers it, and only the folders under it (folders.ts).
  *
  * The answer always carries what an approval of the request would count towards, so a person's
  * approval of a request Trust declined is counted against exactly what Trust looked at.
  */
 
-import { anyOf, familyOf, notReadSubject, outside } from "./family.ts"
+import { anyOf, notReadSubject, outside, wideningsOf } from "./family.ts"
+import { answersByCount } from "./folders.ts"
 import { type Context, type Request, subjectsOf } from "./keys.ts"
 import { type Item, keyOf, live, type State, standing, type Thresholds } from "./ledger.ts"
 import { type ConfigRule, describeRule, gate } from "./rules.ts"
@@ -34,6 +36,8 @@ export interface Progress {
   via?: string
   /** The family in `via` is one Trust learned from your approvals of reads in it. */
   learned?: true
+  /** Never trusted by its count: a folder outside the project, until a folder you widened answers it. */
+  yours?: true
 }
 
 export interface Judgement {
@@ -93,6 +97,7 @@ export function decide(input: DecideInput): Judgement {
       trusted: where.trusted || via !== undefined,
       ...(via !== undefined ? { via } : {}),
       ...(through?.learned ? { learned: true as const } : {}),
+      ...(where.yours ? { yours: true as const } : {}),
     })
   }
   const items: Item[] = progress.map(({ subject, danger }) => (danger ? { subject, danger } : { subject }))
@@ -104,6 +109,8 @@ export function decide(input: DecideInput): Judgement {
   if (progress.length === 0) return left("config allows all of it by our reading — yours to answer")
 
   const short = progress.filter((each) => !each.trusted)
+  if (short.length > 0 && !answersByCount(request.permission))
+    return { answer: false, why: OUTSIDE_WHY, items, progress }
   if (short.length > 0) {
     const worst = short.reduce((a, b) => (b.need - b.have > a.need - a.have ? b : a))
     return {
@@ -143,6 +150,8 @@ export function decide(input: DecideInput): Judgement {
   }
 }
 
+const OUTSIDE_WHY = "outside the project — yours to answer, unless you widen a folder in /trust"
+
 /**
  * The family this subject is answered through, for this agent: one you widened covers what a widening
  * covers (`outside`); one Trust learned covers plain reads only (`notReadSubject`).
@@ -155,10 +164,12 @@ export function widenedFor(
   now: number,
 ): { family: string; learned?: true } | undefined {
   if (state.widened.size === 0) return undefined
-  const family = familyOf(permission, subject)
-  const found = state.widened.get(keyOf(permission, family))
-  if (!found || !live(found, settings, now)) return undefined
-  if (found.learned)
-    return notReadSubject(permission, subject) === undefined ? { family, learned: true } : undefined
-  return outside(permission, subject) === undefined ? { family } : undefined
+  for (const family of wideningsOf(permission, subject)) {
+    const found = state.widened.get(keyOf(permission, family))
+    if (!found || !live(found, settings, now)) continue
+    if (found.learned)
+      return notReadSubject(permission, subject) === undefined ? { family, learned: true } : undefined
+    return outside(permission, subject) === undefined ? { family } : undefined
+  }
+  return undefined
 }

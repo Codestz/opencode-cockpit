@@ -12,8 +12,8 @@ export interface OverlayProps {
   onReady: (parts: { backdrop: BoxRenderable; panel: BoxRenderable; lines: TextRenderable[] }) => void
   /** A click landed outside the pane. */
   onDismiss: () => void
-  /** A click landed on the pane, at this row of it. */
-  onClick: (y: number) => void
+  /** A click landed on the pane, at this row and column of it. */
+  onClick: (y: number, x: number) => void
   /** The wheel turned over the pane: negative is up. */
   onScroll: (delta: number) => void
 }
@@ -31,6 +31,8 @@ export function Overlay(props: OverlayProps): JSX.Element {
   let backdrop: BoxRenderable | undefined
   let panel: BoxRenderable | undefined
   const lines: TextRenderable[] = []
+  /** Where the button went down: released somewhere else, it was a drag, not a click. */
+  let down: { x: number; y: number } | undefined
   /** Refs arrive child-first; act once every piece is here. */
   const ready = () => {
     if (backdrop && panel && lines.length === MAX_LINES) props.onReady({ backdrop, panel, lines })
@@ -63,11 +65,21 @@ export function Overlay(props: OverlayProps): JSX.Element {
         flexShrink={0}
         flexDirection="column"
         backgroundColor={props.api.theme.current.background}
-        onMouseDown={(event: MouseEvent) => event.stopPropagation()}
-        /** At release, not press, as Review learned: a press can land its release on what it opened. */
-        onMouseUp={(event: MouseEvent) => {
+        onMouseDown={(event: MouseEvent) => {
           event.stopPropagation()
-          props.onClick(event.y)
+          down = { x: event.x, y: event.y }
+        }}
+        /**
+         * At release, not press, as Review learned: a press can land its release on what it opened.
+         * A drag is a selection — OpenTUI's lines are selectable — and is let through untouched, so
+         * OpenCode copies it as it does its own text; only a press and release in one cell clicks.
+         */
+        onMouseUp={(event: MouseEvent) => {
+          const dragged = down !== undefined && (down.x !== event.x || down.y !== event.y)
+          down = undefined
+          if (dragged) return
+          event.stopPropagation()
+          props.onClick(event.y, event.x - (panel?.x ?? 0))
         }}
         onMouse={(event: MouseEvent) => {
           const scroll = event.scroll

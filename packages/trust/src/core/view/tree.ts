@@ -16,7 +16,8 @@
  */
 
 import { dangerOf } from "../danger.ts"
-import { readSubject, shown, showSubject } from "../family.ts"
+import { anyShown, kindOf, lineShown, readSubject, type Shown, shown, showSubject } from "../family.ts"
+import { OUTSIDE } from "../folders.ts"
 import { type Suggestion, suggestionsOf } from "../suggest.ts"
 import type { Target } from "./actions.ts"
 import {
@@ -32,7 +33,7 @@ import {
   type Reading,
   stale,
 } from "./model.ts"
-import { badge, meter, muted, plain, plural } from "./parts.ts"
+import { badge, meter, muted, plain, plural, shownRuns, unprefixed } from "./parts.ts"
 import { cursorRow, fit, type Row, type Run, rowText, spread, squeeze, type Tone, widthOf } from "./rows.ts"
 
 /** The kinds a ledger is grouped by, in the order they are listed; suggestions above them all. */
@@ -122,17 +123,33 @@ const seenOnce = (family: Family) =>
   family.widened.length === 0 && family.commands.every((command) => command.phase === "once")
 
 export const commandText = (command: Command) =>
-  `${command.permission === "bash" ? "" : `${command.permission} `}${showSubject(command.permission, command.subject)}`
+  `${kindOf(command.permission)}${showSubject(command.permission, command.subject)}`
 /** A family as its heading says it: `head`, `read src/`, and a whole tool (`*`) as its name alone — `grep`. */
 export const familyText = (family: Family) =>
   family.family === "*"
     ? family.permission
-    : `${family.permission === "bash" ? "" : `${family.permission} `}${showSubject(family.permission, family.family)}`
+    : `${kindOf(family.permission)}${showSubject(family.permission, family.family)}`
 
-/** A command as its row says it: under Edits the path alone, the heading says what kind it is. */
-const rowCommandText = (command: Command) =>
-  command.permission === "edit" ? command.subject : commandText(command)
-const rowFamilyText = (family: Family) => (family.permission === "edit" ? family.family : familyText(family))
+/** What a row draws, command first and its place after (`shownRuns`): under Edits the path alone. */
+export const commandShown = (command: Command): Shown =>
+  command.permission === "edit"
+    ? { text: command.subject, lead: 0, head: 0 }
+    : lineShown(command.permission, [command.subject])
+export const familyShown = (family: Family): Shown =>
+  family.permission === "edit"
+    ? { text: family.family, lead: 0, head: 0 }
+    : family.family === "*"
+      ? { text: family.permission, lead: 0, head: 0 }
+      : lineShown(family.permission, [family.family])
+
+/** A suggestion as its row says it: `any npx vitest  in packages/api`, `any folder in $TMPDIR`. */
+function suggestShown(family: Family): Shown {
+  if (family.permission === OUTSIDE) return anyShown(family.permission, family.family)
+  const shown = familyShown(family)
+  return { ...shown, text: `any ${shown.text}`, lead: shown.lead + 4, head: shown.head + 4 }
+}
+
+const rowFamilyText = (family: Family) => familyShown(family).text
 
 export function explorerModel(input: Reading & Tree & { today?: number }): ExplorerModel {
   const commands = commandsOf(input)
@@ -372,6 +389,7 @@ function statusRuns(node: Node): Run[] {
   if (stand.kind === "widened") return [{ text: stand.learned ? "✓ read" : "✓ any", tone: "success" }]
   if (stand.expired) return [muted("expired")]
   if (command.phase === "once") return [muted("○ once")]
+  if (stand.yours) return [muted(`${stand.have}× yours`)]
   return [
     ...meter(stand.have, stand.need, command.danger !== undefined),
     muted(` ${stand.have}/${stand.need}`),
@@ -405,13 +423,17 @@ export function treeRow(
         : []
     const risk = familyRisk(node.family)
     const marks = [...any, ...(risk ? [{ text: " " }, badge(risk, "error")] : [])]
-    const name = squeeze(
-      label(rowFamilyText(node.family), node.prefix),
+    const name = shownRuns(
+      unprefixed(familyShown(node.family), node.prefix),
       room - 3 - indent.length - widthOf(rowText([...files, ...marks])),
+      seenOnce(node.family) ? "muted" : "text",
     )
+    /** Bold is the family's name, not where it ran. */
+    const [first, ...place] = name
     left = [
       muted(` ${indent}${node.open ? "▾" : "▸"} `),
-      { text: name, tone: seenOnce(node.family) ? "muted" : "text", bold: true },
+      ...(first ? [{ ...first, bold: true }] : []),
+      ...place,
       ...marks,
       ...files,
     ]
@@ -439,17 +461,18 @@ export function treeRow(
     const lead = (node.nested ? 5 : 3) + indent.length
     left = [
       { text: " ".repeat(lead) },
-      {
-        text: squeeze(nestedText(node, room - lead), room - lead),
-        tone: node.command.phase === "once" ? "muted" : "text",
-      },
+      ...shownRuns(
+        nestedShown(node, room - lead),
+        room - lead,
+        node.command.phase === "once" ? "muted" : "text",
+      ),
     ]
   } else if (node.kind === "more") left = [muted(`     ${indent}+ ${node.hidden} more`)]
   else if (node.kind === "always") left = [{ text: " ! ", tone: "warning" }, plain("OpenCode always")]
   else if (node.kind === "suggest") {
     left = [
       { text: " ★ ", tone: "warning" },
-      plain(squeeze(`any ${rowFamilyText(node.suggestion.family)}`, Math.max(4, room - 4))),
+      ...shownRuns(suggestShown(node.suggestion.family), Math.max(4, room - 4)),
       muted("?"),
     ]
   } else left = []
@@ -471,30 +494,34 @@ export function treeRow(
 /**
  * A command under its family's heading, in `room` columns. Cut from the right, two variants of one
  * family read alike (`git status --sho…` twice), so a command that does not fit gives up the family's
- * words first — the heading above already says them: `… --short -uno`.
+ * words first — the heading above already says them: `… --short -uno`. Its place stays at the end.
  */
-function nestedText(node: Extract<Node, { kind: "command" }>, room: number): string {
-  const text = label(rowCommandText(node.command), node.prefix)
-  if (widthOf(text) <= room || !node.nested) return text
-  const family = label(rowFamilyText(node.family), node.prefix)
-  if (node.family.permission === "edit" && text.startsWith(family)) return text.slice(family.length)
-  return text.startsWith(`${family} `) ? `…${text.slice(family.length)}` : text
+function nestedShown(node: Extract<Node, { kind: "command" }>, room: number): Shown {
+  const shown = unprefixed(commandShown(node.command), node.prefix)
+  const { text } = shown
+  const place = shown.place === undefined ? 0 : widthOf(`  in ${shown.place}`)
+  if (widthOf(text) + place <= room || !node.nested) return shown
+  const family = unprefixed(familyShown(node.family), node.prefix).text
+  if (node.family.permission === "edit" && text.startsWith(family))
+    return { ...shown, text: text.slice(family.length), lead: 0, head: 0 }
+  return text.startsWith(`${family} `)
+    ? { ...shown, text: `…${text.slice(family.length)}`, lead: 0, head: 0 }
+    : shown
 }
-
-/** `text` without the words the folders above it already say: `execute_sql` under `mcpx db-local`. */
-const label = (text: string, prefix: string) =>
-  prefix !== "" && text.startsWith(`${prefix} `) ? text.slice(prefix.length + 1) : text
 
 /**
  * A family's first words, as folders read them: each word as shown, a flag with its value as one
- * (`-p dev`), env vars first, and a place as `(in web)`. Only commands are foldered.
+ * (`-p dev`). What it is told and where it ran are no folders: `TZ=… npx vitest` run in `packages/api`
+ * sits under `npx` beside the same command run at the top, its env words in front of its program and
+ * its place at the end of its row — a folder named `TZ=…` or `(in packages/api)` said nothing about
+ * what ran. Only commands are foldered.
  */
 export function unitsOf(family: Family): string[] {
   if (family.permission !== "bash") return [family.family]
   const read = readSubject(family.family)
   if (!read) return [family.family]
-  const words = [...read.command.env, ...read.command.argv].map(shown)
-  const units: string[] = read.place === undefined ? [] : [`(in ${shown(read.place)})`]
+  const words = read.command.argv.map(shown)
+  const units: string[] = []
   for (let i = 0; i < words.length; i++) {
     const word = words[i] as string
     const next = words[i + 1]

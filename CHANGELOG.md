@@ -6,6 +6,76 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **Subagents: answer a permission from the pane.** A subagent that asked for a permission while you
+  were watching it had to be closed before you could answer, in OpenCode's prompt underneath. Its
+  pane now shows the request as a card above the message box, as OpenCode's own prompt does: what it
+  asks for — a shell call's whole command line — and `[y] Allow once`, `[Y] Allow always`,
+  `[n] Reject`, each a key or a click. Several waiting read `1 of 3`; an answer the host refuses
+  comes back on the card with why. It answers the same request, so OpenCode's prompt goes too. Not
+  `enter`, which opens the item under the cursor: one press too many would have approved a command.
+  The switcher marks any other subagent that is waiting with `△`. Both OpenCodes; OpenCode 2's
+  requests are now read at all, where before they fell through as an unknown event.
+- **Trust: folders outside the project are suggested, never learned.** OpenCode's
+  `external_directory` prompt — a tool about to read or write outside the project — was always left
+  to you, and on a real ledger it was one prompt in sixteen, almost all in the OS temp dir, every one
+  approved by hand. Trust now counts those approvals by folder and still never answers one by its
+  count: once approvals across two or more temp folders reach the threshold, the ledger suggests
+  `★ any folder in $TMPDIR?`, and `w` lets Trust answer there from now on. The temp dir is one
+  family under every name it goes by (`/var/folders/…` and `/private/var/folders/…`, `/tmp` and
+  `/private/tmp`); any other folder can be widened with `w` too, and covers the folders under it,
+  never its siblings. `/`, your home folder, `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.config`, `~/.kube`,
+  `~/.docker`, `/etc`, a folder that may hold secrets and one that holds the project are never
+  suggested or widened. Both halves decide it the same way.
+
+### Changed
+
+- **Trust answers before OpenCode draws its prompt (OpenCode 2).** Trust answered from the interface,
+  after OpenCode had already put its prompt on screen: a frame each time, and in a burst of parallel
+  subagents a prompt that flickered over and over and took what you were typing. OpenCode 2 lets an
+  agent-side plugin decide a permission before any request is made, so Trust's agent half now
+  answers there, and nothing is drawn at all. It decides with what the interface decides with: the
+  same ledger, read again before every answer (an approval or a pause in any window counts), the
+  same rules — the interface shares OpenCode's permissions with it in `rules.json` beside the
+  ledger, never the rest of your config — and the same settings. When anything is missing or in
+  doubt (the interface is not running, the command line was not heard, the ledger cannot be
+  written), it answers nothing and the interface handles the request as before. Its answers are in
+  the ledger and the sidebar like any other. OpenCode 1 has no such hook: Trust answers from the
+  interface there, a frame after the prompt shows.
+
+- **Subagents: the message box is always there.** It sits at the foot of the pane like OpenCode's
+  own prompt — an accent edge, the agent, its model and whose model it is under it — instead of
+  appearing only after `m`. `tab` or a click on it starts typing; `enter` sends and leaves you
+  typing; `esc` hands the keys back to the pane and keeps the draft; `←` `→` move the
+  cursor and `ctrl+u` clears what is before it. `m` is no longer a key.
+- **Subagents: a drag in the pane is no longer a click.** Pressing and releasing on different cells
+  used to open or fold the item under the release; it is now left to OpenCode as a selection, which
+  OpenCode copies as it does its own text.
+- **Trust: commands run from another folder read clearly.** A command the agent ran after
+  `cd packages/api` read `(in packages/api) TZ=… npx …`, and a row cut from the right lost the
+  program — `any (in /Users/…/support-data-u…) …` said nothing. The command now comes first and its
+  place after it, muted and short (`npx vitest run  in packages/api`, `~/…/support-data-uploader/scripts`
+  for a folder outside the project), in the tree, the suggestions, the card, the activity and the
+  sidebar; a narrow row cuts the command's tail, never its program, and keeps the place. The card
+  says it in words: "Run from packages/api — the agent changed folder first." Such commands are no
+  longer foldered by their place or their env words, but under their program.
+- **Trust: a family is the same wherever it runs.** `rg` run from `packages/api`, from the top and
+  from a worktree were three families, each approved and widened on its own — on one real ledger 491
+  of 1,705 families were a place. A family is now the command alone: any `rg` you widened is any `rg`
+  in the project, in whatever folder. Leaving the project stays a question of its own — OpenCode asks
+  `external_directory` for it, counted by folder above. The exact command keeps its place, so a rule
+  one command earned stays that command's; widenings, dismissals and learned reads recorded with a
+  place before now hold in every folder.
+
+### Fixed
+
+- **Trust: `/trust` keeps up on a big ledger.** On a real ledger of 13,000 commands every keystroke
+  repainted in about half a second — the shell was parsed again for every command on every paint —
+  so scrolling lagged and keys piled up until the dialog looked stuck. A command's reading is now kept
+  once made, and what the screens are built from is rebuilt only when the ledger changes: 3–4ms a
+  keystroke on the same ledger.
+
 ## [0.11.0] - 2026-10-06
 
 ### Added

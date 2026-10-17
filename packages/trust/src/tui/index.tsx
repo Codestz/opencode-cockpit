@@ -1,9 +1,13 @@
 /** @jsxImportSource @opentui/solid */
 
 /**
- * Trust's interface half — the only half it has. OpenCode's `permission.ask` server hook is declared
- * and never called (docs/opencode/permissions.md), so a plugin answers a request the way OpenCode's
- * own auto mode does: from the interface, on `permission.asked`, with a reply of "once".
+ * Trust's interface half. On OpenCode 1 it is the half that answers: v1's `permission.ask` server hook
+ * is declared and never called (docs/opencode/permissions.md), so a request is answered the way
+ * OpenCode's own auto mode does — from the interface, on `permission.asked`, with a reply of "once" —
+ * and OpenCode's prompt shows for a frame first. On OpenCode 2 the agent half answers first, before a
+ * request is ever made (agent/answer.ts), with the rules this half publishes for it (snapshot.ts);
+ * what it leaves is asked, and answered here exactly as on 1. Its answers reach this window through
+ * the ledger, and the sidebar lists them.
  *
  * Everything that decides is in `core/`; this file wires it to the host: the ledger file read and
  * appended, the painter (`paint.ts`), requests in and replies out (`requests.ts`), `/trust`
@@ -22,6 +26,7 @@ import { maskHasher } from "./key.ts"
 import { createLedger } from "./ledger.tsx"
 import { closedDialog, createPainter, type Live } from "./paint.ts"
 import { createRequests } from "./requests.ts"
+import { writeSnapshot } from "./snapshot.ts"
 import { Rows } from "./view/rows.tsx"
 
 const TRUST_PACKAGE = "@opencode-cockpit/trust"
@@ -75,7 +80,11 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
         .read()
         .then(({ events, reset }) => {
           if (events.length === 0 && !reset) return
-          engine.load(events, { reset })
+          /** The agent half's answers to calls this window saw are this window's (OpenCode 2). */
+          engine.load(events, {
+            reset,
+            here: (answer) => answer.call !== undefined && requests.saw(answer.call),
+          })
           draw()
         })
         .catch((error) => {
@@ -99,8 +108,26 @@ export function createTrustTui({ source = TRUST_PACKAGE }: { source?: string } =
         })
     }
 
+    /** One write at a time, the last read last: a slow write never lands over a newer one. */
+    let publishing: Promise<unknown> = Promise.resolve()
+    const publish = (rules: { config: unknown } | undefined) => {
+      publishing = publishing
+        .then(() => writeSnapshot(paths, rules && { config: rules.config, settings }))
+        .catch((error) => log.warn("rules not shared with the agent half", { file: paths.rules, error }))
+    }
+
     const hash = maskHasher(paths, log)
-    const requests = createRequests({ api, log, engine, directory, hash, live, write, draw })
+    const requests = createRequests({
+      api,
+      log,
+      engine,
+      directory,
+      hash,
+      live,
+      write,
+      draw,
+      ...(api.v2 ? { publish } : {}),
+    })
     const ledger = createLedger({
       api,
       log,

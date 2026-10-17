@@ -71,9 +71,9 @@ describe("the policy for a widened family", () => {
     expect(ask("ls -la", [widened("ls")], { agent: "build" }).answer).toBe(true)
   })
 
-  test("not another family, nor the same words somewhere else or as root", () => {
+  test("not another family, nor the same words as root — but the same words in another folder", () => {
     expect(ask("sudo ls", [widened("ls")]).answer).toBe(false)
-    expect(ask("cd web && ls", [widened("ls")]).answer).toBe(false)
+    expect(ask("cd web && ls", [widened("ls")]).answer).toBe(true)
     expect(ask("lsof -i", [widened("ls")]).answer).toBe(false)
   })
 

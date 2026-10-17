@@ -29,6 +29,20 @@ export type Entry =
       ended?: number
     }
 
+/** A permission a session is held on, until someone answers it or the session ends. */
+export interface Permission {
+  /** The host's id for the request: what a reply names. */
+  id: string
+  sessionID: string
+  /** As the host names it: `bash` on OpenCode 1, `shell` on 2. */
+  permission: string
+  patterns: string[]
+  always: string[]
+  call?: string
+  message?: string
+  at: number
+}
+
 export interface Session {
   id: string
   parentID?: string
@@ -47,8 +61,13 @@ export interface Session {
   tokens: number
   cost: number
   model?: string
+  /** Whose model it is and the variant it runs at, when the host says: the prompt's line names them. */
+  provider?: string
+  variant?: string
   background?: boolean
   denied: string[]
+  /** Permissions it is held on, oldest first: the pane's card answers the first. */
+  pending: Permission[]
   steps: number
   /** When anything was last heard about it: a run gone quiet this long is asked about. */
   seen: number
@@ -79,6 +98,7 @@ function session(model: Model, id: string, at: number): Session {
       tokens: 0,
       cost: 0,
       denied: [],
+      pending: [],
       steps: 0,
       seen: at,
     }
@@ -127,6 +147,8 @@ function applyStatus(s: Session, change: Extract<Change, { type: "status" }>): v
  * told us — without this its spinner turned forever, and the sidebar said it was still at it.
  */
 function settle(s: Session, at: number): void {
+  /** Nothing is held on a permission once the run is over: the host drops the request with it. */
+  s.pending = []
   for (const entry of s.entries) {
     if (entry.kind === "tool" && (entry.state === "running" || entry.state === "pending")) {
       entry.state = "failed"
@@ -188,6 +210,8 @@ export function apply(model: Model, change: Change): void {
       if (change.agent) s.agent = change.agent
       if (change.title) s.title = change.title
       if (change.model) s.model = change.model
+      if (change.provider) s.provider = change.provider
+      if (change.variant) s.variant = change.variant
       if (change.background) s.background = true
       if (change.denied) s.denied = change.denied
       /** A session's own creation time beats when we first heard of it. */
@@ -260,6 +284,32 @@ export function apply(model: Model, change: Change): void {
       if (change.tokens !== undefined) s.tokens = change.tokens
       if (change.cost !== undefined) s.cost = change.cost
       return
+    case "permission": {
+      const had = s.pending.length
+      s.pending = s.pending.filter((each) => each.id !== change.request)
+      if (change.state === "asked") {
+        s.pending.push({
+          id: change.request,
+          sessionID: s.id,
+          permission: change.permission ?? "permission",
+          patterns: change.patterns ?? [],
+          always: change.always ?? [],
+          ...(change.call ? { call: change.call } : {}),
+          ...(change.message ? { message: change.message } : {}),
+          at: change.at,
+        })
+        apply(model, { type: "status", id: s.id, status: "waiting", at: change.at })
+        return
+      }
+      /**
+       * Answered: back to work once nothing else is pending. Two parallel calls ask twice, and one
+       * answer used to read as the whole run going again while the other still waited. A reply to a
+       * request we never heard of (it was asked before we loaded) frees it as it always did.
+       */
+      if (s.pending.length === 0 && (had > 0 || s.status === "waiting"))
+        apply(model, { type: "status", id: s.id, status: "busy", at: change.at })
+      return
+    }
   }
 }
 

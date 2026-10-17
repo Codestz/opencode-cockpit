@@ -33,16 +33,42 @@
  *   it (`outside`), because writing a file is not what "any ls" was agreed to mean.
  *
  * Other permissions: an edit's family is its folder (`src/`), a fetch's its host, an agent type is
- * its own — the last two already are as wide as they go.
+ * its own — the last two already are as wide as they go. A folder outside the project is its own
+ * family, the temp dir one for all of it (`$TMPDIR/`), and a widened one answers the folders under
+ * it too (folders.ts).
  */
 
 import { posix } from "node:path"
 import { dangerOf, subcommand, TOOL_GLOBALS, unwrapOnce } from "./danger.ts"
 import { GIT_READS, notRead, runsByFlag, sensitive, writesByFlag } from "./effect.ts"
 import { envWords } from "./env.ts"
+import { folderFamily, OUTSIDE, refused, shortPath, shortPlace, TEMP_FAMILY, widenersOf } from "./folders.ts"
 import { canonical } from "./rules.ts"
 import { type Command, parse } from "./shell.ts"
 import { quote } from "./signature.ts"
+
+/* ─── remembering what was read ──────────────────────────────────────────────────────────────── */
+
+/**
+ * Every reading below is pure — a subject is the same command whenever it is read — and the ledger's
+ * screens read every subject in the project on every paint: on a real ledger of 13,000 commands that
+ * was half a second a keystroke, most of it the shell parsed again (measured with `--cpu-prof`). So a
+ * reading is kept once made. Bounded: past the limit the whole store starts over, which costs one
+ * slow paint and never a wrong answer.
+ */
+const REMEMBERED = 50_000
+
+function remembered<T>(read: (permission: string, subject: string) => T) {
+  let kept = new Map<string, T>()
+  return (permission: string, subject: string): T => {
+    const key = `${permission}\u0000${subject}`
+    if (kept.has(key)) return kept.get(key) as T
+    const value = read(permission, subject)
+    if (kept.size >= REMEMBERED) kept = new Map()
+    kept.set(key, value)
+    return value
+  }
+}
 
 /* ─── reading a subject back ─────────────────────────────────────────────────────────────────── */
 
@@ -54,6 +80,12 @@ const PLACE = /^\(in ('(?:[^']|'\\'')*'|[^\s)]+)\) /
  * quoted by `quote` — so this is exact; anything that does not read as one command is left alone.
  */
 export function readSubject(subject: string): { place?: string; command: Command } | undefined {
+  return readSubjectOnce("bash", subject)
+}
+
+const readSubjectOnce = remembered((_permission: string, subject: string) => readSubjectNow(subject))
+
+function readSubjectNow(subject: string): { place?: string; command: Command } | undefined {
   let rest = subject
   let place: string | undefined
   const found = subject.match(PLACE)
@@ -388,23 +420,39 @@ function namesFor(name: string, args: readonly string[]): number {
 const envWord = (word: string) =>
   namesPlace(word.slice(word.indexOf("=") + 1)) ? word : `${word.slice(0, word.indexOf("="))}=…`
 
-function bashFamily(command: Command, place: string | undefined): string {
-  const words = [
-    ...command.env.map(envWord),
-    ...familyWords(command.argv, command.redirects).map(quote),
-  ].join(" ")
-  return place === undefined ? words : `(in ${quote(place)}) ${words}`
+/**
+ * A command's family has no place in it. It used to: `rg` run from `packages/api` and `rg` run at the
+ * top were two families, approved and widened apart, and a widening made in one folder asked again
+ * in the next. The folder a command runs from is not what a person weighs — what it does is — and
+ * leaving the project is OpenCode's own `external_directory` question, which Trust counts by folder
+ * (folders.ts). So `any rg` is any `rg` in the project, wherever it runs. The exact command still
+ * carries its place: a rule earned by one command stays that command's.
+ */
+function bashFamily(command: Command): string {
+  return [...command.env.map(envWord), ...familyWords(command.argv, command.redirects).map(quote)].join(" ")
+}
+
+/**
+ * A family as ledgers before 0.12 recorded it, `(in packages/api) rg`, read as the family it is now:
+ * `rg`. A widening, a dismissal and a learned family made in one folder now hold in every folder.
+ */
+export function placeless(permission: string, family: string): string {
+  if (canonical(permission) !== "bash") return family
+  const read = readSubject(family)
+  return read?.place !== undefined && read.command.argv.length > 0 ? bashFamily(read.command) : family
 }
 
 /**
  * A subject's family, under its permission. The same string for every command in it, so it is what
  * a widening is recorded against and what the ledger groups by.
  */
-export function familyOf(permission: string, subject: string): string {
+export const familyOf = remembered(familyOfNow)
+
+function familyOfNow(permission: string, subject: string): string {
   const name = canonical(permission)
   if (name === "bash") {
     const read = readSubject(subject)
-    return read && read.command.argv.length > 0 ? bashFamily(read.command, read.place) : subject
+    return read && read.command.argv.length > 0 ? bashFamily(read.command) : subject
   }
   if (name === "edit" || name === "read") {
     const folder = posix.dirname(subject)
@@ -412,8 +460,17 @@ export function familyOf(permission: string, subject: string): string {
   }
   /** A search and a web query are new words every time: the tool is the family (`any grep`). */
   if (WHOLE_TOOL.has(name)) return "*"
+  if (name === OUTSIDE) return folderFamily(subject)
   return subject
 }
+
+/**
+ * Every family a widening of which answers `subject`: its own — and for a folder outside the project,
+ * each folder above it too, since a widened folder covers what is under it (folders.ts).
+ */
+export const wideningsOf = remembered((permission: string, subject: string): string[] =>
+  canonical(permission) === OUTSIDE ? widenersOf(subject) : [familyOf(permission, subject)],
+)
 
 /** OpenCode tools whose every request is new text — a glob, a regex, a query — so one family each. */
 const WHOLE_TOOL = new Set(["glob", "grep", "websearch"])
@@ -431,7 +488,9 @@ function familyCommand(family: string): Command | undefined {
  * dangerous, "any git push" is a rule that answers force-pushes — every one of them has to earn
  * trust on its own, at the higher count. A fetch or an agent type is already as wide as it goes.
  */
-export function widenable(permission: string, family: string): { ok: true } | { ok: false; why: string } {
+export const widenable = remembered(widenableNow)
+
+function widenableNow(permission: string, family: string): { ok: true } | { ok: false; why: string } {
   const name = canonical(permission)
   if (name === "bash") {
     const command = familyCommand(family)
@@ -447,6 +506,10 @@ export function widenable(permission: string, family: string): { ok: true } | { 
       : { ok: true }
   }
   if (name === "edit" || name === "read" || WHOLE_TOOL.has(name)) return { ok: true }
+  if (name === OUTSIDE) {
+    const why = refused(family)
+    return why ? { ok: false, why: `${shortPath(family)} is never widened: ${why}` } : { ok: true }
+  }
   if (name === "webfetch") return { ok: false, why: "a fetch rule already covers the whole host" }
   if (name === "task") return { ok: false, why: "an agent type is already one rule" }
   return { ok: false, why: `a ${name} rule is already as wide as it goes` }
@@ -478,7 +541,11 @@ function runsAnother(argv: readonly string[]): boolean {
  * is "any `ls`", not "anything that starts with ls": a dangerous command, one that writes a file
  * through a redirection, and one that hands its arguments to another program each still ask.
  */
-export function outside(permission: string, subject: string): string | undefined {
+export const outside = remembered(outsideNow)
+
+function outsideNow(permission: string, subject: string): string | undefined {
+  /** A folder that may hold secrets still asks, under any widening (folders.ts). */
+  if (canonical(permission) === OUTSIDE) return refused(subject)
   if (canonical(permission) !== "bash") return undefined
   const read = readSubject(subject)
   if (!read) return "it cannot be read as one command"
@@ -493,14 +560,16 @@ export function outside(permission: string, subject: string): string | undefined
 
 /** A widened `family` answers `subject`. */
 export const covers = (permission: string, family: string, subject: string): boolean =>
-  familyOf(permission, subject) === family && outside(permission, subject) === undefined
+  wideningsOf(permission, subject).includes(family) && outside(permission, subject) === undefined
 
 /**
  * Why a learned family would still ask about this subject — or nothing when it is a plain read
  * (effect.ts). Narrower than `outside`: a family Trust learned by itself covers reads only, so
  * `head -3 a.txt` is in a learned `head` and `head .env` or `head -3 a > b` are not.
  */
-export function notReadSubject(permission: string, subject: string): string | undefined {
+export const notReadSubject = remembered(notReadSubjectNow)
+
+function notReadSubjectNow(permission: string, subject: string): string | undefined {
   const name = canonical(permission)
   if (READ_TOOLS.has(name))
     return name === "read" && sensitive(subject) ? `${subject} may hold secrets` : undefined
@@ -625,23 +694,105 @@ export function showCommand(command: Command): string {
   return [...env, ...argv].join(" ")
 }
 
-/** A subject — or a family — as the ledger and the sidebar show it. Paths and hosts are themselves. */
-export function showSubject(permission: string, subject: string): string {
-  if (canonical(permission) !== "bash") return subject
-  const read = readSubject(subject)
-  if (!read) return subject
-  const words = showCommand(read.command)
-  return read.place === undefined ? words : `(in ${shown(read.place)}) ${words}`
+/**
+ * A subject as the ledger shows it, in its two parts: what runs, and where — when the agent changed
+ * folder first (`cd packages/api && npx vitest`, or the tool's own `workdir`). The place used to lead,
+ * `(in /Users/…/support-data-u…) TZ=… npx …`, and a row cut from the right lost the program, the one
+ * word that says what the command is. Now the command leads and the place follows, short
+ * (folders.ts `shortPlace`) and muted, so a row can cut the command's tail and keep both ends.
+ */
+export interface Shown {
+  /** The command (or path, or host) as the ledger shows it. */
+  text: string
+  /** Where it ran, short: `packages/api`, `~/…/support-data-uploader/scripts`. */
+  place?: string
+  /** Characters of `text` before its program: the env words in front (`TZ=UTC `). */
+  lead: number
+  /** Characters of `text` up to the end of its program word: what a row must never cut. */
+  head: number
 }
 
-/** `any ls …`, `any file in src/`: what a widened family answers, in words. */
-export function anyOf(permission: string, family: string): string {
+export const shownOf = remembered(shownNow)
+
+function shownNow(permission: string, subject: string): Shown {
   const name = canonical(permission)
-  if (name === "edit" || name === "read")
-    return family === "./" ? "any file at the project's top" : `any file in ${family}`
-  if (family === "*") return `any ${name}`
-  return `any ${showSubject(name, family)} …`
+  if (name === OUTSIDE) return { text: shortPath(subject), lead: 0, head: 0 }
+  if (name !== "bash") return { text: subject, lead: 0, head: 0 }
+  const read = readSubject(subject)
+  if (!read) return { text: subject, lead: 0, head: 0 }
+  const text = showCommand(read.command)
+  const env = showCommand({ env: read.command.env, argv: [] })
+  const lead = env === "" ? 0 : env.length + 1
+  const program = read.command.argv[0]
+  const head = lead + (program === undefined ? 0 : shown(program).length)
+  if (read.place === undefined) return { text, lead, head }
+  /** A place with a space in it is quoted, so where it ends is not left to the reader. */
+  const place = shortPlace(read.place)
+  return { text, place: /[\s'"]/.test(place) ? shown(place) : place, lead, head }
 }
+
+/** `npx vitest run  in packages/api`: the two parts as one string, for a sentence or a filter. */
+export const placed = (shown: Shown): string =>
+  shown.place === undefined ? shown.text : `${shown.text}  in ${shown.place}`
+
+/** A subject — or a family — as the ledger and the sidebar show it. Paths and hosts are themselves. */
+export const showSubject = (permission: string, subject: string): string =>
+  placed(shownOf(permission, subject))
+
+/**
+ * Where a command ran, whole, for the card to say in a sentence: `packages/api`, `~/work/other/api`.
+ * Nothing when it ran at the project's top.
+ */
+export function ranIn(permission: string, subject: string): string | undefined {
+  if (canonical(permission) !== "bash") return undefined
+  const place = readSubject(subject)?.place
+  return place === undefined ? undefined : shortPath(place)
+}
+
+/** What a permission is called in front of its subject: nothing for a command, `outside` for a folder. */
+export const kindOf = (permission: string): string =>
+  permission === "bash" ? "" : canonical(permission) === OUTSIDE ? "outside " : `${permission} `
+
+/**
+ * Subjects as one line, what kind they are in front (`kindOf`): one keeps its two parts (`shownOf`);
+ * a line of several (`git add -A && git commit`) is one text, each with its place.
+ */
+export function lineShown(permission: string, subjects: readonly string[]): Shown {
+  const kind = kindOf(permission)
+  const [only] = subjects
+  if (subjects.length === 1 && only !== undefined) {
+    const one = shownOf(permission, only)
+    return kind === "" ? one : { ...one, text: `${kind}${one.text}`, lead: 0, head: 0 }
+  }
+  return {
+    text: `${kind}${subjects.map((each) => showSubject(permission, each)).join(" && ")}`,
+    lead: 0,
+    head: 0,
+  }
+}
+
+/**
+ * `any ls …`, `any file in src/`, `any folder in $TMPDIR`: what a widened family answers, in words —
+ * a command's place after it, as `shownOf` puts it.
+ */
+export function anyShown(permission: string, family: string): Shown {
+  const name = canonical(permission)
+  const words = (text: string): Shown => ({ text, lead: 0, head: 0 })
+  if (name === "edit" || name === "read")
+    return words(family === "./" ? "any file at the project's top" : `any file in ${family}`)
+  if (name === OUTSIDE)
+    return words(family === TEMP_FAMILY ? "any folder in $TMPDIR" : `any file in ${shortPath(family)}`)
+  if (family === "*") return words(`any ${name}`)
+  const shown = shownOf(name, family)
+  return {
+    ...shown,
+    text: `any ${shown.text} …`,
+    lead: shown.lead + 4,
+    head: shown.head + 4,
+  }
+}
+
+export const anyOf = (permission: string, family: string): string => placed(anyShown(permission, family))
 
 /**
  * A command a little different from `subject`, for the sentence that says what still asks: the

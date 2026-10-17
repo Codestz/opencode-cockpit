@@ -55,10 +55,35 @@ when your config sets them to `ask`.
 | `webfetch` | the host | — | no | no |
 | `todowrite`, `lsp` | one rule | — | no | no |
 | `skill`, `task` | the skill, the subagent type | — | no | no |
-| `external_directory`, `doom_loop` | never answered | | | |
+| `external_directory` | the folder | the folder; the temp dir as one (`$TMPDIR`) | no | yes — and only a widened folder answers it |
+| `doom_loop` | never answered | | | |
 
 A `read` of a file that may hold secrets (`.env`, a key, `~/.ssh`) is OpenCode's own default ask, and
 stays yours to answer however often you approve it.
+
+## Folders outside the project
+
+Before a tool reads or writes outside the project, OpenCode asks `external_directory` for the folder.
+Trust counts those approvals by folder, like any other — and **never answers one by its count**:
+approving a folder three times still leaves the next one to you. What answers it is a folder you
+widened with `w`, and it covers the folders under it, never the ones beside it.
+
+Most of those prompts are the agent's scratch space in the OS temp dir (`/var/folders/…/T/opencode/…`
+on macOS, `/tmp/…` elsewhere), so the temp dir is **one family**, `$TMPDIR`, whatever name a tool
+gives it (`/var/…` or `/private/var/…`, `/tmp` or `/private/tmp`). Once your approvals across two or
+more of its folders reach the threshold, the ledger suggests it:
+
+```
+ ★ any folder in $TMPDIR?      14 in 6     │ outside $TMPDIR/  family of 6 folders
+                                           │ ★ Suggested · approved 14× across 6 folders in your temp directory
+                                           │  Widen   [w] lets Trust answer reads and writes there from now on —
+                                           │          any folder in $TMPDIR; a folder that may hold secrets still asks.
+```
+
+Never suggested and never widened, however often you approve them: `/`, your home folder and the
+folders above it, `~/.ssh`, `~/.aws`, `~/.gnupg`, `~/.config`, `~/.kube`, `~/.docker`, `/etc`, any
+folder that may hold secrets, and a folder that holds the project — widening it would answer for every
+project beside this one. A request naming one of them is always yours, and is not counted.
 
 ## Earned, and lost
 
@@ -262,12 +287,19 @@ two families.
 | `docker compose -p prod down -v` | `docker compose down` |
 | `npm run test` | `npm run test` |
 | `sudo ls` | `sudo ls` — running as root is not `ls` |
-| `cd web && bun test` | `(in web) bun test` |
+| `cd web && bun test` | `bun test  in web` |
 | `NODE_ENV=prod npm run build` | `NODE_ENV=… npm run build` |
 | `ls > out.txt` | `ls` |
 | edit `src/app.ts` | `edit src/` |
 | read `src/app.ts` | `read src/` |
 | grep `createServer`, glob `**/*.ts` | `grep`, `glob` — the tool |
+
+A command the agent ran from another folder — `cd packages/api && npx vitest run`, or the tool's own
+working directory — is its own rule and its own family: the same words do something else there. The
+ledger shows the command first and the place after it, muted and short — `npx vitest run  in
+packages/api`, `python3 upload.py  in ~/…/support-data-uploader/scripts` — so a narrow row cuts the
+command's tail, never its program. The card says it once in words: "Run from packages/api — the agent
+changed folder first."
 
 A family with one command is drawn as that row; the others start folded, with how many of their
 commands are trusted (`✓`) and how many are not yet (`○`). `space`, `enter` or `→` opens one, listing
