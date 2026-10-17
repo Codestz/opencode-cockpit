@@ -409,11 +409,16 @@ function footer(input: ScreenInput, width: number, tier: Tier): FootRow[] {
   const rows: FootRow[] = []
   const card = permissionRows(session, input.pending ?? session.pending, width, {
     lines: tier === 0 ? COMMAND_LINES : 1,
+    roomy: tier === 0,
     ...(input.replyError ? { error: input.replyError } : {}),
   })
   rows.push(...card)
   if (card.length > 0 && tier === 0) rows.push({ row: fit([], width) })
-  rows.push(...promptRows(session, prompt, width, { spacer: tier === 0, meta: tier < 2 }))
+  /** Under a card the box keeps to two rows: the card is what wants reading. */
+  const spacer = tier === 0 && (card.length === 0 || prompt.focused)
+  rows.push(...promptRows(session, prompt, width, { spacer, meta: tier < 2 }))
+  /** Air between the box and the keys, so the hints do not read as the box's last line. */
+  if (tier === 0) rows.push({ row: fit([], width) })
   if (prompt.focused) {
     const hint = prompt.busy
       ? "it picks this up in its current run"

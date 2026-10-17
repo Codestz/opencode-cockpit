@@ -3,11 +3,13 @@
  * is held on, as a card you answer from here, and the box you message it from — OpenCode's own
  * prompt, in the pane.
  *
+ *    ▎
  *    ▎ △ Permission required · bash                                       1 of 2
  *    ▎ $ npm test -- login
- *    ▎ [y] Allow once   [Y] Allow always   [n] Reject
+ *    ▎
+ *    ▎ y Allow once   Y Allow always   n Reject
  *
- *    ┃ Message explore…                                     tab or click to type
+ *    ┃ Message explore…
  *    ┃
  *    ┃ Explore · space-bunny-free opencode
  *
@@ -17,7 +19,7 @@
  * the box starts typing as `tab` does.
  */
 
-import { HINT_GAP, type Hint, hintRuns } from "@opencode-cockpit/client/design"
+import { HINT_GAP, type Hint } from "@opencode-cockpit/client/design"
 import type { Permission, Session } from "../model/model.ts"
 import { PAD } from "./calls.ts"
 import { fit, type Row, type Run, spread, widthOf, wrap } from "./rows.ts"
@@ -82,13 +84,21 @@ export function permissionRows(
   session: Session,
   pending: readonly Permission[],
   width: number,
-  options: { lines?: number; error?: string } = {},
+  options: { lines?: number; error?: string; roomy?: boolean } = {},
 ): FootRow[] {
   const ask = pending[0]
   if (!ask) return []
   const fill = "card" as const
   const bar: Run = { text: `${PAD}▎ `, tone: "warning", fill }
+  /**
+   * A row of air above and below, and between the command and the keys, as OpenCode's own card has:
+   * packed edge to edge under a tool block and over the box, three panels read as one wall (seen on
+   * the first real run). A short pane gives it up first.
+   */
+  const air: FootRow = { row: fit([bar], width) }
+  const roomy = options.roomy !== false
   const rows: FootRow[] = [
+    ...(roomy ? [air] : []),
     {
       row: spread(
         [
@@ -110,6 +120,7 @@ export function permissionRows(
   })
   if (options.error)
     rows.push({ row: fit([bar, { text: `Not answered: ${options.error}`, tone: "error", fill }], width) })
+  if (roomy) rows.push(air)
   /** The keys, each one a place to click: its columns are counted as the row is laid out. */
   const runs: Run[] = [bar]
   const hits: Hit[] = []
@@ -119,13 +130,18 @@ export function permissionRows(
       runs.push({ text: " ".repeat(HINT_GAP), fill })
       used += HINT_GAP
     }
-    const parts = hintRuns(hint).map((run): Run => ({ ...run, fill }))
+    /** The key in the card's own tone, its label plain: the accent is the box's, not the card's. */
+    const parts: Run[] = [
+      { text: hint.key, tone: "warning", bold: true, fill },
+      { text: ` ${hint.label}`, tone: "text", fill },
+    ]
     const size = parts.reduce((sum, run) => sum + widthOf(run.text), 0)
     runs.push(...parts)
     if (used < width) hits.push({ act: hint.act, from: used, to: Math.min(width, used + size) })
     used += size
   })
   rows.push({ row: fit(runs, width), hits })
+  if (roomy) rows.push(air)
   return rows
 }
 
@@ -167,14 +183,14 @@ export function promptRows(
       width,
     )
   } else {
-    line = spread(
+    /** How to start is the footer's `[tab] Message`; said here too, it was one hint twice. */
+    line = fit(
       [
         bar,
         prompt.draft
           ? { text: prompt.draft, tone: "text", fill }
           : { text: placeholder, tone: "muted", fill },
       ],
-      [{ text: `${prompt.draft ? "tab to keep typing" : "tab or click to type"} `, tone: "muted", fill }],
       width,
     )
   }

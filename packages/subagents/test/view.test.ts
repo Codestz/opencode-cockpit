@@ -770,7 +770,9 @@ describe("the foot: a permission card and the message box", () => {
     const title = rows.findIndex((row) => row.includes("△ Permission required · bash"))
     expect(title).toBeGreaterThan(0)
     expect(rows[title + 1]).toContain("▎ $ pnpm install --frozen-lockfile")
-    expect(rows[title + 2]).toContain("[y] Allow Once   [Y] Allow Always   [n] Reject")
+    /** A row of air between the command and the keys, as OpenCode's own card has. */
+    expect(rows[title + 2]?.trim()).toBe("▎")
+    expect(rows[title + 3]).toContain("y Allow once   Y Allow always   n Reject")
     expect(rows[title]).not.toContain("1 of")
   })
 
@@ -797,7 +799,7 @@ describe("the foot: a permission card and the message box", () => {
   test("an answer the host refused is said on the card, which stays", () => {
     const rows = text(draw({ ...held("pnpm install"), replyError: "Permission request not found" }))
     expect(rows.some((row) => row.includes("Not answered: Permission request not found"))).toBe(true)
-    expect(rows.some((row) => row.includes("[y] Allow Once"))).toBe(true)
+    expect(rows.some((row) => row.includes("y Allow once"))).toBe(true)
   })
 
   test("nothing pending, or every one answered from here, draws no card", () => {
@@ -807,14 +809,14 @@ describe("the foot: a permission card and the message box", () => {
 
   test("each answer on the card is a place to click; the box is one too", () => {
     const screen = draw(held("pnpm install"))
-    const y = screen.rows.findIndex((row) => rowText(row).includes("[y] Allow Once"))
+    const y = screen.rows.findIndex((row) => rowText(row).includes("y Allow once"))
     const row = rowText(screen.rows[y] ?? [])
     const hits = screen.hits[y] ?? []
     expect(hits.map((hit) => hit.act)).toEqual(["once", "always", "reject"])
     for (const [act, label] of [
-      ["once", "[y] Allow Once"],
-      ["always", "[Y] Allow Always"],
-      ["reject", "[n] Reject"],
+      ["once", "y Allow once"],
+      ["always", "Y Allow always"],
+      ["reject", "n Reject"],
     ] as const) {
       const hit = hits.find((each) => each.act === act)
       expect(row.slice(hit?.from, hit?.to)).toBe(label)
@@ -827,9 +829,11 @@ describe("the foot: a permission card and the message box", () => {
   test("the box at rest says how to start; with a draft it keeps it; typing, the cursor is in it", () => {
     const { session, nodes } = held("pnpm install")
     const rest = text(draw({ session, nodes, pending: [] }))
-    expect(rest.find((row) => row.includes("┃ Message explore…"))?.trimEnd()).toMatch(/tab or click to type$/)
+    /** How to start is the footer's `[tab] Message`, said once. */
+    expect(rest.find((row) => row.includes("┃ Message explore…"))?.trimEnd()).toMatch(/Message explore…$/)
+    expect(rest.some((row) => row.includes("[tab] Message"))).toBe(true)
     const kept = text(draw({ session, nodes, prompt: { draft: "skip docs", focused: false, busy: true } }))
-    expect(kept.find((row) => row.includes("┃ skip docs"))?.trimEnd()).toMatch(/tab to keep typing$/)
+    expect(kept.find((row) => row.includes("┃ skip docs"))?.trimEnd()).toMatch(/┃ skip docs$/)
     const typing = text(
       draw({ session, nodes, prompt: { draft: "skip docs", caret: 4, focused: true, busy: true } }),
     )
@@ -890,7 +894,7 @@ describe("the foot: a permission card and the message box", () => {
     const rows = text(screenRows({ ...pane(session, nodes), width: 72, height: 16 }))
     const card = rows.slice(rows.findIndex((row) => row.includes("Permission required")))
     expect(card.filter((row) => row.includes("step"))).toHaveLength(1)
-    expect(rows.some((row) => row.includes("[y] Allow Once"))).toBe(true)
+    expect(rows.some((row) => row.includes("y Allow once"))).toBe(true)
     expect(rows.some((row) => row.includes("┃ Message explore…"))).toBe(true)
   })
 
