@@ -96,7 +96,7 @@ if (args.includes("--help") || args.includes("-h")) {
     [
       "Usage: subagents preview [--width <sidebar columns>] [--fixture <name>] [--columns <pane columns>]",
       "                         [--state closed|open|whole] [--widths 24,30,36,50] [--notice] [--hide]",
-      "                         [--keys]",
+      "                         [--keys] [--foot]",
       "",
       ...Object.entries(FIXTURES).map(([name, { about }]) => `  ${name.padEnd(10)}${about}`),
       "  calls     a call of every kind: thinking as markdown, todos, an MCP tool, a task,",
@@ -107,6 +107,7 @@ if (args.includes("--help") || args.includes("-h")) {
       "  --notice  the block with a settings notice in it",
       "  --hide    hideWhenEmpty: an empty block draws nothing",
       "  --keys    the pane's [?] Keys screen",
+      "  --foot    the foot of the pane: a permission card, and the message box at rest and typing",
       "",
     ].join("\n"),
   )
@@ -210,6 +211,28 @@ if (first) {
   if (args.includes("--keys")) {
     out.push("", `The pane's [?] Keys — ${columns} columns`, "")
     for (const row of screenRows({ ...base, keys: true }).rows) out.push(paint(row))
+    process.stdout.write(`${out.join("\n")}\n\n`)
+    process.exit(0)
+  }
+  if (args.includes("--foot")) {
+    const held = nodes.find(({ session }) => session.pending.length > 0)?.session ?? first
+    /** The foot only: the rows under the run, which is what the card and the box change. */
+    const foot = (title: string, input: Partial<Parameters<typeof screenRows>[0]>) => {
+      out.push("", title, "")
+      const screen = screenRows({ ...base, session: held, height: 24, ...input })
+      for (const row of screen.rows.slice(screen.bodyAt + 8)) out.push(paint(row))
+    }
+    const second = held.pending[0] && { ...held.pending[0], id: "per_second" }
+    foot(`Held on a permission — ${columns} columns`, {})
+    if (second)
+      foot("Two pending, the last answer refused", {
+        pending: [...held.pending, second],
+        replyError: "Permission request not found",
+      })
+    foot("Typing to it", {
+      pending: [],
+      prompt: { draft: "skip the e2e suite", caret: 9, focused: true, busy: true },
+    })
     process.stdout.write(`${out.join("\n")}\n\n`)
     process.exit(0)
   }

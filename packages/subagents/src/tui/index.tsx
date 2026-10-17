@@ -16,6 +16,7 @@ import { noticeText } from "@opencode-cockpit/client/settings"
 import { loadSubagents, type SubagentsConfig } from "../core/config.ts"
 import type { Change } from "../core/model/changes.ts"
 import { applyAll, emptyModel, type Node, rootOf, type Session, subagentsOf } from "../core/model/model.ts"
+import { createAnswers } from "./answers.ts"
 import { createMessages, type Messages, YOURS_KEY } from "./messages.ts"
 import { createPainter } from "./paint.ts"
 import { createPane, FULL_KEY, THINKING_KEY } from "./pane.ts"
@@ -68,6 +69,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       opened: new Set(),
       closed: new Set(),
       whole: new Set(),
+      replies: new Map(),
       thinking: api.kv.get(THINKING_KEY, true),
       details: false,
       full: api.kv.get(FULL_KEY, false),
@@ -193,6 +195,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       draw,
       set,
     })
+    const answers = createAnswers({ log, model, surface, feed: () => feed, opened, draw })
     const pane = createPane({
       api,
       log,
@@ -200,6 +203,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
       surface,
       painter,
       messages,
+      answers,
       feed,
       hidden,
       saveHidden,
@@ -265,7 +269,7 @@ export function createSubagentsTui({ source = SUBAGENTS_PACKAGE }: { source?: st
             onDismiss={() => {
               if (!surface.full) pane.close()
             }}
-            onClick={(y) => pane.click(y)}
+            onClick={(y, x) => pane.click(y, x)}
             onScroll={(delta) => pane.scroll(delta)}
           />
         ),

@@ -11,7 +11,8 @@
  * | `glob`, `grep`, `websearch` | pattern, regex, query | `**\/*.ts` |
  * | `webfetch` | host | `docs.example.com` |
  * | `task` (v2 `subagent`) | agent type | `explore` |
- * | `external_directory`, `doom_loop` | — never answered | |
+ * | `external_directory` | folder — answered only through a folder you widened (folders.ts) | `/tmp/x/` |
+ * | `doom_loop` | — never answered | |
  * | anything else | the request's patterns, together | `opencode_read_mcp_resource` `*` |
  *
  * The key a count is kept under is the subject and the permission — not the agent (ledger.keyOf):
@@ -20,6 +21,7 @@
 
 import { dangerOf } from "./danger.ts"
 import { sensitive } from "./effect.ts"
+import { folderOf, OUTSIDE, refused } from "./folders.ts"
 import { canonical } from "./rules.ts"
 import type { Hasher } from "./secret.ts"
 import { type Command, parse } from "./shell.ts"
@@ -78,7 +80,6 @@ export type Keyed =
 
 /** Permissions Trust never answers: they exist to make a person look. */
 const NEVER: Record<string, string> = {
-  external_directory: "outside the project — always yours to answer",
   doom_loop: "the agent is repeating itself — always yours to answer",
 }
 
@@ -125,6 +126,7 @@ export function subjectsOf(request: Request, context: Context): Keyed {
   if (never) return { kind: "never", why: never }
   if (permission === "bash") return bash(request, context)
   if (request.patterns.length === 0) return { kind: "opaque", why: "the request names nothing" }
+  if (permission === OUTSIDE) return outside(request, context)
   if (permission === "webfetch") {
     const subjects: Subject[] = []
     for (const url of request.patterns) {
@@ -152,6 +154,24 @@ export function subjectsOf(request: Request, context: Context): Keyed {
     patterns: request.patterns,
   }
 }
+
+/**
+ * A request to go outside the project: one subject per folder (`/abs/dir/*` is `/abs/dir/`). A folder
+ * that is never widened (`folders.refused`) — the disk, your home, `~/.ssh`, one that holds the project
+ * — leaves the whole request yours, and nothing about it is counted.
+ */
+function outside(request: Request, context: Context): Keyed {
+  const subjects: Subject[] = []
+  for (const pattern of request.patterns) {
+    const folder = folderOf(pattern)
+    if (!folder) return { kind: "opaque", why: `not a folder: ${pattern}` }
+    if (refused(folder, context.root)) return { kind: "never", why: OUTSIDE_WHY }
+    subjects.push({ subject: folder, texts: [pattern] })
+  }
+  return { kind: "subjects", subjects: dedupe(subjects), patterns: request.patterns }
+}
+
+const OUTSIDE_WHY = "outside the project — always yours to answer"
 
 /** Two patterns naming one host or one file are one subject; config is checked against both. */
 function dedupe(subjects: Subject[]): Subject[] {

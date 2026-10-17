@@ -83,7 +83,8 @@ the run as it grows; scroll or move the cursor and it stays where you put it unt
 | `e` | Open, or fold, every call |
 | `a` | A call's whole output and arguments — open shows the first 60 lines, whole up to 2,000 |
 | `t` | Show or hide thinking — shown by default, and remembered |
-| `m` | Write it a message, at the foot of the pane (pasting works) |
+| `tab` · a click on the box | Write it a message in the box at the foot — `enter` sends, `esc` gives the keys back and keeps the draft, `←` `→` move the cursor, `ctrl+u` clears what is before it (pasting works) |
+| `y` `Y` `n` · a click | Held on a permission: allow it once, allow it always, or reject it, from the card above the box |
 | `x` | Stop it (press twice) — or, once it has finished, remove it from the list |
 | `X` | Remove every finished subagent from the list |
 | `b` | Move it to the background, so the main agent carries on (OpenCode's own `ctrl+b`) |
@@ -116,8 +117,10 @@ continued it", or "You" — and the sidebar counts rounds.
 
 ## Messaging a subagent
 
-Press `m` and write at the foot of the pane; `enter` sends, `esc` lets it go. Measured on both
-OpenCodes:
+The box at the foot of the pane is always there, as OpenCode's own prompt is, with the agent, its
+model and whose model it is under it. `tab` or a click on it puts the keys in it; `enter` sends and
+leaves you typing; `esc` gives the keys back to the pane and keeps what you wrote; `←` `→` move the
+cursor and `ctrl+u` clears what is before it. Measured on both OpenCodes:
 
 - **While it works**, it picks the message up in its current run, acts on it, and says so in its
   answer — which the main agent receives.
@@ -127,6 +130,20 @@ OpenCodes:
   to it.
 - **If it finishes without reading it** — sent in the last moments of a run — your message comes back
   to the field, to send again.
+
+## Answering a permission
+
+A subagent held on a permission shows it as a card at the foot of its pane, above the box, the way
+OpenCode's own prompt does: what it asks for — a shell call's whole command line, a few lines of it —
+and `[y] Allow once`, `[Y] Allow always`, `[n] Reject`, each a key or a click. Before, a subagent that
+asked while you watched it had to be closed to be answered. With several waiting the card says
+`1 of 3` and moves on as each is answered, and the switcher at the top marks with `△` any other
+subagent that is waiting. It answers the same request OpenCode's prompt shows, so that prompt goes
+too; an answer the host refuses comes back on the card with why.
+
+The keys are not `enter` — it opens the item under the cursor, and one press too many would have
+approved a command — and not `a`, which shows a call's whole output. While you type in the box, `y`
+and `n` are letters.
 
 ## Stopping and removing
 

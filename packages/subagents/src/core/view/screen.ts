@@ -34,7 +34,7 @@ import {
   stateMark,
   toneOf,
 } from "@opencode-cockpit/client/design"
-import { callsOf, type Entry, type Node, type Session, titleOf } from "../model/model.ts"
+import { callsOf, type Entry, type Node, type Permission, type Session, titleOf } from "../model/model.ts"
 import {
   boxed,
   cardLines,
@@ -49,6 +49,15 @@ import {
   toolLines,
   trimEnd,
 } from "./calls.ts"
+import {
+  COMMAND_LINES,
+  type FootRow,
+  type Hit,
+  PERMISSION_KEYS,
+  type Prompt,
+  permissionRows,
+  promptRows,
+} from "./foot.ts"
 import { markdownRows } from "./markdown.ts"
 import { compact, cut, fit, type Row, type Run, rowText, spread, widthOf, wrap } from "./rows.ts"
 import { firstStarted, runPhrase, stateOf } from "./sidebar.ts"
@@ -82,8 +91,15 @@ export interface ScreenInput {
   details: boolean
   /** `?`: every key the pane takes, in the body's place. */
   keys?: boolean
-  /** A message being typed at the bottom of the pane. */
-  input?: { draft: string; busy: boolean }
+  /** The message box at the foot: always drawn; unset, it is empty and not focused. */
+  prompt?: Prompt
+  /**
+   * Permissions it is held on that the card offers: the session's own, less any answered from here
+   * and not yet heard back about. Unset, every one the session has.
+   */
+  pending?: readonly Permission[]
+  /** What the host said when the last answer to the card's request failed. */
+  replyError?: string
   /** A line under the keys: what just happened. */
   notice?: string
   /** What each item drew last time, kept by the caller between paints (`createScreenCache`). */
@@ -122,6 +138,8 @@ export interface Screen {
   bodyAt: number
   /** A `task` call's item, and the subagent it launched: `enter` on it goes there. */
   links: Map<string, string>
+  /** For each row, the parts of it a click acts on: the card's answers, the message box. */
+  hits: (Hit[] | undefined)[]
 }
 
 /**
@@ -357,8 +375,11 @@ function header(input: ScreenInput, width: number): Row[] {
     const each = Math.max(12, Math.floor((width - 14) / nodes.length) - 3)
     for (const node of nodes) {
       const current = node.session.id === session.id
-      const label = cut(`${node.session.agent} ${titleOf(node.session)}`, each)
+      /** One held on a permission says so here too: it may be the one you are not looking at. */
+      const held = node.session.status === "waiting"
+      const label = cut(`${node.session.agent} ${titleOf(node.session)}`, held ? each - 2 : each)
       runs.push(
+        ...(held ? [{ text: "△ ", tone: "warning" as const, fill: "band" as const }] : []),
         { text: label, tone: current ? "accent" : "muted", bold: current, fill: "band" },
         { text: "   ", fill: "band" },
       )
@@ -368,62 +389,78 @@ function header(input: ScreenInput, width: number): Row[] {
   return rows
 }
 
-function footer(input: ScreenInput, width: number): Row[] {
+/**
+ * How much of the foot a short pane keeps. At 0 everything: a command's first lines, room around
+ * the card and in the box. Each step gives up the least needed, so the run keeps rows to be read.
+ */
+type Tier = 0 | 1 | 2
+
+/** Rows the body keeps before the foot starts giving way. */
+const BODY_MIN = 3
+
+function footer(input: ScreenInput, width: number, tier: Tier): FootRow[] {
   const { session } = input
-  if (input.input) {
-    const hint = input.input.busy
+  /** On the keys screen the only key worth a row is the way back to the run (Review's, Trust's). */
+  if (input.keys) {
+    const back: Run[] = [{ text: PAD }, ...fitHints([closeHint("Hide Keys")], width - PAD.length).runs]
+    return [{ row: fit(back, width) }, { row: fit([], width) }]
+  }
+  const prompt = input.prompt ?? { draft: "", focused: false, busy: false }
+  const rows: FootRow[] = []
+  const card = permissionRows(session, input.pending ?? session.pending, width, {
+    lines: tier === 0 ? COMMAND_LINES : 1,
+    ...(input.replyError ? { error: input.replyError } : {}),
+  })
+  rows.push(...card)
+  if (card.length > 0 && tier === 0) rows.push({ row: fit([], width) })
+  rows.push(...promptRows(session, prompt, width, { spacer: tier === 0, meta: tier < 2 }))
+  if (prompt.focused) {
+    const hint = prompt.busy
       ? "it picks this up in its current run"
       : "it answers, and the main agent hears it"
-    return [
-      fit(
-        [
-          { text: `${PAD}┃ `, tone: "accent", fill: "block" },
-          { text: input.input.draft, tone: "text", fill: "block" },
-          { text: "▍", tone: "accent", fill: "block" },
-        ],
-        width,
-      ),
-      /** The keys in the shape every footer uses; the note gives way to them. */
-      spread(
-        [{ text: `${PAD}  to ${session.agent} · ${hint}`, tone: "muted" }],
+    /** The keys in the shape every footer uses; the note gives way to them. */
+    rows.push({
+      row: spread(
+        [{ text: `${PAD}to ${session.agent} · ${hint}`, tone: "muted" }],
         [
           ...hintRuns({ key: "enter", label: "Send" }),
           { text: "   " },
-          ...hintRuns(closeHint("Cancel")),
+          ...hintRuns(closeHint("Stop Typing")),
           { text: " " },
         ],
         width,
       ),
+    })
+  } else {
+    /**
+     * In the order drawn, each with its rank: at half width the lowest-ranked go first, and the way
+     * out never does — it used to be the lowest, so the first key a narrow pane lost was how to
+     * leave it. The cutting, the `…` and the shape are the ones every bay shares (client/design).
+     * `[?] Keys` gives way late: it is where every key the row dropped can still be found.
+     */
+    const all: Hint[] = [
+      { key: "j/k", label: "Select", priority: 5 },
+      { key: "enter", label: "Open", priority: 9 },
+      { key: "tab", label: "Message", priority: 8 },
+      { key: "x", label: running(session) ? "Stop" : "Remove", priority: 7 },
+      ...(running(session) && !session.background ? [{ key: "b", label: "Background", priority: 6 }] : []),
+      { key: "t", label: input.thinking ? "Hide Thinking" : "Show Thinking", priority: 3 },
+      { key: "i", label: input.details ? "Timeline" : "Details", priority: 6 },
+      { key: "w", label: "Width", priority: 4 },
+      { key: "?", label: "Keys", priority: 8.5 },
+      closeHint("Back"),
     ]
+    rows.push({ row: fit([{ text: PAD }, ...fitHints(all, width - PAD.length).runs], width) })
   }
-  /** On the keys screen the only key worth a row is the way back to the run (Review's, Trust's). */
-  if (input.keys) {
-    const back: Run[] = [{ text: PAD }, ...fitHints([closeHint("Hide Keys")], width - PAD.length).runs]
-    return [fit(back, width), fit([], width)]
+  if (tier < 2) {
+    const note =
+      input.notice ??
+      (session.status === "done" && !prompt.focused
+        ? "Finished — message it; the main agent hears the answer."
+        : "")
+    rows.push({ row: fit([{ text: `${PAD}${note}`, tone: "muted" }], width) })
   }
-  /**
-   * In the order drawn, each with its rank: at half width the lowest-ranked go first, and the way out
-   * never does — it used to be the lowest, so the first key a narrow pane lost was how to leave it.
-   * The cutting, the `…` and the shape are the ones every bay shares (client/design). `[?] Keys`
-   * gives way late: it is where every key the row dropped can still be found.
-   */
-  const all: Hint[] = [
-    { key: "j/k", label: "Select", priority: 5 },
-    { key: "enter", label: "Open", priority: 9 },
-    { key: "m", label: "Message", priority: 8 },
-    { key: "x", label: running(session) ? "Stop" : "Remove", priority: 7 },
-    ...(running(session) && !session.background ? [{ key: "b", label: "Background", priority: 6 }] : []),
-    { key: "t", label: input.thinking ? "Hide Thinking" : "Show Thinking", priority: 3 },
-    { key: "i", label: input.details ? "Timeline" : "Details", priority: 6 },
-    { key: "w", label: "Width", priority: 4 },
-    { key: "?", label: "Keys", priority: 8.5 },
-    closeHint("Back"),
-  ]
-  const keys: Run[] = [{ text: PAD }, ...fitHints(all, width - PAD.length).runs]
-  const note =
-    input.notice ??
-    (session.status === "done" ? "Finished — message it; the main agent hears the answer." : "")
-  return [fit(keys, width), fit([{ text: `${PAD}${note}`, tone: "muted" }], width)]
+  return rows
 }
 
 export interface KeyLine {
@@ -445,7 +482,18 @@ export const SUBAGENT_KEYS: readonly KeyLine[] = [
   { keys: ["a"], does: "A call's whole output, or back to its first lines" },
   { keys: ["e"], does: "Open every call, or fold them all" },
   { keys: ["←/→"], does: "Previous or next subagent of this conversation (also [ and ])" },
-  { keys: ["m"], does: "Message this subagent; finished, its answer is passed on to the main agent" },
+  {
+    keys: ["tab"],
+    does: "Type to this subagent (or click the box); finished, its answer is passed on to the main agent",
+  },
+  {
+    keys: ["ctrl+u"],
+    does: "While typing: clear what is before the cursor. ←/→ move it, enter sends, esc stops typing",
+  },
+  {
+    keys: PERMISSION_KEYS.map((hint) => hint.key),
+    does: "Held on a permission: allow it once, allow it always, or reject it (or click the answer)",
+  },
   { keys: ["x"], does: "Stop it (press twice), or once it has ended, take it off the list" },
   { keys: ["X"], does: "Take every finished subagent off the list" },
   { keys: ["b"], does: "Move it to the background: the main agent stops waiting for it" },
@@ -520,7 +568,15 @@ export function screenRows(input: ScreenInput): Screen {
   const width = Math.max(24, input.width)
   const height = Math.max(8, input.height)
   const top = header(input, width)
-  const bottom = footer(input, width)
+  let tier: Tier = 0
+  let bottom = footer(input, width, tier)
+  while (tier < 2 && height - top.length - bottom.length - 2 < BODY_MIN) {
+    tier = (tier + 1) as Tier
+    bottom = footer(input, width, tier)
+  }
+  /** Shorter than any foot fits: its last rows, so the pane is still exactly its height. */
+  const fits = Math.max(0, height - top.length - 3)
+  if (bottom.length > fits) bottom = bottom.slice(bottom.length - fits)
   const room = Math.max(1, height - top.length - bottom.length - 2)
   const opened: string[] = []
   const links = new Map<string, string>()
@@ -560,13 +616,20 @@ export function screenRows(input: ScreenInput): Screen {
   while (shown.length < room) shown.push({ row: fit([], width) })
   const blank = fit([], width)
   return {
-    rows: [...top, blank, ...shown.map((line) => line.row), blank, ...bottom],
+    rows: [...top, blank, ...shown.map((line) => line.row), blank, ...bottom.map((line) => line.row)],
     items: [
       ...top.map(() => undefined),
       undefined,
       ...shown.map((line) => line.item),
       undefined,
       ...bottom.map(() => undefined),
+    ],
+    hits: [
+      ...top.map(() => undefined),
+      undefined,
+      ...shown.map(() => undefined),
+      undefined,
+      ...bottom.map((line) => line.hits),
     ],
     keys,
     opened,

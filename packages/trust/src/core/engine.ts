@@ -90,8 +90,16 @@ export interface Engine {
    * the state, bounded, and never read by a decision.
    */
   readonly history: History
-  /** Events read from the ledger file, in file order. */
-  load(events: readonly Event[], options?: { reset?: boolean }): void
+  /**
+   * Events read from the ledger file, in file order. `here`: an answer by Trust that this window did
+   * not send but is still this window's — on OpenCode 2 its agent half answers before a request is
+   * ever made (agent/answer.ts), and the window only learns of it from the file. Such an answer is
+   * listed and counted as if this window had given it.
+   */
+  load(
+    events: readonly Event[],
+    options?: { reset?: boolean; here?: (answer: Extract<Event, { type: "auto" }>) => boolean },
+  ): void
   /**
    * A request was asked. Returns the judgement and the `asked` event to write; when the judgement is
    * to answer, the request is marked ours *before* the reply is sent, so the `replied` it causes is
@@ -108,6 +116,11 @@ export interface Engine {
   answered(requestID: string, at: number): Event | undefined
   /** Our reply failed: the request is the person's again, and their answer counts. */
   failed(requestID: string): void
+  /**
+   * A request decided and not answered, that this engine will hear no more of — the agent half's,
+   * which leaves the asking to the interface. Let go, so the pending list does not grow.
+   */
+  forget(requestID: string): void
   /** A reply arrived — ours, OpenCode's, a person's. The events to write, and what it was taken for. */
   replied(input: { requestID: string; reply: Reply; at: number }): { events: Event[]; credit: Credit }
   /** Requests the host says are no longer pending: answered while we were not looking. */
@@ -148,6 +161,31 @@ export function createEngine(initial: EngineOptions): Engine {
   const answered: Answered[] = []
   let total = 0
 
+  /** One answer into the sidebar's list and count. */
+  const remember = (answer: {
+    at: number
+    request: string
+    permission: string
+    agent: string
+    items: readonly { subject: string; via?: string }[]
+    why: string
+  }) => {
+    total++
+    const subjects = answer.items.map((item) => item.subject)
+    const via = answer.items.find((item) => item.via !== undefined)?.via
+    answered.unshift({
+      at: answer.at,
+      request: answer.request,
+      permission: answer.permission,
+      agent: answer.agent,
+      label: subjects.join(" && "),
+      subjects,
+      why: answer.why,
+      ...(via !== undefined ? { via } : {}),
+    })
+    answered.splice(Math.max(1, options.keep ?? 20))
+  }
+
   const about = (entry: Pending) => ({
     request: entry.request.id,
     session: entry.request.sessionID,
@@ -164,13 +202,24 @@ export function createEngine(initial: EngineOptions): Engine {
     get history() {
       return history
     },
-    load(more, { reset = false } = {}) {
+    load(more, { reset = false, here } = {}) {
       if (reset) {
         events = []
         state = emptyState()
         history = emptyHistory()
       }
       events = events.concat(more)
+      if (here)
+        for (const event of more)
+          if (
+            event.type === "auto" &&
+            !mine.has(event.request) &&
+            !state.settled.has(event.request) &&
+            here(event)
+          ) {
+            /** Read before the fold below settles it, so a second window's copy is not one more. */
+            remember({ ...event, why: event.rule })
+          }
       fold(state, more)
     },
     ask({ request, context, agent, rules, at }) {
@@ -196,25 +245,23 @@ export function createEngine(initial: EngineOptions): Engine {
       if (!entry) return undefined
       ours.delete(requestID)
       pending.delete(requestID)
-      total++
-      const subjects = entry.judgement.items.map((item) => item.subject)
-      const via = entry.judgement.items.find((item) => item.via !== undefined)?.via
-      answered.unshift({
+      remember({
         at,
         request: requestID,
         permission: entry.request.permission,
         agent: entry.agent,
-        label: subjects.join(" && "),
-        subjects,
+        items: entry.judgement.items,
         why: entry.judgement.why,
-        ...(via !== undefined ? { via } : {}),
       })
-      answered.splice(Math.max(1, options.keep ?? 20))
       return { v: 1, at, type: "auto", rule: entry.judgement.why, ...about(entry) }
     },
     failed(requestID) {
       ours.delete(requestID)
       mine.delete(requestID)
+    },
+    forget(requestID) {
+      pending.delete(requestID)
+      ours.delete(requestID)
     },
     replied({ requestID, reply, at }) {
       const entry = pending.get(requestID)

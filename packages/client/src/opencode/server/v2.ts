@@ -1,7 +1,7 @@
 import { isAbsolute, relative, resolve } from "node:path"
 import { type ToolContext, type ToolDefinition, tool } from "@opencode-ai/plugin"
 import { type Log, silentLog } from "../../log.ts"
-import type { CommandSpec, ServerHost, ToolCall } from "./parts.ts"
+import type { CommandSpec, PermissionAsk, ServerHost, ToolCall, ToolStart } from "./parts.ts"
 import { contentText } from "./v1.ts"
 
 /** The parts of OpenCode 2.0.15's server plugin context used here (`@opencode/plugin`'s `Context`). */
@@ -12,6 +12,19 @@ export interface V2ServerContext {
     transform(edit: (editor: V2ToolEditor) => void): Promise<unknown>
     /** 2.0.18: after every tool call, Code Mode's inner calls included (docs/opencode/trail-server.md). */
     hook?(name: "execute.after", run: (event: V2ToolAfter) => unknown): Promise<unknown>
+    /**
+     * 2.0.18: before every tool call runs — and so before any permission it asks, which a tool asks
+     * from inside its own run. The input is the object the tool is then given.
+     */
+    hook?(name: "execute.before", run: (event: V2ToolBefore) => unknown): Promise<unknown>
+  }
+  /**
+   * 2.0.18's permission domain. `evaluate` runs inside `Permission.evaluate`, after config's rules and
+   * before a request is made or published; setting `effect` decides it (OpenCode's own policy plugin
+   * sets `"deny"`). Read from the 2.0.18 binary (docs/opencode/permissions.md).
+   */
+  permission?: {
+    hook(name: "evaluate", run: (event: V2PermissionEvaluate) => unknown): Promise<unknown>
   }
   /** 2.0.15's skill registry: an added skill is offered to the model like the user's own. */
   skill?: { transform(edit: (editor: V2SkillEditor) => void): Promise<unknown> }
@@ -49,6 +62,57 @@ export interface V2ToolAfter {
   /** `content[].text` is the one field every tool has; `output` is a string for MCP, an object for `shell`. */
   result?: { output?: unknown; content?: unknown }
   error?: unknown
+}
+
+/** What v2's `execute.before` hands a plugin, read from 2.0.18. */
+export interface V2ToolBefore {
+  tool: string
+  sessionID: string
+  agent?: string
+  messageID?: string
+  id: string
+  input?: unknown
+}
+
+/**
+ * What v2's permission `evaluate` hands a plugin, read from 2.0.18: the request about to be made,
+ * without its id (none exists yet) or its `save`. `effect` is what config decided — `"ask"` or
+ * `"allow"`; a `deny` never gets here — and what the hook leaves in it is what OpenCode does.
+ */
+export interface V2PermissionEvaluate {
+  sessionID: string
+  agent?: string
+  action: string
+  resources: readonly string[]
+  metadata?: unknown
+  source?: { type?: string; messageID?: string; id?: string }
+  effect: "ask" | "allow" | "deny"
+  message?: string
+}
+
+/** A v2 `execute.before` as a `ToolStart`. */
+export function v2ToolStart(event: V2ToolBefore): ToolStart {
+  return {
+    sessionID: event.sessionID,
+    tool: event.tool,
+    callID: event.id,
+    args: event.input,
+    ...(event.agent ? { agent: event.agent } : {}),
+    ...(event.messageID ? { messageID: event.messageID } : {}),
+  }
+}
+
+/** A v2 `evaluate` as a `PermissionAsk`: the call it came from only when a tool asked. */
+export function v2PermissionAsk(event: V2PermissionEvaluate): PermissionAsk {
+  const tool = event.source?.type === "tool" ? event.source : undefined
+  return {
+    sessionID: event.sessionID,
+    action: event.action,
+    resources: Array.isArray(event.resources) ? [...event.resources] : [],
+    ...(event.agent ? { agent: event.agent } : {}),
+    ...(tool?.id ? { callID: tool.id } : {}),
+    ...(tool?.messageID ? { messageID: tool.messageID } : {}),
+  }
 }
 
 /**

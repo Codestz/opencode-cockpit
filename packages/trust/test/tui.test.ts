@@ -316,3 +316,53 @@ describe("the dialog", () => {
     expect(pressEscape(fake)).toBe(false)
   })
 })
+
+describe("on OpenCode 2", () => {
+  /** v1's fake with v2's reach in its place: what the interface reads config and events through. */
+  function fakeV2(documents: unknown[]): Fake {
+    const base = fakeV1()
+    const listeners: ((event: unknown) => void)[] = []
+    const v2 = {
+      data: {
+        listen: (listener: (event: unknown) => void) => {
+          listeners.push(listener)
+          return () => {}
+        },
+        session: { get: () => undefined },
+      },
+      client: {
+        permission: { reply: async (input: unknown) => ({ data: base.replies.push(input) }) },
+        config: { get: async () => ({ data: documents }) },
+      },
+    }
+    const host = { ...(base.host as object), version: 2, v1: undefined, v2 } as unknown as Host
+    return {
+      ...base,
+      host,
+      emit: (event) => {
+        for (const listener of listeners) listener(event)
+      },
+    }
+  }
+
+  test("the rules are shared with the agent half: its permissions, nothing else of the config", async () => {
+    process.env.COCKPIT_HOME = mkdtempSync(join(tmpdir(), "trust-tui-"))
+    process.env.XDG_CONFIG_HOME = mkdtempSync(join(tmpdir(), "trust-tui-config-"))
+    const permissions = [{ action: "shell", resource: "*", effect: "ask" }]
+    const fake = fakeV2([
+      { type: "document", info: { permissions, provider: { zen: { options: { apiKey: "sk-secret" } } } } },
+    ])
+    current = fake
+    await createTrustTui({ source: `test-${Math.random()}` })(fake.host, {})
+    await wait(30)
+    const written = JSON.parse(readFileSync(trustPaths(DIRECTORY).rules, "utf8"))
+    expect(written.config).toEqual([{ type: "document", info: { permissions } }])
+    expect(written.pid).toBe(process.pid)
+    expect(written.settings).toEqual({ threshold: 3, dangerExtra: 5, expireDays: 30, learnReads: true })
+  })
+
+  test("OpenCode 1 shares nothing: its agent half cannot answer", async () => {
+    await start()
+    expect(() => readFileSync(trustPaths(DIRECTORY).rules, "utf8")).toThrow()
+  })
+})

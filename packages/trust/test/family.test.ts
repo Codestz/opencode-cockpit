@@ -4,6 +4,7 @@ import {
   covers,
   familyOf,
   outside,
+  placeless,
   readSubject,
   shown,
   showSubject,
@@ -83,14 +84,17 @@ describe("a command's family", () => {
       expect(family(line)).toBe(expected)
     })
 
-  test("where it runs is part of the family", () => {
+  test("where it runs is part of the command, not of its family", () => {
     const parsed = parse("cd web && bun test")
     if (parsed.kind !== "commands") throw new Error("opaque")
     const placed = signature(parsed.commands[0] as never, ROOT)
     expect(placed).toBe("(in web) bun test")
-    expect(familyOf("bash", placed)).toBe("(in web) bun test")
+    expect(familyOf("bash", placed)).toBe("bun test")
     const spaced = signature({ env: [], argv: ["ls", "-la"], cwd: `${ROOT}/my dir` }, ROOT)
-    expect(familyOf("bash", spaced)).toBe("(in 'my dir') ls")
+    expect(familyOf("bash", spaced)).toBe("ls")
+    /** A widening recorded with a place, as before 0.12, is the plain family now. */
+    expect(placeless("bash", "(in web) bun test")).toBe("bun test")
+    expect(placeless("edit", "(in web) x/")).toBe("(in web) x/")
     expect(readSubject(spaced)).toEqual({ place: "my dir", command: { env: [], argv: ["ls", "-la"] } })
   })
 
@@ -148,7 +152,8 @@ describe("what a widened family covers", () => {
   test("not another family", () => {
     expect(covers("bash", "ls", subject("sudo ls"))).toBe(false)
     expect(covers("bash", "npm run test", subject("npm run deploy"))).toBe(false)
-    expect(covers("bash", "ls", subject("cd web && ls"))).toBe(false)
+    /** The same words in another folder are the same family: leaving the project is OpenCode's own question. */
+    expect(covers("bash", "ls", subject("cd web && ls"))).toBe(true)
   })
 
   test("not a dangerous command inside a safe family", () => {
@@ -212,7 +217,7 @@ describe("showing a command so no font can merge it", () => {
     expect(showSubject("bash", subject("ls > out.txt"))).toBe("ls > out.txt")
     expect(showSubject("bash", subject("ls 2>&1"))).toBe("ls 2>&1")
     expect(showSubject("bash", subject("NODE_ENV='a b' npm test"))).toBe('NODE_ENV="a b" npm test')
-    expect(showSubject("bash", "(in 'my dir') ls")).toBe('(in "my dir") ls')
+    expect(showSubject("bash", "(in 'my dir') ls")).toBe('ls  in "my dir"')
     expect(showSubject("bash", "NODE_ENV=… npm run build")).toBe("NODE_ENV=… npm run build")
     expect(showSubject("edit", "src/app.ts")).toBe("src/app.ts")
   })

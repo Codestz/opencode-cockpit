@@ -25,6 +25,11 @@ export interface Requests {
   loadRules(): Promise<void>
   /** Whether the rules could be read; without them Trust answers nothing. */
   rulesReady(): boolean
+  /**
+   * Whether this window saw the tool call: an answer the agent half gave for it (OpenCode 2) is then
+   * this window's, for the sidebar.
+   */
+  saw(call: string): boolean
   /** Requests already waiting, and any the events never said were answered; `adopt` decides them. */
   reconcile(adopt: boolean): Promise<void>
   dispose(): void
@@ -40,8 +45,13 @@ export function createRequests(input: {
   live: Live
   write: (events: readonly Event[]) => void
   draw: () => void
+  /**
+   * The rules as just read — or `undefined`, they could not be — for the agent half to decide with
+   * (snapshot.ts). OpenCode 2 only: on 1 the agent half has no way to answer.
+   */
+  publish?: (rules: { config: unknown } | undefined) => void
 }): Requests {
-  const { api, log, engine, directory, hash, live, write, draw } = input
+  const { api, log, engine, directory, hash, live, write, draw, publish } = input
   /** OpenCode's config as its `config.get` returned it; undefined until read, and Trust stays out. */
   let opencodeConfig: unknown
   let rulesReady = false
@@ -52,11 +62,13 @@ export function createRequests(input: {
     try {
       opencodeConfig = await feed.config()
       rulesReady = true
+      publish?.({ config: opencodeConfig })
       if (live.trouble?.startsWith("OpenCode's config")) live.trouble = undefined
       log.debug("rules", { rules: rulesFrom(opencodeConfig).length })
     } catch (error) {
       /** Without the rules there is no knowing what you asked to be asked about: Trust stays out. */
       rulesReady = false
+      publish?.(undefined)
       log.error("config unreadable", { error })
       live.trouble = "OpenCode's config unreadable — not answering"
     }
@@ -199,6 +211,7 @@ export function createRequests(input: {
   return {
     loadRules,
     rulesReady: () => rulesReady,
+    saw: (call) => calls.has(call),
     reconcile,
     dispose: () => {
       for (const waiting of parked.values()) clearTimeout(waiting.timer)

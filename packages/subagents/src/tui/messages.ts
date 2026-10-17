@@ -1,7 +1,9 @@
 /**
- * Messaging a subagent from its pane: `m` starts a message at the foot, every key goes into it until
- * enter sends or esc drops it, and a paste goes in too. A finished subagent's answer goes nowhere on
- * its own, so once it has answered, what you asked and what it said are relayed to the main agent.
+ * Messaging a subagent from its pane: the box at the foot is always there, as OpenCode's own prompt
+ * is. `tab` or a click on it puts the keys into it; enter sends and leaves you typing, as OpenCode's
+ * prompt does; esc (or `tab`) hands the keys back to the pane and keeps what you typed. A paste goes
+ * in too. A finished subagent's answer goes nowhere on its own, so once it has answered, what you
+ * asked and what it said are relayed to the main agent.
  */
 
 import type { Host } from "@opencode-cockpit/client/host"
@@ -19,8 +21,10 @@ const RELAY_MAX = 4000
 const clip = (text: string, most: number) => (text.length > most ? `${text.slice(0, most - 1)}…` : text)
 
 export interface Messages {
-  /** `m`: a message to the subagent open in the pane. */
-  startMessage(): void
+  /** `tab`, or a click on the box: keys go into the message to the subagent open in the pane. */
+  focus(): void
+  /** Keys go back to the pane; the draft stays in the box. */
+  blur(): void
   /** A subagent went idle: if you had asked it something, its answer goes to the main agent. */
   relay(id: string): void
 }
@@ -39,12 +43,26 @@ export function createMessages(input: {
 }): Messages {
   const { api, log, model, surface, yours, opened, busy, draw, set } = input
 
-  const startMessage = () => {
+  const focus = () => {
     if (!opened()) return
-    surface.draft = ""
+    surface.typing = true
     surface.notice = undefined
     log.debug("message: typing", { id: surface.open })
     draw()
+  }
+
+  const blur = () => {
+    if (!surface.typing) return
+    surface.typing = false
+    draw()
+  }
+
+  /** `text` in at the cursor, which moves past it. */
+  const insert = (text: string) => {
+    const draft = surface.draft ?? ""
+    const caret = Math.min(draft.length, surface.caret ?? draft.length)
+    surface.draft = draft.slice(0, caret) + text + draft.slice(caret)
+    surface.caret = caret + text.length
   }
 
   /**
@@ -83,10 +101,12 @@ export function createMessages(input: {
       const followed = after(id, pending.question)
       if (!followed.some((entry) => entry.kind !== "prompt")) {
         log.warn("message not answered", { id })
-        if (surface.open === id && surface.draft === undefined)
+        if (surface.open === id && !surface.draft)
           set({
             draft: pending.question,
-            notice: `${session.agent} finished without reading your message — enter sends it again, esc drops it.`,
+            caret: undefined,
+            typing: true,
+            notice: `${session.agent} finished without reading your message — enter sends it again, ctrl+u clears it.`,
           })
         return
       }
@@ -123,6 +143,7 @@ export function createMessages(input: {
     const session = opened()
     const text = surface.draft?.trim()
     surface.draft = undefined
+    surface.caret = undefined
     if (!session || !text) return draw()
     /** Taken now: the model may learn something about the session before the call returns. */
     const { id, agent } = session
@@ -151,32 +172,41 @@ export function createMessages(input: {
 
   /** A paste while typing goes into the message — one line, as the field is. */
   const offPaste = onPaste(api, (text) => {
-    if (!surface.open || surface.draft === undefined) return false
-    surface.draft += text.replace(/\r?\n/g, " ")
+    if (!surface.open || !surface.typing) return false
+    insert(text.replace(/\r?\n/g, " "))
     log.debug("message: pasted", { chars: text.length })
     draw()
     return true
   })
   api.lifecycle.onDispose(offPaste)
 
-  /** Typing a message takes every key before the layer, so `e`, `t`, `j`… go into the words. */
+  /**
+   * Typing takes every key before the layer, so `e`, `t`, `j`… go into the words — and `y` into a
+   * word rather than answering a permission card: the card's keys are the pane's, not the box's.
+   */
   api.keymap.intercept(
     (ctx) => {
-      if (!surface.open || surface.draft === undefined) return
+      if (!surface.open || !surface.typing) return
       const event = ctx.event
       ctx.consume({ preventDefault: true, stopPropagation: true })
-      if (event.name === "escape") {
-        surface.draft = undefined
-        return draw()
-      }
+      const draft = surface.draft ?? ""
+      const caret = Math.min(draft.length, surface.caret ?? draft.length)
+      if (event.name === "escape" || event.name === "tab") return blur()
       if (event.name === "return" || event.name === "enter") return sendMessage()
-      if (event.name === "backspace") surface.draft = surface.draft.slice(0, -1)
-      else if (event.sequence && !event.ctrl && !event.meta && event.sequence >= " ")
-        surface.draft += event.sequence
+      if (event.name === "backspace") {
+        surface.draft = draft.slice(0, Math.max(0, caret - 1)) + draft.slice(caret)
+        surface.caret = Math.max(0, caret - 1)
+      } else if (event.name === "left") surface.caret = Math.max(0, caret - 1)
+      else if (event.name === "right") surface.caret = Math.min(draft.length, caret + 1)
+      else if (event.ctrl && event.name === "u") {
+        /** The readline key OpenCode's prompt keeps too: what is before the cursor goes. */
+        surface.draft = draft.slice(caret)
+        surface.caret = 0
+      } else if (event.sequence && !event.ctrl && !event.meta && event.sequence >= " ") insert(event.sequence)
       draw()
     },
     { priority: 10_000 },
   )
 
-  return { startMessage, relay }
+  return { focus, blur, relay }
 }

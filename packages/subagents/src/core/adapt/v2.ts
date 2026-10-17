@@ -9,7 +9,7 @@
  */
 
 import type { Change } from "../model/changes.ts"
-import { summaryOf, tokenTotal } from "./v1.ts"
+import { modelOf, strings, summaryOf, tokenTotal } from "./v1.ts"
 
 type Json = Record<string, unknown>
 const obj = (value: unknown): Json => (value && typeof value === "object" ? (value as Json) : {})
@@ -45,7 +45,7 @@ export function createV2Translator(unknown: (what: string, detail?: Json) => voi
         ...(str(info.parentID) ? { parentID: str(info.parentID) as string } : {}),
         ...(str(info.agent) ? { agent: str(info.agent) as string } : {}),
         ...(str(info.title) ? { title: str(info.title) as string } : {}),
-        ...(str(obj(info.model).id) ? { model: str(obj(info.model).id) as string } : {}),
+        ...modelOf(obj(info.model)),
         at: Number(obj(info.time).created) || at,
       },
     ]
@@ -209,6 +209,40 @@ export function createV2Translator(unknown: (what: string, detail?: Json) => voi
             : []
         case "session.status":
           return id ? statusChange(id, data.status, at) : []
+        /** Each step names the model it runs on: the latest is the one the prompt names. */
+        case "session.step.started": {
+          const model = modelOf(obj(data.model))
+          return id && model.model ? [{ type: "session", id, ...model, at }] : []
+        }
+        /**
+         * `{ id, sessionID, action: "shell", resources, save, source: { type: "tool", messageID, id } }`
+         * (docs/opencode/permissions.md); answered by anyone, `{ sessionID, requestID, reply }`.
+         */
+        case "permission.asked": {
+          const request = str(data.id)
+          if (!id || !request) return []
+          const source = obj(data.source)
+          const call = source.type === "tool" ? str(source.id) : undefined
+          const permission = str(data.action) ?? str(data.permission)
+          return [
+            {
+              type: "permission",
+              id,
+              request,
+              state: "asked",
+              ...(permission ? { permission } : {}),
+              patterns: strings(data.resources ?? data.patterns),
+              always: strings(data.save ?? data.always),
+              ...(call ? { call } : {}),
+              ...(str(source.messageID) ? { message: str(source.messageID) as string } : {}),
+              at,
+            },
+          ]
+        }
+        case "permission.replied":
+          return id && str(data.requestID)
+            ? [{ type: "permission", id, request: str(data.requestID) as string, state: "replied", at }]
+            : []
         default:
           // Deltas of kinds we do not draw, bookkeeping, and everything not about a session.
           if (
@@ -238,7 +272,7 @@ export function createV2Translator(unknown: (what: string, detail?: Json) => voi
         if (message.type !== "assistant") continue
         out.push({ type: "step", id, at: when })
         if (str(obj(message.model).id))
-          out.push({ type: "session", id, model: str(obj(message.model).id) as string, at: when })
+          out.push({ type: "session", id, ...modelOf(obj(message.model)), at: when })
         const content = Array.isArray(message.content) ? message.content : []
         /** Live events number thinking and text blocks separately; the keys must match across a reload. */
         let thought = 0

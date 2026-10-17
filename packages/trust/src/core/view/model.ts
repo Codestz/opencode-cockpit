@@ -9,7 +9,15 @@
  */
 
 import { familyOf } from "../family.ts"
-import { type Always, type Entry, type State, standing, type Thresholds, type Widened } from "../ledger.ts"
+import {
+  type Always,
+  type Entry,
+  revisionOf,
+  type State,
+  standing,
+  type Thresholds,
+  type Widened,
+} from "../ledger.ts"
 import { widenedFor } from "../policy.ts"
 
 export interface Reading {
@@ -23,21 +31,32 @@ export type Stand =
   | { kind: "trusted" }
   /** Not trusted by its own count, answered through a family you widened — or Trust learned. */
   | { kind: "widened"; family: string; learned?: true }
-  | { kind: "counting"; have: number; need: number; expired: boolean }
+  /** `yours`: never trusted by its count — a folder outside the project (folders.ts). */
+  | { kind: "counting"; have: number; need: number; expired: boolean; yours?: true }
 
 export function standOf(entry: Entry, { state, settings, now }: Reading): Stand {
   const where = standing(entry, entry.danger, settings, now)
   if (where.trusted) return { kind: "trusted" }
   const through = widenedFor(state, entry.permission, entry.subject, settings, now)
   if (through) return { kind: "widened", ...through }
-  return { kind: "counting", have: where.have, need: where.need, expired: where.expired }
+  return {
+    kind: "counting",
+    have: where.have,
+    need: where.need,
+    expired: where.expired,
+    ...(where.yours ? { yours: true as const } : {}),
+  }
 }
 
 export const answers = (stand: Stand): boolean => stand.kind !== "counting"
 
 /** Approvals still needed; an expired count is as far as it gets. Zero: it answers. */
 export const distance = (stand: Stand): number =>
-  stand.kind !== "counting" ? 0 : stand.expired ? Number.MAX_SAFE_INTEGER : stand.need - stand.have
+  stand.kind !== "counting"
+    ? 0
+    : stand.expired || stand.yours
+      ? Number.MAX_SAFE_INTEGER
+      : stand.need - stand.have
 
 /** A command's standing: its entry (the project's), and where that puts it. */
 export interface Standing {
@@ -90,6 +109,27 @@ function phaseOf(standings: readonly Standing[]): Phase {
  * nothing to show and is left out.
  */
 export function commandsOf(reading: Reading): Command[] {
+  /**
+   * Built once per change: both screens ask on every paint, and every keystroke paints — on a real
+   * ledger of 13,000 commands, rebuilding was most of a 70ms keystroke. A standing turns on time only
+   * by days (expiry), so the minute is as fine as the clock needs to be.
+   */
+  const minute = Math.floor(reading.now / 60_000)
+  const kept = built.get(reading.state)
+  const revision = revisionOf(reading.state)
+  if (kept && kept.revision === revision && kept.minute === minute && kept.settings === reading.settings)
+    return kept.commands
+  const commands = commandsNow(reading)
+  built.set(reading.state, { revision, minute, settings: reading.settings, commands })
+  return commands
+}
+
+const built = new WeakMap<
+  State,
+  { revision: number; minute: number; settings: Thresholds; commands: Command[] }
+>()
+
+function commandsNow(reading: Reading): Command[] {
   const byKey = new Map<string, Standing[]>()
   for (const entry of reading.state.entries.values()) {
     if (entry.approvals === 0 && entry.autos === 0) continue
@@ -165,6 +205,17 @@ function familyRank(family: Family): number {
  * and families seen only once last.
  */
 export function familiesOf(reading: Reading, commands: readonly Command[] = commandsOf(reading)): Family[] {
+  /** The same commands are the same families: kept with the commands they were built from. */
+  const kept = grouped.get(commands)
+  if (kept) return kept
+  const families = familiesNow(reading, commands)
+  grouped.set(commands, families)
+  return families
+}
+
+const grouped = new WeakMap<readonly Command[], Family[]>()
+
+function familiesNow(reading: Reading, commands: readonly Command[]): Family[] {
   const families = new Map<string, Family>()
   const familyFor = (permission: string, family: string) => {
     const key = familyKey(permission, family)

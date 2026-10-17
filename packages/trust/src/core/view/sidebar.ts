@@ -27,9 +27,10 @@
 
 import { HEADING_GAP } from "@opencode-cockpit/client/design"
 import type { Answered, Pending } from "../engine.ts"
-import { anyOf, showSubject } from "../family.ts"
+import { anyShown, kindOf, lineShown, type Shown } from "../family.ts"
 import { keyOf, type State, standing, type Thresholds } from "../ledger.ts"
-import { fit, type Row, spread, widthOf } from "./rows.ts"
+import { shownRuns } from "./parts.ts"
+import { fit, type Row, type Run, spread, widthOf } from "./rows.ts"
 
 export interface SidebarInput {
   width: number
@@ -95,14 +96,22 @@ function summary(count: number, project: Tally, room: number): Row {
   return parts[0] ?? []
 }
 
-/** `edit src/app.ts`, but a command is just the command: bash is the common case. */
-export function labelOf(permission: string, label: string): Row {
-  return permission === "bash"
-    ? [{ text: label, tone: "text" }]
-    : [
-        { text: `${permission} `, tone: "tool" },
-        { text: label, tone: "text" },
-      ]
+/**
+ * `edit src/app.ts`, but a command is just the command: bash is the common case. In `room` columns,
+ * the command first and where it ran after it (`shownRuns`), the program never cut; then `after`.
+ */
+export function labelOf(
+  permission: string,
+  subjects: readonly string[],
+  room: number,
+  after: Run[] = [],
+): Row {
+  const kind = kindOf(permission)
+  const line = lineShown(permission, subjects)
+  const shown: Shown = kind === "" ? line : { ...line, text: line.text.slice(kind.length) }
+  /** The command and its place first; what follows (`· any ls`) is what the row cuts when short. */
+  const runs = shownRuns(shown, Math.max(1, room - widthOf(kind)))
+  return [...(kind === "" ? [] : [{ text: kind, tone: "tool" as const }]), ...runs, ...after]
 }
 
 /** How often Trust answered this in all: the least of its parts, since a line is answered whole. */
@@ -120,7 +129,8 @@ export function sidebarRows(input: SidebarInput): Row[] {
 
   /** Requests on screen that Trust has started counting; a first sighting at 0 is not news. */
   const counting = input.pending.flatMap((pending) => {
-    const short = pending.judgement.progress.filter((p) => !p.trusted)
+    /** A folder outside the project counts towards nothing: only a widening ever answers it. */
+    const short = pending.judgement.progress.filter((p) => !p.trusted && !p.yours)
     if (short.length === 0 || pending.judgement.answer) return []
     const worst = short.reduce((a, b) => (b.need - b.have > a.need - a.have ? b : a))
     return worst.have > 0 ? [{ permission: pending.request.permission, worst }] : []
@@ -159,16 +169,17 @@ export function sidebarRows(input: SidebarInput): Row[] {
           { text: "● ", tone: "success" },
           ...labelOf(
             answered.permission,
-            answered.subjects.map((subject) => showSubject(answered.permission, subject)).join(" && "),
+            answered.subjects,
+            width - 2 - 1 - widthOf(`${times(state, answered)}×`),
+            answered.via !== undefined
+              ? [
+                  {
+                    text: ` · ${anyShown(answered.permission, answered.via).text.replace(/ …$/, "")}`,
+                    tone: "muted",
+                  },
+                ]
+              : [],
           ),
-          ...(answered.via !== undefined
-            ? [
-                {
-                  text: ` · ${anyOf(answered.permission, answered.via).replace(/ …$/, "")}`,
-                  tone: "muted" as const,
-                },
-              ]
-            : []),
         ],
         [{ text: `${times(state, answered)}×`, tone: "muted" }],
         width,
@@ -177,7 +188,10 @@ export function sidebarRows(input: SidebarInput): Row[] {
   for (const { permission, worst } of counting)
     rows.push(
       spread(
-        [{ text: "○ ", tone: "warning" }, ...labelOf(permission, showSubject(permission, worst.subject))],
+        [
+          { text: "○ ", tone: "warning" },
+          ...labelOf(permission, [worst.subject], width - 2 - 1 - widthOf(`${worst.have}/${worst.need}`)),
+        ],
         [{ text: `${worst.have}/${worst.need}`, tone: worst.danger ? "error" : "warning" }],
         width,
       ),

@@ -79,7 +79,8 @@ for (const version of [1, 2] as const) {
           { thinking: true },
           { open: every },
           { details: true },
-          { input: { draft: "also check the tests", busy: false } },
+          { prompt: { draft: "also check the tests", focused: true, busy: false } },
+          { prompt: { draft: "", focused: false, busy: false } },
           { selected: [...every][1] as string, top: 0 },
         ]) {
           const screen = screenRows({ ...pane(session, nodes), width, height, ...state })
@@ -104,7 +105,7 @@ for (const version of [1, 2] as const) {
       expect(text).toMatch(/→ Read src\/(session|middleware)\.ts/)
       expect(text).toMatch(/[◇◆] Thought · [\d.]+m?s/)
       expect(text).toContain("createSession")
-      expect(text).toContain("[m] Message")
+      expect(text).toContain("[tab] Message")
     })
 
     test("a quiet call is one line; open, it is a box of its arguments; folded, one line again", async () => {
@@ -254,13 +255,13 @@ describe("while it works", () => {
       ...pane(session, nodes),
       width: 90,
       height: 20,
-      input: { draft: "skip the docs", busy: true },
+      prompt: { draft: "skip the docs", focused: true, busy: true },
     })
       .rows.map(rowText)
       .join("\n")
     expect(text).toContain("┃ skip the docs▍")
     expect(text).toContain("it picks this up in its current run")
-    expect(text).not.toContain("[m] Message")
+    expect(text).not.toContain("[tab] Message")
   })
 
   test("a message you sent is a card in the timeline", () => {
@@ -388,7 +389,7 @@ describe("stopping and ending", () => {
     expect(footer(done, 140)).toContain("[x] Remove")
     const narrow = footer(busy, 72)
     expect(narrow).toContain("[enter] Open")
-    expect(narrow).toContain("[m] Message")
+    expect(narrow).toContain("[tab] Message")
     expect(narrow).toContain("[x] Stop")
     expect(narrow).not.toMatch(/…\s*$/)
   })
@@ -717,5 +718,202 @@ describe("a reloaded run ends when its last message finished", () => {
     expect(finishedAt([{ info: { time: { created: 5 } } }])).toBe(0)
     expect(finishedAt([null, "x", {}])).toBe(0)
     expect(finishedAt([])).toBe(0)
+  })
+})
+
+/**
+ * The foot of the pane (core/view/foot.ts): a permission card answered from the pane, and the message
+ * box that is always there, as OpenCode's own prompt is.
+ */
+describe("the foot: a permission card and the message box", () => {
+  const at = 3_000_000
+  const ask = (request: string, call = "1"): Change => ({
+    type: "permission",
+    id: "c",
+    request,
+    state: "asked",
+    permission: "bash",
+    patterns: ["pnpm install"],
+    always: ["pnpm *"],
+    call,
+    at: at + 1,
+  })
+  const held = (command: string, extra: Change[] = []) => {
+    const m = applyAll(emptyModel(), [
+      {
+        type: "session",
+        id: "c",
+        parentID: "p",
+        agent: "explore",
+        title: "Install",
+        model: "space-bunny-free",
+        provider: "opencode",
+        variant: "high",
+        at,
+      },
+      { type: "status", id: "c", status: "busy", at },
+      { type: "tool", id: "c", call: "1", name: "bash", state: "pending", input: { command }, at },
+      ask("per_1"),
+      ...extra,
+    ])
+    const nodes = subagentsOf(m, "p")
+    const session = nodes[0]?.session
+    if (!session) throw new Error("no subagent")
+    return { session, nodes }
+  }
+  const draw = (input: Partial<ScreenInput> & Pick<ScreenInput, "session" | "nodes">) =>
+    screenRows({ ...pane(input.session, input.nodes), width: 90, height: 30, ...input })
+  const text = (screen: ReturnType<typeof screenRows>) => screen.rows.map(rowText)
+
+  test("held, the card says what it asks for — the call's whole command — and how to answer", () => {
+    const rows = text(draw(held("pnpm install --frozen-lockfile")))
+    const title = rows.findIndex((row) => row.includes("△ Permission required · bash"))
+    expect(title).toBeGreaterThan(0)
+    expect(rows[title + 1]).toContain("▎ $ pnpm install --frozen-lockfile")
+    expect(rows[title + 2]).toContain("[y] Allow Once   [Y] Allow Always   [n] Reject")
+    expect(rows[title]).not.toContain("1 of")
+  })
+
+  test("with no call to read, the card says the request's own patterns", () => {
+    const { session, nodes } = held("ignored")
+    const rows = text(draw({ session, nodes, pending: [{ ...(session.pending[0] as never), call: "gone" }] }))
+    expect(rows.some((row) => row.includes("▎ pnpm install"))).toBe(true)
+  })
+
+  test("two pending: the first is shown, and says it is one of two", () => {
+    const rows = text(draw(held("pnpm install", [ask("per_2")])))
+    expect(rows.find((row) => row.includes("Permission required"))?.trimEnd()).toMatch(/1 of 2$/)
+  })
+
+  test("a long command is cut after four lines, and says so", () => {
+    const long = Array.from({ length: 40 }, (_, i) => `step${i}`).join(" && ")
+    const all = text(draw(held(long)))
+    const card = all.slice(all.findIndex((row) => row.includes("Permission required")))
+    const rows = card.filter((row) => row.includes("step"))
+    expect(rows).toHaveLength(4)
+    expect(rows.at(-1)?.trimEnd()).toMatch(/…$/)
+  })
+
+  test("an answer the host refused is said on the card, which stays", () => {
+    const rows = text(draw({ ...held("pnpm install"), replyError: "Permission request not found" }))
+    expect(rows.some((row) => row.includes("Not answered: Permission request not found"))).toBe(true)
+    expect(rows.some((row) => row.includes("[y] Allow Once"))).toBe(true)
+  })
+
+  test("nothing pending, or every one answered from here, draws no card", () => {
+    const answered = draw({ ...held("pnpm install"), pending: [] })
+    expect(text(answered).some((row) => row.includes("Permission required"))).toBe(false)
+  })
+
+  test("each answer on the card is a place to click; the box is one too", () => {
+    const screen = draw(held("pnpm install"))
+    const y = screen.rows.findIndex((row) => rowText(row).includes("[y] Allow Once"))
+    const row = rowText(screen.rows[y] ?? [])
+    const hits = screen.hits[y] ?? []
+    expect(hits.map((hit) => hit.act)).toEqual(["once", "always", "reject"])
+    for (const [act, label] of [
+      ["once", "[y] Allow Once"],
+      ["always", "[Y] Allow Always"],
+      ["reject", "[n] Reject"],
+    ] as const) {
+      const hit = hits.find((each) => each.act === act)
+      expect(row.slice(hit?.from, hit?.to)).toBe(label)
+    }
+    const box = screen.rows.findIndex((each) => rowText(each).includes("┃ Message explore…"))
+    expect(screen.hits[box]).toEqual([{ act: "focus", from: 0, to: 90 }])
+    expect(screen.hits.slice(0, screen.bodyAt + 5).every((each) => each === undefined)).toBe(true)
+  })
+
+  test("the box at rest says how to start; with a draft it keeps it; typing, the cursor is in it", () => {
+    const { session, nodes } = held("pnpm install")
+    const rest = text(draw({ session, nodes, pending: [] }))
+    expect(rest.find((row) => row.includes("┃ Message explore…"))?.trimEnd()).toMatch(/tab or click to type$/)
+    const kept = text(draw({ session, nodes, prompt: { draft: "skip docs", focused: false, busy: true } }))
+    expect(kept.find((row) => row.includes("┃ skip docs"))?.trimEnd()).toMatch(/tab to keep typing$/)
+    const typing = text(
+      draw({ session, nodes, prompt: { draft: "skip docs", caret: 4, focused: true, busy: true } }),
+    )
+    expect(typing.some((row) => row.includes("┃ skip▍ docs"))).toBe(true)
+    expect(typing.some((row) => row.includes("[enter] Send") && row.includes("[esc] Stop Typing"))).toBe(true)
+    const empty = text(draw({ session, nodes, prompt: { draft: "", focused: true, busy: false } }))
+    expect(empty.some((row) => row.includes("┃ ▍Message explore…"))).toBe(true)
+  })
+
+  test("a draft longer than the box shows the part around the cursor", () => {
+    const { session, nodes } = held("pnpm install")
+    const draft = `${"a".repeat(200)}END`
+    const rows = text(draw({ session, nodes, width: 60, prompt: { draft, focused: true, busy: false } }))
+    const line = rows.find((row) => row.includes("┃ …")) ?? ""
+    expect(line).toContain("END▍")
+    expect(widthOf(line)).toBe(60)
+  })
+
+  test("under the box: the agent, its model, whose model it is, and a variant you chose", () => {
+    const { session, nodes } = held("pnpm install")
+    expect(
+      text(draw({ session, nodes })).some((row) =>
+        row.includes("┃ Explore · space-bunny-free opencode · high"),
+      ),
+    ).toBe(true)
+    const plain = { ...session, variant: "default", provider: undefined } as Session
+    const rows = text(draw({ session: plain, nodes }))
+    expect(rows.find((row) => row.includes("┃ Explore"))?.trimEnd()).toMatch(/┃ Explore · space-bunny-free$/)
+    const bare = { ...session, model: undefined, provider: undefined, variant: undefined } as Session
+    expect(
+      text(draw({ session: bare, nodes }))
+        .find((row) => row.includes("┃ Explore"))
+        ?.trimEnd(),
+    ).toMatch(/┃ Explore$/)
+  })
+
+  test("with a card, the pane is still exactly its height, every row its width, down to the smallest", () => {
+    const { session, nodes } = held(Array.from({ length: 40 }, (_, i) => `step${i}`).join(" && "), [
+      ask("per_2"),
+    ])
+    for (const [width, height] of [
+      [40, 8],
+      [40, 12],
+      [72, 16],
+      [140, 40],
+    ] as const) {
+      for (const prompt of [undefined, { draft: "hi", focused: true, busy: true }]) {
+        const screen = screenRows({ ...pane(session, nodes), width, height, ...(prompt ? { prompt } : {}) })
+        expect(screen.rows).toHaveLength(height)
+        expect(screen.hits).toHaveLength(height)
+        for (const row of screen.rows) expect(rowWidth(row)).toBe(width)
+      }
+    }
+  })
+
+  test("a short pane keeps the card's answers and the box before the command's later lines", () => {
+    const { session, nodes } = held(Array.from({ length: 40 }, (_, i) => `step${i}`).join(" && "))
+    const rows = text(screenRows({ ...pane(session, nodes), width: 72, height: 16 }))
+    const card = rows.slice(rows.findIndex((row) => row.includes("Permission required")))
+    expect(card.filter((row) => row.includes("step"))).toHaveLength(1)
+    expect(rows.some((row) => row.includes("[y] Allow Once"))).toBe(true)
+    expect(rows.some((row) => row.includes("┃ Message explore…"))).toBe(true)
+  })
+
+  test("the switcher marks a subagent held on a permission", () => {
+    const m = applyAll(emptyModel(), [
+      { type: "session", id: "a", parentID: "p", agent: "general", title: "Read", at },
+      { type: "status", id: "a", status: "busy", at },
+      { type: "session", id: "c", parentID: "p", agent: "explore", title: "Install", at: at + 1 },
+      { type: "status", id: "c", status: "busy", at: at + 1 },
+      ask("per_1"),
+    ])
+    const nodes = subagentsOf(m, "p")
+    const other = nodes.find((node) => node.session.id === "a")?.session as Session
+    const switcher = text(screenRows({ ...pane(other, nodes), width: 120, height: 20 }))[2] ?? ""
+    expect(switcher).toContain("△ explore Install")
+    expect(switcher).not.toContain("△ general")
+  })
+
+  test("the keys screen lists the box and the card's answers, and no longer `m`", () => {
+    const { session, nodes } = held("pnpm install")
+    const keys = text(screenRows({ ...pane(session, nodes), width: 120, height: 60, keys: true })).join("\n")
+    expect(keys).toContain("[tab]")
+    expect(keys).toMatch(/\[y\] \[Y\] \[n\] +Held on a permission/)
+    expect(keys).not.toContain("[m]")
   })
 })

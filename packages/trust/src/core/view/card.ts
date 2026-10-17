@@ -3,7 +3,20 @@
  * the exact text and what still asks, the approvals that earned it, its family, and the buttons.
  */
 
-import { anyOf, narrower, outside, redirected, showSubject, spelledWords, widenable } from "../family.ts"
+import {
+  anyOf,
+  kindOf,
+  narrower,
+  outside,
+  ranIn,
+  redirected,
+  type Shown,
+  shownOf,
+  showSubject,
+  spelledWords,
+  widenable,
+} from "../family.ts"
+import { OUTSIDE, TEMP_FAMILY } from "../folders.ts"
 import { dayOf, earned, type History, latestAnswers, type Mark } from "../history.ts"
 import { keyOf, type Thresholds } from "../ledger.ts"
 import type { Suggestion } from "../suggest.ts"
@@ -23,7 +36,7 @@ import {
 } from "./model.ts"
 import { button, chip, clock, meter, muted, plain, plural, since, when, wrapRuns } from "./parts.ts"
 import { filled, fit, type Row, type Run, rowText, squeeze, widthOf } from "./rows.ts"
-import { commandText, familyText, type Node, nodeTarget, SECTION_TITLES } from "./tree.ts"
+import { commandShown, familyShown, familyText, type Node, nodeTarget, SECTION_TITLES } from "./tree.ts"
 
 /** `Still asks` and two spaces: the longest label. */
 export const LABEL = 12
@@ -73,6 +86,7 @@ function standingShort(command: Command): Run[] {
   if (stand.kind === "widened") return [{ text: stand.learned ? "✓ read" : "✓ any", tone: "success" }]
   if (stand.kind === "counting" && stand.expired) return [muted("expired")]
   if (command.phase === "once") return [muted("○ once")]
+  if (stand.kind === "counting" && stand.yours) return [muted(`${stand.have}× yours`)]
   return stand.kind === "counting"
     ? [...meter(stand.have, stand.need, command.danger !== undefined), muted(` ${stand.have}/${stand.need}`)]
     : []
@@ -127,7 +141,8 @@ function exactly(command: Command): Fact {
     keep: 3,
     lines: [
       [
-        plain(commandText(command)),
+        /** Where it ran has a line of its own (`whereFact`): this is the command, exactly. */
+        plain(`${kindOf(command.permission)}${shownOf(command.permission, command.subject).text}`),
         ...(spelled.length > 0
           ? [
               muted(
@@ -140,8 +155,16 @@ function exactly(command: Command): Fact {
   }
 }
 
+/** What a widened folder outside the project never answers: what is beside it, and a secret. */
+const notUnder = (family: string) =>
+  family === TEMP_FAMILY
+    ? "a folder that may hold secrets"
+    : "folders beside it, and any that may hold secrets"
+
 /** What still asks once a command is trusted exactly: a smaller one, and the same into a file. */
 function stillAsks(command: Command, stand: Stand): Fact {
+  if (stand.kind === "widened" && command.permission === OUTSIDE)
+    return { label: "Still asks", keep: 6, lines: [[muted(`${notUnder(stand.family)}.`)]] }
   if (stand.kind === "widened")
     return { label: "Still asks", keep: 6, lines: [[muted(`${stand.learned ? NOT_READ : NOT_COVERED}.`)]] }
   if (command.permission === "edit")
@@ -235,6 +258,12 @@ function historySaid(standing: Standing, marks: readonly Mark[], reading: CardRe
       ),
     ]
   if (stand.expired) return [muted(`unused over ${settings.expireDays} days, so it counts again from 0`)]
+  if (stand.yours)
+    return [
+      muted(
+        `approved ${entry.approvals}× · outside the project, its count never answers it — [w] on its folder does`,
+      ),
+    ]
   const got = earned(marks, stand.need, expireMs)
   const left = stand.need - stand.have
   if (got.broken === "rejected" && got.brokenAt !== undefined)
@@ -264,6 +293,11 @@ function standingRuns(standing: Standing, danger: boolean): Run[] {
       ),
     ]
   if (stand.expired) return [{ text: "○ Expired", tone: "muted", bold: true }, muted(" · counting from 0")]
+  if (stand.yours)
+    return [
+      { text: "○ Yours", tone: "text", bold: true },
+      muted(` · approved ${stand.have}× in a row · outside the project, asked until you widen a folder`),
+    ]
   return [
     ...meter(stand.have, stand.need, danger),
     { text: ` ${stand.have} of ${stand.need}`, tone: "text", bold: true },
@@ -326,6 +360,8 @@ function commandCard(command: Command, family: Family | undefined, reading: Card
       ? lead.stand.need
       : settings.threshold + (danger ? settings.dangerExtra : 0)
   const facts: Fact[] = [exactly(command)]
+  const where = whereFact(command.permission, command.subject)
+  if (where) facts.push(where)
   if (command.phase === "answering") facts.push(stillAsks(command, lead.stand))
   facts.push({
     label: "History",
@@ -378,10 +414,38 @@ function commandCard(command: Command, family: Family | undefined, reading: Card
     })
   }
   return {
-    title: [{ text: commandText(command), tone: "text", bold: true }],
+    title: titleRuns(commandShown(command)),
     standing: command.standings.map((each) => standingRuns(each, danger)),
     facts,
     buttons: [],
+  }
+}
+
+/** A title: the command bold, where it ran after it, muted — as its row says it. */
+const titleRuns = (shown: Shown): Run[] => [
+  { text: shown.text, tone: "text", bold: true },
+  ...(shown.place === undefined ? [] : [muted(`  in ${shown.place}`)]),
+]
+
+/**
+ * Where a command ran, when the agent changed folder first, said once in plain words: a row only
+ * has room for `in packages/api`, which reads like part of the command until you know.
+ */
+function whereFact(permission: string, subject: string): Fact | undefined {
+  const place = ranIn(permission, subject)
+  if (place === undefined) return undefined
+  return {
+    label: "Where",
+    keep: 5,
+    lines: [
+      [
+        muted("Run from "),
+        plain(place),
+        muted(
+          " — the agent changed folder first. Trust counts the same command in another folder separately.",
+        ),
+      ],
+    ],
   }
 }
 
@@ -399,7 +463,13 @@ function familyCard(family: Family, reading: CardReading): CardParts {
     : family.widened.length > 0
       ? family.widened.map((each) => [
           { text: "✓ Any", tone: "success", bold: true },
-          plain(` ${showSubject(family.permission, family.family)} …`),
+          plain(
+            ` ${
+              family.permission === "bash" || family.permission === OUTSIDE
+                ? anyOf(family.permission, family.family).replace(/^any /, "")
+                : `${showSubject(family.permission, family.family)} …`
+            }`,
+          ),
           muted(
             each.learned
               ? ` reads · learned from your approvals ${when(reading.now - each.at)}`
@@ -424,13 +494,16 @@ function familyCard(family: Family, reading: CardReading): CardParts {
     facts.push({
       label: family.permission === "edit" ? "Files" : "Commands",
       keep: 7,
+      /** A family's commands share its place: its title says it once. */
       lines: family.commands.map((command) => [
-        plain(showSubject(command.permission, command.subject)),
+        plain(shownOf(command.permission, command.subject).text),
         { text: "  " },
         ...standingShort(command),
       ]),
       table: true,
     })
+  const where = whereFact(family.permission, family.family)
+  if (where && !stale(family)) facts.push(where)
   if (stale(family))
     facts.push({
       label: "Old",
@@ -447,14 +520,24 @@ function familyCard(family: Family, reading: CardReading): CardParts {
     facts.push({
       label: "Still asks",
       keep: 6,
-      lines: [[muted(`${family.widened.every((each) => each.learned) ? NOT_READ : NOT_COVERED}.`)]],
+      lines: [
+        [
+          muted(
+            `${family.permission === OUTSIDE ? notUnder(family.family) : family.widened.every((each) => each.learned) ? NOT_READ : NOT_COVERED}.`,
+          ),
+        ],
+      ],
     })
   const fam = stale(family) ? undefined : familyFact(family, reading)
   if (fam) facts.push({ ...fam, label: "Widen", lines: fam.lines.slice(1) })
   return {
     title: [
-      { text: familyText(family), tone: "text", bold: true },
-      muted(stale(family) ? "  an old widening" : `  family of ${plural(family.commands.length, "command")}`),
+      ...titleRuns(familyShown(family)),
+      muted(
+        stale(family)
+          ? "  an old widening"
+          : `  family of ${plural(family.commands.length, family.permission === OUTSIDE ? "folder" : "command")}`,
+      ),
     ],
     standing,
     facts,
@@ -521,7 +604,7 @@ function todayCard(reading: CardReading): CardParts {
       /** What and when; why it answered is the activity's to say, one key away. */
       lines: today.map((answer) => [
         plain(
-          `${answer.permission === "bash" ? "" : `${answer.permission} `}${answer.items
+          `${kindOf(answer.permission)}${answer.items
             .map((item) => showSubject(answer.permission, item.subject))
             .join(" && ")}`,
         ),
@@ -531,7 +614,12 @@ function todayCard(reading: CardReading): CardParts {
     })
   const almost = commandsOf(reading).filter((command) => {
     const { stand } = leadOf(command)
-    return command.phase === "learning" && stand.kind === "counting" && stand.need - stand.have === 1
+    return (
+      command.phase === "learning" &&
+      stand.kind === "counting" &&
+      !stand.yours &&
+      stand.need - stand.have === 1
+    )
   })
   if (almost.length > 0)
     facts.push({
@@ -669,13 +757,20 @@ function suggestCard(suggestion: Suggestion, reading: CardReading): CardParts {
     .flatMap((command) => command.standings)
     .flatMap(({ entry }) => reading.history.marks.get(entry.key) ?? [])
     .filter((each) => each.kind === "approved" && each.at >= midnight).length
+  const outsider = family.permission === OUTSIDE
+  const where =
+    family.family === TEMP_FAMILY ? "in your temp directory" : `under ${showSubject(OUTSIDE, family.family)}`
   return {
     ...parts,
     /** The family's own `Widen` says what `w` does in general; this card says it for the suggestion. */
     standing: [
       [
         { text: "★ Suggested", tone: "warning", bold: true },
-        muted(` · ${plural(approvals, "approval")} in a row across ${plural(commands, "command")}`),
+        muted(
+          outsider
+            ? ` · approved ${approvals}× across ${plural(commands, "folder")} ${where}`
+            : ` · ${plural(approvals, "approval")} in a row across ${plural(commands, "command")}`,
+        ),
       ],
     ],
     facts: [
@@ -683,11 +778,19 @@ function suggestCard(suggestion: Suggestion, reading: CardReading): CardParts {
         label: "Widen",
         keep: 6,
         lines: [
-          [
-            muted("[w] trusts "),
-            plain(anyOf(family.permission, family.family)),
-            muted(`${family.permission === "bash" ? ` — ${EXCEPT}` : ""}. [d] stops suggesting it.`),
-          ],
+          outsider
+            ? [
+                muted("[w] lets Trust answer reads and writes there from now on — "),
+                plain(anyOf(family.permission, family.family)),
+                muted(
+                  `; ${notUnder(family.family)} still ${family.family === TEMP_FAMILY ? "asks" : "ask"}. [d] stops suggesting it.`,
+                ),
+              ]
+            : [
+                muted("[w] trusts "),
+                plain(anyOf(family.permission, family.family)),
+                muted(`${family.permission === "bash" ? ` — ${EXCEPT}` : ""}. [d] stops suggesting it.`),
+              ],
         ],
       },
       ...(today > 0

@@ -48,7 +48,8 @@ markdown too; the answer is markdown.
 | `e` | Open, or fold, every call |
 | `a` | A call's whole output and arguments — open shows the first 60 lines, whole up to 2,000 |
 | `t` | Show or hide thinking — shown by default, and remembered |
-| `m` | Write it a message, at the foot of the pane (pasting works) |
+| `tab` · a click on the box | Write it a message in the box at the foot — `enter` sends, `esc` gives the keys back and keeps the draft, `←` `→` move the cursor, `ctrl+u` clears what is before it (pasting works) |
+| `y` `Y` `n` · a click | Held on a permission: allow it once, allow it always, or reject it, from the card above the box |
 | `x` | Stop it (press twice) — or, once it has finished, remove it from the list |
 | `X` | Remove every finished subagent from the list |
 | `b` | Move it to the background, so the main agent carries on (OpenCode's own `ctrl+b`) |
@@ -69,7 +70,16 @@ pane under a "Round N" rule. The main agent has three tools of its own:
 | `subagents_read id [after]` | One subagent in full: why it stopped, its task, its whole final answer, and every call it made with what it was about and how it ended — paged with a cursor. Works on cancelled ones, which can be continued |
 | `subagents_wait [ids] [any] [timeoutSeconds]` | Blocks until background subagents finish, fail, are cancelled or stop on a permission — never longer than its timeout — and returns each one's state and answer |
 
-**Message it.** A subagent that is still working picks your message up in its current run and answers
+**Answer it.** A subagent held on a permission shows it as a card at the foot of its pane, over the
+message box, the way OpenCode's own prompt does: what it asks for — a shell call's whole command line
+— and `[y] Allow once`, `[Y] Allow always`, `[n] Reject`, each a key or a click. With several waiting
+the card says `1 of 3` and moves on as each is answered. It answers the same request OpenCode's prompt
+shows, so that one goes too; one the host refuses comes back on the card with why. Not `enter`: it
+opens the item under the cursor, and one press too many would have approved a command.
+
+**Message it.** The box at the foot is always there, with the agent, its model and whose model it is
+under it. `tab` or a click puts the keys in it; `enter` sends and leaves you typing, as OpenCode's
+prompt does; `esc` gives the keys back to the pane and keeps what you wrote. A subagent that is still working picks your message up in its current run and answers
 it in its report, so the main agent sees it too. A finished one wakes up and answers you, and Cockpit
 adds the exchange to the main conversation without starting a turn there, so the main agent knows it
 next time. A message it finished without reading comes back to the field.

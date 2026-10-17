@@ -11,8 +11,12 @@ import { endOf, finishedAt } from "../core/adapt/ends.ts"
 import { createV1Translator } from "../core/adapt/v1.ts"
 import { createV2Translator } from "../core/adapt/v2.ts"
 import type { Change } from "../core/model/changes.ts"
+import type { Permission } from "../core/model/model.ts"
 
 export { endOf, finishedAt }
+
+/** An answer to a permission, in the words both OpenCodes take. */
+export type Decision = "once" | "always" | "reject"
 
 export interface Source {
   /** Loads what exists under a conversation: its subagents, theirs, and their runs so far. */
@@ -45,6 +49,11 @@ export interface Source {
    * with `resume: false` (drawn as one line) — neither answered, both recalled it on the next turn.
    */
   quiet: (sessionID: string, text: string, agent?: string) => Promise<void>
+  /**
+   * Answers a permission a subagent is held on, as OpenCode's own prompt would: the same request, so
+   * that prompt goes too. Rejects with what the host said when it would not take the answer.
+   */
+  reply: (request: Permission, decision: Decision) => Promise<void>
   /** What the host says about a session now, for a run that went quiet; nothing when it does not know. */
   check: (id: string) => Change[]
   dispose: () => void
@@ -73,6 +82,17 @@ const V1_EVENTS = [
  */
 // biome-ignore lint/suspicious/noExplicitAny: see above — every access is to a measured field
 type Loose = Record<string, any>
+
+/**
+ * A client result that may say it failed: the plugin's client hands back `{ data, error }` rather
+ * than throwing, and an answer the host refused must reach the card, not pass as sent.
+ */
+const unwrap = (result: unknown): unknown => {
+  const value = (result && typeof result === "object" ? result : {}) as Loose
+  if (value.error)
+    throw new Error(String(value.error?.message ?? value.error?.data?.message ?? JSON.stringify(value.error)))
+  return "data" in value ? value.data : result
+}
 
 export function createSource(api: Host, log: Log, emit: (changes: Change[]) => void): Source {
   /**
@@ -171,6 +191,9 @@ export function createSource(api: Host, log: Log, emit: (changes: Change[]) => v
         const result = await v1.client.experimental.session.background({ sessionID: parentID })
         return (result?.data ?? result) === true
       },
+      async reply(request, decision) {
+        unwrap(await v1.client.permission.reply({ requestID: request.id, reply: decision }))
+      },
       async quiet(sessionID, text, agent) {
         await v1.client.session.promptAsync({
           sessionID,
@@ -244,6 +267,12 @@ export function createSource(api: Host, log: Log, emit: (changes: Change[]) => v
     async background(parentID) {
       await v2.client.session.background({ sessionID: parentID })
       return true
+    },
+    /** OpenCode 2 names the answer `decision` and wants the session: `reply` is refused (permissions.md). */
+    async reply(request, decision) {
+      unwrap(
+        await v2.client.permission.reply({ sessionID: request.sessionID, requestID: request.id, decision }),
+      )
     },
     async quiet(sessionID, text) {
       await v2.client.session.synthetic({ sessionID, text, resume: false, description: "Subagent exchange" })

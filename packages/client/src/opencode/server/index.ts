@@ -17,11 +17,28 @@ import type { Hooks, PluginInput, ToolDefinition } from "@opencode-ai/plugin"
 import { cockpitVersion, createLog, type Log } from "../../log.ts"
 import { setupServer } from "../../setup/server.ts"
 import { recordAgent } from "../service.ts"
-import { composeParts, type ServerHost, type ServerParts, type ServerStart, type ToolCall } from "./parts.ts"
+import {
+  composeParts,
+  type PermissionAsk,
+  type ServerHost,
+  type ServerParts,
+  type ServerStart,
+  type ToolCall,
+  type ToolStart,
+} from "./parts.ts"
 import { readSkill } from "./skills.ts"
 import { registerSurfaces } from "./surfaces.ts"
 import { partsToV1Hooks, serverFromV1 } from "./v1.ts"
-import { commandText, serverFromV2, toolToV2, type V2Event, type V2ServerContext, v2ToolCall } from "./v2.ts"
+import {
+  commandText,
+  serverFromV2,
+  toolToV2,
+  type V2Event,
+  type V2ServerContext,
+  v2PermissionAsk,
+  v2ToolCall,
+  v2ToolStart,
+} from "./v2.ts"
 
 export * from "./parts.ts"
 export * from "./skills.ts"
@@ -121,6 +138,12 @@ function withSurfaces(host: ServerHost, parts: ServerParts): ServerParts {
   }
 }
 
+/**
+ * How long OpenCode waits on a feature's `permission` before the request goes to the person. The agent
+ * waits too, so a feature that hangs costs a moment, never the turn — and is then simply asked.
+ */
+export const PERMISSION_MS = 2_000
+
 /** Starts a feature: what loaded and where first, so a feature that never answers still said it was loaded. */
 async function begin(
   id: string,
@@ -134,10 +157,45 @@ async function begin(
   try {
     /** `cockpit_settings`, the `cockpit-setup` skill and `/cockpit-setup`: the first entry here adds them. */
     const parts = withSurfaces(host, composeParts([await start(host, options), setupServer(host, id)]))
-    const { toolAfter } = parts
+    const { toolAfter, toolBefore, permission } = parts
     return {
       ...parts,
       tools: loggedTools(parts.tools, host.log),
+      ...(toolBefore
+        ? {
+            toolBefore: async (call: ToolStart) => {
+              try {
+                await toolBefore(call)
+              } catch (error) {
+                host.log.warn("toolBefore failed", { tool: call.tool, error })
+              }
+            },
+          }
+        : {}),
+      /** An answer that fails or takes too long is no answer: the person is asked, as without Cockpit. */
+      ...(permission
+        ? {
+            permission: async (request: PermissionAsk) => {
+              let timer: ReturnType<typeof setTimeout> | undefined
+              const late = new Promise<"late">((done) => {
+                timer = setTimeout(() => done("late"), PERMISSION_MS)
+              })
+              try {
+                const answer = await Promise.race([permission(request), late])
+                if (answer === "late") {
+                  host.log.warn("permission answer too slow; asking", { action: request.action })
+                  return undefined
+                }
+                return answer
+              } catch (error) {
+                host.log.warn("permission failed; asking", { action: request.action, error })
+                return undefined
+              } finally {
+                clearTimeout(timer)
+              }
+            },
+          }
+        : {}),
       /** Listening to a call must never break it: a failure is logged and goes no further. */
       ...(toolAfter
         ? {
@@ -226,6 +284,28 @@ export function dualServer(id: string, start: ServerStart) {
             if (call) await after(call)
           })
         } else host.log.warn("this OpenCode has no execute.after hook; tool output is not followed")
+      }
+      if (parts.toolBefore) {
+        const before = parts.toolBefore
+        if (ctx.tool.hook) {
+          await ctx.tool.hook("execute.before", async (event) => {
+            await before(v2ToolStart(event))
+          })
+        } else host.log.warn("this OpenCode has no execute.before hook; tool calls are not heard early")
+      }
+      if (parts.permission) {
+        const permission = parts.permission
+        /**
+         * Only what config left at "ask": an "allow" needs no answer, and a hook that wrote "allow"
+         * over another plugin's "deny" would be undoing a refusal. The hook is OpenCode's to await —
+         * nothing here throws into it (`begin` already caught it), since a throw would fail the call.
+         */
+        if (ctx.permission?.hook) {
+          await ctx.permission.hook("evaluate", async (event) => {
+            if (event.effect !== "ask") return
+            if ((await permission(v2PermissionAsk(event))) === "allow") event.effect = "allow"
+          })
+        } else host.log.warn("this OpenCode has no permission evaluate hook; answers come from the interface")
       }
       if (parts.system) {
         const system = parts.system

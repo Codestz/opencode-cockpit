@@ -494,3 +494,133 @@ describe("toolAfter", () => {
     expect(heard).toEqual(["a", "b"])
   })
 })
+
+describe("answering a permission before it is asked (OpenCode 2)", () => {
+  /** v2's fake with the two hooks this needs: `execute.before` and permission `evaluate`. */
+  function withHooks() {
+    const fake = fakeV2()
+    const registered: string[] = []
+    let before: ((event: unknown) => unknown) | undefined
+    let evaluate: ((event: { effect: string }) => unknown) | undefined
+    const ctx = {
+      ...fake.ctx,
+      tool: {
+        ...fake.ctx.tool,
+        hook: async (name: string, handler: (event: unknown) => unknown) => {
+          registered.push(name)
+          if (name === "execute.before") before = handler
+        },
+      },
+      permission: {
+        hook: async (name: string, handler: typeof evaluate) => {
+          registered.push(`permission.${name}`)
+          evaluate = handler
+        },
+      },
+    }
+    return { ctx, registered, before: () => before, evaluate: () => evaluate }
+  }
+  const asked = (effect = "ask") => ({
+    sessionID: "ses_1",
+    agent: "build",
+    action: "shell",
+    resources: ["git status"],
+    source: { type: "tool", messageID: "msg_1", id: "call_1" },
+    effect,
+  })
+
+  test("an allow is written into the evaluation: OpenCode makes no request, so draws no prompt", async () => {
+    const heard: unknown[] = []
+    const fake = withHooks()
+    const entry = dualServer("cockpit.test", async () => ({
+      toolBefore: (call) => void heard.push(call),
+      permission: async (request) => {
+        heard.push(request)
+        return "allow"
+      },
+    }))
+    await entry.setup(fake.ctx as never)
+    expect(fake.registered).toEqual(["execute.before", "permission.evaluate"])
+    await fake.before()?.({
+      tool: "shell",
+      sessionID: "ses_1",
+      id: "call_1",
+      input: { command: "git status" },
+    })
+    const event = asked()
+    await fake.evaluate()?.(event)
+    expect(event.effect).toBe("allow")
+    expect(heard).toEqual([
+      { sessionID: "ses_1", tool: "shell", callID: "call_1", args: { command: "git status" } },
+      {
+        sessionID: "ses_1",
+        agent: "build",
+        action: "shell",
+        resources: ["git status"],
+        callID: "call_1",
+        messageID: "msg_1",
+      },
+    ])
+  })
+
+  test("a feature that fails, or says nothing, leaves it asked; what config allowed is not asked about", async () => {
+    let calls = 0
+    const fake = withHooks()
+    const entry = dualServer("cockpit.test", async () => ({
+      toolBefore: () => {
+        throw new Error("listener broke")
+      },
+      permission: async () => {
+        calls++
+        if (calls === 1) throw new Error("ledger broke")
+        return undefined
+      },
+    }))
+    await entry.setup(fake.ctx as never)
+    await fake.before()?.({ tool: "shell", sessionID: "ses_1", id: "call_1", input: {} })
+    for (const _ of [1, 2]) {
+      const event = asked()
+      await fake.evaluate()?.(event)
+      expect(event.effect).toBe("ask")
+    }
+    const allowed = asked("allow")
+    await fake.evaluate()?.(allowed)
+    expect(calls).toBe(2)
+  })
+
+  test("an OpenCode without the hooks loads the feature all the same", async () => {
+    const entry = dualServer("cockpit.test", async () => ({ permission: async () => "allow" as const }))
+    await expect(entry.setup(fakeV2().ctx as never)).resolves.toBeDefined()
+  })
+
+  test("composed: allowed when any feature allows, a failure reported only when none did", async () => {
+    const order: string[] = []
+    const allows = composeParts([
+      {
+        permission: async () => {
+          order.push("a")
+          throw new Error("a broke")
+        },
+      },
+      {
+        permission: async () => {
+          order.push("b")
+          return "allow"
+        },
+      },
+      { permission: async () => void order.push("c") },
+    ])
+    const request = { sessionID: "s", action: "shell", resources: [] }
+    expect(await allows.permission?.(request)).toBe("allow")
+    expect(order).toEqual(["a", "b"])
+    const none = composeParts([
+      { permission: async () => undefined },
+      {
+        permission: async () => {
+          throw new Error("broke")
+        },
+      },
+    ])
+    await expect(none.permission?.(request) ?? Promise.resolve()).rejects.toThrow("broke")
+  })
+})

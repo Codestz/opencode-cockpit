@@ -331,4 +331,38 @@ describe("pause and always", () => {
     w.engine.reconcile(new Set([id]), young + 60_000)
     expect(w.engine.pending().map((p) => p.request.id)).toEqual([id])
   })
+
+  test("an answer from the file is this window's when `here` says so — once, however many windows wrote it", () => {
+    const engine = createEngine(SETTINGS)
+    const auto = (request: string, call: string) => ({
+      v: 1 as const,
+      at: 5_000,
+      type: "auto" as const,
+      rule: "approved by you 3× in a row",
+      request,
+      session: "ses_1",
+      call,
+      permission: "bash",
+      agent: "build",
+      items: [{ subject: "git status" }],
+    })
+    const here = (answer: { call?: string }) => answer.call === "call_here"
+    engine.load([auto("trust_a", "call_here"), auto("trust_b", "call_elsewhere")], { here })
+    engine.load([auto("trust_a", "call_here")], { here })
+    expect(engine.count()).toBe(1)
+    expect(engine.recent().map((answer) => [answer.request, answer.label])).toEqual([
+      ["trust_a", "git status"],
+    ])
+    /** Without `here`, as on OpenCode 1: another window's answers stay theirs. */
+    const plain = createEngine(SETTINGS)
+    plain.load([auto("trust_c", "call_here")])
+    expect(plain.count()).toBe(0)
+  })
+
+  test("a request let go leaves the pending list at once", () => {
+    const w = world()
+    const { id } = w.ask("ls")
+    w.engine.forget(id)
+    expect(w.engine.pending()).toEqual([])
+  })
 })

@@ -16,6 +16,9 @@ import type { Change, ToolState } from "../model/changes.ts"
 type Json = Record<string, unknown>
 const obj = (value: unknown): Json => (value && typeof value === "object" ? (value as Json) : {})
 const str = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined)
+/** The strings of a list; anything else in it, or no list, is nothing. */
+export const strings = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((each): each is string => typeof each === "string") : []
 
 const TOOL_STATES = new Set<ToolState>(["pending", "running", "completed", "failed"])
 const toolState = (status: unknown): ToolState | undefined => {
@@ -55,6 +58,7 @@ export function createV1Translator(unknown: (what: string, detail?: Json) => voi
         ...(agent ? { agent } : {}),
         ...(str(info.title) ? { title: stripAgentSuffix(str(info.title) as string) } : {}),
         ...(denied(info.permission) ? { denied: denied(info.permission) as string[] } : {}),
+        ...modelOf(obj(info.model)),
         at: Number(obj(info.time).created) || at,
       },
     ]
@@ -145,6 +149,8 @@ export function createV1Translator(unknown: (what: string, detail?: Json) => voi
             type: "session",
             id,
             model: str(info.modelID) as string,
+            ...(str(info.providerID) ? { provider: str(info.providerID) as string } : {}),
+            ...(str(info.variant) ? { variant: str(info.variant) as string } : {}),
             at: Number(obj(info.time).created) || at,
           },
         ]
@@ -176,10 +182,38 @@ export function createV1Translator(unknown: (what: string, detail?: Json) => voi
           const message = str(obj(error.data).message) ?? str(error.name) ?? "failed"
           return [{ type: "status", id: sessionID, status: "failed", error: message, at }]
         }
-        case "permission.asked":
+        /**
+         * The request itself is the event's properties: `{ id, sessionID, permission, patterns,
+         * always, tool: { messageID, callID } }`; its answer names it as `requestID`.
+         */
+        case "permission.asked": {
+          const request = str(props.id)
+          if (!sessionID || !request) return []
+          const tool = obj(props.tool)
+          return [
+            {
+              type: "permission",
+              id: sessionID,
+              request,
+              state: "asked",
+              ...(str(props.permission) ? { permission: str(props.permission) as string } : {}),
+              patterns: strings(props.patterns),
+              always: strings(props.always),
+              ...(str(tool.callID) ? { call: str(tool.callID) as string } : {}),
+              ...(str(tool.messageID) ? { message: str(tool.messageID) as string } : {}),
+              at,
+            },
+          ]
+        }
+        case "permission.replied": {
+          const request = str(props.requestID)
+          if (!sessionID) return []
+          return request
+            ? [{ type: "permission", id: sessionID, request, state: "replied", at }]
+            : [{ type: "status", id: sessionID, status: "busy", at }]
+        }
         case "question.asked":
           return sessionID ? [{ type: "status", id: sessionID, status: "waiting", at }] : []
-        case "permission.replied":
         case "question.replied":
         case "question.rejected":
           return sessionID ? [{ type: "status", id: sessionID, status: "busy", at }] : []
@@ -234,6 +268,18 @@ export function createV1Translator(unknown: (what: string, detail?: Json) => voi
     session(info, at = Date.now()) {
       return sessionInfo(obj(info), at)
     },
+  }
+}
+
+/**
+ * A session's `model: { id, providerID, variant }` — both OpenCodes store it so on the session, and
+ * OpenCode 2 on each assistant message too: what the pane's prompt names under the box.
+ */
+export function modelOf(model: Json): { model?: string; provider?: string; variant?: string } {
+  return {
+    ...(str(model.id) ? { model: str(model.id) as string } : {}),
+    ...(str(model.providerID) ? { provider: str(model.providerID) as string } : {}),
+    ...(str(model.variant) ? { variant: str(model.variant) as string } : {}),
   }
 }
 

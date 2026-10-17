@@ -21,6 +21,9 @@ export type Change =
       title?: string
       /** The model it runs on, as the host names it: `space-bunny-free`. */
       model?: string
+      /** Whose model that is (`opencode`), and the variant it runs at (`high`), when the host says. */
+      provider?: string
+      variant?: string
       /** Launched in the background: the main agent carried on without waiting for it. */
       background?: boolean
       /** Permissions its agent's rules deny it outright (OpenCode 1 says; OpenCode 2 does not). */
@@ -69,6 +72,26 @@ export type Change =
     }
   /** Running totals for the session, as the host keeps them. */
   | { type: "usage"; id: string; tokens?: number; cost?: number; at: number }
+  /**
+   * A permission it is held on, asked — or answered, by anyone: OpenCode's own prompt, Trust, the
+   * pane. `request` is the host's id for it, which a reply names. Only `asked` carries what it is for.
+   */
+  | {
+      type: "permission"
+      id: string
+      request: string
+      state: "asked" | "replied"
+      /** As the host names it: `bash` on OpenCode 1, `shell` on 2. */
+      permission?: string
+      /** What it would act on: the commands, the paths. */
+      patterns?: string[]
+      /** What "allow always" would remember. */
+      always?: string[]
+      /** The tool call that asked, so the card can say its whole command, and the message it is in. */
+      call?: string
+      message?: string
+      at: number
+    }
 
 /** OpenCode 2 starts every subagent's task with this line; the task is what follows it. */
 export const SUBAGENT_PREAMBLE = "You are a subagent spawned by another session."

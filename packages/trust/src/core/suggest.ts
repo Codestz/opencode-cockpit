@@ -13,6 +13,7 @@
  */
 
 import { widenable } from "./family.ts"
+import { OUTSIDE } from "./folders.ts"
 import { keyOf } from "./ledger.ts"
 import { type Family, type Reading, standOf } from "./view/model.ts"
 
@@ -28,11 +29,24 @@ export interface Suggestion {
 
 /**
  * Kinds a suggestion is made for: commands, edits and reads by folder, searches and web queries as a
- * tool. Fetches (a host), agents and skills are as wide as they go already.
+ * tool, and folders outside the project — the temp dir as one (folders.ts), suggested once approvals
+ * across two or more of its folders reach the threshold. Fetches (a host), agents and skills are as
+ * wide as they go already.
  */
-const SUGGESTED = new Set(["bash", "edit", "read", "glob", "grep", "websearch"])
+const SUGGESTED = new Set(["bash", "edit", "read", "glob", "grep", "websearch", OUTSIDE])
 
 export function suggestionsOf(reading: Reading, families: readonly Family[]): Suggestion[] {
+  /** Families are rebuilt whenever the ledger changes (view/model.ts), so they key what they suggest. */
+  const kept = suggested.get(families)
+  if (kept) return kept
+  const out = suggestionsNow(reading, families)
+  suggested.set(families, out)
+  return out
+}
+
+const suggested = new WeakMap<readonly Family[], Suggestion[]>()
+
+function suggestionsNow(reading: Reading, families: readonly Family[]): Suggestion[] {
   const { state, settings } = reading
   const out: Suggestion[] = []
   for (const family of families) {

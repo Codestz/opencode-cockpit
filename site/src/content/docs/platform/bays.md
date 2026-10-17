@@ -51,7 +51,7 @@ opencode plugin @opencode-cockpit/updater@0.11.0 --global --force
 ## Subagents — available
 
 Every subagent of the conversation in the sidebar with what it is doing now, its whole run a click
-away in a pane, and a message away with `m`. Follow-ups continue the subagent that did the work
+away in a pane, a message away in the box at its foot, and a permission it asks for answered there. Follow-ups continue the subagent that did the work
 instead of starting a new one, and the main agent can list, read and wait on its subagents. See
 [Subagents](/subagents/overview/).
 

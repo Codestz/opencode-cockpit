@@ -9,7 +9,8 @@
  */
 
 import { fitHints, GLYPH, type Hint, keyName } from "@opencode-cockpit/client/design"
-import { ago, fit, type Row, type Run, spread, type Tone, widthOf } from "./rows.ts"
+import type { Shown } from "../family.ts"
+import { ago, cut, fit, type Row, type Run, spread, squeeze, type Tone, widthOf } from "./rows.ts"
 
 export const muted = (text: string): Run => ({ text, tone: "muted" })
 export const plain = (text: string): Run => ({ text, tone: "text" })
@@ -55,6 +56,56 @@ export function meter(have: number, need: number, danger: boolean): Run[] {
     ...(filled > 0 ? [{ text: "▰".repeat(filled), tone: (danger ? "error" : "success") as Tone }] : []),
     ...(need > filled ? [{ text: "▱".repeat(need - filled), tone: "border" as Tone }] : []),
   ]
+}
+
+/* ─── a command and where it ran ─────────────────────────────────────────────────────────────── */
+
+/** Cells a command keeps however short a row is, before the place gives way too. */
+const COMMAND_MIN = 10
+
+/** The most of a row a place takes when the command does not fit beside it whole. */
+const PLACE_SHARE = 0.4
+
+/**
+ * A subject in `width` columns as two runs: what runs, in `tone`, then where it ran, muted —
+ * `npx vitest run src/…  in packages/api`. The place is short already (family.ts `shownOf`); when the
+ * command does not fit beside it, the place keeps at most `PLACE_SHARE` of the row — its last folder
+ * (`in …/api`) if the whole does not fit there — and the command gives way from its tail, its paths
+ * cut in the middle first (`squeeze`). Never its program: when the env words in front leave no room
+ * for it, they go instead (`… npx vitest`). Exactly `width` or fewer columns; the caller pads.
+ */
+export function shownRuns(shown: Shown, width: number, tone: Tone = "text"): Run[] {
+  const place = placeIn(shown, width)
+  const room = Math.max(Math.min(COMMAND_MIN, width), width - widthOf(place))
+  const text = commandIn(shown, room)
+  const left = width - widthOf(text)
+  return [{ text, tone }, ...(place !== "" && left > 0 ? [muted(cut(place, left))] : [])]
+}
+
+/** `  in packages/api`, or `  in …/api` when the command needs the room. */
+function placeIn(shown: Shown, width: number): string {
+  if (shown.place === undefined) return ""
+  const whole = `  in ${shown.place}`
+  if (widthOf(shown.text) + widthOf(whole) <= width) return whole
+  const share = Math.max(8, Math.floor(width * PLACE_SHARE))
+  if (widthOf(whole) <= share) return whole
+  const last = shown.place.replace(/\/+$/, "").split("/").at(-1) ?? shown.place
+  return last === shown.place ? whole : `  in …/${last}`
+}
+
+/** The command's text in `room` columns, its program kept. */
+function commandIn(shown: Shown, room: number): string {
+  const { text, lead, head } = shown
+  if (widthOf(text) <= room) return text
+  /** `…` and a space after the program: the least a cut command shows of what follows it. */
+  if (lead === 0 || widthOf(text.slice(0, head)) + 2 <= room) return squeeze(text, room)
+  return squeeze(`… ${text.slice(lead)}`, room)
+}
+
+/** A shown subject without the words a heading above it already says: `execute_sql` under `mcpx db-local`. */
+export function unprefixed(shown: Shown, prefix: string): Shown {
+  if (prefix === "" || !shown.text.startsWith(`${prefix} `)) return shown
+  return { ...shown, text: shown.text.slice(prefix.length + 1), lead: 0, head: 0 }
 }
 
 const BARS = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"]

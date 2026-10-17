@@ -119,6 +119,11 @@ export function addToV1Config(config: V1Config, parts: Pick<ServerParts, "skills
   }
 }
 
+/**
+ * A feature's parts as v1's hooks. `permission` and `toolBefore` have none: v1's `permission.ask` is
+ * declared and never called (docs/opencode/permissions.md), so on v1 a permission is answered from
+ * the interface, after OpenCode has drawn its prompt.
+ */
 export function partsToV1Hooks(parts: ServerParts): Hooks {
   return {
     ...(parts.tools ? { tool: parts.tools } : {}),

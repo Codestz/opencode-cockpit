@@ -23,6 +23,11 @@ export interface TrustPaths {
   events: string
   /** The key secrets are hashed with in signatures (core/secret.ts): beside the ledger, never in it. */
   key: string
+  /**
+   * OpenCode's config as the interface last read it, for the agent half (tui/snapshot.ts): OpenCode 2
+   * gives a server plugin no config to read, and its rules are what Trust decides with.
+   */
+  rules: string
 }
 
 /** Anything that is not plainly a filename becomes a dash. */
@@ -51,5 +56,10 @@ export function trustPaths(
     env.COCKPIT_HOME ??
     join(env.XDG_DATA_HOME ?? join(env.HOME ?? homedir(), ".local", "share"), "opencode-cockpit")
   const dir = join(base, "trust", `${projectSlug(directory)}-${shortHash(directory)}`)
-  return { dir, events: join(dir, "events.ndjson"), key: join(dir, "mask.key") }
+  return {
+    dir,
+    events: join(dir, "events.ndjson"),
+    key: join(dir, "mask.key"),
+    rules: join(dir, "rules.json"),
+  }
 }

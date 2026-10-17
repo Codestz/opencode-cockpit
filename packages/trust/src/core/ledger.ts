@@ -12,7 +12,8 @@
  * a ledger you edited by hand should cost you a rule, not the bay.
  */
 
-import { familyOf, notReadSubject } from "./family.ts"
+import { familyOf, notReadSubject, placeless } from "./family.ts"
+import { answersByCount } from "./folders.ts"
 import { canonical } from "./rules.ts"
 
 export interface Item {
@@ -186,7 +187,19 @@ function entry(state: State, permission: string, agent: string, item: Item, at: 
 const expired = (found: Entry, at: number, options: FoldOptions) =>
   options.expireMs > 0 && found.lastAt > 0 && at - found.lastAt > options.expireMs
 
+/**
+ * How many events have changed a state: what the screens key what they built from it on (view/model.ts),
+ * since a state is folded in place. Kept beside the state rather than in it, so a state stays plain data.
+ */
+const revisions = new WeakMap<State, number>()
+export const revisionOf = (state: State): number => revisions.get(state) ?? 0
+
 export function apply(state: State, event: Event, options: FoldOptions): State {
+  if (event.type !== "asked") revisions.set(state, revisionOf(state) + 1)
+  return applyNow(state, event, options)
+}
+
+function applyNow(state: State, event: Event, options: FoldOptions): State {
   switch (event.type) {
     case "asked":
       return state
@@ -229,19 +242,20 @@ export function apply(state: State, event: Event, options: FoldOptions): State {
       return state
     }
     case "widened": {
-      const key = keyOf(event.permission, event.family)
+      const family = placeless(event.permission, event.family)
+      const key = keyOf(event.permission, family)
       state.widened.set(key, {
         key,
         permission: canonical(event.permission),
         agent: event.agent,
-        family: event.family,
+        family,
         at: event.at,
       })
       return state
     }
     case "unwidened": {
       /** A learned family taken away starts again from nothing, as a revoked rule does. */
-      const key = keyOf(event.permission, event.family)
+      const key = keyOf(event.permission, placeless(event.permission, event.family))
       state.widened.delete(key)
       state.reads.delete(key)
       /** A suggestion was answered once: undoing what it led to is not a reason to ask again. */
@@ -249,7 +263,7 @@ export function apply(state: State, event: Event, options: FoldOptions): State {
       return state
     }
     case "dismissed":
-      state.dismissed.add(keyOf(event.permission, event.family))
+      state.dismissed.add(keyOf(event.permission, placeless(event.permission, event.family)))
       return state
     case "paused":
       state.paused = true
@@ -343,6 +357,11 @@ export interface Standing {
   need: number
   trusted: boolean
   expired: boolean
+  /**
+   * Never trusted by its own count, however high: a folder outside the project (folders.ts), which
+   * only a folder you widened answers.
+   */
+  yours?: true
 }
 
 /** A widening answers now: one a person made always; a learned one until it goes unused too long. */
@@ -366,6 +385,7 @@ export function standing(
   if (!found) return { have: 0, need, trusted: false, expired: false }
   const gone = settings.expireDays > 0 && now - found.lastAt > settings.expireDays * DAY
   const have = gone ? 0 : found.streak
+  if (!answersByCount(found.permission)) return { have, need, trusted: false, expired: gone, yours: true }
   return { have, need, trusted: have >= need, expired: gone }
 }
 
