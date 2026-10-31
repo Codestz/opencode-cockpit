@@ -309,9 +309,14 @@ export function dualServer(id: string, start: ServerStart) {
       }
       if (parts.system) {
         const system = parts.system
-        await ctx.session.hook("context", async (event) => {
+        /**
+         * Every request kind gets the same text: a compaction or warming request whose system part
+         * differs from the conversation's misses the provider's prompt cache and prefills it again.
+         */
+        const add = async (event: { sessionID: string; system: unknown[] }) => {
           for (const text of await system(event.sessionID)) event.system.push({ type: "text", text })
-        })
+        }
+        for (const kind of ["context", "compaction", "generate"] as const) await ctx.session.hook(kind, add)
       }
       const stop = new AbortController()
       if (parts.sessionDeleted || parts.event) {

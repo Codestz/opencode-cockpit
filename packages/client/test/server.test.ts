@@ -179,7 +179,7 @@ function fakeV2(events: { type: string; data?: { sessionID?: string } }[] = [], 
   const skills: { id: string; path: string }[] = []
   const commands: { name: string; execute(input: unknown): Promise<void> }[] = []
   const prompts: unknown[] = []
-  let context: ((event: { sessionID: string; system: unknown[] }) => unknown) | undefined
+  const runs = new Map<string, (event: { sessionID: string; system: unknown[] }) => unknown>()
   const ctx = {
     options: {},
     location: { directory },
@@ -205,9 +205,9 @@ function fakeV2(events: { type: string; data?: { sessionID?: string } }[] = [], 
       get: async () => undefined,
       synthetic: async () => undefined,
       prompt: async (input: unknown) => void prompts.push(input),
-      hook: async (name: string, run: typeof context) => {
+      hook: async (name: string, run: (event: { sessionID: string; system: unknown[] }) => unknown) => {
         hooks.push(name)
-        context = run
+        runs.set(name, run)
       },
     },
     event: {
@@ -216,7 +216,7 @@ function fakeV2(events: { type: string; data?: { sessionID?: string } }[] = [], 
       },
     },
   }
-  return { ctx, added, hooks, skills, commands, prompts, system: () => context }
+  return { ctx, added, hooks, skills, commands, prompts, system: (kind = "context") => runs.get(kind) }
 }
 
 describe("one entry for both", () => {
@@ -231,7 +231,7 @@ describe("one entry for both", () => {
     expect(started).toBe(false)
   })
 
-  test("v2's setup registers the tools, the context hook, and follows deleted sessions", async () => {
+  test("v2's setup registers the tools, the request hooks, and follows deleted sessions", async () => {
     const deleted: string[] = []
     let disposed = false
     const fake = fakeV2([{ type: "session.idle" }, { type: "session.deleted", data: { sessionID: "ses_9" } }])
@@ -249,10 +249,13 @@ describe("one entry for both", () => {
     })
     const cleanup = await entry.setup(fake.ctx as never)
     expect(fake.added).toContain("echo")
-    expect(fake.hooks).toEqual(["context"])
-    const event = { sessionID: "ses_1", system: [] as unknown[] }
-    await fake.system()?.(event)
-    expect(event.system).toEqual([{ type: "text", text: "guidance for ses_1" }])
+    /** Compaction and warming carry the same system text, or they miss the prompt cache. */
+    expect(fake.hooks).toEqual(["context", "compaction", "generate"])
+    for (const kind of fake.hooks) {
+      const event = { sessionID: "ses_1", system: [] as unknown[] }
+      await fake.system(kind)?.(event)
+      expect(event.system).toEqual([{ type: "text", text: "guidance for ses_1" }])
+    }
     await Bun.sleep(0)
     expect(deleted).toEqual(["ses_9"])
     await cleanup?.()

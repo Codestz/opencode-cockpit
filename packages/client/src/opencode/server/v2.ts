@@ -39,7 +39,11 @@ export interface V2ServerContext {
     prompt?(input: { sessionID: string; text: string; delivery?: "steer" | "queue" }): Promise<unknown>
     /** A session's messages as the model is given them (2.0.15). */
     context?(input: { sessionID: string }): Promise<unknown[]>
-    hook(name: "context", run: (event: { sessionID: string; system: unknown[] }) => unknown): Promise<unknown>
+    /** One hook per request kind: `context` is the primary request only, not compaction or `generate`. */
+    hook(
+      name: "context" | "compaction" | "generate",
+      run: (event: { sessionID: string; system: unknown[] }) => unknown,
+    ): Promise<unknown>
   }
   event: { subscribe(options: { signal: AbortSignal }): AsyncIterable<V2Event> }
 }

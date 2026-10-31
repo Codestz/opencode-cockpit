@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Compaction and warming keep the prompt cache on OpenCode 2.** Review, Shell and Trail added
+  their system text to the conversation's requests only, through the session `context` hook.
+  OpenCode 2 builds compaction and `generate` (warming) requests through their own hooks, so those
+  went out with a shorter system block — 4 parts where the conversation had 9 — and the provider
+  wrote the whole conversation to its cache again instead of reading it. The same text is now added
+  on all three hooks; a compaction's system block matches the conversation's exactly. Reported in
+  #53.
+
 ## [0.11.1] - 2026-10-17
 
 ### Added
