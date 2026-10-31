@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.11.2] - 2026-10-31
+
 ### Fixed
 
 - **Compaction and warming keep the prompt cache on OpenCode 2.** Review, Shell and Trail added
@@ -1302,7 +1304,8 @@ All notable changes to this project are documented here. The format follows
 - Daemon lifecycle: on-demand start, single instance under concurrent starts, idle shutdown,
   replacement of outdated idle daemons, orphan reaping after crashes.
 
-[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.11.1...HEAD
+[Unreleased]: https://github.com/Codestz/opencode-cockpit/compare/v0.11.2...HEAD
+[0.11.2]: https://github.com/Codestz/opencode-cockpit/compare/v0.11.1...v0.11.2
 [0.11.1]: https://github.com/Codestz/opencode-cockpit/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/Codestz/opencode-cockpit/compare/v0.10.2...v0.11.0
 [0.10.2]: https://github.com/Codestz/opencode-cockpit/compare/v0.10.1...v0.10.2
